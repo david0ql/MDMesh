@@ -45,7 +45,7 @@ async function rfbOf(frame: HTMLIFrameElement | null): Promise<Rfb | null> {
     const loaded = await new Promise<boolean>((resolve) => {
       const s = doc.createElement('script');
       s.type = 'module';
-      s.src = '/remote-keys.js';
+      s.src = '/remote-keys.js?v=2'; // the query also skips a CDN copy of an older answer
       s.onload = () => resolve(true);
       s.onerror = () => resolve(false);
       doc.head.appendChild(s);
