@@ -217,3 +217,142 @@ if want browser; then
   printf '%s' "$(ui)" | grep -q "Example Domain" && ok "other sites load" || ko "other sites load"
   adb_ shell input keyevent KEYCODE_HOME
 fi
+
+# ================================================================================================ R4 app policy
+pkg_flag(){ adb_ shell dumpsys package "$1" 2>/dev/null | grep -m1 -oE "$2=(true|false)" | cut -d= -f2; }
+if want apps; then
+  echo "== app policy: only allowed apps; installed outside the list = paused (R4)"
+  TESTAPK="$(dirname "$0")/testapp/testapp-v1.apk"
+  TPKG=$(aapt2 dump badging "$TESTAPK" 2>/dev/null | sed -n "s/package: name='\([^']*\)'.*/\1/p")
+  [ -n "$TPKG" ] || TPKG=$(~/Library/Android/sdk/build-tools/35.0.0/aapt2 dump badging "$TESTAPK" | sed -n "s/package: name='\([^']*\)'.*/\1/p")
+  adb_ uninstall "$TPKG" >/dev/null 2>&1
+  T0=$(( $(date +%s) * 1000 ))
+  chk "policy saved (allowlist, hide Play Store)" "$(set_policy '{"apps":{"mode":"allowlist","hidePlayStore":true}}')" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  chk "apps outcome" "$(outcome apps)" "applied"
+  chk "Play Store hidden" "$(pkg_flag com.android.vending hidden)" "true"
+  chk "the kiosk app (configuration app) is not paused" "$(pkg_flag co.amovil.preventa suspended)" "false"
+  adb_ install -r "$TESTAPK" >/dev/null
+  wait_for 30 bash -c "adb -s $SERIAL shell dumpsys package $TPKG | grep -q 'suspended=true'" \
+    && ok "an app installed outside the list is paused within seconds ($TPKG)" || ko "a newly installed app is paused" "$(pkg_flag "$TPKG" suspended)"
+  curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null; sleep 12
+  printf '%s' "$(events_since "$T0")" | grep -q "appBlocked:$TPKG" && ok "the console timeline shows appBlocked" || ko "timeline shows appBlocked" "$(events_since "$T0")"
+  chk "policy saved (the test app allowed, store visible)" "$(set_policy "{\"apps\":{\"mode\":\"allowlist\",\"allowed\":[\"$TPKG\"]}}")" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  chk "allowed now: unpaused" "$(pkg_flag "$TPKG" suspended)" "false"
+  chk "Play Store visible again" "$(pkg_flag com.android.vending hidden)" "false"
+  chk "policy saved (app policy removed)" "$(set_policy "")" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  adb_ install -r "$TESTAPK" >/dev/null; sleep 5
+  chk "without an app policy nothing is paused" "$(pkg_flag "$TPKG" suspended)" "false"
+  adb_ uninstall "$TPKG" >/dev/null 2>&1
+fi
+
+# ================================================================================================ R6 location trail
+fixes_since(){ get "$A/devices/$DEV/locations?since=$1&limit=500" | python3 -c "
+import sys,json; d=json.load(sys.stdin)['data']; print(len(d), ' '.join('%.4f,%.4f' % (f['lat'], f['lon']) for f in sorted(d, key=lambda f: f['capturedAt'])))"; }
+# walk <seconds> <start lat> <start lon>: move the emulator's GPS a little every 10 s (a phone on the road).
+walk(){ local end=$(( $(date +%s) + $1 )) lat=$2 lon=$3
+  while [ "$(date +%s)" -lt "$end" ]; do adb -s "$SERIAL" emu geo fix "$lon" "$lat" >/dev/null; lat=$(python3 -c "print(round($lat+0.0012,6))"); sleep 10; done; }
+if want trail; then
+  echo "== location trail every minute, kept while offline (R6)"
+  chk "policy saved (trackingMinutes 1)" "$(set_policy '{"trackingMinutes":1}')" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  chk "tracking outcome" "$(outcome tracking)" "applied"
+  T0=$(( $(date +%s) * 1000 ))
+  walk 200 4.6097 -74.0817
+  read -r n coords <<<"$(fixes_since "$T0")"
+  [ "${n:-0}" -ge 3 ] && ok "online: $n points in ~3 minutes" || ko "online: at least 3 points in ~3 minutes" "$n"
+  [ "$(printf '%s' "$coords" | tr ' ' '\n' | sort -u | wc -l | tr -d ' ')" -ge 2 ] && ok "points follow the movement" || ko "points follow the movement" "$coords"
+  echo "   offline for ~3 minutes"
+  adb_ shell svc wifi disable; adb_ shell svc data disable
+  T1=$(( $(date +%s) * 1000 ))
+  walk 190 4.7000 -74.0500
+  read -r n_off _ <<<"$(fixes_since "$T1")"
+  chk "nothing arrives while offline" "${n_off:-0}" "0"
+  adb_ shell svc wifi enable; adb_ shell svc data enable
+  T2=$(( $(date +%s) * 1000 ))
+  wait_for 120 bash -c "curl -s -b '$CJ' '$A/devices/$DEV/locations?since=$T1&limit=500' | python3 -c \"import sys,json; d=json.load(sys.stdin)['data']; sys.exit(0 if sum(1 for f in d if f['capturedAt'] < $T2) >= 2 else 1)\""
+  n_back=$(get "$A/devices/$DEV/locations?since=$T1&limit=500" | python3 -c "import sys,json; print(sum(1 for f in json.load(sys.stdin)['data'] if f['capturedAt'] < $T2))")
+  [ "${n_back:-0}" -ge 2 ] && ok "after reconnecting, the $n_back points captured offline are uploaded with their times" || ko "points captured offline are uploaded" "$n_back"
+  chk "policy saved (no trail)" "$(set_policy "")" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+fi
+
+# ================================================================================================ R5 SIM
+sim_state(){ get "$A/devices/$DEV/telemetry" | python3 -c "
+import sys,json; t=json.load(sys.stdin)['data'] or {}; s=(t.get('dynamic') or {}).get('sim') or {}
+print(s.get('state','')+'|'+','.join((x.get('carrier') or '')+':'+(x.get('number') or '') for x in s.get('slots',[])))"; }
+if want sim; then
+  echo "== SIM: number visible, swap and removal raise alerts (R5)"
+  curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null; sleep 10
+  S0=$(sim_state)
+  printf '%s' "$S0" | grep -q '^ready|' && ok "SIM state reported ($S0)" || ko "SIM state reported" "$S0"
+  printf '%s' "$S0" | grep -qE ':\+?[0-9]{6,}' && ok "phone number reported" || ko "phone number reported" "$S0"
+  T0=$(( $(date +%s) * 1000 ))
+  NEWNUM="1555$(printf '%06d' $((RANDOM*RANDOM % 1000000)))"
+  adb -s "$SERIAL" emu phonenumber "$NEWNUM" >/dev/null
+  sleep 8; curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null
+  wait_for 90 bash -c "curl -s -b '$CJ' '$A/devices/$DEV/events?since=$T0&limit=200' | grep -q simChanged" \
+    && ok "a different SIM number raises simChanged ($(events_since "$T0" | grep -o 'simChanged:[^ ]*[^s]*' | head -1))" || ko "a different SIM number raises simChanged" "$(events_since "$T0")"
+  printf '%s' "$(sim_state)" | grep -q "$NEWNUM" && ok "the console shows the new number" || ko "the console shows the new number" "$(sim_state)"
+  T1=$(( $(date +%s) * 1000 ))
+  adb_ shell cmd phone restart-modem >/dev/null 2>&1
+  sleep 25; curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null; sleep 10
+  printf '%s' "$(events_since "$T1")" | grep -qE 'simRemoved|simInserted' \
+    && ko "a modem restart is not reported as a removed SIM" "$(events_since "$T1")" || ok "a modem restart is not reported as a removed SIM"
+fi
+
+# ================================================================================================ R7 passcode
+if want passcode; then
+  echo "== change the phone's lock-screen password remotely (R7)"
+  q(){ post "$A/devices/$DEV/commands" "{\"type\":\"device.passcodeReset\",\"requiresCapability\":\"device.passcodeReset\",\"payload\":\"{\\\"newPassword\\\":\\\"$1\\\"}\"}" >/dev/null; curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null; }
+  last_pc(){ get "$A/devices/$DEV/commands" | field "next(c['status'] for c in d['data'] if c['type']=='device.passcodeReset')"; }
+  q 2468
+  wait_for 60 bash -c "[ \"\$(curl -s -b '$CJ' '$A/devices/$DEV/commands' | python3 -c \"import sys,json; print(next(c['status'] for c in json.load(sys.stdin)['data'] if c['type']=='device.passcodeReset'))\")\" = done ]" \
+    && ok "passcode set to 2468 (command done)" || ko "passcode set (command done)" "$(last_pc)"
+  adb_ shell locksettings verify --old 2468 2>&1 | grep -qi "verified successfully\|Lock credential verified" && ok "the phone now requires 2468" || ko "the phone requires 2468" "$(adb_ shell locksettings verify --old 2468 2>&1 | head -1)"
+  adb_ shell locksettings verify --old 1111 2>&1 | grep -qi "verified successfully" && ko "a wrong PIN is refused" || ok "a wrong PIN is refused"
+  q ""
+  sleep 20
+  adb_ shell locksettings verify 2>&1 | grep -qi "verified successfully\|Lock credential verified" && ok "passcode cleared remotely" || ko "passcode cleared remotely" "$(adb_ shell locksettings verify 2>&1 | head -1)"
+fi
+
+# ================================================================================================ R8 open app / ring / script
+if want launch; then
+  echo "== scripts: open an app, ring (R8)"
+  qc(){ post "$A/devices/$DEV/commands" "$1" | field "d['data']['id']"; }
+  st(){ get "$A/devices/$DEV/commands" | field "next(c['status']+':'+(c.get('detail') or '') for c in d['data'] if c['id']==$1)"; }
+  adb_ shell input keyevent KEYCODE_HOME; sleep 2
+  R=$(qc '{"type":"device.ring","requiresCapability":"device.ring","payload":"{\"durationMs\":8000}"}')
+  curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null
+  wait_for 40 bash -c "adb -s $SERIAL shell dumpsys audio | grep -q 'usage=USAGE_ALARM.*state:started\|state:started.*USAGE_ALARM'" \
+    && ok "the phone rings (an alarm-usage player is playing)" || ko "the phone rings" "$(st "$R")"
+  chk "ring command done" "$(st "$R" | cut -d: -f1)" "done"
+  L=$(qc '{"type":"device.appLaunch","requiresCapability":"device.appLaunch","payload":"{\"packageName\":\"co.amovil.preventa\"}"}')
+  curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null
+  wait_for 40 bash -c "[ \"\$(adb -s $SERIAL shell dumpsys activity activities | sed -n 's/.*topResumedActivity=.* u0 \([^ /]*\).*/\1/p' | head -1)\" = co.amovil.preventa ]" \
+    && ok "open app brings Preventa to the front" || ko "open app brings Preventa up" "top=$(top) $(st "$L")"
+  M=$(qc '{"type":"device.appLaunch","requiresCapability":"device.appLaunch","payload":"{\"packageName\":\"com.example.not.installed\"}"}')
+  curl -s -b "$CJ" -X POST "$A/devices/$DEV/sync" >/dev/null; sleep 12
+  chk "an app that is not installed is reported" "$(st "$M")" "failed:not installed or has no launcher entry"
+fi
+
+# ================================================================================================ R11 kiosk crash-loop guard
+if want crashloop; then
+  echo "== kiosk: pressing Back repeatedly never leaves the kiosk (R11)"
+  chk "policy saved (single-app kiosk)" "$(set_policy "")" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  adb_ shell monkey -p co.amovil.preventa -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1; sleep 6
+  for i in 1 2 3 4 5 6; do adb_ shell input keyevent KEYCODE_BACK; sleep 2.5; done
+  sleep 2
+  chk "still in kiosk after 6x Back" "$(locktask)" "LOCKED"
+  u=$(ui)
+  printf '%s' "$u" | grep -q 'content-desc="kiosk-open-app"' && ok "the kiosk shows the locked 'Open Amovil Preventa' screen" || ko "paused screen shown" "top=$(top)"
+  tap_text "kiosk-open-app"; sleep 5
+  chk "one tap reopens the app" "$(top)" "co.amovil.preventa"
+  chk "and the kiosk is still locked" "$(locktask)" "LOCKED"
+fi
+
+echo "===== RESULT: PASS=$PASS FAIL=$FAIL ====="
+[ "$FAIL" -eq 0 ]
