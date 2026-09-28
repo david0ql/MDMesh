@@ -4,6 +4,8 @@ import { useToast } from '../ui/toast';
 import {
   listApplications,
   getVersions,
+  addApplicationVersion,
+  type ApplicationVersion,
   uploadApk,
   uploadBundle,
   commitUpload,
@@ -243,42 +245,57 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         if (fd.pkg) setPkg(fd.pkg);
         if (fd.versionCode) setVc(String(fd.versionCode));
       }
+      // An app already in the Library is updated through versions (never a second Library entry): a higher
+      // versionCode becomes its new version and the server moves the configurations using it there (their phones
+      // then update); the same versionCode cannot update a phone — Android and the agent compare versionCode.
+      const existing = fd?.pkg
+        ? (await listApplications(fd.pkg).catch(() => [] as Application[])).find((a) => a.pkg === fd.pkg)
+        : undefined;
+      let committedUrl: string | undefined;
       try {
-        const committed = await commitUpload(up.serverPath);
-        if (committed.url) {
-          setUrl(committed.url);
-          // Auto-add to the Library so it shows up everywhere (incl. the kiosk app picker),
-          // not just this one-off deploy. Non-fatal if it fails.
-          if (fd?.pkg) {
-            try {
-              const saved = await saveAndroidApplication({
-                name: fd.name || fd.pkg,
-                pkg: fd.pkg,
-                url: committed.url,
-                version: fd.version,
-                versionCode: fd.versionCode,
-                type: 'app', // applications.type is NOT NULL — send it explicitly so the save can't fail
-              });
-              setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
-              toast.push('ok', 'APK ready', 'Hosted, added to your Library — review and deploy.');
-            } catch {
-              // Most likely it's already in the Library (same package+version). Reuse that entry so it
-              // stays assignable to a configuration instead of silently dropping it.
-              const existing = (await listApplications(fd.pkg).catch(() => [])).find((a) => a.pkg === fd.pkg);
-              if (existing?.id) {
-                setSavedAppId(existing.id);
-                toast.push('ok', 'APK ready', 'Already in your Library — review and deploy.');
-              } else {
-                toast.push('ok', 'APK ready', 'Hosted — review and deploy. (Could not add to Library.)');
-              }
-            }
-          } else {
-            toast.push('ok', 'APK ready', 'Details filled in — review and deploy.');
-          }
-        } else {
-          toast.push('ok', 'Details extracted', 'Couldn’t host the file — paste a URL to deploy.');
-        }
+        committedUrl = (await commitUpload(up.serverPath)).url || undefined;
       } catch {
+        committedUrl = undefined; // e.g. the same file name is already hosted
+      }
+      if (committedUrl) setUrl(committedUrl);
+      if (existing?.id && fd?.pkg) {
+        setSavedAppId(existing.id);
+        const versions = await getVersions(existing.id).catch(() => [] as ApplicationVersion[]);
+        const current = versions.reduce((m, v) => Math.max(m, v.versionCode ?? 0), 0);
+        const vc = fd.versionCode ?? 0;
+        if (vc > current && committedUrl) {
+          await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
+          toast.push('ok', 'New version added',
+            `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) — configurations using it now install this version.`);
+        } else if (vc > current) {
+          toast.push('err', 'Could not host the file',
+            'A file with that name is already on the server — rename the APK (e.g. add the version) and drop it again.');
+        } else if (vc === current) {
+          toast.push('err', 'Same versionCode as the Library',
+            `${fd.pkg} already has versionCode ${vc}. Phones only update to a higher versionCode — raise it in the app build.`);
+        } else {
+          toast.push('err', 'Older than the Library',
+            `versionCode ${vc} is lower than ${current}. Phones never downgrade; uninstall first if you really need it.`);
+        }
+      } else if (committedUrl && fd?.pkg) {
+        // New app: add it to the Library so it shows up everywhere (incl. the configuration and kiosk pickers).
+        try {
+          const saved = await saveAndroidApplication({
+            name: fd.name || fd.pkg,
+            pkg: fd.pkg,
+            url: committedUrl,
+            version: fd.version,
+            versionCode: fd.versionCode,
+            type: 'app', // applications.type is NOT NULL — send it explicitly so the save can't fail
+          });
+          setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
+          toast.push('ok', 'APK ready', 'Hosted, added to your Library — review and deploy.');
+        } catch {
+          toast.push('ok', 'APK ready', 'Hosted — review and deploy. (Could not add to Library.)');
+        }
+      } else if (committedUrl) {
+        toast.push('ok', 'APK ready', 'Details filled in — review and deploy.');
+      } else {
         toast.push('ok', 'Details extracted', 'Couldn’t host the file — paste a URL to deploy.');
       }
     } catch (e) {

@@ -21,6 +21,7 @@ public class AgentConfigUpdatedListener implements EventListener<ConfigurationUp
     private static final Logger logger = LoggerFactory.getLogger(AgentConfigUpdatedListener.class);
     private final AgentCommandDAO commandDAO;
     private final AgentWakeHub wakeHub;
+    private final ConfigAppInstaller appInstaller;
 
     /**
      * {@code ConfigurationDAO.updateConfiguration} fires the event INSIDE its {@code @Transactional} method and
@@ -37,9 +38,10 @@ public class AgentConfigUpdatedListener implements EventListener<ConfigurationUp
                 return t;
             }));
 
-    public AgentConfigUpdatedListener(AgentCommandDAO commandDAO, AgentWakeHub wakeHub) {
+    public AgentConfigUpdatedListener(AgentCommandDAO commandDAO, AgentWakeHub wakeHub, ConfigAppInstaller appInstaller) {
         this.commandDAO = commandDAO;
         this.wakeHub = wakeHub;
+        this.appInstaller = appInstaller;
     }
 
     @Override
@@ -54,6 +56,11 @@ public class AgentConfigUpdatedListener implements EventListener<ConfigurationUp
 
     private void wakeDevices(ConfigurationUpdatedEvent event) {
         try {
+            // The configuration's apps (new APKs, new versions, removals) reach every device running it.
+            int queued = appInstaller == null ? 0 : appInstaller.enqueueForConfiguration(event.getConfigurationId());
+            if (queued > 0) {
+                logger.info("configuration {} saved: {} app command(s) queued for its devices", event.getConfigurationId(), queued);
+            }
             for (String number : commandDAO.listDeviceNumbersByConfigurationId(event.getConfigurationId())) {
                 wakeHub.wake(number, "commands");
             }

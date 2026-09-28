@@ -77,6 +77,16 @@ export async function listApplications(value?: string): Promise<Application[]> {
   return apiClient.get<Application[]>(path);
 }
 
+/**
+ * Add a new version of an existing app. When it is the app's latest, the server moves every configuration using the
+ * app to it and queues the install on their devices.
+ */
+export async function addApplicationVersion(v: {
+  applicationId: number; version?: string; versionCode?: number; url: string;
+}): Promise<ApplicationVersion> {
+  return apiClient.put<ApplicationVersion>('/private/applications/versions', v);
+}
+
 export async function getVersions(appId: number): Promise<ApplicationVersion[]> {
   return apiClient.get<ApplicationVersion[]>(`/private/applications/${appId}/versions`);
 }

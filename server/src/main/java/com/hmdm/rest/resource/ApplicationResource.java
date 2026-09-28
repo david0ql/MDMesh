@@ -75,11 +75,18 @@ public class ApplicationResource {
     public ApplicationResource() {
     }
 
+    private com.hmdm.persistence.AgentCommandDAO agentCommandDAO;
+    private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
+
     @Inject
     public ApplicationResource(ApplicationDAO applicationDAO,
                                ConfigurationDAO configurationDAO,
                                PushService pushService,
-                               @Named("files.directory") String filesDirectory) {
+                               @Named("files.directory") String filesDirectory,
+                               com.hmdm.persistence.AgentCommandDAO agentCommandDAO,
+                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+        this.agentCommandDAO = agentCommandDAO;
+        this.configAppInstaller = configAppInstaller;
         this.applicationDAO = applicationDAO;
         this.configurationDAO = configurationDAO;
         this.pushService = pushService;
@@ -300,6 +307,32 @@ public class ApplicationResource {
         }
     }
 
+    /**
+     * DallyControl: configurations always run the latest version of their apps. When the new version is the app's
+     * latest, move every configuration using the app to it and queue the install on their devices (the agent skips
+     * devices already at that version before downloading). Best-effort: the version itself is already saved.
+     */
+    private void rollOutLatestVersion(ApplicationVersion version) {
+        if (version == null || version.getId() == null || agentCommandDAO == null) {
+            return;
+        }
+        try {
+            Application app = applicationDAO.findById(version.getApplicationId());
+            if (app == null || !version.getId().equals(app.getLatestVersion())) {
+                return;
+            }
+            java.util.List<Integer> configs = agentCommandDAO.moveConfigurationsToAppVersion(app.getId(), version.getId());
+            int queued = 0;
+            for (Integer configurationId : configs) {
+                queued += configAppInstaller.enqueueForConfiguration(configurationId);
+            }
+            logger.info("Application {} version {} is the latest: {} configuration(s) moved to it, {} install(s) queued",
+                    app.getPkg(), version.getVersion(), configs.size(), queued);
+        } catch (Exception e) {
+            logger.warn("Could not roll out application version {}", version.getId(), e);
+        }
+    }
+
     // =================================================================================================================
     @ApiOperation(
             value = "Create or update application version",
@@ -320,6 +353,7 @@ public class ApplicationResource {
                 // Here only "url" is coming, we may need to change it to urlArmeabi or urlArm64 if arch is set
                 this.applicationDAO.insertApplicationVersion(applicationVersion);
                 applicationVersion = this.applicationDAO.findApplicationVersionById(applicationVersion.getId());
+                rollOutLatestVersion(applicationVersion);
                 return Response.OK(applicationVersion);
             } else {
                 logger.info("Application " + applicationVersion.getApplicationId() + " version updated: " + applicationVersion.getVersion() +

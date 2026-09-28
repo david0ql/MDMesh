@@ -293,6 +293,7 @@ public class FleetResource {
                 commandDAO.updateDevicePinned(deviceId, true);
                 if (!body.configurationId.equals(row.getConfigurationId())) {
                     commandDAO.updateDeviceConfiguration(deviceId, body.configurationId);
+                    scopes.installConfigurationApps(row.getNumber());
                     wakeHub.wake(row.getNumber(), "commands");
                     changed++;
                 }

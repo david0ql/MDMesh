@@ -1655,6 +1655,7 @@ a {
   padding-top: 2px;
 }
 .qr-step .st-tx .sub {
+  display: block;
   color: var(--muted);
   font-size: 12.5px;
   margin-top: 3px;

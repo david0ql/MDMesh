@@ -70,6 +70,9 @@ public class ConfigAppInstaller {
             for (Application app : apps) {
                 String uninstallPkg = uninstallTarget(app);
                 if (uninstallPkg != null) {
+                    if (commandDAO.hasOpenIdentical(device.getNumber(), "app.uninstall", uninstallPayload(uninstallPkg))) {
+                        continue;
+                    }
                     AgentCommand cmd = new AgentCommand();
                     cmd.setDeviceNumber(device.getNumber());
                     cmd.setType("app.uninstall");
@@ -90,10 +93,16 @@ public class ConfigAppInstaller {
                     // Catalog placeholder / web app / seed leftover — nothing downloadable.
                     continue;
                 }
+                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), url, app.getParts());
+                // Re-queued on every configuration save: skip one already on its way. The agent itself skips an
+                // app already at that version before downloading anything, so a repeat costs one tiny command.
+                if (commandDAO.hasOpenIdentical(device.getNumber(), "app.install", payload)) {
+                    continue;
+                }
                 AgentCommand cmd = new AgentCommand();
                 cmd.setDeviceNumber(device.getNumber());
                 cmd.setType("app.install");
-                cmd.setPayload(InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), url, app.getParts()));
+                cmd.setPayload(payload);
                 cmd.setRequiresCapability(RolloutProgress.INSTALL_CAPABILITY);
                 cmd.setStatus("pending");
                 cmd.setCreatedAt(now);
@@ -105,6 +114,18 @@ public class ConfigAppInstaller {
             }
         } catch (Exception e) {
             logger.warn("Failed to queue configuration apps for device {}", device.getNumber(), e);
+        }
+        return queued;
+    }
+
+    /**
+     * Queue the configuration's apps for every device running it (after the configuration was saved), so an APK
+     * added to a configuration reaches its phones without visiting each one. Returns the number of commands queued.
+     */
+    public int enqueueForConfiguration(int configurationId) {
+        int queued = 0;
+        for (String number : commandDAO.listDeviceNumbersByConfigurationId(configurationId)) {
+            queued += enqueueConfigApps(unsecureDAO.getDeviceByNumber(number));
         }
         return queued;
     }

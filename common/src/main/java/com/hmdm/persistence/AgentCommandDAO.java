@@ -174,6 +174,18 @@ public class AgentCommandDAO {
         return deviceMapper.listFleetLocations(customerId, from, to, limit);
     }
 
+    // --- App versions ---
+
+    /**
+     * Point every configuration that uses the app (as an app or as its main app) at [newVersionId]; returns the ids
+     * of the configurations that use the app.
+     */
+    public List<Integer> moveConfigurationsToAppVersion(int appId, int newVersionId) {
+        deviceMapper.relinkConfigurationApps(appId, newVersionId);
+        deviceMapper.relinkConfigurationMainApps(appId, newVersionId);
+        return deviceMapper.listConfigurationsUsingApp(appId);
+    }
+
     // --- Groups (companies) and configuration scopes ---
 
     public java.util.List<com.hmdm.persistence.domain.DeviceGroupView> listGroups(int customerId) {
@@ -235,6 +247,11 @@ public class AgentCommandDAO {
 
     public void updateGlobalConfigurationId(int customerId, int configurationId) {
         deviceMapper.updateGlobalConfigurationId(customerId, configurationId);
+    }
+
+    /** True if the very same command (type + payload) is already pending or delivered for the device. */
+    public boolean hasOpenIdentical(String deviceNumber, String type, String payload) {
+        return mapper.countOpenIdentical(deviceNumber, type, payload) > 0;
     }
 
     /** True if a pending or delivered command of {@code type} is already queued for the device. */

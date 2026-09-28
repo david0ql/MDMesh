@@ -152,6 +152,20 @@ public interface AgentDeviceMapper {
     @Update({"UPDATE settings SET newDeviceConfigurationId = #{configurationId} WHERE customerId = #{customerId}"})
     void updateGlobalConfigurationId(@Param("customerId") int customerId, @Param("configurationId") int configurationId);
 
+    // --- App versions: configurations follow an app's latest version ---
+
+    @Update({"UPDATE configurationApplications SET applicationVersionId = #{newVersionId} " +
+            "WHERE applicationId = #{appId} AND applicationVersionId IS DISTINCT FROM #{newVersionId}"})
+    int relinkConfigurationApps(@Param("appId") int appId, @Param("newVersionId") int newVersionId);
+
+    @Update({"UPDATE configurations SET mainAppId = #{newVersionId} WHERE mainAppId <> #{newVersionId} AND mainAppId IN " +
+            "(SELECT id FROM applicationVersions WHERE applicationId = #{appId})"})
+    int relinkConfigurationMainApps(@Param("appId") int appId, @Param("newVersionId") int newVersionId);
+
+    @Select({"SELECT DISTINCT configurationId FROM configurationApplications WHERE applicationId = #{appId} " +
+            "UNION SELECT c.id FROM configurations c JOIN applicationVersions v ON v.id = c.mainAppId WHERE v.applicationId = #{appId}"})
+    List<Integer> listConfigurationsUsingApp(@Param("appId") int appId);
+
     @Select({"SELECT number FROM devices WHERE configurationId = #{configurationId}"})
     List<String> listDeviceNumbersByConfigurationId(@Param("configurationId") int configurationId);
 

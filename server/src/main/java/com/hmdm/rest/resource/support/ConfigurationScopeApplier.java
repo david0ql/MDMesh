@@ -23,11 +23,21 @@ public class ConfigurationScopeApplier {
 
     private final AgentCommandDAO commandDAO;
     private final AgentWakeHub wakeHub;
+    private final ConfigAppInstaller appInstaller;
+    private final com.hmdm.persistence.UnsecureDAO unsecureDAO;
 
     @Inject
-    public ConfigurationScopeApplier(AgentCommandDAO commandDAO, AgentWakeHub wakeHub) {
+    public ConfigurationScopeApplier(AgentCommandDAO commandDAO, AgentWakeHub wakeHub, ConfigAppInstaller appInstaller,
+                                     com.hmdm.persistence.UnsecureDAO unsecureDAO) {
         this.commandDAO = commandDAO;
         this.wakeHub = wakeHub;
+        this.appInstaller = appInstaller;
+        this.unsecureDAO = unsecureDAO;
+    }
+
+    /** A device moved to another configuration: queue that configuration's apps for it too. */
+    public void installConfigurationApps(String deviceNumber) {
+        appInstaller.enqueueConfigApps(unsecureDAO.getDeviceByNumber(deviceNumber));
     }
 
     /** Apply to the customer's devices that match [which]; returns how many changed configuration. */
@@ -41,6 +51,7 @@ public class ConfigurationScopeApplier {
             Integer target = ConfigurationScopes.effective(row, global);
             if (target != null && !target.equals(row.getConfigurationId())) {
                 commandDAO.updateDeviceConfiguration(row.getId(), target);
+                installConfigurationApps(row.getNumber());
                 wakeHub.wake(row.getNumber(), "commands");
                 changed++;
             }
