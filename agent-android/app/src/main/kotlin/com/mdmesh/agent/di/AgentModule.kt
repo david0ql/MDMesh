@@ -174,10 +174,27 @@ object AgentModule {
         security = { security.collect() },
     )
 
-    /** The supported toggle policies, keyed by capability key (data-driven routing). */
+    /**
+     * The supported toggle policies, keyed by capability key (data-driven routing).
+     *
+     * A LIVE view, re-probed on every access: its consumers (the policy.apply handler and the
+     * config applier) are singletons, and Device-Owner status flips to true partway through
+     * provisioning. A snapshot taken before that stayed empty for the life of the process, so every
+     * policy.apply answered "policy not supported" while the capability matrix (probed per check-in)
+     * advertised the policies.
+     */
     @Provides
     fun providePolicyToggles(registry: CapabilityRegistry): Map<String, TogglePolicy> =
-        registry.togglePolicies()
+        LiveTogglePolicies(registry)
+
+    private class LiveTogglePolicies(
+        private val registry: CapabilityRegistry,
+    ) : AbstractMap<String, TogglePolicy>() {
+        override val entries: Set<Map.Entry<String, TogglePolicy>>
+            get() = registry.togglePolicies().entries
+        override fun get(key: String): TogglePolicy? = registry.togglePolicies()[key]
+        override fun containsKey(key: String): Boolean = registry.togglePolicies().containsKey(key)
+    }
 
     // --- Command handlers (multibound). Add a command == add one @IntoSet provider. ---
 

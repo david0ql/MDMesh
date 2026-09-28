@@ -64,6 +64,9 @@ class FakeMdmApi : MdmApi {
         ResponseEnvelope(status = "OK", data = AgentCheckInResponse())
     var checkInThrows: Throwable? = null
 
+    /** Scripted per-call responses, consumed in order; [checkInResponse] answers once exhausted. */
+    val checkInResponses = ArrayDeque<ResponseEnvelope<AgentCheckInResponse>>()
+
     /** When set, calls suspend until the gate completes — lets tests hold a request in flight. */
     var enrollGate: CompletableDeferred<Unit>? = null
     var checkInGate: CompletableDeferred<Unit>? = null
@@ -86,6 +89,6 @@ class FakeMdmApi : MdmApi {
         checkInRequests += request
         checkInGate?.await()
         checkInThrows?.let { throw it }
-        return checkInResponse
+        return checkInResponses.removeFirstOrNull() ?: checkInResponse
     }
 }

@@ -5,12 +5,9 @@ import android.app.admin.DevicePolicyManager
 import android.os.Bundle
 import android.os.PersistableBundle
 import com.mdmesh.agent.admin.AdminReceiver
-import com.mdmesh.core.action.ResetPasswordTokenStore
 import com.mdmesh.core.config.ServerConfigStore
 import com.mdmesh.core.store.EnrollTokenStore
 import com.mdmesh.core.sync.CheckInWorker
-import com.mdmesh.policy.PolicyManager
-import com.mdmesh.policy.wifi.DpmHandle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,7 +31,7 @@ class AdminPolicyComplianceActivity : Activity() {
         // ever run against the baked fallback. save() is a no-op for an absent/blank extra.
         ServerConfigStore(ctx).save(extrasString(AdminReceiver.EXTRA_SERVER_URL))
         CheckInWorker.schedule(ctx) // periodic reconcile
-        applyBaselinePolicy(ctx)
+        ProvisioningBaseline.apply(ctx)
 
         val token = extrasString(AdminReceiver.EXTRA_ENROLL_TOKEN)
         if (!token.isNullOrBlank()) {
@@ -51,38 +48,6 @@ class AdminPolicyComplianceActivity : Activity() {
         // TODO: enforce mandatory baseline policy here before returning RESULT_OK.
         setResult(RESULT_OK)
         finish()
-    }
-
-    /** Benign Device-Owner baseline: auto-grant runtime permissions to managed apps so they
-     *  never prompt. Restrictive policies are pushed by the admin via commands, not here. */
-    private fun applyBaselinePolicy(ctx: android.content.Context) {
-        runCatching {
-            val dpm = ctx.getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            val handle = DpmHandle(dpm, AdminReceiver.componentName(ctx))
-            PolicyManager(handle).setPermissionAutoGrant()
-            // Provision the DO reset-password token once, so device.passcodeReset works later.
-            ResetPasswordTokenStore(ctx, handle).ensureToken()
-            // Silently grant the telemetry runtime permissions as Device Owner.
-            listOf(
-                android.Manifest.permission.READ_PHONE_STATE,
-                android.Manifest.permission.READ_PHONE_NUMBERS,
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-            ).forEach { perm ->
-                runCatching {
-                    dpm.setPermissionGrantState(
-                        handle.admin, ctx.packageName, perm,
-                        DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
-                    )
-                }
-            }
-            // Enable location services (DO) so Wi-Fi SSID telemetry is readable on Android 10+.
-            runCatching {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    dpm.setLocationEnabled(handle.admin, true)
-                }
-            }
-        }
     }
 
     @Suppress("DEPRECATION") // typed getParcelableExtra is API 33+; we support minSdk 24

@@ -58,26 +58,39 @@ class CheckInCoordinatorTest {
         CommandEnvelope(commandId = id, issuedAt = "2026-01-01T00:00:00Z", type = "test.cmd")
 
     @Test
-    fun `dispatches returned commands and buffers their results`() = runTest {
+    fun `dispatches returned commands and reports their results in an immediate follow-up round`() = runTest {
         val api = FakeMdmApi().apply {
-            checkInResponse = ResponseEnvelope(
-                status = "OK",
-                data = AgentCheckInResponse(commands = listOf(command("c1"))),
+            checkInResponses.add(
+                ResponseEnvelope(status = "OK", data = AgentCheckInResponse(commands = listOf(command("c1")))),
             )
         }
         val pending = PendingResults()
 
         coordinator(api, pending).runOnce()
 
-        assertEquals(1, api.checkInRequests.size)
+        assertEquals("one round that ran a command, one that reported it", 2, api.checkInRequests.size)
         assertEquals("dev-1", api.checkInRequests.first().deviceId)
         assertEquals("must present the per-device secret as a bearer token", "Bearer sek-1", api.checkInAuth.first())
         assertTrue("first cycle sends no acks", api.checkInRequests.first().results.isEmpty())
-        // The dispatched command's result is buffered for the next cycle.
-        val buffered = pending.drain()
-        assertEquals(1, buffered.size)
-        assertEquals("c1", buffered.first().commandId)
-        assertEquals(CommandStatus.DONE, buffered.first().status)
+        val reported = api.checkInRequests[1].results
+        assertEquals(1, reported.size)
+        assertEquals("c1", reported.first().commandId)
+        assertEquals(CommandStatus.DONE, reported.first().status)
+        assertTrue("nothing left buffered", pending.drain().isEmpty())
+    }
+
+    @Test
+    fun `follow-up rounds are capped when the server keeps sending commands`() = runTest {
+        val api = FakeMdmApi().apply {
+            checkInResponse = ResponseEnvelope(
+                status = "OK",
+                data = AgentCheckInResponse(commands = listOf(command("again"))),
+            )
+        }
+
+        coordinator(api, PendingResults()).runOnce()
+
+        assertEquals(4, api.checkInRequests.size)
     }
 
     @Test

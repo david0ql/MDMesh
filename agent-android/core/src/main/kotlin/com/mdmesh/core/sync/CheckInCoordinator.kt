@@ -50,7 +50,11 @@ class CheckInCoordinator @Inject constructor(
 
     suspend fun runOnce(): Unit = mutex.withLock {
         try {
-            cycle()
+            // Commands executed in a cycle leave results in the buffer. Report them right away
+            // (and pick up anything queued meanwhile) instead of on the next wake or the
+            // 10-minute floor, which left the console showing "delivered" for minutes.
+            var rounds = 0
+            while (cycle() && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
             syncStatus.clear()
         } catch (t: Throwable) {
             if (t !is CancellationException) syncStatus.recordFailure(t)
@@ -58,7 +62,8 @@ class CheckInCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun cycle() {
+    /** One request/response round; true when it executed commands whose results are unreported. */
+    private suspend fun cycle(): Boolean {
         val deviceId = enrollment.ensureEnrolled()
         val authorization = "Bearer ${identity.secret().orEmpty()}"
         val matrix = capabilitySource.matrix(deviceId)
@@ -95,6 +100,12 @@ class CheckInCoordinator @Inject constructor(
         pending.add(results)
         // Record each command outcome as a timeline event (flushed next cycle).
         results.forEach { eventSink.record(EventType.COMMAND_RESULT, "${it.commandId}:${it.status}") }
+        return results.isNotEmpty()
+    }
+
+    private companion object {
+        /** Cap on back-to-back rounds per run, so a server that keeps feeding commands can't pin us. */
+        const val MAX_FOLLOW_UP_ROUNDS = 4
     }
 }
 
