@@ -48,24 +48,34 @@ Emulator quirks the test accounts for (none of them are agent behaviour):
 
 ## Results (2026-09-28, dev stack + debug agent)
 
-| Android | API | Functional test |
-|---|---|---|
-| 6.0 | 23 | 36/36, install + self-update 10/10, wipe 2/2 |
-| 7.0 | 24 | 39/39 |
-| 7.1 | 25 | 39/39 |
-| 8.0 | 26 | 41/41 |
-| 8.1 | 27 | 43/43 |
-| 9 | 28 | 43/43 |
-| 10 | 29 | 43/43 |
-| 11 | 30 | 43/43 |
-| 12 | 31 | 43/43 |
-| 12L | 32 | 43/43 |
-| 13 | 33 | 43/43 |
-| 14 | 34 | 43/43, install 7/7, reboot + wipe 5/5 |
-| 15 | 35 | 50/50 (with install), self-update 3/3 |
-| 16 | 36 | 50/50 (with install) |
-| 17 | 37 | 43/43 |
-| 17 QPR2 | 37.2 | 43/43, reboot + wipe 5/5 |
+Final matrix: one clean emulator per release, ADB enrollment, the full functional test (including silent
+install / upgrade / sha256 refusal / uninstall). Checks a release cannot support are skipped (Android 6: no
+Bluetooth policy or lock-screen message; below 8.1: no `locksettings verify`), hence the different totals.
+
+| Android | API | Functional test | Extra |
+|---|---|---|---|
+| 6.0 | 23 | 43/43 | self-update 3/3, wipe 2/2 |
+| 7.0 | 24 | 46/46 | |
+| 7.1 | 25 | 46/46 * | latency probe 40/40, max 0.6 s |
+| 8.0 | 26 | 48/48 | |
+| 8.1 | 27 | 50/50 | |
+| 9 | 28 | 50/50 | |
+| 10 | 29 | 50/50 | |
+| 11 | 30 | 50/50 | |
+| 12 | 31 | 50/50 | |
+| 12L | 32 | 50/50 | |
+| 13 | 33 | 50/50 | |
+| 14 | 34 | 50/50 | reboot + wipe 5/5, console Apps tab uninstall (browser) |
+| 15 | 35 | 50/50 | self-update 3/3 |
+| 16 | 36 | 50/50 | |
+| 17 | 37 | 50/50 | |
+| 17 QPR2 | 37.2 | 50/50 | reboot + wipe 5/5 |
+
+\* The final matrix run of API 25 was 45/46: one command was delivered late, the intermittent delay later traced
+to check-ins reusing NAT-dropped pooled connections and fixed (commit `ddabb1c`). See the re-validation below.
+
+Re-validation with the final agent (`ddabb1c`, clean emulators): API 23 43/43, API 25 46/46, API 30 50/50,
+API 35 50/50, API 37.2 50/50.
 
 The native installer was verified separately on a root-only Debian 12 container (no sudo, no systemd):
 it installs, migrates, seeds, and the Agent v1 suite passes 56/56 against it.
