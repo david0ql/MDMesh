@@ -238,6 +238,15 @@ chk "tunnel refused with a wrong secret (401)" \
 chk "tunnel refused without the device header (401)" \
   "$(code -H "Authorization: Bearer $SEC" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
 
+echo "== fleet map: locations of every device in a time range =="
+NOWMS=$(( $(date +%s) * 1000 ))
+chk "fleet locations OK for the last day" \
+  "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/locations?from=$((NOWMS-86400000))&to=$NOWMS" | field "d['status']+':'+str(isinstance(d['data']['devices'], list))")" "OK:True"
+chk "fleet locations: reversed range rejected" \
+  "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/locations?from=$NOWMS&to=1" | field "d['status']+':'+str(d.get('message'))")" "ERROR:error.agent.locations.range"
+chk "fleet locations: range over 31 days rejected" \
+  "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/locations?from=0&to=$NOWMS" | field "d['status']")" "ERROR"
+
 echo "== permissions: read-only Observer (role 100) cannot mutate =="
 # A temporary Observer user of the same customer: agent/rollout mutations need edit_devices,
 # reads stay open to any user of the customer. The user is deleted at the end of this section.

@@ -468,6 +468,60 @@ public class AgentAdminResource {
         return Response.OK(commandDAO.listLocations(deviceId, sinceMillis, 500));
     }
 
+    /** Upper bound on the fixes one fleet-map query returns (the response says when it was reached). */
+    private static final int FLEET_MAP_MAX_FIXES = 50_000;
+    /** Longest time range the fleet map may ask for. */
+    private static final long FLEET_MAP_MAX_RANGE_MILLIS = 31L * 24 * 60 * 60 * 1000;
+
+    // =================================================================================================================
+    @ApiOperation(value = "Fleet locations", notes = "Where every device of the customer was between 'from' and 'to' "
+            + "(epoch ms, at most 31 days apart): one entry per device with a fix in range, its fixes oldest first. "
+            + "'truncated' is true when the range held more fixes than one response carries.")
+    @GET
+    @Path("/locations")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listFleetLocations(@QueryParam("from") Long from, @QueryParam("to") Long to) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (from == null || to == null || to < from || to - from > FLEET_MAP_MAX_RANGE_MILLIS) {
+            return Response.ERROR("error.agent.locations.range");
+        }
+        List<com.hmdm.persistence.domain.DeviceLocation> fixes =
+                commandDAO.listFleetLocations(customerId.get(), from, to, FLEET_MAP_MAX_FIXES + 1);
+        boolean truncated = fixes.size() > FLEET_MAP_MAX_FIXES;
+        if (truncated) {
+            fixes = fixes.subList(0, FLEET_MAP_MAX_FIXES);
+        }
+        Map<String, Map<String, Object>> byDevice = new LinkedHashMap<>();
+        for (com.hmdm.persistence.domain.DeviceLocation f : fixes) {
+            Map<String, Object> entry = byDevice.computeIfAbsent(f.getDeviceNumber(), n -> {
+                Map<String, Object> e = new LinkedHashMap<>();
+                Device d = unsecureDAO.getDeviceByNumber(n);
+                e.put("number", n);
+                e.put("description", d == null ? null : d.getDescription());
+                e.put("fixes", new ArrayList<Map<String, Object>>());
+                return e;
+            });
+            Map<String, Object> fix = new LinkedHashMap<>();
+            fix.put("lat", f.getLat());
+            fix.put("lon", f.getLon());
+            fix.put("accuracy", f.getAccuracy());
+            fix.put("provider", f.getProvider());
+            fix.put("capturedAt", f.getCapturedAt());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> list = (List<Map<String, Object>>) entry.get("fixes");
+            list.add(fix);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("from", from);
+        out.put("to", to);
+        out.put("truncated", truncated);
+        out.put("devices", new ArrayList<>(byDevice.values()));
+        return Response.OK(out);
+    }
+
     // =================================================================================================================
     @ApiOperation(value = "Remote control status", notes = "What remote view/control the device offers (ADR 0010): "
             + "tier, transports, whether the session can be encrypted, and its power mode (adaptive = slow to answer while locked).")

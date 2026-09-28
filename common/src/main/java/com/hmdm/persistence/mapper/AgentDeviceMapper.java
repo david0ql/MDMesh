@@ -85,6 +85,13 @@ public interface AgentDeviceMapper {
     List<DeviceLocation> listLocations(@Param("deviceNumber") String deviceNumber,
                                        @Param("since") long since, @Param("limit") int limit);
 
+    /** Every fix of the customer's devices captured in [from, to], per device in time order (the fleet map). */
+    @Select({"SELECT l.* FROM device_location l JOIN devices d ON d.number = l.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND l.capturedAt BETWEEN #{from} AND #{to} " +
+            "ORDER BY l.deviceNumber, l.capturedAt LIMIT #{limit}"})
+    List<DeviceLocation> listFleetLocations(@Param("customerId") int customerId, @Param("from") long from,
+                                            @Param("to") long to, @Param("limit") int limit);
+
     @Select({"SELECT number FROM devices WHERE configurationId = #{configurationId}"})
     List<String> listDeviceNumbersByConfigurationId(@Param("configurationId") int configurationId);
 

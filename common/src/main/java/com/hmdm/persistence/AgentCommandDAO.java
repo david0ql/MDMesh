@@ -168,6 +168,12 @@ public class AgentCommandDAO {
         return deviceMapper.listLocations(deviceNumber, since, limit);
     }
 
+    /** Fixes of all the customer's devices captured in [from, to], grouped by device, oldest first. */
+    public java.util.List<com.hmdm.persistence.domain.DeviceLocation> listFleetLocations(
+            int customerId, long from, long to, int limit) {
+        return deviceMapper.listFleetLocations(customerId, from, to, limit);
+    }
+
     /** True if a pending or delivered command of {@code type} is already queued for the device. */
     public boolean hasOpenOfType(String deviceNumber, String type) {
         return mapper.countOpenOfType(deviceNumber, type) > 0;

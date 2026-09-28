@@ -2781,3 +2781,33 @@ a {
   .rp .rp-nav-main { order:-1; }
   .rp .rp-nav-side:last-child { display:none; }
 }
+
+/* Fleet map (/map) */
+.fm-controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px; padding:14px 16px; margin-bottom:16px; }
+.fm-presets { display:flex; flex-wrap:wrap; gap:6px; }
+.fm-field { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--secondary); }
+.fm-field input { font:inherit; font-size:13px; color:var(--text); background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:6px 8px; }
+.fm-check { display:flex; align-items:center; gap:6px; font-size:13px; padding-bottom:7px; }
+.fm-cols { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:16px; align-items:start; }
+.fm-mapwrap { padding:0; overflow:hidden; }
+.fm-map { height:min(70vh, 720px); width:100%; }
+.fm-time { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:12px 16px; border-top:1px solid var(--border); }
+.fm-time input[type=range] { flex:1 1 240px; }
+.fm-at { font-size:13px; color:var(--secondary); }
+.fm-list { padding:12px; max-height:min(70vh + 56px, 780px); overflow:auto; }
+.fm-search { width:100%; font:inherit; font-size:13px; padding:7px 9px; border:1px solid var(--border); border-radius:8px;
+  background:var(--surface); color:var(--text); margin-bottom:8px; }
+.fm-list ul { list-style:none; margin:0; padding:0; }
+.fm-list li { padding:8px 4px; border-bottom:1px solid var(--hairline); display:grid; gap:2px; }
+.fm-list li.off { opacity:.5; }
+.fm-list label { display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; min-width:0; }
+.fm-list label i { width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
+.fm-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fm-meta { font-size:11px; color:var(--faint); padding-left:44px; }
+.fm-actions { display:flex; gap:10px; padding-left:44px; font-size:12px; }
+@media (max-width: 920px) {
+  .fm-cols { grid-template-columns:minmax(0, 1fr); }
+  .fm-map { height:60vh; }
+  .fm-list { max-height:none; }
+}

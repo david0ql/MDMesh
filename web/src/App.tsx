@@ -12,6 +12,7 @@ import { AppsPage } from './pages/AppsPage';
 import { ConfigurationsPage } from './pages/ConfigurationsPage';
 import { EnrollPage } from './pages/EnrollPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { FleetMapPage } from './pages/FleetMapPage';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/devices" element={<DevicesPage />} />
               <Route path="/devices/:id" element={<DeviceDetailPage />} />
+              <Route path="/map" element={<FleetMapPage />} />
               <Route path="/apps" element={<AppsPage />} />
               <Route path="/configs" element={<ConfigurationsPage />} />
               <Route path="/enroll" element={<EnrollPage />} />

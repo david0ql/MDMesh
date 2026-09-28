@@ -7,6 +7,7 @@ import { ReloadPrompt } from '../components/ReloadPrompt';
 import {
   IconDashboard,
   IconDevices,
+  IconMap,
   IconConfig,
   IconApps,
   IconEnroll,
@@ -26,6 +27,7 @@ interface NavEntry {
 const NAV: NavEntry[] = [
   { to: '/dashboard', label: 'Overview', Icon: IconDashboard },
   { to: '/devices', label: 'Devices', Icon: IconDevices },
+  { to: '/map', label: 'Map', Icon: IconMap },
   { to: '/configs', label: 'Configurations', Icon: IconConfig },
   { to: '/apps', label: 'Apps', Icon: IconApps },
   { to: '/enroll', label: 'Enroll', Icon: IconEnroll },
