@@ -496,6 +496,14 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ok "$(javac -version 2>&1) — $JAVA_HOME"
 
 step "Database"
+# apt starts the packaged cluster through systemd; root-only containers without systemd (Docker, some LXC setups)
+# leave it down, and every psql below would fail. Start any cluster that is not online.
+if ! as_postgres psql -tAc 'SELECT 1' >/dev/null 2>&1 && command -v pg_lsclusters >/dev/null 2>&1; then
+  pg_lsclusters --no-header 2>/dev/null | awk '$4 != "online" {print $1, $2}' | while read -r _pgv _pgc; do
+    pg_ctlcluster "$_pgv" "$_pgc" start
+  done >> "$LOGFILE" 2>&1 || true
+  as_postgres psql -tAc 'SELECT 1' >/dev/null 2>&1 && ok "started the local PostgreSQL cluster (no systemd)"
+fi
 # Idempotent: every run generates a fresh DB_PASSWORD, so ALWAYS set the role's password to match — ALTER
 # if the role already exists from a previous run, else CREATE — so ROOT.xml + seeding always authenticate.
 # The password reaches psql on stdin as a psql variable (:'pw' quotes it as an SQL literal), never on its command line,
