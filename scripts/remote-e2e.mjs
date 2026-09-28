@@ -89,10 +89,9 @@ try {
         mode = (await fetchJson(page, `${api}/rest/private/agent/v1/devices/${device}/remote`)).data?.powerMode || '';
       }
       check('"Set Always-on" switched the device to always-on', mode === 'alwaysOn', mode);
-      await page.reload();
-      await page.getByRole('tablist').getByRole('button', { name: 'Remote' }).click();
-      await page.locator('.rp .chip').first().waitFor();
-      check('the battery-saver warning is gone', !(await saver.isVisible().catch(() => false)));
+      // Without a reload: the panel must follow the device and drop the warning by itself.
+      const gone = await page.locator('.rp-power').waitFor({ state: 'detached', timeout: 30000 }).then(() => true, () => false);
+      check('the battery-saver warning goes away without a reload', gone);
     }
     await page.getByRole('button', { name: 'View & control' }).click();
     const live = await page.locator('.rp-viewer').waitFor({ timeout: 360000 }).then(() => true, async () =>

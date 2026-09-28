@@ -18,6 +18,10 @@ type Phase =
   | { kind: 'failed'; message: string };
 
 const POLL_MS = 2000;
+/** How often the open panel re-reads the device's remote status. */
+const STATUS_POLL_MS = 15000;
+/** How long "Set Always-on" waits for the device to confirm before saying it will switch later. */
+const SWITCH_LIMIT_MS = 2 * 60 * 1000;
 /** The device answers remote.vnc.start once it is connected to the repeater; give up after this. */
 const WAIT_LIMIT_MS = 6 * 60 * 1000;
 
@@ -44,7 +48,45 @@ export function RemotePanel({ device }: { device: Device }) {
     }
   }, [device.number]);
 
-  useEffect(() => { void refreshStatus(); }, [refreshStatus]);
+  // Keep the panel current while it is open (power mode, capabilities): a light poll, self-scheduling.
+  useEffect(() => {
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    const loop = async () => {
+      await refreshStatus();
+      if (on) t = setTimeout(() => void loop(), STATUS_POLL_MS);
+    };
+    void loop();
+    return () => { on = false; clearTimeout(t); };
+  }, [refreshStatus]);
+
+  // After "Set Always-on": follow the device until it reports always-on (it applies on its next check-in).
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    if (!switching) return;
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    const since = Date.now();
+    const tick = async () => {
+      const s = await getRemoteStatus(device.number).catch(() => null);
+      if (!on) return;
+      if (s) setStatus(s);
+      if (s?.powerMode === 'alwaysOn') {
+        setSwitching(false);
+        toast.push('ok', 'Always-on active', 'The device now answers remote sessions instantly.');
+        return;
+      }
+      if (Date.now() - since > SWITCH_LIMIT_MS) {
+        setSwitching(false);
+        toast.push('err', 'Still in battery-saver',
+          'The device has not confirmed yet; it will switch at its next check-in (a few minutes while locked).');
+        return;
+      }
+      t = setTimeout(() => void tick(), POLL_MS);
+    };
+    void tick();
+    return () => { on = false; clearTimeout(t); };
+  }, [switching, device.number, toast]);
 
   // While waiting: follow the start command until the device reports it connected (or refused).
   useEffect(() => {
@@ -106,7 +148,7 @@ export function RemotePanel({ device }: { device: Device }) {
         type: 'device.powerMode', requiresCapability: 'device.powerMode',
         payload: JSON.stringify({ mode: 'alwaysOn' }),
       });
-      toast.push('ok', 'Always-on queued', 'Applies the next time the device checks in.');
+      setSwitching(true);
     } catch (e) {
       toast.push('err', 'Could not change the power mode', e instanceof Error ? e.message : '');
     } finally {
@@ -159,8 +201,8 @@ export function RemotePanel({ device }: { device: Device }) {
             <strong>Battery-saver mode.</strong> While the phone is locked on battery it picks up a session
             only at its next heartbeat, a few minutes later. For instant support keep it in Always-on.
           </span>
-          <button className="btn btn-sm" disabled={busy} onClick={() => void setAlwaysOn()}>
-            Set Always-on
+          <button className="btn btn-sm" disabled={busy || switching} onClick={() => void setAlwaysOn()}>
+            {switching ? 'Switching…' : 'Set Always-on'}
           </button>
         </div>
       )}
