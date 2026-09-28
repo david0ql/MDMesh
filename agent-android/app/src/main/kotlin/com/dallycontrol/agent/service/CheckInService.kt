@@ -50,6 +50,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var identity: DeviceIdentity
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
+    @Inject lateinit var deviceWatch: DeviceWatch
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -94,6 +95,7 @@ class CheckInService : LifecycleService() {
         startAsForeground()
         if (!started) {
             started = true
+            deviceWatch.start(applicationContext, lifecycleScope)
             graceUntil = System.currentTimeMillis() + REACHABILITY_GRACE_MS
             lifecycleScope.launch {
                 delay(REACHABILITY_GRACE_MS + 1_000L)
@@ -195,6 +197,7 @@ class CheckInService : LifecycleService() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(powerReceiver) }
+        deviceWatch.stop()
         transport.stop()
         super.onDestroy()
     }

@@ -16,7 +16,10 @@ class TelemetryAssembler(
     private val identity: () -> IdentityInfo,
     private val dynamic: () -> DynamicState,
     private val security: () -> SecurityPosture,
+    private val onDelivered: (TelemetrySnapshot) -> Unit = {},
 ) : TelemetrySource {
+    override fun delivered(snapshot: TelemetrySnapshot) = onDelivered(snapshot)
+
     override fun snapshot(): TelemetrySnapshot = TelemetrySnapshot(
         dynamic = dynamic(),
         hardware = runCatching { hardware() }.getOrNull(),

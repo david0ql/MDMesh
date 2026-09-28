@@ -18,6 +18,7 @@ class KioskApplier(
     private val store: KioskStateStore,
     private val home: KioskHomeSwitch,
     private val homeComponent: ComponentName,
+    private val roles: RoleResolver = NoRoles,
 ) {
     suspend fun enter(p: KioskApplyPayload): KioskResult {
         val features = lockTaskFeatures(
@@ -26,10 +27,14 @@ class KioskApplier(
                 systemInfo = p.features.systemInfo, keyguard = p.features.keyguard, lockButtons = p.features.lockButtons,
             ),
         )
-        val allowed = (p.allowedPackages + listOfNotNull(p.pinPackage)).distinct()
+        // Functions resolve to THIS device's packages (its dialer + in-call screen, its contacts app, …): the openable
+        // ones join the kiosk home, the supporting ones are only allowed to run.
+        val resolved = if (p.roles.isEmpty()) ResolvedRoles() else runCatching { roles.resolve(p.roles) }.getOrDefault(ResolvedRoles())
+        val allowed = (p.allowedPackages + listOfNotNull(p.pinPackage) + resolved.all).distinct()
+        val shown = if (resolved.launchable.isEmpty()) p else p.copy(allowedPackages = (p.allowedPackages + resolved.launchable).distinct())
         home.setClaimEnabled(true)
         return when (val r = kiosk.enter(homeComponent, allowed, features)) {
-            KioskResult.Ok -> { store.save(p); home.showLauncher(); r }
+            KioskResult.Ok -> { store.save(shown); home.showLauncher(); r }
             else -> { home.setClaimEnabled(false); r } // never leave a non-kiosk device claiming HOME
         }
     }

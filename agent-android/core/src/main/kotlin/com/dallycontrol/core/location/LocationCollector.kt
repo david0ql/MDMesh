@@ -29,10 +29,11 @@ class LocationCollector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val modeStore: LocationModeStore,
 ) {
-    fun collect(): LocationDto? {
+    /** @param forceFresh ask for a fresh fix even in passive mode (the periodic trail). */
+    fun collect(forceFresh: Boolean = false): LocationDto? {
         if (!hasPermission()) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-        val active = modeStore.isActive()
+        val active = forceFresh || modeStore.isActive()
         val fresh = if (active) currentFix(lm) else null
         val loc = fresh ?: lastKnown(lm)
         android.util.Log.d(TAG, "collect active=$active fresh=${fresh != null} loc=${loc?.time}")

@@ -9,4 +9,12 @@
     <string name="kiosk_paused_title">%1$s se cerró</string>
     <string name="kiosk_paused_body">Se cerró varias veces seguidas, así que no se volvió a abrir sola.</string>
     <string name="kiosk_paused_open">Abrir %1$s</string>
+
+    <!-- Enrollment by code (MainActivity). -->
+    <string name="enroll_code_title">Código de inscripción</string>
+    <string name="enroll_server_hint">Servidor (https://…)</string>
+    <string name="enroll_code_hint">Código, p. ej. ABCD-EFGH</string>
+    <string name="enroll_submit">Inscribir</string>
+    <string name="enroll_invalid">Escribe la dirección del servidor (https://…) y el código.</string>
+    <string name="enroll_sent">Inscribiendo… tarda unos segundos.</string>
 </resources>

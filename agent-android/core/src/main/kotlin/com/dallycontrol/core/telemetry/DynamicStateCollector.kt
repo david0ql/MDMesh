@@ -15,6 +15,7 @@ import android.os.StatFs
 import android.os.SystemClock
 import android.telephony.TelephonyManager
 import com.dallycontrol.core.location.LocationCollector
+import com.dallycontrol.core.location.TrailStore
 import com.dallycontrol.proto.DynamicState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -24,6 +25,8 @@ import javax.inject.Singleton
 class DynamicStateCollector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val locationCollector: LocationCollector,
+    private val simMonitor: SimMonitor,
+    private val trail: TrailStore,
 ) {
     @Suppress("DEPRECATION")
     fun collect(): DynamicState {
@@ -66,6 +69,8 @@ class DynamicStateCollector @Inject constructor(
             uptimeMs = SystemClock.elapsedRealtime(),
             lastBootAt = System.currentTimeMillis() - SystemClock.elapsedRealtime(),
             location = runCatching { locationCollector.collect() }.getOrNull(),
+            sim = runCatching { simMonitor.check() }.getOrNull(),
+            trail = runCatching { trail.pending() }.getOrDefault(emptyList()),
         )
     }
 

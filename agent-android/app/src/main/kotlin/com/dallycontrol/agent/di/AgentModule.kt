@@ -80,6 +80,14 @@ import dagger.multibindings.IntoSet
 import javax.inject.Singleton
 import com.dallycontrol.core.remote.RepeaterTunnel
 import com.dallycontrol.core.store.DeviceIdentity
+import com.dallycontrol.agent.policy.AndroidAppPolicyEnforcer
+import com.dallycontrol.agent.policy.AndroidRoleResolver
+import com.dallycontrol.agent.policy.ChromeManagedBrowser
+import com.dallycontrol.core.command.handlers.DeviceAppLaunchHandler
+import com.dallycontrol.core.config.AppPolicyEnforcer
+import com.dallycontrol.core.config.ManagedBrowser
+import com.dallycontrol.core.kiosk.RoleResolver
+import com.dallycontrol.core.location.TrailStore
 
 /**
  * Assembles the device-specific capability graph and binds it to the `:core`
@@ -172,11 +180,14 @@ object AgentModule {
         identity: IdentityCollector,
         dynamic: DynamicStateCollector,
         security: SecurityCollector,
+        trail: TrailStore,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
         dynamic = { dynamic.collect() },
         security = { security.collect() },
+        // The trail fixes a successful check-in carried are on the server now.
+        onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
     )
 
     /**
@@ -275,14 +286,53 @@ object AgentModule {
 
     @Provides
     @Singleton
+    fun provideRoleResolver(@ApplicationContext context: Context): RoleResolver = AndroidRoleResolver(context)
+
+    @Provides
+    @Singleton
     fun provideKioskApplier(
         kiosk: KioskController,
         store: KioskStateStore,
+        roles: RoleResolver,
         @ApplicationContext context: Context,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home)
+        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles)
     }
+
+    @Provides
+    @Singleton
+    fun provideManagedBrowser(@ApplicationContext context: Context, handle: DpmHandle): ManagedBrowser =
+        ChromeManagedBrowser(context, handle.dpm, handle.admin)
+
+    @Provides
+    @Singleton
+    fun provideAppPolicyEnforcer(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        roles: RoleResolver,
+        events: EventSink,
+    ): AppPolicyEnforcer = AndroidAppPolicyEnforcer(
+        context, handle.dpm, handle.admin, roles, events, protectedPackages = listOf(DroidVncController.PACKAGE),
+    )
+
+    /** `device.appLaunch`: start the app's launcher activity; in kiosk only apps the kiosk allows can start. */
+    @Provides
+    @IntoSet
+    fun provideDeviceAppLaunchHandler(@ApplicationContext context: Context, handle: DpmHandle): CommandHandler =
+        DeviceAppLaunchHandler { pkg ->
+            val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+            val am = context.getSystemService(android.app.ActivityManager::class.java)
+            when {
+                intent == null -> "not installed or has no launcher entry"
+                am?.lockTaskModeState != android.app.ActivityManager.LOCK_TASK_MODE_NONE &&
+                    android.os.Build.VERSION.SDK_INT >= 23 && !handle.dpm.isLockTaskPermitted(pkg) -> "not allowed by the kiosk"
+                else -> {
+                    context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    null
+                }
+            }
+        }
 
     @Provides @IntoSet
     fun provideKioskEnterHandler(applier: KioskApplier): CommandHandler = KioskEnterHandler(applier)
@@ -372,7 +422,10 @@ object AgentModule {
         kiosk: KioskApplier,
         location: LocationModeStore,
         store: ConfigStateStore,
-    ): ConfigApplier = ConfigApplier(toggles, kiosk, location::set, store)
+        browser: ManagedBrowser,
+        apps: AppPolicyEnforcer,
+        trail: TrailStore,
+    ): ConfigApplier = ConfigApplier(toggles, kiosk, location::set, store, browser, apps, trail::setIntervalMinutes)
 
     @Provides
     @IntoSet

@@ -222,6 +222,7 @@ class KioskLauncherActivity : ComponentActivity() {
         }
         var rendered = 0
         for (pkg in p.allowedPackages.distinct()) {
+            if (packageManager.getLaunchIntentForPackage(pkg) == null) continue // services / in-call UI: allowed, not shown
             val app = runCatching { packageManager.getApplicationInfo(pkg, 0) }.getOrNull() ?: continue
             val icon = runCatching { packageManager.getApplicationIcon(pkg) }.getOrNull() ?: continue
             val label = runCatching { packageManager.getApplicationLabel(app).toString() }.getOrDefault(pkg)

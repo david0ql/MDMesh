@@ -11,4 +11,12 @@
     <string name="kiosk_paused_title">%1$s closed</string>
     <string name="kiosk_paused_body">It closed several times in a row, so it was not reopened automatically.</string>
     <string name="kiosk_paused_open">Open %1$s</string>
+
+    <!-- Enrollment by code (MainActivity). -->
+    <string name="enroll_code_title">Enrollment code</string>
+    <string name="enroll_server_hint">Server (https://…)</string>
+    <string name="enroll_code_hint">Code, e.g. ABCD-EFGH</string>
+    <string name="enroll_submit">Enroll</string>
+    <string name="enroll_invalid">Enter the server address (https://…) and the code.</string>
+    <string name="enroll_sent">Enrolling… this takes a few seconds.</string>
 </resources>

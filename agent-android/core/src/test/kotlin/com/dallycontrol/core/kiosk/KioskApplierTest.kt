@@ -48,4 +48,18 @@ class KioskApplierTest {
         assertFalse(a.isPersisted())
         assertEquals(listOf("claim:false", "oem"), h.log)
     }
+
+    @Test fun `functions resolve to device packages - openable ones join the home, supporting ones only run`() = runTest {
+        val c = FakeController(KioskResult.Ok); val store = InMemoryKioskStateStore()
+        val roles = RoleResolver { r ->
+            assertEquals(listOf("phone"), r)
+            ResolvedRoles(launchable = listOf("com.google.android.dialer"), support = listOf("com.android.server.telecom"))
+        }
+        KioskApplier(c, store, FakeHome(), home, roles).enter(
+            KioskApplyPayload(mode = "launcher", pinPackage = "com.a", allowedPackages = listOf("com.a"), roles = listOf("phone")),
+        )
+        assertEquals(listOf("com.a", "com.google.android.dialer", "com.android.server.telecom"), c.entered)
+        assertEquals("the home shows the dialer, not the in-call service",
+            listOf("com.a", "com.google.android.dialer"), store.load()?.allowedPackages)
+    }
 }

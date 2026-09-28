@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -20,6 +22,8 @@ import androidx.lifecycle.lifecycleScope
 import com.dallycontrol.agent.service.CheckInService
 import com.dallycontrol.core.config.ServerConfigStore
 import com.dallycontrol.core.store.DeviceIdStore
+import com.dallycontrol.core.store.EnrollTokenStore
+import com.dallycontrol.core.sync.CheckInWorker
 import com.dallycontrol.core.sync.SyncStatus
 import com.dallycontrol.policy.wifi.DpmHandle
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,9 +47,12 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var dpmHandle: DpmHandle
     @Inject lateinit var serverConfig: ServerConfigStore
     @Inject lateinit var syncStatus: SyncStatus
+    @Inject lateinit var enrollTokens: EnrollTokenStore
 
     private lateinit var deviceIdValue: TextView
     private lateinit var kioskValue: TextView
+    private lateinit var enrollSection: LinearLayout
+    private lateinit var enrollStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +97,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val id = deviceIdStore.current()
             deviceIdValue.text = if (id.isNullOrBlank()) enrollingLabel() else id
+            // The code entry only makes sense before enrollment, and only on a managed (Device Owner) device.
+            enrollSection.visibility = if (id.isNullOrBlank() && isDeviceOwner()) android.view.View.VISIBLE else android.view.View.GONE
         }
     }
 
@@ -128,6 +137,9 @@ class MainActivity : ComponentActivity() {
         )
         root.addView(spacer())
 
+        enrollSection = enrollmentForm()
+        root.addView(enrollSection)
+
         root.addView(label("DEVICE ID"))
         deviceIdValue = text("…", 14f, TEXT, mono = true)
         root.addView(deviceIdValue)
@@ -165,6 +177,51 @@ class MainActivity : ComponentActivity() {
             addView(root)
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
+    }
+
+    /**
+     * Enrollment by code (a folder's reusable enrollment code): for a phone made Device Owner without a token — or
+     * whose token failed — a technician types the code (and the server when none was provisioned).
+     */
+    private fun enrollmentForm(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, 0, 0, dp(20))
+        visibility = android.view.View.GONE
+        addView(label(getString(R.string.enroll_code_title).uppercase()))
+        val server = EditText(this@MainActivity).apply {
+            hint = getString(R.string.enroll_server_hint)
+            setText(serverConfig.baseUrl().takeUnless { it.contains("example.com") || it.contains("mdm.local") }.orEmpty())
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setTextColor(TEXT); setHintTextColor(FAINT)
+            contentDescription = "enroll-server"
+        }
+        val code = EditText(this@MainActivity).apply {
+            hint = getString(R.string.enroll_code_hint)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setTextColor(TEXT); setHintTextColor(FAINT)
+            contentDescription = "enroll-code"
+        }
+        enrollStatus = text("", 13f, MUTED)
+        val submit = Button(this@MainActivity).apply {
+            text = getString(R.string.enroll_submit)
+            contentDescription = "enroll-submit"
+            setOnClickListener {
+                val url = server.text.toString().trim().trimEnd('/')
+                val typed = code.text.toString().trim()
+                if (!(url.startsWith("https://") || url.startsWith("http://")) || typed.length < 6) {
+                    enrollStatus.text = getString(R.string.enroll_invalid)
+                    return@setOnClickListener
+                }
+                serverConfig.save(url)
+                lifecycleScope.launch {
+                    enrollTokens.save(typed)
+                    CheckInWorker.scheduleNow(this@MainActivity)
+                    ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CheckInService::class.java))
+                    enrollStatus.text = getString(R.string.enroll_sent)
+                }
+            }
+        }
+        addView(server); addView(code); addView(submit); addView(enrollStatus)
     }
 
     private fun label(s: String): TextView =

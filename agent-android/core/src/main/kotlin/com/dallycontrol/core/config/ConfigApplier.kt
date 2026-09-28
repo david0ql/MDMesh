@@ -5,7 +5,9 @@ import com.dallycontrol.core.store.ConfigStateStore
 import com.dallycontrol.kiosk.KioskResult
 import com.dallycontrol.policy.PolicyOutcome
 import com.dallycontrol.policy.TogglePolicy
+import com.dallycontrol.proto.ConfigAppPolicy
 import com.dallycontrol.proto.ConfigApplyPayload
+import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigApplyResult
 import com.dallycontrol.proto.ConfigOutcome
 import kotlinx.coroutines.sync.Mutex
@@ -27,6 +29,9 @@ class ConfigApplier(
     private val kiosk: KioskApplier,
     private val setLocationMode: (String) -> Unit,
     private val store: ConfigStateStore,
+    private val browser: ManagedBrowser? = null,
+    private val apps: AppPolicyEnforcer? = null,
+    private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
 
@@ -41,11 +46,29 @@ class ConfigApplier(
                 is PolicyOutcome.Failed -> ConfigOutcome.failed(o.reason)
             }
         }
+        val previous = store.load()
         applyKiosk(doc)?.let { outcomes["kiosk"] = it }
         doc.location?.let { loc ->
             outcomes["location"] = runCatching { setLocationMode(loc.mode); ConfigOutcome.APPLIED }
                 .getOrElse { ConfigOutcome.failed(it.message ?: "location mode") }
         }
+        // Browser and app policy: a section that disappears is undone (lists cleared, apps unsuspended), since
+        // only a configuration ever set them.
+        val desiredBrowser = doc.browser ?: previous?.browser?.let { ConfigBrowser(mode = "open") }
+        desiredBrowser?.let { b ->
+            val o = browser?.let { runCatching { it.apply(b) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "browser") } }
+                ?: ConfigOutcome.UNSUPPORTED
+            if (doc.browser != null) outcomes["browser"] = o
+        }
+        val desiredApps = doc.apps ?: previous?.apps?.let { ConfigAppPolicy(mode = "open") }
+        desiredApps?.let { a ->
+            val o = apps?.let { runCatching { it.apply(a) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "apps") } }
+                ?: ConfigOutcome.UNSUPPORTED
+            if (doc.apps != null) outcomes["apps"] = o
+        }
+        runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
+            .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
+            .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result

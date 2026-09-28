@@ -9,7 +9,10 @@ import com.dallycontrol.kiosk.KioskController
 import com.dallycontrol.kiosk.KioskResult
 import com.dallycontrol.policy.PolicyOutcome
 import com.dallycontrol.policy.TogglePolicy
+import com.dallycontrol.proto.ConfigAppPolicy
 import com.dallycontrol.proto.ConfigApplyPayload
+import com.dallycontrol.proto.ConfigBrowser
+import com.dallycontrol.proto.ConfigTracking
 import com.dallycontrol.proto.ConfigLocation
 import com.dallycontrol.proto.ConfigOutcome
 import com.dallycontrol.proto.KioskApplyPayload
@@ -100,5 +103,50 @@ class ConfigApplierTest {
         val r = ConfigApplier(mapOf("wifi" to wifi), kiosk(FakeController()), {}, store).reapplyPersisted()
         assertEquals("p1", r?.revision); assertEquals(true, wifi.last)
         assertNull(ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore()).reapplyPersisted())
+    }
+
+    private class FakeBrowser : ManagedBrowser {
+        val applied = mutableListOf<ConfigBrowser>()
+        override fun apply(browser: ConfigBrowser): String { applied += browser; return ConfigOutcome.APPLIED }
+    }
+    private class FakeApps : AppPolicyEnforcer {
+        val applied = mutableListOf<ConfigAppPolicy>()
+        override fun apply(policy: ConfigAppPolicy): String { applied += policy; return ConfigOutcome.APPLIED }
+        override fun reenforce() {}
+    }
+
+    @Test fun `browser, app policy and tracking are applied and reported`() = runTest {
+        val b = FakeBrowser(); val a = FakeApps(); var minutes = -1
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore(), b, a) { minutes = it }
+        val r = applier.apply(ConfigApplyPayload(revision = "r1",
+            browser = ConfigBrowser(mode = "allowlist", allow = listOf("amovil.com.co")),
+            apps = ConfigAppPolicy(mode = "allowlist", allowed = listOf("co.amovil.preventa")),
+            tracking = ConfigTracking(5)))
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["browser"])
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["apps"])
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["tracking"])
+        assertEquals(listOf("amovil.com.co"), b.applied.single().allow)
+        assertEquals(5, minutes)
+    }
+
+    @Test fun `a section that disappears is undone without reporting it`() = runTest {
+        val b = FakeBrowser(); val a = FakeApps(); var minutes = -1; val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, b, a) { minutes = it }
+        applier.apply(ConfigApplyPayload(revision = "r1", browser = ConfigBrowser(mode = "blocklist", block = listOf("x.com")),
+            apps = ConfigAppPolicy(mode = "allowlist"), tracking = ConfigTracking(10)))
+        val r = applier.apply(ConfigApplyPayload(revision = "r2"))
+        assertEquals("open", b.applied.last().mode)
+        assertEquals("open", a.applied.last().mode)
+        assertEquals(0, minutes)
+        assertFalse(r.outcomes.containsKey("browser")); assertFalse(r.outcomes.containsKey("apps")); assertFalse(r.outcomes.containsKey("tracking"))
+        assertEquals("r2", store.revision())
+    }
+
+    @Test fun `no enforcer means unsupported, which does not block persistence`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val r = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store)
+            .apply(ConfigApplyPayload(revision = "r3", browser = ConfigBrowser(mode = "open")))
+        assertEquals(ConfigOutcome.UNSUPPORTED, r.outcomes["browser"])
+        assertEquals("r3", store.revision())
     }
 }

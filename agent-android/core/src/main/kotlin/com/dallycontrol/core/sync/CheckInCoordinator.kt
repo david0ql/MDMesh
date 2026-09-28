@@ -79,6 +79,7 @@ class CheckInCoordinator @Inject constructor(
         val matrix = capabilitySource.matrix(deviceId)
         val acks = pending.drain()
         val bufferedEvents = eventSink.drain()
+        val telemetry = runCatching { telemetrySource.snapshot() }.getOrNull()
 
         val response = try {
             api.checkIn(
@@ -88,7 +89,7 @@ class CheckInCoordinator @Inject constructor(
                     capabilities = matrix.capabilities,
                     results = acks,
                     state = runCatching { stateSource.snapshot() }.getOrNull(),
-                    telemetry = runCatching { telemetrySource.snapshot() }.getOrNull(),
+                    telemetry = telemetry,
                     events = bufferedEvents,
                     hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
                 ),
@@ -106,6 +107,7 @@ class CheckInCoordinator @Inject constructor(
             throw CheckInException(response.message ?: "check-in rejected")
         }
 
+        telemetry?.let { runCatching { telemetrySource.delivered(it) } }
         val results = data.commands.map { dispatcher.dispatch(it) }
         pending.add(results)
         // Record each command outcome as a timeline event (flushed next cycle).
