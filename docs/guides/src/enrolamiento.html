@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>DallyControl — Guía de enrolamiento</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<div class="cover">
+  <span class="wordmark"><span class="bullet"></span><span><span class="b">Dally</span><span class="c">Control</span></span></span>
+  <div class="eyebrow">Guía de operación · 01</div>
+  <h1>Enrolar dispositivos Android</h1>
+  <div class="lead">Cómo poner un teléfono bajo DallyControl: si es nuevo, si ya está en uso, y cuándo (y cómo) hay que formatearlo.</div>
+  <div class="chips">
+    <span class="chip">Android 7 o superior por QR</span>
+    <span class="chip">Android 6 por USB</span>
+    <span class="chip ok">Probado en emuladores Android 14 y 15</span>
+  </div>
+  <div class="toc">
+    <h3>Contenido</h3>
+    <ol>
+      <li>Antes de empezar: qué método usar</li>
+      <li>Teléfono nuevo o recién formateado (QR)</li>
+      <li>Teléfono que ya está en uso</li>
+      <li>Cuándo toca formatear y cómo hacerlo</li>
+      <li>Qué pasa después de enrolar</li>
+      <li>Problemas frecuentes</li>
+    </ol>
+  </div>
+  <div class="meta">DallyControl · consola web y agente Android · septiembre 2026</div>
+</div>
+
+<!-- 1 -->
+<section>
+  <h2><span class="n">01</span> Antes de empezar</h2>
+  <p class="lede">Enrolar es convertir el agente de DallyControl en el <b>propietario del dispositivo</b> (Device Owner). Solo así puede instalar apps sin preguntar, bloquear el teléfono en kiosco, aplicar políticas o borrarlo a distancia.</p>
+
+  <div class="note warn"><b>La regla de Android que lo decide todo</b>Android solo deja nombrar un propietario del dispositivo en un teléfono <b>sin cuentas</b> (ni Google, ni Samsung, ni de ninguna app) y, por QR, solo durante la configuración inicial, antes del asistente de bienvenida. Por eso un teléfono ya en uso casi siempre hay que formatearlo.</div>
+
+  <h3>Qué método usar</h3>
+  <table>
+    <tr><th style="width:38%">Situación del teléfono</th><th style="width:26%">Método</th><th>Notas</th></tr>
+    <tr><td><b>Nuevo, de caja</b></td><td>QR</td><td>El camino normal. Ver sección 2.</td></tr>
+    <tr><td><b>Recién formateado</b></td><td>QR</td><td>Igual que uno nuevo.</td></tr>
+    <tr><td><b>En uso, con cuentas que se pueden quitar</b></td><td>USB (sin formatear)</td><td>Se quitan todas las cuentas y se enrola por cable. Ver sección 3.</td></tr>
+    <tr><td><b>En uso, con cuentas que no se pueden quitar o datos que no importan</b></td><td>Formatear y QR</td><td>Ver secciones 4 y 2.</td></tr>
+    <tr><td><b>Con otro MDM (MobiControl, etc.) o con el agente antiguo</b></td><td>Formatear y QR</td><td>Solo puede haber un propietario del dispositivo.</td></tr>
+    <tr><td><b>Android 6</b></td><td>USB</td><td>El QR de Android empieza en la versión 7. En Android 6 no hay control remoto.</td></tr>
+  </table>
+
+  <h3>Qué necesitas</h3>
+  <ul>
+    <li>Acceso a la consola de DallyControl con un usuario que pueda editar dispositivos.</li>
+    <li>El <b>grupo</b> (empresa) al que va el teléfono, creado en <b>Groups</b>. El grupo decide su configuración y sus apps.</li>
+    <li>Internet en el teléfono durante el enrolamiento (Wi-Fi o datos). El QR puede llevar la red Wi-Fi para conectarse solo.</li>
+    <li>Para el método USB: un computador con las herramientas de DallyControl y el cable del teléfono.</li>
+    <li>Para el método QR: el APK del agente publicado en el servidor (<code>/files/agent.apk</code>). Lo deja listo el administrador del servidor una vez; la página Enroll muestra la dirección que usará el teléfono.</li>
+  </ul>
+</section>
+
+<!-- 2 -->
+<section class="chapter">
+  <h2><span class="n">02</span> Teléfono nuevo o recién formateado</h2>
+  <p class="lede">El teléfono lee un código QR en la primera pantalla, descarga el agente de DallyControl y se configura solo. Tarda un par de minutos.</p>
+
+  <h4>En la consola</h4>
+  <ol class="steps">
+    <li><b>Abre Enroll</b><span>En el menú de la izquierda.</span></li>
+    <li><b>Elige el grupo</b><span>Arriba a la derecha, en <b>Group</b>. El teléfono entrará directamente en esa empresa y recibirá su configuración y sus apps.</span></li>
+    <li><b>Opcional: Wi-Fi</b><span>En «Pre-connect Wi-Fi during setup» puedes poner la red; el teléfono se conectará sin que nadie la escriba.</span></li>
+    <li><b>Un código por teléfono</b><span>Cada QR sirve para <b>un solo</b> teléfono y caduca en 24 horas. Para el siguiente teléfono pulsa <b>New code</b>.</span></li>
+  </ol>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/enroll</span></div><img src="../img/web-01-enroll-qr.png"></div>
+    <figcaption><b>Enroll.</b> Grupo elegido arriba (General), el QR de un solo uso y los pasos a seguir en el teléfono.</figcaption>
+  </figure>
+
+  <h4>En el teléfono</h4>
+  <ol class="steps">
+    <li><b>Enciéndelo en la pantalla de bienvenida</b><span>La primera pantalla del asistente («Hola», «Hi there», «Te damos la bienvenida»). No inicies sesión con ninguna cuenta.</span></li>
+    <li><b>Toca 6 veces en el mismo punto de esa pantalla</b><span>Se abre el lector de QR para aprovisionamiento. Si pide Wi-Fi, conéctalo (salvo que el QR ya lo lleve).</span></li>
+    <li><b>Escanea el QR de la consola</b><span>Android descarga el agente de DallyControl y pregunta si esta organización puede administrar el teléfono. Acepta.</span></li>
+    <li><b>Termina el asistente</b><span>El agente queda como propietario del dispositivo y se enrola en segundos.</span></li>
+  </ol>
+
+  <div class="phones">
+    <figure class="phone"><div class="frame"><img src="../img/enroll-phone-01-agent.png"></div><figcaption><b>Agente enrolado.</b> «Device Owner — active» y el identificador del dispositivo.</figcaption></figure>
+    <figure class="phone"><div class="frame"><img src="../img/enroll-phone-02-autokiosk.png"></div><figcaption><b>Segundos después.</b> El teléfono ya instaló la app de su grupo y entró en kiosco, sin tocar nada.</figcaption></figure>
+  </div>
+
+  <div class="note info"><b>Control remoto</b>El QR deja el teléfono totalmente administrado, pero la vista y el control remoto (pestaña Remote) necesitan además dos permisos que Android solo concede por cable. Para los teléfonos que vayan a necesitar soporte remoto, haz una vez el paso USB de la sección 3 con la opción <code>--remote</code>.</div>
+
+  <h4>Comprueba en la consola</h4>
+  <p>El teléfono aparece en <b>Devices</b> en cuanto se conecta por primera vez, con su grupo y su configuración.</p>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/devices</span></div><img src="../img/web-03-devices.png"></div>
+    <figcaption><b>Devices.</b> Cada tarjeta muestra Android, configuración, grupo y hace cuánto se conectó.</figcaption>
+  </figure>
+</section>
+
+<section class="chapter">
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/devices/…</span></div><img src="../img/web-04-device-new.png"></div>
+    <figcaption><b>Ficha del dispositivo.</b> En «Group &amp; configuration» se ve su empresa, la configuración que ejecuta y de dónde le viene (Device, Group o Global). Desde aquí se puede cambiar de grupo.</figcaption>
+  </figure>
+</section>
+
+<!-- 3 -->
+<section class="chapter">
+  <h2><span class="n">03</span> Teléfono que ya está en uso</h2>
+  <p class="lede">Un teléfono que ya pasó el asistente de bienvenida no puede leer el QR de aprovisionamiento. Tienes dos opciones.</p>
+
+  <div class="card tint">
+    <h4 style="margin-top:0">Opción A — Formatear y usar el QR (recomendada)</h4>
+    <p>Es la más sencilla y la que deja el teléfono más limpio. Sigue la sección 4 para formatearlo y después la sección 2. <b>Se pierden los datos del teléfono</b>, así que antes guarda lo que haga falta.</p>
+  </div>
+
+  <div class="card">
+    <h4 style="margin-top:0">Opción B — Enrolar por USB sin formatear</h4>
+    <p>Sirve si el teléfono <b>puede quedarse sin cuentas</b>. Es también el camino para Android 6 y para dejar listo el control remoto.</p>
+    <ol class="steps">
+      <li><b>Quita todas las cuentas</b><span>Ajustes → Contraseñas y cuentas (o «Cuentas»): elimina Google, Samsung, WhatsApp Business, Microsoft… todas. Quita también perfiles de trabajo y usuarios secundarios.</span></li>
+      <li><b>Activa la depuración USB</b><span>Ajustes → Acerca del teléfono → toca 7 veces «Número de compilación». Luego Ajustes → Sistema → Opciones de desarrollador → «Depuración USB».</span></li>
+      <li><b>Conéctalo al computador</b><span>Acepta en el teléfono el aviso «¿Permitir depuración USB?».</span></li>
+      <li><b>Ejecuta el enrolamiento</b><span>Desde la carpeta de DallyControl, con el grupo al que va (su número aparece en la consola):</span></li>
+    </ol>
+<pre>scripts/adb-enroll.sh \
+  --server https://&lt;tu-servidor&gt; \
+  --apk dallycontrol-agent.apk \
+  --admin-user admin \
+  --group-id &lt;id del grupo&gt; \
+  --remote --vnc-apk "$(scripts/fetch-droidvnc.sh /tmp)"     # opcional: control remoto</pre>
+    <p>El script instala el agente, lo hace propietario del dispositivo, le da el servidor y un código de un solo uso, y con <code>--remote</code> deja listo el control remoto. En unos segundos el teléfono aparece en <b>Devices</b>.</p>
+    <div class="note warn" style="margin-bottom:0"><b>Si falla con «there are already some accounts on the device»</b>Queda alguna cuenta. Revisa Ajustes → Cuentas otra vez (hay apps que crean cuentas propias). Si no se puede quitar, toca formatear.</div>
+  </div>
+
+  <h3>Método manual con token</h3>
+  <p>La pestaña <b>Token</b> de Enroll muestra el mismo código de un solo uso en texto, por si hay que pasarlo a mano en un enrolamiento por USB.</p>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/enroll · Token</span></div><img src="../img/web-02-enroll-token.png"></div>
+    <figcaption><b>Enroll → Token.</b> El código de un solo uso para enrolar sin QR.</figcaption>
+  </figure>
+</section>
+
+<!-- 4 -->
+<section class="chapter">
+  <h2><span class="n">04</span> Cuándo toca formatear</h2>
+  <p class="lede">Formatear (restablecer de fábrica) borra todo el teléfono y lo deja como nuevo, listo para el QR.</p>
+
+  <table>
+    <tr><th style="width:45%">Caso</th><th>Por qué</th></tr>
+    <tr><td>Tiene cuentas que no se pueden quitar</td><td>Android no deja nombrar propietario del dispositivo con cuentas.</td></tr>
+    <tr><td>Está administrado por otro MDM (MobiControl, Intune…) o era de otra empresa</td><td>Solo puede haber un propietario; el anterior hay que quitarlo, y lo limpio es formatear.</td></tr>
+    <tr><td>Se enroló con el agente antiguo (MDMesh, <code>com.mdmesh.agent</code>)</td><td>El agente cambió de paquete (<code>com.dallycontrol.agent</code>); para Android es otra app.</td></tr>
+    <tr><td>Se lo asignas a otra persona o empresa</td><td>Para que no queden datos, cuentas ni apps del anterior.</td></tr>
+    <tr><td>Se perdió o lo robaron</td><td>Borrado remoto desde la consola para proteger los datos.</td></tr>
+    <tr><td>El agente fue desinstalado o dejó de funcionar</td><td>Sin agente no hay administración; se vuelve a empezar.</td></tr>
+  </table>
+
+  <h3>Cómo formatear</h3>
+  <div class="card">
+    <h4 style="margin-top:0">Desde la consola (teléfono enrolado)</h4>
+    <ol class="steps">
+      <li><b>Abre el dispositivo</b><span>Devices → el teléfono → pestaña <b>Control</b>.</span></li>
+      <li><b>Destructive → Factory reset (wipe)</b><span>Escribe <b>WIPE</b> para confirmar. El teléfono se borra en cuanto recibe la orden.</span></li>
+    </ol>
+    <p style="margin-bottom:0">El borrado de fábrica solo se lanza <b>dispositivo a dispositivo</b>: la consola no deja hacerlo sobre un grupo ni sobre todos.</p>
+  </div>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/devices/… · Control</span></div><img src="../img/web-08-device-destructive.png"></div>
+    <figcaption><b>Control.</b> Acciones del dispositivo; «Factory reset (wipe)» está en el grupo Destructive.</figcaption>
+  </figure>
+
+  <div class="card">
+    <h4 style="margin-top:0">Desde el teléfono</h4>
+    <ul style="margin-bottom:0">
+      <li><b>Normal:</b> Ajustes → Sistema → Opciones de restablecimiento → Borrar todos los datos (restablecer de fábrica).</li>
+      <li><b>Si no arranca o está bloqueado:</b> apagado, mantener Encendido + Bajar volumen (según marca) para entrar en <i>Recovery</i> y elegir «Wipe data / factory reset».</li>
+    </ul>
+  </div>
+
+  <div class="note danger"><b>Protección de restablecimiento (FRP)</b>Si el teléfono tenía una cuenta de Google, después de formatear pedirá <b>esa misma cuenta</b> para continuar. Antes de formatear, quita la cuenta en Ajustes → Cuentas, o ten a mano su usuario y contraseña. Si no, el teléfono queda bloqueado en el asistente.</div>
+
+  <p>Después de formatear, el teléfono vuelve a la pantalla de bienvenida: sigue la <b>sección 2</b>. Si el teléfono enrolado estaba en la consola, puedes borrar su ficha antigua en <b>Devices</b> (seleccionar → <b>Delete</b>); al enrolarse de nuevo aparece con un identificador nuevo.</p>
+</section>
+
+<!-- 5 -->
+<section class="chapter">
+  <h2><span class="n">05</span> Qué pasa después de enrolar</h2>
+  <p class="lede">Todo lo demás llega solo, según el grupo del teléfono.</p>
+  <div class="flow">
+    <div class="box"><span class="lbl">Enrolamiento</span><b>Entra en su grupo</b>El del QR, o el que le asignes después.</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Configuración</span><b>La de su nivel</b>La suya propia si la fijas; si no, la del grupo; si no, la global.</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Apps</span><b>Se instalan solas</b>Sin preguntar al usuario.</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Kiosco y políticas</span><b>Se aplican</b>Wi-Fi, cámara, capturas, kiosco…</div>
+  </div>
+
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/groups</span></div><img src="../img/web-09-groups.png"></div>
+    <figcaption><b>Groups.</b> Configuración global, y por cada empresa su configuración, sus dispositivos y acciones sobre todo el grupo.</figcaption>
+  </figure>
+
+  <h3>Cambios más adelante</h3>
+  <ul>
+    <li><b>Mover a otra empresa:</b> Devices → seleccionar → <b>Move to group</b>, o desde la ficha del teléfono. Recibe la configuración y las apps del grupo nuevo.</li>
+    <li><b>Una configuración distinta solo para ese teléfono:</b> en su ficha, «Set on device». Gana sobre la del grupo y la global; «Inherit» lo devuelve a la de su grupo.</li>
+    <li><b>Soporte inmediato:</b> con el teléfono bloqueado en modo ahorro de batería, una orden puede tardar unos minutos en llegar. Para los equipos que necesiten soporte al instante, ponlos en <b>Always-on</b> (pestaña Remote, o Actions en Devices).</li>
+  </ul>
+</section>
+
+<!-- 6 -->
+<section class="chapter">
+  <h2><span class="n">06</span> Problemas frecuentes</h2>
+  <table>
+    <tr><th style="width:36%">Síntoma</th><th style="width:32%">Causa probable</th><th>Qué hacer</th></tr>
+    <tr><td>Al tocar 6 veces no sale el lector de QR</td><td>El teléfono ya pasó el asistente, o no está en la primera pantalla</td><td>Formatear (sección 4), o usar USB (sección 3).</td></tr>
+    <tr><td>«No se puede configurar el dispositivo» al escanear</td><td>Código ya usado o caducado (24 h), o sin internet</td><td>Pulsa <b>New code</b> en Enroll y vuelve a escanear; revisa la Wi-Fi.</td></tr>
+    <tr><td>El teléfono no aparece en Devices</td><td>Sin conexión con el servidor</td><td>Comprueba internet en el teléfono; abre la app DallyControl y revisa «Server».</td></tr>
+    <tr><td>USB: «there are already some accounts»</td><td>Queda alguna cuenta</td><td>Quita todas las cuentas; si no se puede, formatea.</td></tr>
+    <tr><td>Tras formatear pide una cuenta de Google</td><td>Protección de restablecimiento (FRP)</td><td>Entra con la cuenta que tenía; la próxima vez quítala antes de formatear.</td></tr>
+    <tr><td>La pestaña Remote dice que el teléfono no tiene vista remota</td><td>Se enroló por QR, sin el paso USB</td><td>Haz una vez el enrolamiento USB con <code>--remote</code>.</td></tr>
+    <tr><td>Las órdenes tardan minutos</td><td>Teléfono bloqueado en modo ahorro</td><td>Ponlo en <b>Always-on</b> si necesita respuesta inmediata.</td></tr>
+  </table>
+</section>
+
+</body>
+</html>

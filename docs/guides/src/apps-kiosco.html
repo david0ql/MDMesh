@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>DallyControl — Apps y modo kiosco</title>
+<link rel="stylesheet" href="guide.css">
+</head>
+<body>
+
+<div class="cover">
+  <span class="wordmark"><span class="bullet"></span><span><span class="b">Dally</span><span class="c">Control</span></span></span>
+  <div class="eyebrow">Guía de operación · 02</div>
+  <h1>Apps y modo kiosco</h1>
+  <div class="lead">Cómo subir vuestras APK, cómo llegan solas a los teléfonos, cómo se actualizan y cómo dejar un teléfono bloqueado en la app de preventa.</div>
+  <div class="chips">
+    <span class="chip">Ejemplo real: Amovil Preventa 32.7.65</span>
+    <span class="chip ok">Instalación silenciosa</span>
+    <span class="chip ok">Probado en emuladores Android 14 y 15</span>
+  </div>
+  <div class="toc">
+    <h3>Contenido</h3>
+    <ol>
+      <li>Cómo funciona</li>
+      <li>Subir una APK</li>
+      <li>Añadirla a una configuración</li>
+      <li>Cómo se instala en el teléfono</li>
+      <li>Actualizar una app</li>
+      <li>Modo kiosco</li>
+      <li>Quitar una app</li>
+      <li>Problemas frecuentes</li>
+    </ol>
+  </div>
+  <div class="meta">DallyControl · consola web y agente Android · septiembre 2026</div>
+</div>
+
+<!-- 1 -->
+<section>
+  <h2><span class="n">01</span> Cómo funciona</h2>
+  <p class="lede">Las apps no se mandan teléfono por teléfono: se ponen en una <b>configuración</b>, y cada teléfono instala lo que dice la suya.</p>
+  <div class="flow">
+    <div class="box"><span class="lbl">Apps</span><b>Biblioteca</b>Subes la APK una vez; queda alojada en el servidor.</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Configurations</span><b>Configuración</b>Dice qué apps instalar, cuál es la principal y si hay kiosco.</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Groups / Devices</span><b>Grupo o teléfono</b>Usa esa configuración (propia, del grupo o global).</div>
+    <div class="arrow">→</div>
+    <div class="box"><span class="lbl">Teléfono</span><b>Se instala sola</b>Descarga, verifica e instala sin preguntar.</div>
+  </div>
+  <p>La instalación es <b>silenciosa</b>: el usuario no ve ningún aviso ni tiene que aceptar nada. Esto funciona porque el agente es el propietario del dispositivo (ver la guía de enrolamiento).</p>
+  <div class="note info"><b>En esta guía</b>Se usó la APK real <code>preventa-falcon-28.10-fix-solicitud-doble.apk</code> (Amovil Preventa, paquete <code>co.amovil.preventa</code>, versión 32.7.65). Se subió, se instaló en un teléfono y se dejó en kiosco; todas las capturas son de ese recorrido.</div>
+</section>
+
+<!-- 2 -->
+<section class="chapter">
+  <h2><span class="n">02</span> Subir una APK</h2>
+  <ol class="steps">
+    <li><b>Apps → Custom APK</b><span>En el menú de la izquierda.</span></li>
+    <li><b>Arrastra la APK al recuadro</b><span>O haz clic para buscarla. También acepta paquetes divididos (.xapk, .apks, .apkm, .zip).</span></li>
+    <li><b>Listo</b><span>La consola lee el paquete, la versión y el nombre, aloja el archivo en el servidor y la añade a la <b>biblioteca</b>. No hay que rellenar nada.</span></li>
+  </ol>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/apps · Custom APK</span></div><img src="../img/apk-02-uploaded.png"></div>
+    <figcaption><b>APK subida.</b> La consola rellenó sola el paquete (co.amovil.preventa), el versionCode y el nombre, y alojó el archivo.</figcaption>
+  </figure>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/apps · Library</span></div><img src="../img/apk-03-library.png"></div>
+    <figcaption><b>Library.</b> Las apps disponibles para las configuraciones.</figcaption>
+  </figure>
+</section>
+
+<!-- 3 -->
+<section class="chapter">
+  <h2><span class="n">03</span> Añadirla a una configuración</h2>
+  <p class="lede">Las tres configuraciones de fábrica (Managed Launcher, MIUI, Background) son <b>plantillas bloqueadas</b>: se usan como base, no se editan.</p>
+  <ol class="steps">
+    <li><b>Configurations → «Use as template»</b><span>Sobre la plantilla que más se parezca (Managed Launcher para teléfonos de ruta). Ponle nombre; en el ejemplo, <b>Preventa Kiosco</b>.</span></li>
+    <li><b>Edit → Allowed apps → Add apps</b><span>Marca la app y pulsa Add. Queda con la acción <b>Install</b>.</span></li>
+    <li><b>Apps → Main app</b><span>Elige la app principal: la que se abre al encender y la que queda fija en kiosco.</span></li>
+    <li><b>Save</b><span>Si cambias el kiosco, la consola avisa de que los teléfonos de esa configuración lo aplicarán; confirma.</span></li>
+  </ol>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/configs</span></div><img src="../img/cfg-01-list.png"></div>
+    <figcaption><b>Configurations.</b> Las plantillas «Default» y la configuración propia «Preventa Kiosco».</figcaption>
+  </figure>
+</section>
+
+<section class="chapter">
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/configs · Add apps</span></div><img src="../img/cfg-02-addapp.png"></div>
+    <figcaption><b>Add apps.</b> Se elige la app de la biblioteca.</figcaption>
+  </figure>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/configs · Allowed apps</span></div><img src="../img/cfg-04-allowed.png"></div>
+    <figcaption><b>Allowed apps.</b> Cada app con su acción: <b>Install</b> (instalar), <b>Remove</b> (desinstalar de los teléfonos) o <b>Hide icon</b> (no se instala ni se muestra).</figcaption>
+  </figure>
+
+  <h3>Asignar la configuración</h3>
+  <p>Una configuración no hace nada hasta que un grupo o un teléfono la usa:</p>
+  <ul>
+    <li><b>A toda una empresa:</b> Groups → en la fila del grupo, columna Configuration. Es lo habitual.</li>
+    <li><b>A todos los teléfonos sin grupo ni configuración propia:</b> Groups → Global → Default configuration.</li>
+    <li><b>A un teléfono concreto:</b> su ficha → «Set on device».</li>
+  </ul>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/groups</span></div><img src="../img/grp-01-assign.png"></div>
+    <figcaption><b>Groups.</b> «Preventa Kiosco» asignada al grupo General: su teléfono se reconfiguró en el momento.</figcaption>
+  </figure>
+</section>
+
+<!-- 4 -->
+<section class="chapter">
+  <h2><span class="n">04</span> Cómo se instala en el teléfono</h2>
+  <p class="lede">No hay que ir teléfono por teléfono. La instalación se pone en marcha sola en estos casos:</p>
+  <table>
+    <tr><th style="width:44%">Cuando…</th><th>Qué pasa</th></tr>
+    <tr><td>Guardas una configuración con apps</td><td>Todas sus apps se ponen en cola para cada teléfono que la usa.</td></tr>
+    <tr><td>Un teléfono pasa a otra configuración (cambia de grupo, cambia la del grupo o la global, o le fijas una)</td><td>Recibe las apps de su nueva configuración.</td></tr>
+    <tr><td>Se enrola un teléfono nuevo</td><td>Instala las apps de su configuración nada más enrolarse.</td></tr>
+    <tr><td>Subes una versión nueva de una app</td><td>Las configuraciones que la usan pasan a la versión nueva y sus teléfonos se actualizan (sección 5).</td></tr>
+  </table>
+
+  <h3>En el teléfono</h3>
+  <ol class="steps">
+    <li><b>Recibe la orden</b><span>Al instante si está encendido o en Always-on; en unos minutos si está bloqueado en modo ahorro.</span></li>
+    <li><b>Compara versiones antes de descargar</b><span>Si ya tiene esa versión, no descarga nada.</span></li>
+    <li><b>Descarga, verifica e instala</b><span>En silencio, sin avisos al usuario. En el ejemplo, los 39 MB de Amovil Preventa tardaron segundos en una red rápida.</span></li>
+    <li><b>Informa a la consola</b><span>La orden aparece como <b>app.install · DONE</b> en «Recent commands» de la ficha.</span></li>
+  </ol>
+
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/devices/… · Apps</span></div><img src="../img/web-05-device-apps.png"></div>
+    <figcaption><b>Ficha → Apps.</b> Apps instaladas en el teléfono (Scan now las vuelve a leer): Amovil Preventa ya aparece.</figcaption>
+  </figure>
+
+  <div class="note info"><b>Forzarlo a mano</b>En la ficha del teléfono, <b>Install config apps</b> vuelve a enviar todas las apps de su configuración. Para una app suelta en muchos teléfonos: Devices (o Groups) → Actions / Run action → <b>Install app…</b></div>
+</section>
+
+<!-- 5 -->
+<section class="chapter">
+  <h2><span class="n">05</span> Actualizar una app</h2>
+  <p class="lede">Sube la APK nueva por <b>Custom APK</b>, igual que la primera vez. Si su <b>versionCode</b> es mayor, la consola la añade como versión nueva de la misma app, todas las configuraciones que la usan pasan a ella y los teléfonos se actualizan solos.</p>
+
+  <div class="note danger"><b>Importante para Amovil Preventa: el versionCode</b>Android y el agente deciden si actualizar por el <b>versionCode</b> (un número entero), no por el nombre de la versión. La APK de esta guía tiene versionCode <b>1</b> aunque su versión sea 32.7.65. Si la próxima APK también tiene versionCode 1, <b>ningún teléfono se actualizará</b>. En cada compilación nueva de la app hay que subir el versionCode (1, 2, 3… o, por ejemplo, 3276504771).</div>
+
+  <table>
+    <tr><th style="width:34%">Al subir una APK de una app que ya está</th><th>Resultado</th></tr>
+    <tr><td>versionCode <b>mayor</b></td><td>«New version added»: configuraciones y teléfonos pasan a la versión nueva. <span class="chip ok">probado: un teléfono pasó de la versión 1 a la 2 solo</span></td></tr>
+    <tr><td>versionCode <b>igual</b></td><td>«Same versionCode as the Library»: no cambia nada; hay que subir el versionCode en la compilación.</td></tr>
+    <tr><td>versionCode <b>menor</b></td><td>«Older than the Library»: Android nunca instala una versión anterior sobre una más nueva.</td></tr>
+  </table>
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/apps · Custom APK</span></div><img src="../img/apk-04-same-version.png"></div>
+    <figcaption><b>Mismo versionCode.</b> Al volver a subir la misma APK de preventa, la consola avisa de que los teléfonos no se actualizarían.</figcaption>
+  </figure>
+</section>
+
+<!-- 6 -->
+<section class="chapter">
+  <h2><span class="n">06</span> Modo kiosco</h2>
+  <p class="lede">El kiosco deja el teléfono dedicado a vuestra app: el usuario no puede salir a otras apps, a Ajustes ni a la pantalla de inicio.</p>
+
+  <div class="split">
+    <div>
+      <h3 style="margin-top:0">Cómo activarlo</h3>
+      <ol class="steps">
+        <li><b>En la configuración</b><span>Main app = la app (Amovil Preventa) y <b>Kiosk mode</b> activado. Guardar.</span></li>
+        <li><b>Asignarla</b><span>Al grupo o al teléfono. Los teléfonos entran en kiosco en segundos.</span></li>
+      </ol>
+      <h3>Comprobado en el emulador</h3>
+      <p>Con el kiosco activo, pulsar <b>Inicio</b>, <b>Recientes</b> o intentar abrir <b>Ajustes</b> deja el teléfono en Amovil Preventa. La consola muestra «Kiosk: On» en la ficha.</p>
+      <h3>Dos modos</h3>
+      <ul>
+        <li><b>Una sola app</b> (solo la Main app con Install): el teléfono queda fijo en esa app.</li>
+        <li><b>Lanzador</b> (varias apps con Install): una pantalla de DallyControl muestra solo los iconos permitidos.</li>
+      </ul>
+    </div>
+    <figure class="phone"><div class="frame"><img src="../img/phone-01-kiosk.png"></div><figcaption><b>Kiosco activo.</b> Amovil Preventa fija en pantalla.</figcaption></figure>
+  </div>
+</section>
+
+<section class="chapter">
+  <figure>
+    <div class="browser"><div class="bar"><i></i><i></i><i></i><span>/configs · Preventa Kiosco</span></div><img src="../img/cfg-03-mainapp-kiosk.png"></div>
+    <figcaption><b>Editor de configuración.</b> Main app y opciones del kiosco. Las marcadas «Enforced» las aplica el agente.</figcaption>
+  </figure>
+
+  <h3>Opciones del kiosco</h3>
+  <table>
+    <tr><th style="width:30%">Opción</th><th>Qué hace</th></tr>
+    <tr><td>Kiosk mode</td><td>Activa el bloqueo en la app principal (o en el lanzador).</td></tr>
+    <tr><td>Home / Recents button</td><td>Permite o no los botones de Inicio y Recientes dentro del kiosco.</td></tr>
+    <tr><td>Notifications</td><td>Permite o no desplegar las notificaciones.</td></tr>
+    <tr><td>System info</td><td>Muestra o no la barra de estado (hora, batería, señal).</td></tr>
+    <tr><td>Lock screen</td><td>Permite o no la pantalla de bloqueo.</td></tr>
+    <tr><td>Lock hardware buttons</td><td>Bloquea los botones físicos de encendido y volumen.</td></tr>
+    <tr><td>Kiosk exit button + Admin password</td><td>En modo lanzador: botón visible para salir (o 7 toques en la esquina superior derecha si está apagado), protegido con la contraseña de administrador.</td></tr>
+  </table>
+
+  <h3>Entrar y salir desde la consola</h3>
+  <p>Sin tocar la configuración, en la ficha del teléfono → Control → Disruptive: <b>Enter kiosk</b> (elige apps de las instaladas) y <b>Exit kiosk</b>. Es la forma de sacar a un teléfono del kiosco un momento para soporte; para quitarlo de forma permanente, desactiva Kiosk mode en su configuración.</p>
+  <div class="note ok"><b>Soporte remoto en kiosco</b>La pestaña Remote funciona con el teléfono en kiosco: se ve la pantalla y se puede operar dentro de la app (comprobado tocando un campo de Amovil Preventa desde el visor). Al terminar, el teléfono sigue en kiosco.</div>
+</section>
+
+<!-- 7 -->
+<section>
+  <div style="height:4mm"></div>
+  <h2><span class="n">07</span> Quitar una app</h2>
+  <ul>
+    <li><b>De todos los teléfonos de una configuración:</b> en Allowed apps, cambia su acción a <b>Remove</b> y guarda. Se desinstala de todos sus teléfonos.</li>
+    <li><b>De un teléfono concreto:</b> su ficha → Apps → <b>Uninstall</b>.</li>
+    <li><b>Dejar de instalarla sin desinstalarla:</b> quítala de la configuración (✕).</li>
+    <li><b>De la biblioteca:</b> primero quítala de todas las configuraciones.</li>
+  </ul>
+  <div class="note warn"><b>El agente no se puede desinstalar a sí mismo</b>Una configuración nunca desinstala el agente de DallyControl, aunque se lo pida.</div>
+
+  <h2 style="margin-top:8mm"><span class="n">08</span> Problemas frecuentes</h2>
+  <table>
+    <tr><th style="width:34%">Síntoma</th><th style="width:30%">Causa probable</th><th>Qué hacer</th></tr>
+    <tr><td>La app no llega a un teléfono</td><td>El teléfono no usa esa configuración</td><td>Mira en su ficha «Group &amp; configuration» qué configuración ejecuta.</td></tr>
+    <tr><td>Tarda minutos en instalar</td><td>Teléfono bloqueado en modo ahorro</td><td>Ponlo en Always-on si necesita cambios inmediatos.</td></tr>
+    <tr><td>La versión nueva no se instala</td><td>Mismo versionCode que la anterior</td><td>Sube el versionCode en la compilación y vuelve a subirla.</td></tr>
+    <tr><td>«app.install · FAILED» en la ficha</td><td>APK incompatible, sin espacio, o la descarga falló</td><td>Lee el detalle del comando en «Recent commands».</td></tr>
+    <tr><td>El teléfono no entra en kiosco</td><td>Sin Main app, o la app aún no está instalada</td><td>Revisa Main app y que la app figure en Apps de la ficha.</td></tr>
+    <tr><td>Hay que salir del kiosco ya</td><td>—</td><td>Ficha → Control → <b>Exit kiosk</b>.</td></tr>
+  </table>
+</section>
+
+</body>
+</html>
