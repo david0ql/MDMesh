@@ -126,12 +126,24 @@ public class AgentResource {
             return Response.ERROR("error.agent.token.invalid");
         }
 
-        AgentEnrollmentToken token = tokenDAO.findByToken(request.getEnrollToken());
+        // A single-use token is matched exactly; a folder's reusable code however it was typed (case, dashes, spaces).
+        AgentEnrollmentToken token = tokenDAO.findByToken(request.getEnrollToken().trim());
+        if (token == null) {
+            String code = com.hmdm.util.EnrollmentCodes.normalize(request.getEnrollToken());
+            token = code == null ? null : tokenDAO.findByToken(code);
+            if (token != null && !token.isReusable()) {
+                token = null;
+            }
+        }
         if (token == null) {
             return Response.ERROR("error.agent.token.invalid");
         }
+        final boolean reusable = token.isReusable();
         // Friendly pre-checks for good error messages; the CLAIM below is the actual guard.
-        if (token.isUsed()) {
+        if (reusable && token.isRevoked()) {
+            return Response.ERROR("error.agent.token.invalid");
+        }
+        if (!reusable && token.isUsed()) {
             return Response.ERROR("error.agent.token.used");
         }
         if (token.getExpiresAt() != null && token.getExpiresAt() < System.currentTimeMillis()) {
@@ -140,9 +152,9 @@ public class AgentResource {
         // Atomically consume the token BEFORE creating anything: with N concurrent enrolls
         // (freshly-provisioned agents fire several racing check-in engines) exactly one wins;
         // the blind mark-used-after-create used here before let every racer mint its own
-        // device row, leaving permanent ghost devices.
-        if (!tokenDAO.claim(token.getId())) {
-            return Response.ERROR("error.agent.token.used");
+        // device row, leaving permanent ghost devices. A reusable code only counts the use.
+        if (reusable ? !tokenDAO.claimReusable(token.getId()) : !tokenDAO.claim(token.getId())) {
+            return Response.ERROR(reusable ? "error.agent.token.invalid" : "error.agent.token.used");
         }
 
         String deviceId = UUID.randomUUID().toString();
@@ -153,7 +165,8 @@ public class AgentResource {
             Integer groupId = token.getGroupId();
             com.hmdm.persistence.domain.DeviceGroupView group =
                     groupId == null ? null : commandDAO.findGroup(token.getCustomerId(), groupId);
-            Integer inherited = group == null ? null : group.getConfigurationId();
+            // Folders nest: a sub-folder without its own configuration runs its nearest ancestor's.
+            Integer inherited = group == null ? null : group.getEffectiveConfigurationId();
             boolean pinned = token.getConfigurationId() != null;
             device = unsecureDAO.createNewDeviceForToken(deviceId, token.getCustomerId(),
                     pinned ? token.getConfigurationId() : inherited, group == null ? null : groupId);
@@ -199,7 +212,11 @@ public class AgentResource {
             // A server-side failure (settings rejection, SQL error) must not burn the single-use
             // token — the agent retries and succeeds once the operator fixes the condition.
             if (device == null) {
-                tokenDAO.release(token.getId());
+                if (reusable) {
+                    tokenDAO.releaseReusable(token.getId());
+                } else {
+                    tokenDAO.release(token.getId());
+                }
             }
         }
     }
