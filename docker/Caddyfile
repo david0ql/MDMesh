@@ -44,6 +44,16 @@
 		reverse_proxy websockify:6080
 	}
 
+	# Device side of remote control (ADR 0010): the agent tunnels droidVNC-NG's repeater connection inside this
+	# WebSocket, so the session is encrypted by the same TLS as the API. forward_auth lets it through only with
+	# the device's own secret (Authorization) and a remote.vnc.start queued for it in the last 15 minutes.
+	handle_path /remote/device/* {
+		forward_auth server:8080 {
+			uri /rest/public/agent/v1/remote/tunnel
+		}
+		reverse_proxy websockify-device:6081
+	}
+
 	# Updater status + recovery page → the decoupled supervisor (always up, independent of the
 	# server), so "update available" + recovery stay reachable even mid-update.
 	handle /update/* {

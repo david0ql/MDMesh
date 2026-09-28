@@ -116,9 +116,12 @@ services:
       - .:/project
       - backups:/backups
 
-  # Remote control (ADR 0010), opt-in: COMPOSE_PROFILES=remote. Devices dial OUT to the repeater on
-  # REPEATER_PORT (open it on the host firewall); the console reaches it only through websockify behind
-  # Caddy's /remote/vnc (signed-in sessions). Neither service decodes the stream.
+  # Remote control (ADR 0010), opt-in: COMPOSE_PROFILES=remote. Devices reach the repeater through an
+  # encrypted WebSocket on this server's HTTPS origin (Caddy's /remote/device, gated on the device secret +
+  # a queued session) and websockify-device; the console reaches it through websockify behind Caddy's
+  # /remote/vnc (signed-in sessions). Neither service decodes the stream. The repeater's plain device port
+  # is published on loopback only; set REPEATER_BIND=0.0.0.0 (and open REPEATER_PORT) only for older agents
+  # that cannot tunnel (their stream is unencrypted: put that port behind a VPN).
   vnc-repeater:
     image: ghcr.io/${IMAGE_OWNER:-local}/mdmesh-vnc-repeater:${REPEATER_VERSION:-latest}
     build:
@@ -127,7 +130,7 @@ services:
     restart: unless-stopped
     profiles: ["remote"]
     ports:
-      - "${REPEATER_BIND:-0.0.0.0}:${REPEATER_PORT:-5500}:5500"
+      - "${REPEATER_BIND:-127.0.0.1}:${REPEATER_PORT:-5500}:5500"
 
   websockify:
     image: ghcr.io/${IMAGE_OWNER:-local}/mdmesh-websockify:${REPEATER_VERSION:-latest}
@@ -136,6 +139,18 @@ services:
       dockerfile: docker/websockify.Dockerfile
     restart: unless-stopped
     profiles: ["remote"]
+    depends_on:
+      - vnc-repeater
+
+  # Device side of the encrypted tunnel: WebSocket (from Caddy's /remote/device) <-> the repeater's device port.
+  websockify-device:
+    image: ghcr.io/${IMAGE_OWNER:-local}/mdmesh-websockify:${REPEATER_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/websockify.Dockerfile
+    restart: unless-stopped
+    profiles: ["remote"]
+    command: ["websockify", "6081", "vnc-repeater:5500"]
     depends_on:
       - vnc-repeater
 
