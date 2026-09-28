@@ -114,6 +114,17 @@ The installer stops whatever it started before (the unit, or a pre-0.2.9 root To
 refuses to continue if the chosen port is held by anything else, so it never kills a process it does not own. The JDK
 does not run as root, and the installer does not open ports 80/443; front it with your own TLS proxy.
 
+To enable password-recovery email on a native install, pass the same SMTP settings used by the Docker deployment when
+running the installer. They are written into the root-only Tomcat context file:
+
+```bash
+SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_STARTTLS=true \
+SMTP_USERNAME=mdmesh SMTP_PASSWORD='...' SMTP_FROM=mdm@example.com \
+sudo ./setup.sh --native
+```
+
+`SMTP_SSL` and `SMTP_STARTTLS` accept `true` or `false` (both default to `false`).
+
 ## Uninstalling
 
 **Docker (`setup.sh` or the quick start).** Everything lives in the compose project `mdmesh` plus the directory
@@ -271,7 +282,8 @@ which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:90
   console routes the first sign-in to a "set your password" screen). Configure SMTP in `.env` to enable
   email-based password recovery thereafter.
 - The supervisor mounts the Docker socket (to drive updates) and is trusted: it acts only on
-  **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token).
+  **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token). Native
+  installation also verifies the signed release manifest before it accepts an initial agent APK.
   Apply/rollback only ever recreate `server`/`caddy` — never `postgres` or the supervisor itself.
 - On native installs the supervisor runs as the unprivileged `mdmesh` user (like Tomcat), with its settings in the
   root-owned `/etc/mdmesh/supervisor.env`. A `GITHUB_TOKEN` there reaches the supervisor's environment, which that user
