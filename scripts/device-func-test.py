@@ -318,6 +318,60 @@ def t_apps():
     check("telemetry: hardware present", bool((r.get("data") or {})), str(r)[:200])
 
 
+TESTAPP = "com.mdmesh.testapp"
+TESTAPP_DIR = __import__("os").path.join(__import__("os").path.dirname(__file__), "testapp")
+
+
+def upload_apk(path):
+    """Upload + commit an APK the way the console does; returns (public url, sha256)."""
+    import mimetypes, uuid
+    boundary = uuid.uuid4().hex
+    data = open(path, "rb").read()
+    # Unique name per run: the server refuses to commit over an existing file of the same name.
+    name = __import__('os').path.basename(path).replace(".apk", f"-{int(time.time() * 1000)}.apk")
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\n"
+            f"Content-Type: application/vnd.android.package-archive\r\n\r\n").encode() + data + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(A.api + "/rest/private/web-ui-files", data=body, method="POST",
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with OP.open(req, timeout=60) as r:
+        up = json.loads(r.read())
+    tmp = up["data"]["serverPath"]
+    c = api("POST", "/rest/private/web-ui-files/update", {"tmpPath": tmp, "fileName": "", "filePath": "", "external": False})
+    if c.get("status") != "OK":
+        raise RuntimeError(f"commit failed: {c}")
+    return c["data"]["url"], hashlib.sha256(data).hexdigest()
+
+
+def installed_version():
+    out = sh(f"dumpsys package {TESTAPP}")
+    for line in out.splitlines():
+        if "versionCode=" in line:
+            return int(line.split("versionCode=")[1].split()[0])
+    return None
+
+
+def t_install():
+    print("== silent app install / upgrade / uninstall")
+    if not advertised("app.silentInstall"):
+        return
+    # The committed URL uses the server's BASE_URL (localhost:8088 on the dev stack): let the device reach it.
+    adb("reverse", "tcp:8088", "tcp:8088")
+    sh(f"pm uninstall {TESTAPP}")
+    for v in (1, 2):
+        url, sha = upload_apk(__import__("os").path.join(TESTAPP_DIR, f"testapp-v{v}.apk"))
+        s, d = run("app.install", {"url": url, "packageName": TESTAPP, "versionCode": v, "sha256": sha,
+                                    "runAfterInstall": False}, "app.silentInstall", timeout=120)
+        check(f"app.install v{v}: done", s == "done", f"{s} {d}")
+        check(f"app.install v{v}: installed silently with versionCode {v}", until(lambda: installed_version() == v),
+              str(installed_version()))
+    url, _ = upload_apk(__import__("os").path.join(TESTAPP_DIR, "testapp-v1.apk"))
+    s, d = run("app.install", {"url": url, "packageName": TESTAPP, "versionCode": 1, "sha256": "0" * 64}, "app.silentInstall")
+    check("app.install with a wrong sha256 is refused", s == "failed", f"{s} {d}")
+    s, d = run("app.uninstall", {"packageName": TESTAPP}, timeout=120)
+    check("app.uninstall: done", s == "done", f"{s} {d}")
+    check("app.uninstall: package gone", until(lambda: installed_version() is None))
+
+
 def t_reboot():
     print("== reboot")
     if not advertised("device.reboot"):
@@ -351,7 +405,8 @@ def main():
         adb("emu", "geo", "fix", "-74.0721", "4.7110")
         time.sleep(1)
     tests = [("policies", t_policies), ("messages", t_messages), ("lock", t_lock), ("modes", t_modes),
-             ("kiosk", t_kiosk), ("passcode", t_passcode), ("apps", t_apps), ("location", t_location)]
+             ("kiosk", t_kiosk), ("passcode", t_passcode), ("apps", t_apps), ("install", t_install),
+             ("location", t_location)]
     if A.destructive:
         tests += [("reboot", t_reboot), ("wipe", t_wipe)]
     for key, fn in tests:
