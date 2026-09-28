@@ -76,6 +76,14 @@ class TransportManager @Inject constructor(
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     openedAt = System.currentTimeMillis()
+                    // Catch up on (re)connect: a wake the server sent while this socket was down (NAT
+                    // timeout, network switch, server restart) went nowhere, so without this those
+                    // commands waited for the 15-minute floor.
+                    val cb = onWake ?: return
+                    scope.launch {
+                        runCatching { cb(WakeSignal(KIND_CATCH_UP)) }
+                            .onFailure { Log.w(TAG, "catch-up sync failed", it) }
+                    }
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -118,5 +126,7 @@ class TransportManager @Inject constructor(
     private companion object {
         const val TAG = "TransportManager"
         const val STABLE_SESSION_MS = 30_000L
+        /** Any kind other than "interactive" makes the host run one check-in. */
+        const val KIND_CATCH_UP = "commands"
     }
 }

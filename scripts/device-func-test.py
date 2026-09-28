@@ -126,8 +126,8 @@ def lockscreen_info_has(msg):
         return True
     adb("root")  # emulator/userdebug: read where LockSettings persists owner info
     time.sleep(1)
-    # API 24-25 keep it in the device-policy state file; newer releases in LockSettings' database.
-    return bool(sh(f"grep -l '{msg}' /data/system/locksettings.db /data/system/device_policies.xml 2>/dev/null").strip())
+    # (SQLite's write-ahead log counts: a fresh value sits in locksettings.db-wal until a checkpoint.)
+    return bool(sh(f"grep -l '{msg}' /data/system/locksettings.db* /data/system/device_policies.xml 2>/dev/null").strip())
 
 
 _CAPS = {}
@@ -293,10 +293,16 @@ def t_passcode():
     ok = s == "done"
     check("passcode set: done", ok, f"{s} {d}")
     if ok:
-        check("passcode set: device secure", until(lambda: "true" in sh("locksettings get-disabled") or
-                                                    "PIN" in sh("dumpsys lock_settings") or True))
+        if sdk() >= 27:  # `locksettings verify` exists from 8.1
+            check("passcode set: the device accepts exactly the new PIN",
+                  until(lambda: "verified successfully" in sh("locksettings verify --old 1357").lower())
+                  and "verified successfully" not in sh("locksettings verify --old 9999").lower())
+        else:
+            print("  SKIP  passcode verification (no `locksettings verify` below API 27)", flush=True)
         s, d = run("device.passcodeReset", {"newPassword": ""}, "device.passcodeReset")
         check("passcode clear: done", s == "done", f"{s} {d}")
+        if sdk() >= 27:
+            check("passcode clear: no PIN left", until(lambda: "verified successfully" in sh("locksettings verify").lower()))
 
 
 def t_apps():
