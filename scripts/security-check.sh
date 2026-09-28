@@ -28,7 +28,8 @@ H=$(curl -sI "$BASE/")
 for h in 'content-security-policy:' 'x-frame-options: sameorigin' 'x-content-type-options: nosniff' 'strict-transport-security:' 'referrer-policy:'; do
   if printf '%s' "$H" | tr 'A-Z' 'a-z' | grep -q "^$h"; then ok "header ${h%:}"; else ko "header ${h%:}"; fi
 done
-printf '%s' "$H" | tr 'A-Z' 'a-z' | grep -q '^server:' && ko "no Server header" || ok "no Server header"
+# A CDN in front adds its own (Cloudflare: "server: cloudflare"); only a header naming our stack is a leak.
+printf '%s' "$H" | tr 'A-Z' 'a-z' | grep '^server:' | grep -qv '^server: cloudflare' && ko "no Server header" || ok "no Server header"
 printf '%s' "$H" | grep -i '^content-security-policy:' | grep -q "script-src 'self';" && ok "CSP forbids inline scripts" || ko "CSP forbids inline scripts"
 
 echo "== unauthenticated surface: legacy endpoints closed (edge)"
