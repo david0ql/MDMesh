@@ -30,8 +30,9 @@ with the agent's capability advertisement and the server's command catalog.
 
 ### remoteControl
 Advertised as an object (`tier`, `screenCapture`, `inputInjection`, `transport`). See README. The agent reports
-`transport: ["vnc-repeater"]`, `tier: view` when droidVNC-NG is installed and `control` when its input service is
-enabled (ADR 0010).
+`transport: ["vnc-repeater", "vnc-repeater-wss"]`, `tier: view` when droidVNC-NG is installed and `control` when its
+input service is enabled (ADR 0010). `vnc-repeater-wss` means the agent can tunnel the session over the server's HTTPS
+origin (encrypted); the server then sends `transport: "wss"` in `remote.vnc.start`.
 
 ### oem
 `vendor`, `knox` (parked tier).
@@ -51,7 +52,7 @@ enabled (ADR 0010).
 | `app.install` | `silentInstall` | `{ url, packageName, versionCode, sha256, runAfterInstall }` |
 | `app.uninstall` | `silentUninstall` | `{ packageName }` |
 | `app.launch` | — | `{ packageName, activity? }` |
-| `remote.vnc.start` | `remote.view` / `remote.control` | `{ sessionId: "<8-18 digits>", password?, viewOnly?, host?, port? }` — droidVNC-NG dials the Mode-II repeater (ADR 0010) |
+| `remote.vnc.start` | `remote.view` / `remote.control` | `{ sessionId: "<8-18 digits>", password?, viewOnly?, transport?: "wss", host?, port? }` — droidVNC-NG dials the Mode-II repeater (ADR 0010); with `transport: "wss"` through the agent's encrypted tunnel to `/remote/device/`, otherwise directly to `host:port`. Minted by `POST /rest/private/agent/v1/devices/{id}/remote/start` |
 | `remote.vnc.stop` | — | none |
 | `remote.startSession` | `remoteControl.tier>=view` | reserved (the unbuilt in-agent design; superseded by `remote.vnc.*`) |
 | `remote.stopSession` | — | reserved |

@@ -3,7 +3,11 @@
 // `scripts/adb-enroll.sh --remote`: console login -> scripts/remote-session.sh -> the stack's noVNC viewer
 // (/remote/vnc/vnc.html) -> repeater -> droidVNC-NG on the device.
 //
-//   node scripts/remote-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554
+//   node scripts/remote-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554 [--console]
+//
+// Default: the session is started with scripts/remote-session.sh and its link opened. --console drives the
+// console instead: device page -> Remote tab -> "View & control" -> the inline viewer -> "End session", and
+// also checks the session went through the encrypted tunnel.
 //
 // Checks: the viewer connects and renders; a key pressed in the viewer reaches the device (Settings is
 // brought up over adb, Home is pressed in the viewer, the launcher must come back); remote.vnc.stop ends
@@ -22,6 +26,7 @@ const device = arg('--device');
 const serial = arg('--serial');
 const user = arg('--admin-user', 'admin');
 const password = process.env.MDMESH_ADMIN_PASSWORD || 'admin';
+const viaConsole = process.argv.includes('--console');
 if (!device || !serial) { console.error('--device and --serial are required'); process.exit(2); }
 
 const adb = (...a) => execFileSync('adb', ['-s', serial, ...a], { encoding: 'utf8' });
@@ -43,15 +48,17 @@ adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP');
 // NavigationBarFragment NPE in the stock emulator image -- which then can't answer the capture request.)
 adb('shell', 'input', 'keyevent', 'KEYCODE_MENU');
 let url = '';
-try {
-  url = session();
-} catch (e) {
-  url = String(e.stderr || e.message).trim().split('\n').pop();
-}
-check('session started, device reached the repeater', url.includes('/remote/vnc/vnc.html'), url);
-if (!url.includes('/remote/vnc/vnc.html')) {
-  console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
-  process.exit(1);
+if (!viaConsole) {
+  try {
+    url = session();
+  } catch (e) {
+    url = String(e.stderr || e.message).trim().split('\n').pop();
+  }
+  check('session started, device reached the repeater', url.includes('/remote/vnc/vnc.html'), url);
+  if (!url.includes('/remote/vnc/vnc.html')) {
+    console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
+    process.exit(1);
+  }
 }
 
 const browser = await chromium.launch();
@@ -62,13 +69,46 @@ try {
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
   await page.waitForURL(/dashboard|devices/, { timeout: 20000 });
-  await page.goto(url);
-  const connected = await page.waitForFunction(
-    () => (document.querySelector('#noVNC_status')?.textContent || '').includes('Connected'),
-    null, { timeout: 45000 }).then(() => true, () => false);
-  check('viewer connected to the device', connected, await page.locator('#noVNC_status').textContent());
+  let viewer = page; // the noVNC document: the page itself, or the console's inline iframe
+  if (viaConsole) {
+    await page.goto(`${api}/devices/${device}`);
+    await page.locator('.detail-rail').getByRole('button', { name: 'Remote', exact: true }).click();
+    const chip = await page.locator('.rp .chip').first().textContent({ timeout: 15000 }).catch(() => '');
+    check('console offers an encrypted session', chip.includes('Encrypted'), chip);
+    // A fresh enrollment is in battery-saver: the tab must say so and "Set Always-on" must switch the device.
+    const saver = page.getByRole('button', { name: 'Set Always-on' });
+    const warned = await saver.isVisible().catch(() => false);
+    check('battery-saver device: the tab offers "Set Always-on"', warned);
+    if (warned) {
+      await saver.click();
+      let mode = '';
+      for (let i = 0; i < 90 && mode !== 'alwaysOn'; i++) { // applies at the next check-in
+        await page.waitForTimeout(2000);
+        mode = (await fetchJson(page, `${api}/rest/private/agent/v1/devices/${device}/remote`)).data?.powerMode || '';
+      }
+      check('"Set Always-on" switched the device to always-on', mode === 'alwaysOn', mode);
+      await page.reload();
+      await page.getByRole('tablist').getByRole('button', { name: 'Remote' }).click();
+      await page.locator('.rp .chip').first().waitFor();
+      check('the battery-saver warning is gone', !(await saver.isVisible().catch(() => false)));
+    }
+    await page.getByRole('button', { name: 'View & control' }).click();
+    const live = await page.locator('.rp-viewer').waitFor({ timeout: 360000 }).then(() => true, async () =>
+      (await page.locator('.rp .banner-alert').textContent().catch(() => '')) || 'no viewer');
+    check('session started from the console, device reached the repeater', live === true, String(live));
+    if (live !== true) throw new Error('no session');
+    const detail = await fetchJson(page, `${api}/rest/private/agent/v1/devices/${device}/commands`)
+      .then((d) => (d.data || []).find((c) => c.type === 'remote.vnc.start')?.detail || '');
+    check('device connected through the encrypted tunnel', detail.includes('encrypted tunnel'), detail);
+    viewer = page.frameLocator('.rp-viewer');
+  } else {
+    await page.goto(url);
+  }
+  const connected = await viewer.locator('#noVNC_status').filter({ hasText: 'Connected' })
+    .waitFor({ state: 'attached', timeout: 45000 }).then(() => true, () => false);
+  check('viewer connected to the device', connected, await viewer.locator('#noVNC_status').textContent());
 
-  const canvas = page.locator('#noVNC_container canvas');
+  const canvas = viewer.locator('#noVNC_container canvas');
   const box = await canvas.boundingBox().catch(() => null);
   check('viewer renders the device screen', !!box && box.width > 100 && box.height > 100, JSON.stringify(box));
 
@@ -82,13 +122,37 @@ try {
   check('a key pressed in the viewer controls the device (Settings -> launcher)',
     before.includes('settings') && !after.includes('settings'), `${before} -> ${after}`);
 
-  session('--stop');
-  const dropped = await page.waitForFunction(
-    () => !(document.querySelector('#noVNC_status')?.textContent || '').includes('Connected to'),
-    null, { timeout: 60000 }).then(() => true, () => false);
+  if (viaConsole) {
+    await page.getByRole('button', { name: 'End session' }).click();
+    // The inline viewer is removed at once; the device must also drop its repeater connection.
+    const gone = await page.locator('.rp-viewer').waitFor({ state: 'detached', timeout: 10000 }).then(() => true, () => false);
+    check('"End session" closes the inline viewer', gone);
+  } else {
+    session('--stop');
+  }
+  const dropped = viaConsole
+    ? await waitStopped(page)
+    : await page.waitForFunction(
+      () => !(document.querySelector('#noVNC_status')?.textContent || '').includes('Connected to'),
+      null, { timeout: 60000 }).then(() => true, () => false);
   check('remote.vnc.stop ends the session', dropped);
 } finally {
   await browser.close();
 }
 console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
 process.exit(fail ? 1 : 0);
+
+async function fetchJson(page, u) {
+  return page.evaluate(async (x) => (await fetch(x, { credentials: 'include' })).json(), u);
+}
+
+/** Console mode: the remote.vnc.stop the button queued must come back done from the device. */
+async function waitStopped(page) {
+  for (let i = 0; i < 30; i++) {
+    const d = await fetchJson(page, `${api}/rest/private/agent/v1/devices/${device}/commands`);
+    const stop = (d.data || []).find((c) => c.type === 'remote.vnc.stop');
+    if (stop?.status === 'done') return true;
+    await page.waitForTimeout(2000);
+  }
+  return false;
+}

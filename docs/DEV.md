@@ -115,7 +115,7 @@ console, the API and the scripted agent loop below.
 `scripts/adb-enroll.sh` enrolls an emulator or USB device into the dev stack (`--server http://10.0.2.2:8088
 --api-url http://localhost:8088 --debug-build`; add `--remote --vnc-apk "$(scripts/fetch-droidvnc.sh /tmp)"` for
 remote control). The dev stack runs the `remote` compose profile (repeater on loopback `:5500`, viewer at
-<http://localhost:8088/remote/vnc/vnc.html>); `scripts/remote-session.sh --api http://localhost:8088 --device <id>`
+<http://localhost:8088/remote/vnc/vnc.html>); the device page's Remote tab starts a session, or `scripts/remote-session.sh --api http://localhost:8088 --device <id>`
 prints a session link. The functional device test, the emulator matrix and the remote end-to-end test are
 described in [TESTING.md](TESTING.md).
 

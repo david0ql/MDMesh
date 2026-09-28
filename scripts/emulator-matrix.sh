@@ -3,7 +3,8 @@
 #   scripts/emulator-matrix.sh <apk> <avd>...      e.g. scripts/emulator-matrix.sh app-debug.apk mdm_api23 mdm_api24
 # Needs: the dev stack on :8088 (debug agent reaches it at 10.0.2.2:8088), AVDs already created.
 # Each emulator boots with a visible window (wiped), enrolls over ADB, runs scripts/device-func-test.py, and shuts down.
-# REMOTE_E2E=1 VNC_APK=<droidvnc-ng.apk>: enroll with --remote and run scripts/remote-e2e.mjs instead (ADR 0010).
+# REMOTE_E2E=1 VNC_APK=<droidvnc-ng.apk>: enroll with --remote and run scripts/remote-e2e.mjs instead (ADR 0010),
+# once per mode in REMOTE_E2E_MODES (default "script"; "console" drives the console's Remote tab).
 set -uo pipefail
 APK=$1; shift
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -31,7 +32,11 @@ for AVD in "$@"; do
     echo "device id $DID" >>"$LOG"
     if [ "${REMOTE_E2E:-0}" = 1 ]; then
       sleep 10
-      node "$HERE/remote-e2e.mjs" --api http://localhost:8088 --device "$DID" --serial $SER >>"$LOG" 2>&1
+      for MODE in ${REMOTE_E2E_MODES:-script}; do
+        echo "--- remote e2e ($MODE)" >>"$LOG"
+        MODE_ARG=(); [ "$MODE" = console ] && MODE_ARG=(--console)
+        node "$HERE/remote-e2e.mjs" --api http://localhost:8088 --device "$DID" --serial $SER "${MODE_ARG[@]}" >>"$LOG" 2>&1
+      done
     else
       python3 -u "$HERE/device-func-test.py" --serial $SER --device-id "$DID" ${FUNC_ARGS:-} >>"$LOG" 2>&1
     fi

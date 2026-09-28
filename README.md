@@ -104,8 +104,8 @@ One-click or unattended server updates with DB backup + auto-rollback, plus a re
   deployment (server URL delivered in the QR, not baked in). USB/ADB enrollment (`scripts/adb-enroll.sh`) for
   devices where Play Protect blocks QR provisioning of a self-signed DPC.
 - **Remote view/control** — see and drive the device's screen from the browser through droidVNC-NG, a Mode-II
-  repeater and the noVNC viewer served at `/remote/vnc/` behind the console session (Android 7+,
-  [ADR 0010](docs/adr/0010-remote-control-droidvnc.md), `scripts/remote-session.sh`).
+  repeater and the noVNC viewer, from the device page's **Remote** tab. The session travels encrypted inside the
+  server's HTTPS (Android 7+, [ADR 0010](docs/adr/0010-remote-control-droidvnc.md)).
 - **App management** — remote silent uninstall from the device page's Apps tab, and configuration apps marked
   "remove" are uninstalled automatically.
 - **Android 6 to 17** — the agent runs from Android 6 (API 23); tested release by release (see
@@ -233,7 +233,7 @@ No Docker? Run `./setup.sh --native`. Full details, hosting modes, updates, reco
 - ✅ Staged canary → fleet agent-APK rollout
 - ✅ Remote view/control (droidVNC-NG + Mode-II repeater + noVNC, [ADR 0010](docs/adr/0010-remote-control-droidvnc.md))
 - ✅ USB/ADB enrollment, Android 6 support, end-to-end device test matrix ([docs/TESTING.md](docs/TESTING.md))
-- 🔜 "Remote" button in the console (sessions start from `scripts/remote-session.sh` today)
+- ✅ "Remote" tab in the console (view/control inline, encrypted tunnel, Always-on hint for instant support)
 - 🔭 OEM-privileged tier (Knox / Zebra adapters) — parked behind the capability layer
 
 ---

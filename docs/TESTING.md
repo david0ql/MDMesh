@@ -83,7 +83,24 @@ API 35 50/50, API 37.2 50/50.
 with `scripts/remote-session.sh`, opens the stack's noVNC viewer (`/remote/vnc/vnc.html`) in Chromium signed in to
 the console, and checks that the viewer connects, renders the screen, that a key pressed in the viewer controls the
 device (Settings is opened over adb, Home in the viewer must bring the launcher back), and that `remote.vnc.stop`
-ends the session. `REMOTE_E2E=1 VNC_APK=… scripts/emulator-matrix.sh …` runs it on clean emulators.
+ends the session. `--console` drives the console instead: device page → **Remote**, the battery-saver warning and
+**Set Always-on** (the device must report always-on and the warning go away), **View & control**, the viewer inline
+in the page, the command detail proving the device used the encrypted tunnel, and **End session** (11 checks; the
+8 session checks when the device is already always-on). `REMOTE_E2E=1 REMOTE_E2E_MODES="script console" VNC_APK=… scripts/emulator-matrix.sh …` runs both on
+clean emulators. `scripts/agent-v1-e2e.sh` covers the server side (status, session start, the tunnel gate's
+204/401/403, the password kept out of the history, Observer denied).
+
+**Encrypted tunnel + console button (2026-09-28)**, fresh enrollment, both modes; in the repeater log every device
+connection comes from `websockify-device`, none from the plain port:
+
+| Android | API | script mode | console mode |
+|---|---|---|---|
+| 7.0 | 24 | 5/5 | 8/8 |
+| 10 | 29 | 5/5 | 8/8 |
+| 14 | 34 | 5/5 | 11/11 (with Set Always-on) |
+| 17 QPR2 | 37.2 | 5/5 | 8/8 |
+
+Before the tunnel (plain repeater port), script mode:
 
 | Android | API | Remote e2e (fresh enrollment) |
 |---|---|---|

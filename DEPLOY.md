@@ -181,11 +181,16 @@ Remote support uses droidVNC-NG on the device and a repeater on the server (see
 [ADR 0010](docs/adr/0010-remote-control-droidvnc.md)). On the server:
 
 ```bash
-COMPOSE_PROFILES=remote docker compose up -d      # adds vnc-repeater + websockify (noVNC viewer)
+COMPOSE_PROFILES=remote docker compose up -d      # adds vnc-repeater, websockify (noVNC viewer), websockify-device
 ```
 
-Open `REPEATER_PORT` (default **5500/tcp**) on the host firewall: devices dial out to it. Per device, enroll over
-USB with remote support (Android 7+):
+No extra port to open: devices reach the repeater through an encrypted WebSocket on the server's own HTTPS origin
+(`/remote/device/`, allowed only with the device's secret and a session queued for it), so the whole session is
+encrypted by the same TLS as the API. The repeater's plain port (`REPEATER_PORT`, 5500) is published on loopback
+only. Agents older than the tunnel can only dial that port in clear; if you still run some, publish it with
+`REPEATER_BIND=0.0.0.0` and keep it behind a VPN. The console shows per device whether a session is encrypted.
+
+Per device, enroll over USB with remote support (Android 7+):
 
 ```bash
 APK=$(scripts/fetch-droidvnc.sh /tmp)                                   # pinned droidVNC-NG release
@@ -193,14 +198,16 @@ scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --
   --remote --vnc-apk "$APK"
 ```
 
-Start a session and open the printed link in a browser signed in to the console:
+Start a session from the console: device page → **Remote** → **View & control** (or **View only**). The screen
+opens inside the console; **Open in new tab**, **Full screen** and **End session** are next to it. From a terminal,
+`scripts/remote-session.sh --api https://mdm.example.com --device <device id>` (`--view-only`, `--stop`) prints the
+same viewer link.
 
-```bash
-scripts/remote-session.sh --api https://mdm.example.com --device <device id>        # --view-only, --stop
-```
-
-VNC traffic between device and repeater is not encrypted beyond the password exchange; keep that in mind, or
-reach the repeater over a VPN.
+**Instant support for locked phones.** In the default battery-saver connectivity mode a phone that is locked and
+on battery drops its live connection and picks up new commands only at its next heartbeat, a few minutes later.
+Devices that need immediate support should run in **Always-on**: the Remote tab offers **Set Always-on** when a
+device is in battery-saver, and the same action (**Connectivity: Always-on**) runs for many devices at once from
+the device list's **Actions**. Always-on costs some battery.
 
 ## Updates & recovery
 

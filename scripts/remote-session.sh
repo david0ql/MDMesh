@@ -5,10 +5,11 @@
 #   scripts/remote-session.sh --api https://mdm.example.com --device <device id> [--view-only]
 #                             [--admin-user admin] [--stop]
 #
-# It queues remote.vnc.start with a one-time numeric session id (the Mode-II repeater only accepts
-# decimal ids) and an 8-character VNC password, waits until the device reports it is connected to the
-# repeater, and prints the /remote/vnc/vnc.html link. Open it in a browser that is signed in to the
-# console (the viewer is behind the console session). --stop ends the device's session.
+# The console's Remote tab does the same in the browser. This asks the server to start a session
+# (POST .../remote/start: it mints the one-time numeric session id and VNC password, and uses the encrypted
+# tunnel when the agent supports it), waits until the device reports it is connected to the repeater, and
+# prints the /remote/vnc/vnc.html link. Open it in a browser that is signed in to the console (the viewer is
+# behind the console session). --stop ends the device's session.
 #
 # The device must be awake or in always-on power mode: a locked phone on battery (adaptive mode) only
 # checks in every few minutes, so the command waits until then.
@@ -47,12 +48,15 @@ if [ "$STOP" = 1 ]; then
   exit 0
 fi
 
-SID=$(python3 -c 'import secrets; print(secrets.randbelow(9 * 10**17) + 10**17)')
-VNCPW=$(python3 -c 'import secrets; print(secrets.token_hex(4))')
-CAP=remote.control; [ "$VIEW_ONLY" = true ] && CAP=remote.view
-PAYLOAD=$(python3 -c 'import json,sys; print(json.dumps(json.dumps({"sessionId":sys.argv[1],"password":sys.argv[2],"viewOnly":sys.argv[3]=="true"})))' "$SID" "$VNCPW" "$VIEW_ONLY")
-ID=$(queue "{\"type\":\"remote.vnc.start\",\"requiresCapability\":\"$CAP\",\"payload\":$PAYLOAD}")
-echo "session queued (command $ID); waiting for the device..." >&2
+BODY=$(python3 -c 'import json,sys; print(json.dumps({"viewOnly": sys.argv[1]=="true"}))' "$VIEW_ONLY")
+START=$(curl -fsS -b "$CJ" -X POST -H 'Content-Type: application/json' -d "$BODY" \
+  "$API/rest/private/agent/v1/devices/$DEVICE/remote/start")
+read -r ID SID VNCPW ENC < <(printf '%s' "$START" | python3 -c 'import sys,json
+d=json.load(sys.stdin)
+if d.get("status")!="OK": sys.exit(d.get("message") or "start refused")
+s=d["data"]; print(s["commandId"], s["sessionId"], s["password"], "encrypted" if s["encrypted"] else "UNENCRYPTED")')
+[ -n "${ID:-}" ] || exit 1
+echo "session queued (command $ID, $ENC); waiting for the device..." >&2
 
 for _ in $(seq 1 180); do
   ROW=$(curl -fsS -b "$CJ" "$API/rest/private/agent/v1/devices/$DEVICE/commands?limit=20" \
@@ -68,4 +72,5 @@ for c in json.load(sys.stdin).get("data") or []:
 done
 case "${ROW:-}" in done*) ;; *) echo "device did not answer within 6 minutes (asleep? offline?)" >&2; exit 1 ;; esac
 
-echo "$API/remote/vnc/vnc.html?path=remote/vnc/websockify&repeaterID=$SID&password=$VNCPW&autoconnect=true&resize=scale&reconnect=false"
+# Parameters ride in the fragment, which the browser never sends: the password stays out of access logs.
+echo "$API/remote/vnc/vnc.html#path=remote%2Fvnc%2Fwebsockify&repeaterID=$SID&password=$VNCPW&autoconnect=true&resize=scale&reconnect=false"

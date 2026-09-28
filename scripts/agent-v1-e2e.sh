@@ -202,6 +202,37 @@ echo "== force sync =="
 chk "force sync OK" \
   "$(curl -s -b "$CJ" -X POST "$BASE/rest/private/agent/v1/devices/$DID/sync" | field "d['status']")" "OK"
 
+echo "== remote control (ADR 0010): status, session start, device tunnel gate =="
+code(){ curl -s -o /dev/null -w '%{http_code}' "$@"; }
+chk "tunnel refused before any session (403)" \
+  "$(code -H "Authorization: Bearer $SEC" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "403"
+chk "start refused while the device reports no remote support" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":false}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start" | field "d['status']+':'+str(d.get('message'))")" \
+  "ERROR:error.agent.remote.unsupported"
+curl -s -X POST -H "Authorization: Bearer $SEC" -H 'Content-Type: application/json' \
+  -d "{\"deviceId\":\"$DID\",\"capabilities\":{\"policy\":[\"wifi\"],\"remoteControl\":{\"tier\":\"control\",\"transport\":[\"vnc-repeater\",\"vnc-repeater-wss\"]}},\"state\":{\"battery\":77,\"charging\":true,\"locked\":true,\"kioskActive\":false,\"androidRelease\":\"14\",\"lastBootAt\":1000,\"powerMode\":\"adaptive\"}}" \
+  "$BASE/rest/public/agent/v1/checkin" >/dev/null
+chk "remote status: control, encrypted, adaptive" \
+  "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/remote" | field "'%s:%s:%s' % (d['data']['tier'], d['data']['encrypted'], d['data']['powerMode'])")" \
+  "control:True:adaptive"
+RS=$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":false}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start")
+chk "session started: 18-digit id, 8-char password, encrypted" \
+  "$(echo "$RS" | field "'%s:%s:%s:%s' % (d['status'], len(d['data']['sessionId']), len(d['data']['password']), d['data']['encrypted'])")" \
+  "OK:18:8:True"
+RSID=$(echo "$RS" | field "d['data']['sessionId']")
+chk "device receives remote.vnc.start over the encrypted transport" \
+  "$(curl -s -X POST -H "Authorization: Bearer $SEC" -H 'Content-Type: application/json' -d "{\"deviceId\":\"$DID\",\"capabilities\":{\"policy\":[\"wifi\"],\"remoteControl\":{\"tier\":\"control\",\"transport\":[\"vnc-repeater\",\"vnc-repeater-wss\"]}}}" "$BASE/rest/public/agent/v1/checkin" \
+     | field "[(c['requiresCapability'], c['payload']['transport'], c['payload']['sessionId']) for c in d['data']['commands'] if c['type']=='remote.vnc.start'] == [('remote.control', 'wss', '$RSID')]")" \
+  "True"
+chk "history hides the session password" \
+  "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "'$(echo "$RS" | field "d['data']['password']")' in json.dumps(d)")" "False"
+chk "tunnel open for the device with a queued session (204)" \
+  "$(code -H "Authorization: Bearer $SEC" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "204"
+chk "tunnel refused with a wrong secret (401)" \
+  "$(code -H "Authorization: Bearer WRONG" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
+chk "tunnel refused without the device header (401)" \
+  "$(code -H "Authorization: Bearer $SEC" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
+
 echo "== permissions: read-only Observer (role 100) cannot mutate =="
 # A temporary Observer user of the same customer: agent/rollout mutations need edit_devices,
 # reads stay open to any user of the customer. The user is deleted at the end of this section.
@@ -264,6 +295,7 @@ if [ "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/rollout/active" | field "d
 else
   echo "  SKIP: observer promote/cancel on a real rollout (this server already has an active rollout)"
 fi
+chk "observer: remote session start denied" "$(curl -s -b "$OJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":true}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start" | ores)" "$DENIED"
 chk "observer: command history readable" "$(curl -s -b "$OJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "d['status']")" "OK"
 chk "observer: device state readable" "$(curl -s -b "$OJ" "$BASE/rest/private/agent/v1/devices/$DID/state" | field "str(d['status'])+':'+str(d['data']['battery'])")" "OK:77"
 chk "observer: active rollout readable" "$(curl -s -b "$OJ" "$BASE/rest/private/agent/v1/rollout/active" | field "d['status']")" "OK"
