@@ -398,7 +398,10 @@ def t_wipe():
         if "com.mdmesh" not in sh("pm list packages com.mdmesh"):
             return "reset"
         log = adb("logcat", "-d")
-        if "--wipe_data" in log and "wipeDataWithReason() from com.mdmesh.agent" in log:
+        if "--wipe_data" in log and ("from com.mdmesh.agent" in log or "REBOOTING TO WIPE" in log
+                                     or "rebootWipeUserData" in log or "uncrypt" in log):
+            return "ordered"
+        if "REBOOTING TO WIPE USER DATA" in log:  # older releases log only RecoverySystem's banner
             return "ordered"
         return None
     outcome = until(wiped_or_ordered, timeout=400, step=5)
