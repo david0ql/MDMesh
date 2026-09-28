@@ -51,6 +51,11 @@
 	# the agent protocol, console login/logout/options, password reset, and the name probe. Legacy Headwind endpoints
 	# (launcher sync, notifications, plugins, stats, signup, QR, Swagger) never reach the server.
 	@backend path /rest/private/* /rest/public/agent/v1/* /rest/public/auth/login /rest/public/auth/logout /rest/public/auth/options /rest/public/passwordReset/* /rest/public/name /files/* /agent/ws/*
+	# Hosted files (APKs, configuration files) and API responses are never documents to run: an empty, sandboxed CSP.
+	@hosted path /files/* /update/*
+	header @hosted Content-Security-Policy "default-src 'none'; sandbox; frame-ancestors 'none'"
+	@api path /rest/*
+	header @api Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 	handle @backend {
 		reverse_proxy server:8080 {
 			header_down -Server
@@ -92,6 +97,9 @@
 		reverse_proxy supervisor:9000
 	}
 	handle /recovery* {
+		# The supervisor's self-contained page (inline script/style); never framed.
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		header X-Frame-Options "DENY"
 		reverse_proxy supervisor:9000
 	}
 

@@ -131,7 +131,7 @@ public class DownloadFilesServlet extends HttpServlet {
             }
 
             // Cross XSS vulnerability fix: prevent opening a potentially malicious file having the Headwind MDM domain
-            resp.addHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"");
+            resp.addHeader("Content-Disposition", "attachment; filename=\"" + file.getName().replaceAll("[\"\\\\\r\n]", "_") + "\"");
             try (InputStream input = new FileInputStream(file);
                  ServletOutputStream outputStream = resp.getOutputStream()) {
                 long length = file.length();
@@ -172,6 +172,12 @@ public class DownloadFilesServlet extends HttpServlet {
             }
 
             resp.setStatus(206);
+            // Same guard as a full download: a hosted file is never rendered inline from this origin.
+            resp.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName().replaceAll("[\"\\\\\r\n]", "_") + "\"");
+            resp.setHeader("X-Content-Type-Options", "nosniff");
+            if (resp.getContentType() == null) {
+                resp.setContentType("application/octet-stream");
+            }
             resp.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + length);
             long contentLength = end - start;
             if (length <= 2147483647L) {

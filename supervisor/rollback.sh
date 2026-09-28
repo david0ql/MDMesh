@@ -50,11 +50,13 @@ if [ -f "$ENV_SNAP" ]; then
   [ -n "$OLD_SERVER" ] && { set_env SERVER_VERSION "$OLD_SERVER"; set_env CURRENT_VERSION "$OLD_SERVER"; }
   [ -n "$OLD_WEB" ] && set_env WEB_VERSION "$OLD_WEB"
   # The previous digest-pinned images (empty when the previous deploy ran by tag). Anything else is ignored.
+  OWNER="$(printf '%s' "${GITHUB_REPO%%/*}" | tr 'A-Z' 'a-z')"
+  [[ "$OWNER" =~ ^[a-z0-9][a-z0-9-]*$ ]] || OWNER="-invalid-"
   for pair in SERVER_IMAGE:server WEB_IMAGE:web; do
     k="${pair%%:*}"; comp="${pair##*:}"
     if grep -qE "^$k=" "$ENV_SNAP"; then
       v="$(grep -E "^$k=" "$ENV_SNAP" | head -1 | cut -d= -f2-)"
-      if [ -z "$v" ] || [[ "$v" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-$comp@sha256:[0-9a-f]{64}$ ]]; then
+      if [ -z "$v" ] || [[ "$v" =~ ^ghcr\.io/${OWNER}/dallycontrol-$comp@sha256:[0-9a-f]{64}$ ]]; then
         set_env "$k" "$v"
       else
         errln "ignoring an unpinned $k in the snapshot"

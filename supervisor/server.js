@@ -7,7 +7,7 @@ const os = require('os');
 const cp = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
-const { pickRelease, shapeStatus, imageTags, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp, pinnedImage } = require('./lib');
+const { pickRelease, shapeStatus, imageTags, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp, pinnedImage, repoOwner } = require('./lib');
 
 const PORT = +(process.env.SUPERVISOR_PORT || 9000);
 // Bind address. Docker keeps the default (all interfaces — the container has no published ports);
@@ -231,8 +231,9 @@ function startApply(trigger) {
   const { version: toVersion, serverImage, webImage } = imageTags(lastManifest);
   if (!toVersion) return { ok: false, code: 400, msg: 'manifest has no version' };
   // Deploy exactly the images the signed manifest pins, by digest — never a (re-pushable) tag.
-  const server = pinnedImage(serverImage, 'server');
-  const web = pinnedImage(webImage, 'web');
+  const owner = repoOwner(REPO);
+  const server = pinnedImage(serverImage, 'server', owner);
+  const web = pinnedImage(webImage, 'web', owner);
   if (!server || !web) return { ok: false, code: 400, msg: 'manifest images are not digest-pinned; refusing to apply' };
 
   apply = { phase: 'authorizing', fromVersion: currentVersion, toVersion, trigger, startedAt: Date.now(), finishedAt: null, error: null };

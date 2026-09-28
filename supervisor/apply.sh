@@ -19,7 +19,9 @@ BACKUPS_KEPT="${BACKUPS_KEPT:-5}"
 VERSION="${1:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
 NEW_SERVER_IMAGE="${2:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
 NEW_WEB_IMAGE="${3:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
-pinned() { [[ "$1" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-$2@sha256:[0-9a-f]{64}$ ]]; }
+OWNER="$(printf '%s' "${GITHUB_REPO%%/*}" | tr 'A-Z' 'a-z')"   # images must come from the repo owner we update from
+[[ "$OWNER" =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "ERR GITHUB_REPO owner unknown" >&2; echo "PHASE failed"; exit 1; }
+pinned() { [[ "$1" =~ ^ghcr\.io/${OWNER}/dallycontrol-$2@sha256:[0-9a-f]{64}$ ]]; }
 if ! pinned "$NEW_SERVER_IMAGE" server || ! pinned "$NEW_WEB_IMAGE" web; then
   echo "ERR images are not digest-pinned dallycontrol references" >&2; echo "PHASE failed"; exit 1
 fi

@@ -11,7 +11,7 @@ public class UrlGuardTest {
         for (String u : new String[] {
                 "http://127.0.0.1/", "http://localhost:5432/", "http://10.0.0.5/x", "http://172.16.1.1/", "http://192.168.1.1/",
                 "http://169.254.169.254/latest/meta-data/", "http://100.64.0.1/", "http://0.0.0.0/", "http://[::1]/",
-                "http://[fd00::1]/", "http://[fe80::1]/", "http://[::ffff:127.0.0.1]/", "http://224.0.0.1/",
+                "http://[fd00::1]/", "http://[fe80::1]/", "http://[::ffff:127.0.0.1]/", "http://[::127.0.0.1]/", "http://[::10.0.0.1]/", "http://224.0.0.1/",
                 "file:///etc/passwd", "ftp://8.8.8.8/", "gopher://8.8.8.8/", "http://user:pw@8.8.8.8/", "not a url", ""}) {
             Assert.assertFalse(u, UrlGuard.isPublicHttpUrl(u));
         }

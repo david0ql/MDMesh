@@ -2877,7 +2877,8 @@
     <changeSet id="26.09.28-users-password-length" author="dallycontrol" context="common">
         <comment>Room for PBKDF2 password hashes (pbkdf2$iterations$salt$hash, ~90 chars)</comment>
         <sql>ALTER TABLE users ALTER COLUMN password TYPE VARCHAR(255);</sql>
-        <rollback>ALTER TABLE users ALTER COLUMN password TYPE VARCHAR(40);</rollback>
+        <!-- Not narrowed back on rollback: PBKDF2 hashes (~80 chars) would be truncated and every login broken. -->
+        <rollback/>
     </changeSet>
 
     <changeSet id="26.09.28-device-agent-data-cascade" author="dallycontrol" context="common">

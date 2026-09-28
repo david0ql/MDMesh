@@ -13,6 +13,10 @@ import java.net.URL;
  * <p>Guard for URLs the server fetches on a user's behalf (SSRF): only http(s) to public addresses. Loopback, private,
  * link-local (incl. cloud metadata 169.254.169.254), CGNAT, multicast, unspecified and IPv6 unique-local targets are
  * refused, as is any host that resolves to one of them. Redirects are not followed.</p>
+ *
+ * <p>Known limit: the host is resolved again when connecting, so a DNS name that changes between the check and the
+ * connection (DNS rebinding) is not caught. Accepted: the only caller checksums a configuration's external file (the
+ * user needs the configurations permission) and never returns the fetched content.</p>
  */
 public final class UrlGuard {
 
@@ -64,9 +68,11 @@ public final class UrlGuard {
             if (b0 >= 240) return false;                        // reserved / broadcast
         } else if (a instanceof Inet6Address) {
             if ((b[0] & 0xfe) == 0xfc) return false;             // fc00::/7 unique local
-            boolean mapped = true;                               // ::ffff:a.b.c.d
-            for (int i = 0; i < 10; i++) mapped &= b[i] == 0;
-            if (mapped && (b[10] & 0xff) == 0xff && (b[11] & 0xff) == 0xff) {
+            boolean zeros = true;                                // ::ffff:a.b.c.d (mapped) or ::a.b.c.d (compatible)
+            for (int i = 0; i < 10; i++) zeros &= b[i] == 0;
+            boolean mapped = zeros && (b[10] & 0xff) == 0xff && (b[11] & 0xff) == 0xff;
+            boolean compatible = zeros && b[10] == 0 && b[11] == 0;
+            if (mapped || compatible) {
                 try {
                     return isPublic(InetAddress.getByAddress(new byte[] {b[12], b[13], b[14], b[15]}));
                 } catch (Exception e) {

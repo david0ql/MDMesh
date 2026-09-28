@@ -40,6 +40,9 @@ re-checked. `scripts/security-check.sh` repeats the checks against any running i
   local users — the server runs alone in its container), xalan 2.7.2 (only with untrusted XSLT, never processed),
   xmlgraphics-commons 2.2 / Batik (only the SVG writer is present). Upgrading Jersey means moving the whole JAX-RS/HK2
   stack; plan it as its own change.
+- **DNS rebinding against the URL guard.** `UrlGuard` validates every address a host resolves to, but the connection
+  resolves the name again. The only caller checksums a configuration's external file (the configurations permission is
+  needed) and never returns what it fetched; redirects are not followed.
 - **The supervisor holds the Docker socket** (root-equivalent on the host). It only acts on signed, digest-pinned
   manifests for authenticated admins; keep the release signing key out of the job that pushes images.
 - **The loopback remote-control port on the phone** is briefly reachable by other apps on the phone between the agent

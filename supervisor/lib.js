@@ -52,10 +52,17 @@ function imageTags(manifest) {
  * `ghcr.io/<owner>/dallycontrol-<component>@sha256:<64 hex>` is accepted: a mutable tag in a signed
  * manifest would let whoever can push to the registry swap what every host runs.
  */
-function pinnedImage(ref, component) {
-  if (typeof ref !== 'string') return null;
-  const re = new RegExp('^ghcr\\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-' + component + '@sha256:[0-9a-f]{64}$');
+function pinnedImage(ref, component, owner) {
+  if (typeof ref !== 'string' || typeof owner !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(owner)) return null;
+  // Only images of the registry owner this supervisor updates from (the owner of GITHUB_REPO).
+  const re = new RegExp('^ghcr\\.io/' + owner + '/dallycontrol-' + component + '@sha256:[0-9a-f]{64}$');
   return re.test(ref) ? ref : null;
+}
+
+/** GHCR owner (lower-case) of an "owner/repo" GITHUB_REPO, or null. */
+function repoOwner(repo) {
+  const owner = String(repo || '').split('/')[0].toLowerCase();
+  return /^[a-z0-9][a-z0-9-]*$/.test(owner) ? owner : null;
 }
 
 /** Resolve the downloadable APK for a verified release: the manifest's apk block + the GitHub asset's
@@ -114,6 +121,7 @@ function recoveryPage(html, applySupported) {
 
 module.exports = {
   pinnedImage,
+  repoOwner,
   parseSemver, semverGt, pickRelease, shapeStatus,
   imageTags, nextPhase, isTerminal, APPLY_PHASES, APPLY_TERMINAL,
   apkAsset, sha256Matches, recoveryPage, isPublishTemp,

@@ -1,17 +1,23 @@
 const t = require('node:test');
 const a = require('node:assert');
-const { semverGt, pickRelease, shapeStatus, imageTags, nextPhase, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp, pinnedImage } = require('./lib');
+const { semverGt, pickRelease, shapeStatus, imageTags, nextPhase, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp, pinnedImage, repoOwner } = require('./lib');
 
-t.test('pinnedImage — only digest refs of the expected repository', () => {
+t.test('pinnedImage — only digest refs of the expected owner and repository', () => {
   const d = 'a'.repeat(64);
-  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-server@sha256:${d}`, 'server'), `ghcr.io/david0ql/dallycontrol-server@sha256:${d}`);
-  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-web@sha256:${d}`, 'web'), `ghcr.io/david0ql/dallycontrol-web@sha256:${d}`);
-  a.equal(pinnedImage('ghcr.io/david0ql/dallycontrol-server:1.2.3', 'server'), null);            // mutable tag
-  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-web@sha256:${d}`, 'server'), null);        // wrong component
-  a.equal(pinnedImage(`docker.io/evil/dallycontrol-server@sha256:${d}`, 'server'), null);       // other registry
-  a.equal(pinnedImage(`ghcr.io/x/dallycontrol-server@sha256:${d};rm -rf /`, 'server'), null);    // trailing junk
-  a.equal(pinnedImage(`ghcr.io/x/dallycontrol-server@sha256:${'A'.repeat(64)}`, 'server'), null);
-  a.equal(pinnedImage(null, 'server'), null);
+  const o = 'david0ql';
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-server@sha256:${d}`, 'server', o), `ghcr.io/david0ql/dallycontrol-server@sha256:${d}`);
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-web@sha256:${d}`, 'web', o), `ghcr.io/david0ql/dallycontrol-web@sha256:${d}`);
+  a.equal(pinnedImage(`ghcr.io/evil/dallycontrol-server@sha256:${d}`, 'server', o), null);        // other owner
+  a.equal(pinnedImage('ghcr.io/david0ql/dallycontrol-server:1.2.3', 'server', o), null);            // mutable tag
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-web@sha256:${d}`, 'server', o), null);        // wrong component
+  a.equal(pinnedImage(`docker.io/david0ql/dallycontrol-server@sha256:${d}`, 'server', o), null);   // other registry
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-server@sha256:${d};rm -rf /`, 'server', o), null);
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-server@sha256:${d}`, 'server', null), null);   // no owner known
+  a.equal(pinnedImage(`ghcr.io/david0ql/dallycontrol-server@sha256:${d}`, 'server', '.*'), null);   // owner is not a pattern
+  a.equal(pinnedImage(null, 'server', o), null);
+  a.equal(repoOwner('David0QL/MDMesh'), 'david0ql');
+  a.equal(repoOwner(''), null);
+  a.equal(repoOwner('../x'), null);
 });
 
 t.test('semverGt', () => {

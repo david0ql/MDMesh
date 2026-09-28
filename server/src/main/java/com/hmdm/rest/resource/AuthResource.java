@@ -124,15 +124,17 @@ public class AuthResource {
             return Response.ERROR();
         }
 
-        // Brute-force lock (per account): refused before the password is checked, same answer as a wrong password.
-        if (loginThrottle.isLocked(credentials.getLogin(), System.currentTimeMillis())) {
+        // Brute-force lock, per ACCOUNT: the same user can sign in by login or by email, so the counter is keyed on the
+        // resolved user (unknown identifiers get their own key). Refused before the password is checked, with the
+        // same answer as a wrong password.
+        User user = authEngine.findUser(credentials.getLogin());
+        final String throttleKey = user != null ? "user:" + user.getId() : "unknown:" + credentials.getLogin();
+        if (loginThrottle.isLocked(throttleKey, System.currentTimeMillis())) {
             Thread.sleep(1000);
             return Response.ERROR();
         }
-
-        User user = authEngine.findUser(credentials.getLogin());
         if (user == null) {
-            loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
+            loginThrottle.failed(throttleKey, System.currentTimeMillis());
             Thread.sleep(1000);
             return Response.ERROR();
         }
@@ -154,14 +156,14 @@ public class AuthResource {
         // installer seeds a generated one, and no installer or admin mistake may leave a reachable admin/admin.
         if (!allowDefaultPassword && password != null && DEFAULT_PASSWORD_MD5.equalsIgnoreCase(password.trim())) {
             logger.warn("Refused a login with the default password for '{}': set a real password", credentials.getLogin());
-            loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
+            loginThrottle.failed(throttleKey, System.currentTimeMillis());
             Thread.sleep(1000);
             return Response.ERROR();
         }
 
         // Web app sends MD5 hash, we need to re-hash it to compare with the DB value
         if (!authEngine.authenticate(user, password)) {
-            long lockedUntil = loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
+            long lockedUntil = loginThrottle.failed(throttleKey, System.currentTimeMillis());
             if (lockedUntil > 0) {
                 logger.warn("Console login for '{}' locked until {} after repeated failures", credentials.getLogin(),
                         new java.util.Date(lockedUntil));
@@ -169,7 +171,7 @@ public class AuthResource {
             Thread.sleep(1000);
             return Response.ERROR();
         }
-        loginThrottle.succeeded(credentials.getLogin());
+        loginThrottle.succeeded(throttleKey);
 
         try {
             this.taskRunner.submitTask(() -> {

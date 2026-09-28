@@ -94,5 +94,8 @@ for i in 1 2 3 4 5; do curl -s -o /dev/null -H 'Content-Type: application/json' 
 chk "correct password refused while locked" \
   "$(curl -s -H 'Content-Type: application/json' -d "{\"login\":\"$OLOGIN\",\"password\":\"$OPW\"}" "$BASE/rest/public/auth/login" | field "d['status']")" "ERROR"
 
+chk "the lock covers the account, not just the login name (email refused too)" \
+  "$(curl -s -H 'Content-Type: application/json' -d "{\"login\":\"$OLOGIN@sec.invalid\",\"password\":\"$OPW\"}" "$BASE/rest/public/auth/login" | field "d['status']")" "ERROR"
+
 echo "===== RESULT: PASS=$PASS FAIL=$FAIL ====="
 [ "$FAIL" -eq 0 ]
