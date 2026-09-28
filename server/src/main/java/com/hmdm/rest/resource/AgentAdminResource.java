@@ -48,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -168,6 +169,96 @@ public class AgentAdminResource {
         logger.info("Agent enrollment token {} minted for customer {} (configuration {}, group {})",
                 token.getId(), customerId.get(), configurationId, groupId);
         return Response.OK(token);
+    }
+
+    public static class CodeBody {
+        public Integer groupId;
+        public String label;
+        /** Optional expiry (epoch ms); null = until revoked. */
+        public Long expiresAt;
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Create a reusable enrollment code", notes = "A folder's enrollment policy: the code enrolls any "
+            + "number of devices into the group until revoked (or expired). Body: { groupId, label?, expiresAt? }.")
+    @POST
+    @Path("/codes")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createCode(CodeBody body) {
+        if (!canEditDevices("create enrollment code")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (body == null || body.groupId == null || commandDAO.findGroup(customerId.get(), body.groupId) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        long now = System.currentTimeMillis();
+        if (body.expiresAt != null && body.expiresAt <= now) {
+            return Response.ERROR("error.agent.code.expiry.invalid");
+        }
+        String label = body.label == null ? null : body.label.trim();
+        if (label != null && (label.isEmpty() || label.length() > 100)) {
+            label = label.isEmpty() ? null : label.substring(0, 100);
+        }
+        AgentEnrollmentToken token = new AgentEnrollmentToken();
+        token.setCustomerId(customerId.get());
+        token.setGroupId(body.groupId);
+        token.setReusable(true);
+        token.setLabel(label);
+        token.setUsed(false);
+        token.setCreatedAt(now);
+        token.setExpiresAt(body.expiresAt);
+        // The code space is large (31^8), but the column is unique: retry on the rare collision.
+        for (int attempt = 0; ; attempt++) {
+            token.setToken(com.hmdm.util.EnrollmentCodes.generate());
+            try {
+                tokenDAO.insert(token);
+                break;
+            } catch (RuntimeException e) {
+                if (attempt >= 4) {
+                    throw e;
+                }
+            }
+        }
+        logger.info("Reusable enrollment code {} created for group {} (customer {})", token.getId(), body.groupId,
+                customerId.get());
+        return Response.OK(tokenDAO.listCodes(customerId.get()).stream()
+                .filter(c -> c.getId().equals(token.getId())).findFirst().orElse(null));
+    }
+
+    @ApiOperation(value = "List reusable enrollment codes")
+    @GET
+    @Path("/codes")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listCodes() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        return Response.OK(tokenDAO.listCodes(customerId.get()));
+    }
+
+    @ApiOperation(value = "Revoke a reusable enrollment code", notes = "Devices already enrolled stay; the code stops working.")
+    @DELETE
+    @Path("/codes/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response revokeCode(@PathParam("id") int id) {
+        if (!canEditDevices("revoke enrollment code")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (!tokenDAO.revoke(customerId.get(), id)) {
+            return Response.ERROR("error.agent.code.not.found");
+        }
+        logger.info("Reusable enrollment code {} revoked (customer {})", id, customerId.get());
+        return Response.OK();
     }
 
     // =================================================================================================================

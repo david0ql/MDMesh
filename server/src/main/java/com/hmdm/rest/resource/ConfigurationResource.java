@@ -178,6 +178,11 @@ public class ConfigurationResource {
             return Response.PERMISSION_DENIED();
         }
         try {
+            configuration.setDcPolicy(com.hmdm.util.DcPolicy.normalize(configuration.getDcPolicy()));
+        } catch (IllegalArgumentException e) {
+            return Response.ERROR("error.configuration.dcpolicy.invalid");
+        }
+        try {
             Configuration dbConfiguration = this.configurationDAO.getConfigurationByName(configuration.getName());
             final Integer id = configuration.getId();
             if (dbConfiguration != null && !dbConfiguration.getId().equals(id)) {

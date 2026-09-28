@@ -57,6 +57,14 @@ class CrashLoopGuard(
         return store.counter > LOOP_CRASHES
     }
 
+    /**
+     * Forget every recorded fault: the operator (or the user, from the kiosk's "open" button) chose to try the
+     * app again, so the next bounce starts a fresh window.
+     */
+    fun reset() {
+        store.write(counter = 0, lastFaultTime = -1L)
+    }
+
     companion object {
         /** Rolling window for counting crashes, in millis. */
         const val LOOP_TIME_SPAN = 60_000L

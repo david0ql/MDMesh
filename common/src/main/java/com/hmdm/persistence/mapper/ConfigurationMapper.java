@@ -126,6 +126,7 @@ public interface ConfigurationMapper {
             "kioskKeyguard=#{kioskKeyguard}, " +
             "kioskLockButtons=#{kioskLockButtons}, " +
             "kioskScreenOn=#{kioskScreenOn}, " +
+            "dcPolicy=#{dcPolicy}, " +
             "launcherUrl=#{launcherUrl}, " +
             "restrictions=#{restrictions}, " +
             "autoUpdate=#{autoUpdate}, " +

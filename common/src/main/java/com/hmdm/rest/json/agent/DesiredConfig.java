@@ -46,4 +46,10 @@ public class DesiredConfig {
      */
     private DesiredKiosk kiosk;
     private DesiredLocation location;
+    /** Present = the configuration manages the browser's site lists. */
+    private DesiredBrowser browser;
+    /** Present = the configuration restricts which apps may be installed and used. */
+    private DesiredAppPolicy apps;
+    /** Present = a location trail at a fixed interval. */
+    private DesiredTracking tracking;
 }

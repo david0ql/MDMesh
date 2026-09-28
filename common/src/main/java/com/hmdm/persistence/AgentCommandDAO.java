@@ -196,21 +196,32 @@ public class AgentCommandDAO {
         return deviceMapper.findGroup(customerId, groupId);
     }
 
-    public boolean groupNameTaken(int customerId, String name, Integer exceptId) {
-        return deviceMapper.countGroupsNamed(customerId, name, exceptId) > 0;
+    public boolean groupNameTaken(int customerId, String name, Integer parentId, Integer exceptId) {
+        return deviceMapper.countGroupsNamed(customerId, name, parentId, exceptId) > 0;
     }
 
-    public int insertGroup(int customerId, String name, Integer configurationId) {
+    public int insertGroup(int customerId, String name, Integer configurationId, Integer parentId) {
         com.hmdm.persistence.domain.DeviceGroupInsert g = new com.hmdm.persistence.domain.DeviceGroupInsert();
         g.setCustomerId(customerId);
         g.setName(name);
         g.setConfigurationId(configurationId);
+        g.setParentId(parentId);
         deviceMapper.insertGroup(g);
         return g.getId();
     }
 
-    public boolean updateGroup(int customerId, int id, String name, Integer configurationId) {
-        return deviceMapper.updateGroup(customerId, id, name, configurationId) > 0;
+    public boolean updateGroup(int customerId, int id, String name, Integer configurationId, Integer parentId) {
+        return deviceMapper.updateGroup(customerId, id, name, configurationId, parentId) > 0;
+    }
+
+    /** Move a group's direct children under {@code parentId} (null = top level). */
+    public void reparentChildren(int customerId, int id, Integer parentId) {
+        deviceMapper.reparentChildren(customerId, id, parentId);
+    }
+
+    /** The group and all its descendants. */
+    public java.util.List<Integer> groupSubtree(int customerId, int groupId) {
+        return deviceMapper.listGroupSubtree(customerId, groupId);
     }
 
     public boolean deleteGroup(int customerId, int id) {

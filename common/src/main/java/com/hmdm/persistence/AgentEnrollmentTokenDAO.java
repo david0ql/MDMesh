@@ -56,4 +56,21 @@ public class AgentEnrollmentTokenDAO {
     public void release(Integer id) {
         mapper.release(id);
     }
+
+    /** One more enrollment through a reusable code; false = revoked or expired meanwhile. */
+    public boolean claimReusable(Integer id) {
+        return mapper.claimReusable(id, System.currentTimeMillis()) == 1;
+    }
+
+    public void releaseReusable(Integer id) {
+        mapper.releaseReusable(id);
+    }
+
+    public java.util.List<com.hmdm.persistence.domain.EnrollmentCodeView> listCodes(int customerId) {
+        return mapper.listCodes(customerId);
+    }
+
+    public boolean revoke(int customerId, int id) {
+        return mapper.revoke(customerId, id) == 1;
+    }
 }

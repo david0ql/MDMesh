@@ -18,6 +18,9 @@ object DeviceAction {
     const val PASSCODE_RESET = "device.passcodeReset"
     const val WIPE = "device.wipe"
 
+    /** Open an installed app in the foreground. Payload: `{ "packageName": "…" }`. */
+    const val APP_LAUNCH = "device.appLaunch"
+
     /** Set the agent's connectivity power mode. Payload: `{ "mode": "adaptive" | "alwaysOn" }`. */
     const val POWER_MODE = "device.powerMode"
 
@@ -39,6 +42,6 @@ object DeviceAction {
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch",
     )
 }

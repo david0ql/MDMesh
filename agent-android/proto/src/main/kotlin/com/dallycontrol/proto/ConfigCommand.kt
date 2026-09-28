@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
  * @property kiosk present = ensure kiosk with this payload; absent = the configuration does not assert kiosk
  *   (exit only if the previously applied configuration did — see ConfigApplier).
  * @property location capture cadence, see [DeviceAction.LOCATION_MODE].
+ * @property browser managed-browser site lists (absent = not managed by the configuration).
+ * @property apps which apps may be installed and used (absent = not managed).
+ * @property tracking periodic location trail (absent = only the check-in's fix).
  */
 @Serializable
 data class ConfigApplyPayload(
@@ -19,7 +22,38 @@ data class ConfigApplyPayload(
     val policies: Map<String, Boolean> = emptyMap(),
     val kiosk: KioskApplyPayload? = null,
     val location: ConfigLocation? = null,
+    val browser: ConfigBrowser? = null,
+    val apps: ConfigAppPolicy? = null,
+    val tracking: ConfigTracking? = null,
 )
+
+/**
+ * Managed browser (Chrome's managed configuration). [mode]: `open` (no list), `allowlist` (only [allow]),
+ * `blocklist` (everything but [block]). Entries use Chrome's URL-filter format (`example.com`, `*.gov.co`, …).
+ */
+@Serializable
+data class ConfigBrowser(
+    val mode: String = "open",
+    val allow: List<String> = emptyList(),
+    val block: List<String> = emptyList(),
+)
+
+/**
+ * App policy. [mode] `open` (anything) or `allowlist`: user-installed apps outside [allowed], the resolved
+ * [roles] and the configuration's own apps are suspended (they cannot be opened) until allowed.
+ * [hidePlayStore] hides the Play Store app.
+ */
+@Serializable
+data class ConfigAppPolicy(
+    val mode: String = "open",
+    val allowed: List<String> = emptyList(),
+    val roles: List<String> = emptyList(),
+    val hidePlayStore: Boolean = false,
+)
+
+/** Location trail: a fresh fix every [intervalMinutes], buffered and uploaded with the next check-in. */
+@Serializable
+data class ConfigTracking(val intervalMinutes: Int = 0)
 
 @Serializable
 data class ConfigLocation(val mode: String = DeviceAction.LOCATION_PASSIVE)

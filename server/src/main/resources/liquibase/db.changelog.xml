@@ -2912,4 +2912,41 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.28-audio-parity" author="dallycontrol" context="common">
+        <comment>Operations parity (MobiControl usage): a JSON column for DallyControl-only configuration policies
+            (kiosk functions, managed browser, app policy, location trail); groups nest (folders inherit their
+            parent's configuration); reusable enrollment codes per folder (typed on the phone or in a QR).</comment>
+        <sql>
+            ALTER TABLE configurations ADD COLUMN dcPolicy TEXT NULL;
+            ALTER TABLE groups ADD COLUMN parentId INT NULL REFERENCES groups(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS groups_parent_idx ON groups (parentId);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN reusable BOOLEAN NOT NULL DEFAULT FALSE;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN label VARCHAR(100) NULL;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN uses INT NOT NULL DEFAULT 0;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN revoked BOOLEAN NOT NULL DEFAULT FALSE;
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_group_configuration(gid INT) RETURNS INT STABLE LANGUAGE sql AS $$
+                WITH RECURSIVE up(id, parentId, configurationId, depth) AS (
+                    SELECT g.id, g.parentId, g.configurationId, 0 FROM groups g WHERE g.id = gid
+                    UNION ALL
+                    SELECT p.id, p.parentId, p.configurationId, up.depth + 1
+                    FROM groups p JOIN up ON p.id = up.parentId
+                    WHERE up.depth &lt; 32
+                )
+                SELECT configurationId FROM up WHERE configurationId IS NOT NULL ORDER BY depth LIMIT 1
+            $$;
+        </sql>
+        <rollback>
+            DROP FUNCTION IF EXISTS dallycontrol_group_configuration(INT);
+            ALTER TABLE agentEnrollmentToken DROP COLUMN revoked;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN uses;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN label;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN reusable;
+            DROP INDEX IF EXISTS groups_parent_idx;
+            ALTER TABLE groups DROP COLUMN parentId;
+            ALTER TABLE configurations DROP COLUMN dcPolicy;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

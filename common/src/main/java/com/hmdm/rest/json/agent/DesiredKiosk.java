@@ -42,4 +42,6 @@ public class DesiredKiosk {
     private String exitMode;
     private String password;
     private DesiredKioskTheme theme;
+    /** Device functions (phone, contacts, messages, browser, camera, maps) the agent resolves to packages. */
+    private List<String> roles;
 }

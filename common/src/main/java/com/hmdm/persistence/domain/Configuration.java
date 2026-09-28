@@ -170,6 +170,8 @@ public class Configuration implements CustomerData, Serializable {
     private Boolean kioskLockButtons;
     @ApiModelProperty("Flag forcing screen to be on in kiosk mode")
     private Boolean kioskScreenOn;
+    @ApiModelProperty("DallyControl policies as JSON: kiosk functions, managed browser, app policy, location trail")
+    private String dcPolicy;
     @ApiModelProperty("Overridden launcher URL")
     private String launcherUrl;
     @ApiModelProperty("Additional comma separated restrictions in MDM mode")
@@ -522,6 +524,14 @@ public class Configuration implements CustomerData, Serializable {
 
     public void setKioskLockButtons(Boolean kioskLockButtons) {
         this.kioskLockButtons = kioskLockButtons;
+    }
+
+    public String getDcPolicy() {
+        return dcPolicy;
+    }
+
+    public void setDcPolicy(String dcPolicy) {
+        this.dcPolicy = dcPolicy;
     }
 
     public Boolean getKioskScreenOn() {
@@ -903,6 +913,7 @@ public class Configuration implements CustomerData, Serializable {
         copy.setKioskHome(getKioskHome());
         copy.setKioskRecents(getKioskRecents());
         copy.setKioskScreenOn(getKioskScreenOn());
+        copy.setDcPolicy(getDcPolicy());
         copy.setLauncherUrl(getLauncherUrl());
         copy.setKioskNotifications(getKioskNotifications());
         copy.setKioskSystemInfo(getKioskSystemInfo());

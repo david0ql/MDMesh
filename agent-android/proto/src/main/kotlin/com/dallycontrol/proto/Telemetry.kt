@@ -66,6 +66,30 @@ data class DynamicState(
     val lastBootAt: Long,
     /** Last-known (or freshly-fixed, in active mode) device location; null without permission/fix. */
     val location: LocationDto? = null,
+    /** SIM card(s) as seen now; null when the agent cannot read phone state. */
+    val sim: SimStateDto? = null,
+    /** Fixes captured between check-ins by the periodic trail (ConfigTracking), oldest first. */
+    val trail: List<LocationDto> = emptyList(),
+)
+
+/**
+ * SIM state. [state]: `ready`, `absent`, `locked` (PIN/PUK), `unknown`. [slots] lists the active
+ * subscriptions; [fingerprint] is a stable hash of them, so the server sees a swapped card as a change.
+ */
+@Serializable
+data class SimStateDto(
+    val state: String,
+    val slots: List<SimSlotDto> = emptyList(),
+    val fingerprint: String? = null,
+)
+
+@Serializable
+data class SimSlotDto(
+    val slot: Int,
+    val carrier: String? = null,
+    val number: String? = null,
+    val countryIso: String? = null,
+    val subscriptionId: Int? = null,
 )
 
 /** A device location fix. [capturedAt] is the fix's own timestamp (epoch millis), not report time. */

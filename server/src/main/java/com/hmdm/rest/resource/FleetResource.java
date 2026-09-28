@@ -82,6 +82,8 @@ public class FleetResource {
     public static class GroupBody {
         public String name;
         public Integer configurationId;
+        /** Parent folder; null = top level. */
+        public Integer parentId;
     }
 
     public static class DevicesGroupBody {
@@ -140,14 +142,18 @@ public class FleetResource {
         if (name == null) {
             return Response.ERROR("error.group.name.invalid");
         }
-        if (commandDAO.groupNameTaken(c, name, null)) {
+        if (body.parentId != null && commandDAO.findGroup(c, body.parentId) == null) {
+            return Response.ERROR("error.group.parent.invalid");
+        }
+        if (commandDAO.groupNameTaken(c, name, body.parentId, null)) {
             return Response.ERROR("error.group.name.taken");
         }
         if (body.configurationId != null && !ownsConfiguration(c, body.configurationId)) {
             return Response.ERROR("error.configuration.not.found");
         }
-        int id = commandDAO.insertGroup(c, name, body.configurationId);
-        logger.info("Group {} '{}' created (customer {}, configuration {})", id, name, c, body.configurationId);
+        int id = commandDAO.insertGroup(c, name, body.configurationId, body.parentId);
+        logger.info("Group {} '{}' created (customer {}, parent {}, configuration {})", id, name, c, body.parentId,
+                body.configurationId);
         return Response.OK(commandDAO.findGroup(c, id));
     }
 
@@ -170,14 +176,21 @@ public class FleetResource {
         if (name == null) {
             return Response.ERROR("error.group.name.invalid");
         }
-        if (commandDAO.groupNameTaken(c, name, id)) {
+        // A folder cannot move under itself or one of its descendants (that would detach a loop from the tree).
+        if (body.parentId != null && (commandDAO.findGroup(c, body.parentId) == null
+                || commandDAO.groupSubtree(c, id).contains(body.parentId))) {
+            return Response.ERROR("error.group.parent.invalid");
+        }
+        if (commandDAO.groupNameTaken(c, name, body.parentId, id)) {
             return Response.ERROR("error.group.name.taken");
         }
         if (body.configurationId != null && !ownsConfiguration(c, body.configurationId)) {
             return Response.ERROR("error.configuration.not.found");
         }
-        commandDAO.updateGroup(c, id, name, body.configurationId);
-        int changed = scopes.apply(c, r -> Integer.valueOf(id).equals(r.getGroupId()));
+        commandDAO.updateGroup(c, id, name, body.configurationId, body.parentId);
+        // The whole branch may inherit the change (or a new ancestor's configuration after a move).
+        Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
+        int changed = scopes.apply(c, r -> r.getGroupId() != null && branch.contains(r.getGroupId()));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("group", commandDAO.findGroup(c, id));
         out.put("devicesReconfigured", changed);
@@ -195,12 +208,19 @@ public class FleetResource {
             return Response.PERMISSION_DENIED();
         }
         int c = customerId.get();
+        DeviceGroupView group = commandDAO.findGroup(c, id);
+        if (group == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        // Its sub-folders move up to its parent; they and their devices may now inherit something else.
+        Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
         Set<Integer> members = new HashSet<>();
         for (DeviceScopeRow r : commandDAO.listDeviceScopes(c)) {
-            if (Integer.valueOf(id).equals(r.getGroupId())) {
+            if (r.getGroupId() != null && branch.contains(r.getGroupId())) {
                 members.add(r.getId());
             }
         }
+        commandDAO.reparentChildren(c, id, group.getParentId());
         if (!commandDAO.deleteGroup(c, id)) {
             return Response.ERROR("error.group.not.found");
         }
@@ -222,7 +242,10 @@ public class FleetResource {
         if (commandDAO.findGroup(customerId.get(), id) == null) {
             return Response.ERROR("error.group.not.found");
         }
-        return fanOut(customerId.get(), body, r -> Integer.valueOf(id).equals(r.getGroupId()), "group " + id);
+        // A folder's command reaches its sub-folders' devices too.
+        Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(customerId.get(), id));
+        return fanOut(customerId.get(), body, r -> r.getGroupId() != null && branch.contains(r.getGroupId()),
+                "group " + id);
     }
 
     // --- devices --------------------------------------------------------------------------------------------------

@@ -95,35 +95,52 @@ public interface AgentDeviceMapper {
 
     // --- Groups (companies) and configuration scopes: device > group > global ---
 
-    /** A device's group is its first deviceGroups row (DallyControl keeps exactly one per device). */
+    /**
+     * A device's group is its first deviceGroups row (DallyControl keeps exactly one per device). Groups nest: the
+     * group's configuration is its own or, when it has none, its nearest ancestor's
+     * ({@code dallycontrol_group_configuration}, Liquibase 26.09.28-audio-parity).
+     */
     String DEVICE_SCOPE_SELECT = "SELECT d.id, d.number, d.configurationId, d.configurationPinned, " +
-            "g.id AS groupId, g.name AS groupName, g.configurationId AS groupConfigurationId " +
+            "g.id AS groupId, g.name AS groupName, dallycontrol_group_configuration(g.id) AS groupConfigurationId " +
             "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
             "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
 
-    @Select({"SELECT g.id, g.name, g.configurationId, c.name AS configurationName, " +
+    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, c.name AS configurationName, " +
+            "e.id AS effectiveConfigurationId, e.name AS effectiveConfigurationName, " +
             "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
             "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +
-            "WHERE g.customerId = #{customerId} ORDER BY lower(g.name)"})
+            "LEFT JOIN configurations e ON e.id = dallycontrol_group_configuration(g.id) ";
+
+    @Select({GROUP_VIEW_SELECT + "WHERE g.customerId = #{customerId} ORDER BY lower(g.name)"})
     List<com.hmdm.persistence.domain.DeviceGroupView> listGroups(@Param("customerId") int customerId);
 
-    @Select({"SELECT g.id, g.name, g.configurationId, c.name AS configurationName, " +
-            "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
-            "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +
-            "WHERE g.customerId = #{customerId} AND g.id = #{groupId}"})
+    @Select({GROUP_VIEW_SELECT + "WHERE g.customerId = #{customerId} AND g.id = #{groupId}"})
     com.hmdm.persistence.domain.DeviceGroupView findGroup(@Param("customerId") int customerId, @Param("groupId") int groupId);
 
+    /** Sibling names are unique (case-insensitive); the same name may repeat under different parents. */
     @Select({"SELECT count(*) FROM groups WHERE customerId = #{customerId} AND lower(name) = lower(#{name}) " +
+            "AND parentId IS NOT DISTINCT FROM #{parentId}::int " +
             "AND (#{exceptId}::int IS NULL OR id <> #{exceptId}::int)"})
-    int countGroupsNamed(@Param("customerId") int customerId, @Param("name") String name, @Param("exceptId") Integer exceptId);
+    int countGroupsNamed(@Param("customerId") int customerId, @Param("name") String name,
+                         @Param("parentId") Integer parentId, @Param("exceptId") Integer exceptId);
 
-    @Insert({"INSERT INTO groups (name, customerId, configurationId) VALUES (#{name}, #{customerId}, #{configurationId})"})
+    /** The group and every group below it. */
+    @Select({"WITH RECURSIVE down(id, depth) AS (SELECT id, 0 FROM groups WHERE id = #{groupId} AND customerId = #{customerId} " +
+            "UNION ALL SELECT g.id, down.depth + 1 FROM groups g JOIN down ON g.parentId = down.id WHERE down.depth < 32) " +
+            "SELECT id FROM down"})
+    List<Integer> listGroupSubtree(@Param("customerId") int customerId, @Param("groupId") int groupId);
+
+    @Insert({"INSERT INTO groups (name, customerId, configurationId, parentId) VALUES (#{name}, #{customerId}, #{configurationId}, #{parentId})"})
     @SelectKey(statement = "SELECT currval('groups_id_seq')", keyColumn = "id", keyProperty = "id", before = false, resultType = int.class)
     void insertGroup(com.hmdm.persistence.domain.DeviceGroupInsert group);
 
-    @Update({"UPDATE groups SET name = #{name}, configurationId = #{configurationId} WHERE id = #{id} AND customerId = #{customerId}"})
+    @Update({"UPDATE groups SET name = #{name}, configurationId = #{configurationId}, parentId = #{parentId} " +
+            "WHERE id = #{id} AND customerId = #{customerId}"})
     int updateGroup(@Param("customerId") int customerId, @Param("id") int id, @Param("name") String name,
-                    @Param("configurationId") Integer configurationId);
+                    @Param("configurationId") Integer configurationId, @Param("parentId") Integer parentId);
+
+    @Update({"UPDATE groups SET parentId = #{parentId} WHERE parentId = #{id} AND customerId = #{customerId}"})
+    int reparentChildren(@Param("customerId") int customerId, @Param("id") int id, @Param("parentId") Integer parentId);
 
     @org.apache.ibatis.annotations.Delete({"DELETE FROM groups WHERE id = #{id} AND customerId = #{customerId}"})
     int deleteGroup(@Param("customerId") int customerId, @Param("id") int id);

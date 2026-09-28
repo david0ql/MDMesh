@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_admin_description">Permite que esta organización administre el dispositivo: aplicar políticas, gestionar aplicaciones y dar soporte remoto.</string>
+    <string name="checkin_notification_channel">Administración del dispositivo</string>
+    <string name="checkin_notification_title">Administración del dispositivo activa</string>
+    <string name="checkin_notification_text">Manteniendo este dispositivo sincronizado con tu organización.</string>
+
+    <string name="kiosk_app_fallback">la aplicación</string>
+    <string name="kiosk_paused_title">%1$s se cerró</string>
+    <string name="kiosk_paused_body">Se cerró varias veces seguidas, así que no se volvió a abrir sola.</string>
+    <string name="kiosk_paused_open">Abrir %1$s</string>
+</resources>

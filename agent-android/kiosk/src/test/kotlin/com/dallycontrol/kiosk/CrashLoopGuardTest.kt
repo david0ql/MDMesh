@@ -109,4 +109,19 @@ class CrashLoopGuardTest {
         assertEquals(0, store.counter)
         assertEquals(0L, store.lastFaultTime)
     }
+
+    @Test
+    fun `reset clears a tripped guard`() {
+        val store = InMemoryFaultStore()
+        val clock = FakeClock(nowMs = 1_000L)
+        val guard = CrashLoopGuard(store, clock.source)
+        repeat(CrashLoopGuard.LOOP_CRASHES + 1) { guard.registerFault(); clock.advance(1_000L) }
+        assertTrue(guard.isCrashLoopDetected())
+
+        guard.reset()
+
+        assertFalse(guard.isCrashLoopDetected())
+        guard.registerFault()
+        assertEquals(1, store.counter)
+    }
 }

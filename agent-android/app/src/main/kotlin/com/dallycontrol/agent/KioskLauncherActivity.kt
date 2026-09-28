@@ -47,8 +47,10 @@ import javax.inject.Inject
  * button / `remote` none) and gated by [KioskApplyPayload.password].
  *
  * A [CrashLoopGuard] protects against a crashing pinned app bouncing back to HOME in a tight
- * loop: each single-app launch registers a fault, and once the loop trips the launcher drops
- * kiosk instead of re-pinning, so a misconfigured deployment cannot brick the device.
+ * loop: each single-app launch registers a fault, and once the loop trips the launcher stops
+ * relaunching and shows a locked "open <app>" screen instead. It never drops kiosk: pressing Back or
+ * Home a few times also bounces to HOME, so dropping kiosk there was a way out of it. A device whose
+ * app really keeps crashing stays reachable (the check-in service runs) and can leave kiosk remotely.
  */
 @AndroidEntryPoint
 class KioskLauncherActivity : ComponentActivity() {
@@ -60,6 +62,9 @@ class KioskLauncherActivity : ComponentActivity() {
 
     /** Last applied non-null kiosk state, so [onResume] can recover a bounced single-app pin. */
     private var active: KioskApplyPayload? = null
+
+    /** The guard tripped and the paused screen is up (reported once per trip). */
+    private var paused = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,8 +89,9 @@ class KioskLauncherActivity : ComponentActivity() {
         // handled by the flow collector, not here.
         val p = active ?: return
         if (p.mode == "single") {
+            if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
             crashGuard.registerFault()
-            if (bailOnCrashLoop()) return
+            if (pauseOnCrashLoop(p)) return
             launchPinned(p)
         }
     }
@@ -93,13 +99,14 @@ class KioskLauncherActivity : ComponentActivity() {
     private fun applyState(p: KioskApplyPayload?) {
         active = p
         if (p == null) {
+            paused = false
             stopLockTaskSafely()
             setContentView(idleView())
             return
         }
-        if (bailOnCrashLoop()) return
         startLockTaskSafely()
         if (p.mode == "single" && p.pinPackage != null) {
+            if (pauseOnCrashLoop(p)) return
             launchPinned(p)
         } else {
             setContentView(launcherGrid(p))
@@ -117,14 +124,15 @@ class KioskLauncherActivity : ComponentActivity() {
         runCatching { startActivity(intent) }
     }
 
-    /** @return true if a crash loop tripped (kiosk dropped + recovery shown), so the caller stops. */
-    private fun bailOnCrashLoop(): Boolean {
+    /**
+     * @return true if a crash loop tripped: kiosk stays locked and a screen offers to open the app again, so the
+     * caller stops. Reported once per trip.
+     */
+    private fun pauseOnCrashLoop(p: KioskApplyPayload): Boolean {
         if (!crashGuard.isCrashLoopDetected()) return false
-        events.record("kioskCrashLoop", "dropped kiosk after repeated crashes")
-        controller.exit()
-        active = null
-        lifecycleScope.launch { store.save(null) }
-        setContentView(recoveryView())
+        if (!paused) events.record("kioskCrashLoop", "${p.pinPackage} left repeatedly; automatic relaunch paused, kiosk kept")
+        paused = true
+        setContentView(pausedView(p))
         return true
     }
 
@@ -294,22 +302,33 @@ class KioskLauncherActivity : ComponentActivity() {
         addView(col)
     }
 
-    private fun recoveryView(): View = frame(INK).apply {
+    /** Still in kiosk; the pinned app left several times in a row. One tap opens it again. */
+    private fun pausedView(p: KioskApplyPayload): View = frame(parseColor(p.theme.backgroundColor, INK)).apply {
+        val label = p.pinPackage?.let { pkg ->
+            runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }
+                .getOrNull()
+        } ?: getString(R.string.kiosk_app_fallback)
         val col = LinearLayout(this@KioskLauncherActivity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), 0, dp(28), 0)
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
-        col.addView(centeredText("Kiosk stopped", 22f, ALERT, bold = true))
+        col.addView(centeredText(getString(R.string.kiosk_paused_title, label), 20f, parseColor(p.theme.textColor, TEXT), bold = true))
+        col.addView(centeredText(getString(R.string.kiosk_paused_body), 14f, MUTED).apply { setPadding(0, dp(12), 0, dp(24)) })
         col.addView(
-            centeredText(
-                "A kiosk app crashed repeatedly, so kiosk mode was disabled to keep the device usable.",
-                14f,
-                MUTED,
-            ).apply { setPadding(0, dp(12), 0, 0) },
+            Button(this@KioskLauncherActivity).apply {
+                text = getString(R.string.kiosk_paused_open, label)
+                contentDescription = "kiosk-open-app"
+                setOnClickListener {
+                    crashGuard.reset()
+                    paused = false
+                    launchPinned(p)
+                }
+            },
         )
         addView(col)
+        addExitAffordance(p, this)
     }
 
     /** Add the per-[KioskApplyPayload.exitMode] exit affordance to [parent]. */
@@ -382,7 +401,6 @@ class KioskLauncherActivity : ComponentActivity() {
         val TEXT = Color.parseColor("#E8EEF4")
         val MUTED = Color.parseColor("#8693A4")
         val SIGNAL = Color.parseColor("#F4B942")
-        val ALERT = Color.parseColor("#F2545B")
     }
 }
 

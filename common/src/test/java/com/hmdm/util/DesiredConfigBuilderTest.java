@@ -106,4 +106,53 @@ public class DesiredConfigBuilderTest {
         assertEquals(resource("desired-config-kiosk.json"), DesiredConfigBuilder.canonicalJson(d));
         assertEquals(resource("desired-config-kiosk.sha256"), d.getRevision());
     }
+
+    @Test
+    public void no_dc_policy_leaves_the_document_and_revision_unchanged() {
+        Configuration c = kioskConfig();
+        String before = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1))).getRevision();
+        c.setDcPolicy("   ");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+        assertEquals(before, d.getRevision());
+        assertNull(d.getBrowser()); assertNull(d.getApps()); assertNull(d.getTracking()); assertNull(d.getKiosk().getRoles());
+    }
+
+    @Test
+    public void kiosk_roles_make_a_launcher_and_travel_to_the_agent() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"kioskRoles\":[\"browser\",\"PHONE\",\"teleport\"]}");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+        assertEquals("functions are opened from the kiosk home", "launcher", d.getKiosk().getMode());
+        assertEquals("known roles only, canonical order", Arrays.asList("phone", "browser"), d.getKiosk().getRoles());
+        assertEquals("com.acme.pos", d.getKiosk().getPinPackage());
+    }
+
+    @Test
+    public void browser_app_policy_and_tracking_sections() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"browser\":{\"mode\":\"allowlist\",\"allow\":[\" amovil.com.co \",\"\",\"*.gov.co\"]},"
+                + "\"apps\":{\"mode\":\"allowlist\",\"allowed\":[\"com.whatsapp\",\"not a pkg\"],\"roles\":[\"phone\"],\"hidePlayStore\":true},"
+                + "\"trackingMinutes\":5}");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1), app(9, 909, "com.acme.old", 2)));
+        assertEquals("allowlist", d.getBrowser().getMode());
+        assertEquals(Arrays.asList("amovil.com.co", "*.gov.co"), d.getBrowser().getAllow());
+        assertEquals("allowlist", d.getApps().getMode());
+        assertEquals("config install apps + extra allowed; removed apps and junk are not",
+                Arrays.asList("com.acme.pos", "com.whatsapp"), d.getApps().getAllowed());
+        assertEquals(Collections.singletonList("phone"), d.getApps().getRoles());
+        assertEquals(Boolean.TRUE, d.getApps().getHidePlayStore());
+        assertEquals(Integer.valueOf(5), d.getTracking().getIntervalMinutes());
+    }
+
+    @Test
+    public void invalid_dc_policy_is_ignored_not_fatal() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{not json");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Collections.<Application>emptyList());
+        assertNull(d.getBrowser()); assertNull(d.getApps()); assertNull(d.getTracking());
+        c.setDcPolicy("{\"trackingMinutes\":0,\"browser\":{\"mode\":\"sometimes\"}}");
+        d = DesiredConfigBuilder.build(c, Collections.<Application>emptyList());
+        assertNull("0 minutes is not a trail", d.getTracking());
+        assertNull("unknown browser mode = not managed", d.getBrowser());
+    }
 }

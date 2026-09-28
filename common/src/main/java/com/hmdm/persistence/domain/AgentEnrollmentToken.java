@@ -46,8 +46,26 @@ public class AgentEnrollmentToken implements Serializable {
     /** Optional group (company) the enrolled device joins; its configuration then comes from the group. */
     private Integer groupId;
 
+    /**
+     * Reusable enrollment code (a folder's "enrollment policy"): enrolls any number of devices into its group until
+     * revoked or expired, instead of being consumed by the first one. Typed on the phone or put in a QR.
+     */
+    private boolean reusable;
+    private String label;
+    private int uses;
+    private boolean revoked;
+
     public AgentEnrollmentToken() {
     }
+
+    public boolean isReusable() { return reusable; }
+    public void setReusable(boolean reusable) { this.reusable = reusable; }
+    public String getLabel() { return label; }
+    public void setLabel(String label) { this.label = label; }
+    public int getUses() { return uses; }
+    public void setUses(int uses) { this.uses = uses; }
+    public boolean isRevoked() { return revoked; }
+    public void setRevoked(boolean revoked) { this.revoked = revoked; }
 
     public Integer getId() {
         return id;

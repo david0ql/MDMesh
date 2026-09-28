@@ -282,6 +282,12 @@ public class AgentResource {
             if (tel != null && tel.isObject()) {
                 ((com.fasterxml.jackson.databind.node.ObjectNode) tel).put("publicIp", clientIp(httpRequest));
             }
+            // The location trail (fixes buffered between check-ins) goes to device_location, not the snapshot.
+            JsonNode trail = null;
+            JsonNode dyn = tel == null ? null : tel.path("dynamic");
+            if (dyn != null && dyn.isObject() && dyn.has("trail")) {
+                trail = ((com.fasterxml.jackson.databind.node.ObjectNode) dyn).remove("trail");
+            }
             // An authenticated device can still be hostile/buggy: cap the stored blob so a single
             // client can't bloat device_state via the 5s foreground poll.
             String telJson = tel == null ? null : tel.toString();
@@ -298,7 +304,9 @@ public class AgentResource {
             if (androidRelease != null && !androidRelease.trim().isEmpty()) {
                 commandDAO.updateAndroidVersion(deviceNumber, androidRelease.trim());
             }
-            // Append the reported location (dynamic.location) to the device's breadcrumb trail.
+            // Append the buffered trail (oldest first), then the reported location (dynamic.location), to the
+            // device's breadcrumb trail. Inserts only keep fixes newer than what is stored, so a resent trail is a no-op.
+            recordTrail(deviceNumber, trail);
             recordLocation(deviceNumber, tel);
         }
 
@@ -474,19 +482,47 @@ public class AgentResource {
     }
 
     /** Pull dynamic.location out of the telemetry JSON and append it to the device's trail. */
+    /** At most this many trail fixes per check-in (a day at one every 5 minutes). */
+    private static final int MAX_TRAIL_FIXES = 288;
+
+    private void recordTrail(String deviceNumber, JsonNode trail) {
+        if (trail == null || !trail.isArray()) {
+            return;
+        }
+        java.util.List<JsonNode> fixes = new java.util.ArrayList<>();
+        for (JsonNode f : trail) {
+            if (f != null && f.hasNonNull("lat") && f.hasNonNull("lon") && f.hasNonNull("capturedAt")) {
+                fixes.add(f);
+            }
+        }
+        fixes.sort(java.util.Comparator.comparingLong(f -> f.get("capturedAt").asLong()));
+        int from = Math.max(0, fixes.size() - MAX_TRAIL_FIXES);
+        for (JsonNode f : fixes.subList(from, fixes.size())) {
+            recordFix(deviceNumber, f);
+        }
+    }
+
     private void recordLocation(String deviceNumber, JsonNode tel) {
         if (tel == null) {
             return;
         }
-        JsonNode loc = tel.path("dynamic").path("location");
+        recordFix(deviceNumber, tel.path("dynamic").path("location"));
+    }
+
+    private void recordFix(String deviceNumber, JsonNode loc) {
         if (loc.isMissingNode() || loc.isNull() || !loc.hasNonNull("lat") || !loc.hasNonNull("lon")) {
+            return;
+        }
+        double lat = loc.get("lat").asDouble();
+        double lon = loc.get("lon").asDouble();
+        if (Double.isNaN(lat) || Double.isNaN(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
             return;
         }
         try {
             com.hmdm.persistence.domain.DeviceLocation row = new com.hmdm.persistence.domain.DeviceLocation();
             row.setDeviceNumber(deviceNumber);
-            row.setLat(loc.get("lat").asDouble());
-            row.setLon(loc.get("lon").asDouble());
+            row.setLat(lat);
+            row.setLon(lon);
             if (loc.hasNonNull("accuracyM")) {
                 row.setAccuracy((float) loc.get("accuracyM").asDouble());
             }

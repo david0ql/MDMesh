@@ -4,11 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hmdm.persistence.domain.Application;
 import com.hmdm.persistence.domain.Configuration;
 import com.hmdm.persistence.domain.RequestUpdatesType;
+import com.hmdm.rest.json.agent.DesiredAppPolicy;
+import com.hmdm.rest.json.agent.DesiredBrowser;
 import com.hmdm.rest.json.agent.DesiredConfig;
 import com.hmdm.rest.json.agent.DesiredKiosk;
 import com.hmdm.rest.json.agent.DesiredKioskFeatures;
 import com.hmdm.rest.json.agent.DesiredKioskTheme;
 import com.hmdm.rest.json.agent.DesiredLocation;
+import com.hmdm.rest.json.agent.DesiredTracking;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -43,15 +46,51 @@ public final class DesiredConfigBuilder {
     private DesiredConfigBuilder() {}
 
     public static DesiredConfig build(Configuration cfg, List<Application> apps) {
+        List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
+        DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
         d.setConfigurationId(cfg.getId());
         d.setPolicies(policies(cfg));
-        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, apps == null ? Collections.<Application>emptyList() : apps) : null);
+        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles()) : null);
         DesiredLocation loc = new DesiredLocation();
         loc.setMode(cfg.getRequestUpdates() == RequestUpdatesType.GPS ? "active" : "passive");
         d.setLocation(loc);
+        d.setBrowser(browser(dc));
+        d.setApps(appPolicy(dc, list));
+        if (dc.getTrackingMinutes() != null) {
+            DesiredTracking t = new DesiredTracking();
+            t.setIntervalMinutes(dc.getTrackingMinutes());
+            d.setTracking(t);
+        }
         d.setRevision(revision(d));
         return d;
+    }
+
+    private static DesiredBrowser browser(DcPolicy dc) {
+        if (dc.getBrowser() == null) return null;
+        DesiredBrowser b = new DesiredBrowser();
+        b.setMode(dc.getBrowser().getMode());
+        b.setAllow(dc.getBrowser().getAllow());
+        b.setBlock(dc.getBrowser().getBlock());
+        return b;
+    }
+
+    /** The configuration's installed apps are always allowed; the policy adds packages and functions. */
+    private static DesiredAppPolicy appPolicy(DcPolicy dc, List<Application> apps) {
+        if (dc.getApps() == null) return null;
+        DesiredAppPolicy a = new DesiredAppPolicy();
+        a.setMode(dc.getApps().getMode());
+        Set<String> allowed = new TreeSet<String>();
+        for (Application app : apps) {
+            if (app == null || app.getAction() != ACTION_INSTALL || app.getPkg() == null) continue;
+            String pkg = app.getPkg().trim();
+            if (!pkg.isEmpty()) allowed.add(pkg);
+        }
+        if (dc.getApps().getAllowed() != null) allowed.addAll(dc.getApps().getAllowed());
+        a.setAllowed(allowed.isEmpty() ? null : new ArrayList<String>(allowed));
+        a.setRoles(dc.getApps().getRoles());
+        a.setHidePlayStore(dc.getApps().getHidePlayStore());
+        return a;
     }
 
     private static Map<String, Boolean> policies(Configuration cfg) {
@@ -71,7 +110,7 @@ public final class DesiredConfigBuilder {
      * Builds the kiosk block. The main (pinned) app is matched by application VERSION id:
      * {@code cfg.mainAppId == app.usedVersionId}, never by {@code app.id}.
      */
-    private static DesiredKiosk kiosk(Configuration cfg, List<Application> apps) {
+    private static DesiredKiosk kiosk(Configuration cfg, List<Application> apps, List<String> roles) {
         String mainPkg = null;
         for (Application a : apps) {
             if (a == null || a.getPkg() == null || a.getPkg().trim().isEmpty() || a.getAction() != ACTION_INSTALL) continue;
@@ -91,7 +130,10 @@ public final class DesiredConfigBuilder {
         if (mainPkg != null) allowed.add(0, mainPkg);
 
         DesiredKiosk k = new DesiredKiosk();
-        k.setMode(mainPkg != null && allowed.size() == 1 ? "single" : "launcher");
+        // Functions (phone, browser, …) are apps the user opens from the kiosk home, so they make it a launcher.
+        boolean hasRoles = roles != null && !roles.isEmpty();
+        k.setMode(mainPkg != null && allowed.size() == 1 && !hasRoles ? "single" : "launcher");
+        k.setRoles(hasRoles ? roles : null);
         k.setAllowedPackages(allowed);
         k.setPinPackage(mainPkg);
         DesiredKioskFeatures f = new DesiredKioskFeatures();

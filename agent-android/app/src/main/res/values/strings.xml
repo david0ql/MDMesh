@@ -5,4 +5,10 @@
     <string name="checkin_notification_channel">Device management</string>
     <string name="checkin_notification_title">Device management active</string>
     <string name="checkin_notification_text">Keeping this device in sync with your organisation.</string>
+
+    <!-- Kiosk: the pinned app left several times in a row (KioskLauncherActivity). -->
+    <string name="kiosk_app_fallback">the app</string>
+    <string name="kiosk_paused_title">%1$s closed</string>
+    <string name="kiosk_paused_body">It closed several times in a row, so it was not reopened automatically.</string>
+    <string name="kiosk_paused_open">Open %1$s</string>
 </resources>

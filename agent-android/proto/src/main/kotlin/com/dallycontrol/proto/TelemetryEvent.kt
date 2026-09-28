@@ -19,4 +19,9 @@ object EventType {
     const val CONNECTIVITY = "connectivityChange"
     const val LOW_BATTERY = "lowBattery"
     const val ENROLLED = "enrolled"
+    const val SIM_REMOVED = "simRemoved"
+    const val SIM_INSERTED = "simInserted"
+    const val SIM_CHANGED = "simChanged"
+    const val APP_BLOCKED = "appBlocked"
+    const val KIOSK_CRASH_LOOP = "kioskCrashLoop"
 }

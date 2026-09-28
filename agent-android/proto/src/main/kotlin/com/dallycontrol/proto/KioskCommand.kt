@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
  * @property exitMode `"gesture"` | `"visible"` | `"remote"` — how a technician leaves kiosk on device.
  * @property password admin password required by the on-device exit (gesture/visible).
  * @property theme launcher appearance.
+ * @property roles device functions allowed besides [allowedPackages] (see [KioskRoles]): the agent resolves each
+ *   to the packages that serve it on THIS device (its dialer + in-call screen, contacts app, …), so one
+ *   configuration fits every brand.
  */
 @Serializable
 data class KioskApplyPayload(
@@ -24,7 +27,19 @@ data class KioskApplyPayload(
     val exitMode: String = "gesture",
     val password: String? = null,
     val theme: KioskThemeDto = KioskThemeDto(),
+    val roles: List<String> = emptyList(),
 )
+
+/** Device functions a configuration can allow by name instead of by package (resolved on the device). */
+object KioskRoles {
+    const val PHONE = "phone"
+    const val CONTACTS = "contacts"
+    const val MESSAGES = "messages"
+    const val BROWSER = "browser"
+    const val CAMERA = "camera"
+    const val MAPS = "maps"
+    val ALL: List<String> = listOf(PHONE, CONTACTS, MESSAGES, BROWSER, CAMERA, MAPS)
+}
 
 @Serializable
 data class KioskFeaturesDto(

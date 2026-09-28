@@ -6,6 +6,10 @@ public class DeviceGroupInsert {
     private String name;
     private int customerId;
     private Integer configurationId;
+    private Integer parentId;
+
+    public Integer getParentId() { return parentId; }
+    public void setParentId(Integer parentId) { this.parentId = parentId; }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
