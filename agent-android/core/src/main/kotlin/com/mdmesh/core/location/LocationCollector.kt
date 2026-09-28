@@ -67,11 +67,15 @@ class LocationCollector @Inject constructor(
             else -> return null
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return legacySingleFix(lm, provider)
+        // The callback runs on a dedicated thread, never the main looper: collect() blocks on the latch, and
+        // when it ran on the main thread a main-executor callback could not be delivered until the wait
+        // timed out, so active mode on API 30+ never produced a fix (and stalled that check-in).
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
         return runCatching {
             val latch = CountDownLatch(1)
             val ref = AtomicReference<Location?>()
             val cancel = CancellationSignal()
-            lm.getCurrentLocation(provider, cancel, context.mainExecutor) { loc ->
+            lm.getCurrentLocation(provider, cancel, executor) { loc ->
                 ref.set(loc); latch.countDown()
             }
             if (!latch.await(FIX_TIMEOUT_SEC, TimeUnit.SECONDS)) {
@@ -80,7 +84,7 @@ class LocationCollector @Inject constructor(
             } else {
                 ref.get()
             }
-        }.getOrNull()
+        }.getOrNull().also { executor.shutdown() }
     }
 
     /**

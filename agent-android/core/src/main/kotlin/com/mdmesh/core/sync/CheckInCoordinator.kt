@@ -10,6 +10,8 @@ import com.mdmesh.core.telemetry.TelemetrySource
 import com.mdmesh.proto.AgentCheckInRequest
 import com.mdmesh.proto.EventType
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -48,7 +50,15 @@ class CheckInCoordinator @Inject constructor(
 
     private val mutex = Mutex()
 
-    suspend fun runOnce(): Unit = mutex.withLock {
+    // Off the main thread whoever calls: the foreground service launches from lifecycleScope (Main), and
+    // a cycle does blocking work (telemetry, a location fix with a latch), which on Main risked ANRs and
+    // starved main-looper callbacks the cycle itself was waiting for.
+    suspend fun runOnce(): Unit = withContext(workContext) { runLocked() }
+
+    /** Where cycles run. Tests swap in EmptyCoroutineContext to stay on the test scheduler. */
+    internal var workContext: kotlin.coroutines.CoroutineContext = Dispatchers.IO
+
+    private suspend fun runLocked(): Unit = mutex.withLock {
         try {
             // Commands executed in a cycle leave results in the buffer. Report them right away
             // (and pick up anything queued meanwhile) instead of on the next wake or the

@@ -51,7 +51,7 @@ class CheckInCoordinatorTest {
             telemetrySource = { null },
             eventSink = eventSink,
             syncStatus = syncStatus,
-        )
+        ).apply { workContext = kotlin.coroutines.EmptyCoroutineContext }
     }
 
     private fun command(id: String) =

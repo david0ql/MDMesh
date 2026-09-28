@@ -30,5 +30,9 @@ for AVD in "$@"; do
     python3 -u "$HERE/device-func-test.py" --serial $SER --device-id "$DID" ${FUNC_ARGS:-} >>"$LOG" 2>&1
     echo "RESULT $AVD (API $API): $(grep 'RESULT:' "$LOG" | tail -1)" | tee -a "$LOG"
   fi
-  $ADB -s $SER emu kill >/dev/null 2>&1; sleep 3; kill $EMU 2>/dev/null; wait $EMU 2>/dev/null
+  # Shut down with a deadline: `emu kill` + a plain wait once hung for 80 minutes on an emulator that never exited.
+  $ADB -s $SER emu kill >/dev/null 2>&1
+  for _ in $(seq 1 20); do kill -0 $EMU 2>/dev/null || break; sleep 1; done
+  kill $EMU 2>/dev/null; sleep 2; kill -9 $EMU 2>/dev/null; wait $EMU 2>/dev/null
+  $ADB disconnect $SER >/dev/null 2>&1 || true
 done

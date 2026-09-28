@@ -126,7 +126,8 @@ def lockscreen_info_has(msg):
         return True
     adb("root")  # emulator/userdebug: read where LockSettings persists owner info
     time.sleep(1)
-    return "locksettings.db" in sh(f"grep -l '{msg}' /data/system/locksettings.db")
+    # API 24-25 keep it in the device-policy state file; newer releases in LockSettings' database.
+    return bool(sh(f"grep -l '{msg}' /data/system/locksettings.db /data/system/device_policies.xml 2>/dev/null").strip())
 
 
 _CAPS = {}
