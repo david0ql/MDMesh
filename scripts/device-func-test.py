@@ -403,6 +403,10 @@ def t_wipe():
             return "ordered"
         if "REBOOTING TO WIPE USER DATA" in log:  # older releases log only RecoverySystem's banner
             return "ordered"
+        # API 23-25 emulators reboot into a recovery that ignores the command; at the next boot the
+        # platform deletes the wipe command the agent wrote, which is the proof it was handed over.
+        if "Deleted: /cache/recovery/command" in log:
+            return "ordered (recovery command written; emulator recovery cannot wipe)"
         return None
     outcome = until(wiped_or_ordered, timeout=400, step=5)
     check(f"wipe: factory reset performed or handed to recovery by the platform ({outcome})", outcome is not None)
