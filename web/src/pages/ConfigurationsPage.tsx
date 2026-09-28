@@ -69,10 +69,19 @@ export function ConfigurationsPage() {
   const [chooserOpen, setChooserOpen] = useState(false);
   const [copyOf, setCopyOf] = useState<Configuration | null>(null);
   const [sync, setSync] = useState<Record<number, ConfigSyncSummary>>({});
+  // The list endpoint carries no apps: count each configuration's assigned apps separately.
+  const [appCounts, setAppCounts] = useState<Record<number, number>>({});
 
   const load = () =>
     getConfigurations()
-      .then(setConfigs)
+      .then((list) => {
+        setConfigs(list);
+        list.forEach((c) => {
+          if (c.id == null) return;
+          const id = c.id;
+          getConfigurationApps(id).then((a) => setAppCounts((m) => ({ ...m, [id]: a.length }))).catch(() => undefined);
+        });
+      })
       .catch(() => {
         setConfigs([]);
         setError('Could not load configurations.');
@@ -129,6 +138,7 @@ export function ConfigurationsPage() {
               c={c}
               locked={isLocked(c)}
               appName={appNameForVersionId(apps, c.mainAppId as number | undefined)}
+              appCount={c.id != null ? appCounts[c.id] : undefined}
               sync={c.id != null ? sync[c.id] : undefined}
               onEdit={() => {
                 setReadOnly(isLocked(c));
@@ -208,6 +218,7 @@ function ConfigCard({
   c,
   locked,
   appName,
+  appCount,
   sync,
   onEdit,
   onCopy,
@@ -216,12 +227,12 @@ function ConfigCard({
   c: Configuration;
   locked: boolean;
   appName: string;
+  appCount?: number;
   sync?: ConfigSyncSummary;
   onEdit: () => void;
   onCopy: () => void;
   onDelete: () => void;
 }) {
-  const appCount = (c.applications?.length ?? 0);
   return (
     <div className="cfg-card">
       <div className="cfg-top">
@@ -232,7 +243,7 @@ function ConfigCard({
       {c.description ? <div className="cfg-desc">{String(c.description)}</div> : null}
       <div className="cfg-meta">
         <span><span className="k">Main app</span><span className="v">{appName}</span></span>
-        <span><span className="k">Apps</span><span className="v">{appCount}</span></span>
+        <span><span className="k">Apps</span><span className="v">{appCount ?? '…'}</span></span>
       </div>
       <SyncBar s={sync} />
       <div className="cfg-actions">
