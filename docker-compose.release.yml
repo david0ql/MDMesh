@@ -9,7 +9,17 @@
 # Pin SERVER_VERSION/WEB_VERSION/SUPERVISOR_VERSION in .env for production; they default to :latest.
 services:
   postgres:
-    image: postgres:14
+    image: postgres:17.11-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-dallycontrol}
@@ -25,6 +35,16 @@ services:
 
   server:
     image: ${SERVER_IMAGE:-ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-server:${SERVER_VERSION:-latest}}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     restart: unless-stopped
     depends_on:
       postgres:
@@ -53,6 +73,18 @@ services:
 
   caddy:
     image: ${WEB_IMAGE:-ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-web:${WEB_VERSION:-latest}}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     restart: unless-stopped
     depends_on:
       - server
@@ -67,6 +99,8 @@ services:
 
   supervisor:
     image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-supervisor:${SUPERVISOR_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-}
@@ -88,7 +122,11 @@ services:
       - backups:/backups
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
     profiles: ["cloudflare"]
     depends_on:

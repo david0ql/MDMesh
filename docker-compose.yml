@@ -8,7 +8,17 @@
 
 services:
   postgres:
-    image: postgres:14
+    image: postgres:17.11-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-dallycontrol}
@@ -27,6 +37,16 @@ services:
     # image tag isn't published locally, compose builds it and tags it with this name). apply.sh bumps
     # SERVER_VERSION in .env then `docker compose pull server` to fetch the new signed image.
     image: ${SERVER_IMAGE:-ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-server:${SERVER_VERSION:-latest}}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
     build:
       context: .
       dockerfile: docker/server.Dockerfile
@@ -60,6 +80,20 @@ services:
     # The web image (Caddy + baked SPA). Same pull/build duality as `server`; WEB_VERSION tracks the
     # release. apply.sh recreates `server` + `caddy` together so the SPA matches the API.
     image: ${WEB_IMAGE:-ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-web:${WEB_VERSION:-latest}}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    # Caddy runs unprivileged; no-new-privileges ignores the binary's file capability, so let this container's
+    # network namespace bind :80/:443 without one.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     build:
       context: .
       dockerfile: docker/web.Dockerfile
@@ -89,6 +123,9 @@ services:
   # or postgres; apply.sh touches only `server` + `caddy`.
   supervisor:
     image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-supervisor:${SUPERVISOR_VERSION:-latest}
+    # Only no-new-privileges: it drives Docker (docker.sock) and rewrites the project .env as root on updates.
+    security_opt:
+      - no-new-privileges:true
     build:
       context: .
       dockerfile: docker/supervisor.Dockerfile
@@ -125,6 +162,13 @@ services:
   # that cannot tunnel (their stream is unencrypted: put that port behind a VPN).
   vnc-repeater:
     image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-vnc-repeater:${REPEATER_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
     build:
       context: .
       dockerfile: docker/vnc-repeater.Dockerfile
@@ -135,6 +179,10 @@ services:
 
   websockify:
     image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-websockify:${REPEATER_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     build:
       context: .
       dockerfile: docker/websockify.Dockerfile
@@ -146,6 +194,10 @@ services:
   # Device side of the encrypted tunnel: WebSocket (from Caddy's /remote/device) <-> the repeater's device port.
   websockify-device:
     image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-websockify:${REPEATER_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     build:
       context: .
       dockerfile: docker/websockify.Dockerfile
@@ -156,7 +208,11 @@ services:
       - vnc-repeater
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
     profiles: ["cloudflare"]
     depends_on:

@@ -26,12 +26,16 @@ RUN npm run build
 # Caddyfile in every hosting mode against it before it can merge. The tag itself is still rebuilt upstream for
 # Alpine fixes.
 FROM caddy:2.11.4-alpine
-# Run Caddy unprivileged. It still needs to bind :80/:443 in own-domain mode, so grant just that capability
-# to the binary; /data (certs) and /config are mounted volumes that older deployments created root-owned,
-# so a tiny root entrypoint fixes their ownership and then su-execs to "caddy".
-RUN apk add --no-cache libcap su-exec \
+# Run Caddy unprivileged. Binding :80/:443 comes from the container's network namespace
+# (sysctl net.ipv4.ip_unprivileged_port_start=0 in compose), not a file capability on the binary: the containers
+# run with no-new-privileges and all capabilities dropped, and a binary carrying a file capability outside the
+# bounding set cannot even be executed. /data (certs) and /config are mounted volumes that older deployments created
+# root-owned, so a tiny root entrypoint fixes their ownership and then su-execs to "caddy".
+RUN apk add --no-cache su-exec libcap \
  && addgroup -S caddy && adduser -S -G caddy -h /data caddy \
- && setcap cap_net_bind_service=+ep /usr/bin/caddy
+ && (setcap -r /usr/bin/caddy || true) \
+ && [ -z "$(getcap /usr/bin/caddy)" ] \
+ && apk del libcap
 COPY --from=web /web/dist /srv
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 COPY docker/web-entrypoint.sh /web-entrypoint.sh
