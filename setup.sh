@@ -289,9 +289,14 @@ setenv VITE_AGENT_CHECKSUM "$VITE_AGENT_CHECKSUM"
 setenv VITE_AGENT_APK_URL "$VITE_AGENT_APK_URL"
 export VITE_AGENT_PACKAGE VITE_AGENT_CHECKSUM VITE_AGENT_APK_URL
 
-say "Building + starting the stack…"
+say "Building + starting the database and the server (not reachable from outside yet)…"
+# Only postgres + server first: Liquibase creates the admin user with the well-known default password, and the seed
+# below replaces it with a generated one. The edge (Caddy / the tunnel) starts only after that, so a fresh install
+# is never reachable with the default login — not even if first boot or the seed fails.
 # shellcheck disable=SC2086
-docker compose $COMPOSE_ARGS up -d --build
+docker compose $COMPOSE_ARGS build
+# shellcheck disable=SC2086
+docker compose $COMPOSE_ARGS up -d postgres server
 
 say "Waiting for the server to finish first-boot (Liquibase)…"
 BOOTED=0
@@ -354,6 +359,10 @@ fi
 if ! mdm_post_seed install/sql/post_seed.sql; then
   err "Post-seed repairs failed — device enrollment would not work. Fix the error above and re-run ./setup.sh."; exit 1
 fi
+
+say "Starting the rest of the stack (edge, supervisor)…"
+# shellcheck disable=SC2086
+docker compose $COMPOSE_ARGS up -d
 
 echo
 say "== DallyControl is up =="

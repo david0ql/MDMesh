@@ -67,6 +67,9 @@ public class AuthResource {
     private boolean transmitPassword;
     private HmdmAuthInterface authEngine;
     private com.hmdm.rest.resource.support.LoginThrottle loginThrottle;
+    private boolean allowDefaultPassword;
+    /** MD5("admin"), what the console sends for the password "admin" — the default every fresh database starts with. */
+    private static final String DEFAULT_PASSWORD_MD5 = "21232F297A57A5A743894A0E4A801FC3";
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AuthResource.class);
 
     /**
@@ -88,8 +91,10 @@ public class AuthResource {
                         @Named("customer.signup") boolean customerSignup,
                         @Named("transmit.password") boolean transmitPassword,
                         @Named("auth.class") HmdmAuthInterface authEngine,
-                        com.hmdm.rest.resource.support.LoginThrottle loginThrottle) {
+                        com.hmdm.rest.resource.support.LoginThrottle loginThrottle,
+                        @Named("allow.default.password") boolean allowDefaultPassword) {
         this.loginThrottle = loginThrottle;
+        this.allowDefaultPassword = allowDefaultPassword;
         this.userDAO = userDAO;
         this.customerDAO = customerDAO;
         this.settingsDAO = settingsDAO;
@@ -143,6 +148,15 @@ public class AuthResource {
             password = rsaKeyService.decrypt(passEnc);
         } else {
             password = credentials.getPassword();
+        }
+
+        // The well-known default password never logs in outside a dev stack: a fresh database starts with it until the
+        // installer seeds a generated one, and no installer or admin mistake may leave a reachable admin/admin.
+        if (!allowDefaultPassword && password != null && DEFAULT_PASSWORD_MD5.equalsIgnoreCase(password.trim())) {
+            logger.warn("Refused a login with the default password for '{}': set a real password", credentials.getLogin());
+            loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
+            Thread.sleep(1000);
+            return Response.ERROR();
         }
 
         // Web app sends MD5 hash, we need to re-hash it to compare with the DB value

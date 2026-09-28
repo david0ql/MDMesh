@@ -150,7 +150,9 @@ say "Starting the stack…"
 docker compose stop server >/dev/null 2>&1 || true
 docker compose run --rm --no-deps -T -u dallycontrol --entrypoint rm server -f /opt/dallycontrol/initialized.txt \
   || { err "Could not remove the previous start's init marker (/opt/dallycontrol/initialized.txt) from the server's volume."; exit 1; }
-docker compose up -d
+# Only postgres + server until the admin's generated password is seeded: Liquibase creates the admin with the
+# well-known default one, and the edge (Caddy / the tunnel) must not be reachable before the seed replaces it.
+docker compose up -d postgres server
 
 say "Waiting for the server to finish first-boot (Liquibase)…"
 BOOTED=0
@@ -190,6 +192,9 @@ fi
 if ! mdm_post_seed install/sql/post_seed.sql; then
   err "Post-seed repairs failed — device enrollment would not work. Fix the error above and re-run."; exit 1
 fi
+
+say "Starting the rest of the stack (edge, supervisor)…"
+docker compose up -d
 
 echo
 say "== DallyControl is up =="

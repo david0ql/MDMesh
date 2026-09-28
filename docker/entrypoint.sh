@@ -93,6 +93,7 @@ cat > "$_root_xml_tmp" <<EOF
 <Context>
     <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor" sameSiteCookies="lax"/>
     <Parameter name="session.cookie.secure" value="${SESSION_COOKIE_SECURE}"/>
+    <Parameter name="allow.default.password" value="${ALLOW_DEFAULT_PASSWORD:-0}"/>
     <Parameter name="JDBC.driver"   value="org.postgresql.Driver"/>
     <Parameter name="JDBC.url"      value="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}"/>
     <Parameter name="JDBC.username" value="${DB_USER}"/>

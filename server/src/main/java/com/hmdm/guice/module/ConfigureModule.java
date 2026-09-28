@@ -40,6 +40,8 @@ public class ConfigureModule extends AbstractModule {
     private final String hstsParameter = "strict.transport.security";
     private final String preventDuplicateParameter = "prevent.duplicate.enrollment";
     private final String transmitPasswordParameter = "transmit.password";
+    /** Dev stacks only: accept the well-known default password "admin" at login. Off unless explicitly set. */
+    private final String allowDefaultPasswordParameter = "allow.default.password";
     private final String authClassParameter = "auth.class";
     private final String aaptCommandParameter = "aapt.command";
     private final String roleOrgadminIdParameter = "role.orgadmin.id";
@@ -137,6 +139,9 @@ public class ConfigureModule extends AbstractModule {
 
         opt = this.context.getInitParameter(baseDirectoryParameter);
         this.bindConstant().annotatedWith(Names.named(baseDirectoryParameter)).to(opt != null ? opt : "");
+        opt = this.context.getInitParameter(allowDefaultPasswordParameter);
+        this.bindConstant().annotatedWith(Names.named(allowDefaultPasswordParameter)).to(
+                opt != null && (opt.equals("1") || opt.equalsIgnoreCase("true")));
         opt = this.context.getInitParameter(transmitPasswordParameter);
         this.bindConstant().annotatedWith(Names.named(transmitPasswordParameter)).to(
                 opt != null && (opt.equals("1") || opt.equalsIgnoreCase("true")));

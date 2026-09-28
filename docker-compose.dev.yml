@@ -22,6 +22,9 @@ services:
     environment:
       # IDE attach; suspend=n so boot never waits for a debugger. catalina.sh reads CATALINA_OPTS.
       CATALINA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+      # The dev stack's admin/admin is deliberate (scripts/dev-seed.sh). Never set this anywhere else: without it the
+      # server refuses the default password "admin" at login.
+      ALLOW_DEFAULT_PASSWORD: "1"
     ports:
       - "127.0.0.1:${DEV_API_PORT:-8080}:8080"    # direct API: scripts/agent-v1-e2e.sh, the fast WAR loop
       - "127.0.0.1:${DEV_DEBUG_PORT:-5005}:5005"
