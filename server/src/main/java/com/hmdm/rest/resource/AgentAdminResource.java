@@ -39,6 +39,7 @@ import com.hmdm.rest.resource.support.ConfigReconciler;
 import com.hmdm.security.SecurityContext;
 import com.hmdm.util.AgentCapabilityTokens;
 import com.hmdm.util.DesiredConfigBuilder;
+import com.hmdm.util.RemoteSessions;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
@@ -465,6 +466,92 @@ public class AgentAdminResource {
         }
         long sinceMillis = since == null ? 0L : since;
         return Response.OK(commandDAO.listLocations(deviceId, sinceMillis, 500));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Remote control status", notes = "What remote view/control the device offers (ADR 0010): "
+            + "tier, transports, whether the session can be encrypted, and its power mode (adaptive = slow to answer while locked).")
+    @GET
+    @Path("/devices/{deviceId}/remote")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getRemoteStatus(@PathParam("deviceId") String deviceId) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        String caps = commandDAO.getDeviceCapabilities(deviceId);
+        DeviceState state = commandDAO.getState(deviceId);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("tier", RemoteSessions.tier(caps));
+        out.put("transports", RemoteSessions.transports(caps));
+        out.put("encrypted", RemoteSessions.supportsEncrypted(caps));
+        out.put("powerMode", state == null ? null : state.getPowerMode());
+        out.put("locked", state == null ? null : state.getLocked());
+        out.put("lastSeen", device.getLastUpdate());
+        return Response.OK(out);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Start remote session", notes = "Mints a one-time numeric session id and VNC password, queues "
+            + "remote.vnc.start (encrypted tunnel when the agent supports it) and returns what the viewer needs. "
+            + "Body: { viewOnly }. The password is returned only here, to the operator who started the session.")
+    @POST
+    @Path("/devices/{deviceId}/remote/start")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response startRemoteSession(@PathParam("deviceId") String deviceId, Map<String, Object> body) {
+        if (!canEditDevices("start remote session")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        boolean viewOnly = body != null && Boolean.TRUE.equals(body.get("viewOnly"));
+        String caps = commandDAO.getDeviceCapabilities(deviceId);
+        String tier = RemoteSessions.tier(caps);
+        if (!"view".equals(tier) && !"control".equals(tier)) {
+            return Response.ERROR("error.agent.remote.unsupported");
+        }
+        // A 'view' tier may be stale (the input service is often switched on after the last check-in): the
+        // remote.control gate holds the command until the device advertises control, so queue it anyway.
+        boolean encrypted = RemoteSessions.supportsEncrypted(caps);
+        String sessionId = RemoteSessions.newSessionId();
+        String password = RemoteSessions.newPassword();
+
+        AgentCommand command = new AgentCommand();
+        command.setDeviceNumber(deviceId);
+        command.setType(RemoteSessions.COMMAND_START);
+        command.setPayload(RemoteSessions.startPayload(sessionId, password, viewOnly, encrypted));
+        command.setRequiresCapability(viewOnly ? "remote.view" : "remote.control");
+        command.setStatus("pending");
+        command.setCreatedAt(System.currentTimeMillis());
+        commandDAO.insert(command);
+        wakeHub.wake(deviceId, "commands");
+
+        logger.info("Remote session command {} queued for device {} (viewOnly={}, encrypted={})",
+                command.getId(), deviceId, viewOnly, encrypted);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("commandId", command.getId());
+        out.put("sessionId", sessionId);
+        out.put("password", password);
+        out.put("viewOnly", viewOnly);
+        out.put("encrypted", encrypted);
+        return Response.OK(out);
     }
 
     // =================================================================================================================

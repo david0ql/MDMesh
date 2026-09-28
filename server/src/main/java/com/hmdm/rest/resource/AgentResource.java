@@ -43,6 +43,7 @@ import com.hmdm.rest.json.agent.AgentProtocol;
 import com.hmdm.util.AgentCapabilityTokens;
 import com.hmdm.util.CryptoUtil;
 import com.hmdm.util.DesiredConfigBuilder;
+import com.hmdm.util.RemoteSessions;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ import org.slf4j.LoggerFactory;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -374,6 +376,34 @@ public class AgentResource {
 
         return Response.OK(new AgentCheckInResponse(commands));
     }
+
+    // =================================================================================================================
+    /**
+     * Gate for the device side of the encrypted remote-control tunnel (ADR 0010): Caddy's {@code forward_auth}
+     * calls this before letting a WebSocket on {@code /remote/device/} through to the repeater. Answers with a
+     * bare HTTP status (forward_auth reads only the status): 204 when the device's secret checks out and a
+     * {@code remote.vnc.start} was queued for it within {@link RemoteSessions#TUNNEL_WINDOW_MILLIS}; 401 otherwise.
+     * One status for unknown device and bad secret, as in {@link #checkin}.
+     */
+    @ApiOperation(value = "Remote tunnel auth", notes = "forward_auth gate for the device's encrypted remote-control tunnel.")
+    @GET
+    @Path("/remote/tunnel")
+    public javax.ws.rs.core.Response remoteTunnelAuth(@HeaderParam("Authorization") String authorization,
+                                                      @HeaderParam(REMOTE_DEVICE_HEADER) String deviceNumber) {
+        if (deviceNumber == null || deviceNumber.trim().isEmpty()
+                || !authenticate(authorization, deviceNumber.trim())) {
+            return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.UNAUTHORIZED).build();
+        }
+        AgentCommand start = commandDAO.findLatestOfType(deviceNumber.trim(), RemoteSessions.COMMAND_START);
+        long now = System.currentTimeMillis();
+        if (start == null || start.getCreatedAt() == null || now - start.getCreatedAt() > RemoteSessions.TUNNEL_WINDOW_MILLIS) {
+            return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.FORBIDDEN).build();
+        }
+        return javax.ws.rs.core.Response.noContent().build();
+    }
+
+    /** Header the agent names itself with on the tunnel's WebSocket handshake (the secret is in Authorization). */
+    public static final String REMOTE_DEVICE_HEADER = "X-MDMesh-Device";
 
     /**
      * Verifies the {@code Authorization: Bearer <deviceSecret>} header against the
