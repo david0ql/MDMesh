@@ -101,7 +101,15 @@ One-click or unattended server updates with DB backup + auto-rollback, plus a re
 <summary><b>Full feature list</b></summary>
 
 - **Enrollment** — QR-code Device-Owner provisioning (factory-reset → scan); one signed APK serves every
-  deployment (server URL delivered in the QR, not baked in).
+  deployment (server URL delivered in the QR, not baked in). USB/ADB enrollment (`scripts/adb-enroll.sh`) for
+  devices where Play Protect blocks QR provisioning of a self-signed DPC.
+- **Remote view/control** — see and drive the device's screen from the browser through droidVNC-NG, a Mode-II
+  repeater and the noVNC viewer served at `/remote/vnc/` behind the console session (Android 7+,
+  [ADR 0010](docs/adr/0010-remote-control-droidvnc.md), `scripts/remote-session.sh`).
+- **App management** — remote silent uninstall from the device page's Apps tab, and configuration apps marked
+  "remove" are uninstalled automatically.
+- **Android 6 to 17** — the agent runs from Android 6 (API 23); tested release by release (see
+  [docs/TESTING.md](docs/TESTING.md)).
 - **Modern console** — dashboard, fleet views, device detail, app catalog, enrollment, settings; dark/light
   themes; keyboard-friendly and responsive.
 - **Remote actions** — lock-screen message, alert, ring, lock, reboot, passcode reset, factory wipe,
@@ -223,7 +231,9 @@ No Docker? Run `./setup.sh --native`. Full details, hosting modes, updates, reco
 - ✅ One-command deployment (Docker + Caddy auto-HTTPS + Cloudflare Tunnel + native installer)
 - ✅ CI/CD: signed releases, one-click/unattended server update + auto-rollback + recovery page
 - ✅ Staged canary → fleet agent-APK rollout
-- 🔜 **Live remote control** (screen view + input, WebRTC + self-hosted TURN)
+- ✅ Remote view/control (droidVNC-NG + Mode-II repeater + noVNC, [ADR 0010](docs/adr/0010-remote-control-droidvnc.md))
+- ✅ USB/ADB enrollment, Android 6 support, end-to-end device test matrix ([docs/TESTING.md](docs/TESTING.md))
+- 🔜 "Remote" button in the console (sessions start from `scripts/remote-session.sh` today)
 - 🔭 OEM-privileged tier (Knox / Zebra adapters) — parked behind the capability layer
 
 ---

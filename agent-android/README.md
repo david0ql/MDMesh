@@ -20,7 +20,7 @@ kotlinx.serialization + Retrofit.
 | `:policy` | android-lib | **Capability-abstraction layer.** `DeviceControl`, `PolicyStrategy`, SDK-gated `WifiPolicy` (modern/legacy strategies + factory), `CapabilityRegistry`. All `DevicePolicyManager` calls stay behind interfaces. |
 | `:core` | android-lib | Sync/check-in: Retrofit `MdmApi`, `CapabilityCollector`, `CommandDispatcher` (+ handlers), `DeviceIdStore` (DataStore), `CheckInCoordinator`/`CheckInWorker`. Base URL via `BuildConfig`. |
 | `:kiosk` | android-lib | COSU skeleton: `KioskController` (+ stub), `CrashLoopGuard`. |
-| `:remote` | android-lib | Remote view/control skeleton: `RemoteControlSession`, `RemoteControlTierDetector`, and the **only** Accessibility surface (`InputInjectionService`). |
+| `:remote` | android-lib | The original in-agent remote-control skeleton. **Not a dependency of the app any more** (see below). |
 | `:oem` | android-lib | `OemAdapter` + `GenericOemAdapter` (no-op) + `KnoxAdapter` (PARKED, no Knox dep). |
 | `:app` | android-app | Hilt `Application`, `AdminReceiver`, provisioning activities, `MainActivity` launcher/home stub, `CheckInService`, manifest with the minimal permission set. |
 
@@ -41,9 +41,10 @@ to the same server without special-casing. Unknown command types degrade to
 
 - Base `:app` manifest has **no** `READ_SMS` and **no** `QUERY_ALL_PACKAGES`;
   package visibility is scoped via `<queries>`.
-- **Accessibility / input injection lives only in `:remote`** (and merges in only
-  for builds that include it). Its `AccessibilityService` ships
-  `android:enabled="false"` and is toggled on only for an authorised control session.
+- **No accessibility declaration at all.** Remote view/control runs through droidVNC-NG, a separate
+  open-source app the agent deploys and drives (`app/.../remote/DroidVncController.kt`, commands
+  `remote.vnc.start` / `remote.vnc.stop`, [ADR 0010](../docs/adr/0010-remote-control-droidvnc.md)); its input
+  service belongs to that app, not to the agent.
 - No phone-state / device-identifier permissions — identity is server-issued.
 
 ## Build
