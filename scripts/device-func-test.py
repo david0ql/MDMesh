@@ -105,9 +105,10 @@ def dpm_dump():
 def camera_disabled():
     d = dpm_dump()
     # NOTE: the "disable-camera" line in the admin's uses-policies list is only a declaration.
-    if "disableCamera=true" in d.replace(" ", "") or "userRestriction_no_camera" in d:
+    if "disableCamera=true" in d.replace(" ", ""):
         return True
-    # API 34: a Device Owner's setCameraDisabled becomes the no_camera user restriction
+    # API 34+: a Device Owner's setCameraDisabled becomes the no_camera user restriction. (API 35 lists a
+    # "userRestriction_no_camera" policy key even when it is null, so that line alone proves nothing.)
     return any(l.strip() == "no_camera" for l in sh("dumpsys user").splitlines())
 
 
