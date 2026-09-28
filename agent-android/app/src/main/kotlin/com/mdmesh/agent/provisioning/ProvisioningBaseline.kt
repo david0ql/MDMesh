@@ -36,12 +36,8 @@ object ProvisioningBaseline {
                     )
                 }
             }
-            // Enable location services (DO) so Wi-Fi SSID telemetry is readable on Android 10+.
-            runCatching {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    dpm.setLocationEnabled(handle.admin, true)
-                }
-            }
+            // Enable location services (DO) so location + Wi-Fi SSID telemetry are readable.
+            runCatching { AdminReceiver.enableLocationServices(dpm, handle.admin) }
         }
     }
 }

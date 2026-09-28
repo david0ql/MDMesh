@@ -122,9 +122,7 @@ class AdminReceiver : DeviceAdminReceiver() {
                     )
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                runCatching { dpm.setLocationEnabled(admin, true) }
-            }
+            runCatching { enableLocationServices(dpm, admin) }
         }
     }
 
@@ -176,6 +174,24 @@ class AdminReceiver : DeviceAdminReceiver() {
 
         /** Constant fleet org id feeding the factory-reset-stable enrollment-specific id. */
         const val ORGANIZATION_ID = "mdmesh-fleet"
+
+        /**
+         * Turn device location services on as Device Owner: setLocationEnabled on API 30+, the
+         * LOCATION_MODE secure setting (which a DO may write on API 23-29) below that. Without the
+         * pre-R branch, Android 6-10 devices whose location was off never reported a position.
+         */
+        fun enableLocationServices(dpm: DevicePolicyManager, admin: ComponentName) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                dpm.setLocationEnabled(admin, true)
+            } else {
+                @Suppress("DEPRECATION")
+                dpm.setSecureSetting(
+                    admin,
+                    android.provider.Settings.Secure.LOCATION_MODE,
+                    android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY.toString(),
+                )
+            }
+        }
 
         /** This agent's admin component, used wherever a [ComponentName] is needed. */
         fun componentName(context: Context): ComponentName =

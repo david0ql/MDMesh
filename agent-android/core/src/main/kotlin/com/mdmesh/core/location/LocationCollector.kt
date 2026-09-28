@@ -20,7 +20,8 @@ import javax.inject.Singleton
 /**
  * Reads the device location for telemetry. Passive mode (default) returns the OS's freshest
  * last-known fix across providers — near-zero battery, no active GPS. Active mode requests one fresh
- * fix per call (API 30+) with a short timeout, falling back to last-known. Never throws; returns
+ * fix per call (getCurrentLocation on API 30+, requestSingleUpdate below) with a short timeout,
+ * falling back to last-known. Never throws; returns
  * null without a location permission, with location services off, or when no fix is available.
  */
 @Singleton
@@ -57,15 +58,15 @@ class LocationCollector @Inject constructor(
             .maxByOrNull { it.time }
     }.getOrNull()
 
-    /** A single fresh fix with a short timeout (API 30+ only); null on timeout/failure. */
+    /** A single fresh fix with a short timeout; null on timeout/failure. */
     @SuppressLint("MissingPermission") // gated by collect()'s hasPermission() check
     private fun currentFix(lm: LocationManager): Location? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
         val provider = when {
             lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
             lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
             else -> return null
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return legacySingleFix(lm, provider)
         return runCatching {
             val latch = CountDownLatch(1)
             val ref = AtomicReference<Location?>()
@@ -81,6 +82,35 @@ class LocationCollector @Inject constructor(
             }
         }.getOrNull()
     }
+
+    /**
+     * API 23-29: no getCurrentLocation, so ask for one update on a background looper. Without this,
+     * "active" mode on Android 6-10 only ever returned the last-known fix, which a freshly provisioned
+     * device does not have, so no location ever reached the server.
+     */
+    @Suppress("DEPRECATION") // requestSingleUpdate is the pre-R single-fix API
+    @SuppressLint("MissingPermission")
+    private fun legacySingleFix(lm: LocationManager, provider: String): Location? = runCatching {
+        val latch = CountDownLatch(1)
+        val ref = AtomicReference<Location?>()
+        val thread = android.os.HandlerThread("mdm-location-fix").apply { start() }
+        val listener = object : android.location.LocationListener {
+            override fun onLocationChanged(location: Location) {
+                ref.set(location); latch.countDown()
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) = Unit
+            override fun onProviderEnabled(provider: String) = Unit
+            override fun onProviderDisabled(provider: String) = Unit
+        }
+        try {
+            lm.requestSingleUpdate(provider, listener, thread.looper)
+            if (latch.await(FIX_TIMEOUT_SEC, TimeUnit.SECONDS)) ref.get() else null
+        } finally {
+            runCatching { lm.removeUpdates(listener) }
+            thread.quitSafely()
+        }
+    }.getOrNull()
 
     private companion object { const val FIX_TIMEOUT_SEC = 5L }
 }

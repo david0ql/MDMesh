@@ -74,6 +74,11 @@ updates:
           # with Kotlin (in the migration: detekt 2.x, whose plugin id is dev.detekt) or T0's agent step breaks.
           - "io.gitlab.arturbosch.detekt*"
       agent-libs: { patterns: ["*"] }
+    ignore:
+      # The agent supports Android 6 (minSdk 23). WorkManager 2.12+ declares minSdk 24 and fails the manifest merge;
+      # lift this only if the fleet drops Android 6.
+      - dependency-name: "androidx.work:*"
+        versions: ["[2.12,)"]
     open-pull-requests-limit: 5
   - package-ecosystem: github-actions
     directory: "/"

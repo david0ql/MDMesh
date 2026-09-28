@@ -30,7 +30,11 @@ class DevicePasscodeResetHandler(
             // API 23-25 have no token flow; the legacy call is still allowed for a Device Owner.
             @Suppress("DEPRECATION")
             val legacyOk = handle.dpm.resetPassword(pwd, 0)
-            return if (legacyOk) CommandResults.done(command) else CommandResults.failed(command, "resetPassword rejected")
+            return if (legacyOk) {
+                CommandResults.done(command)
+            } else {
+                CommandResults.failed(command, "resetPassword rejected")
+            }
         }
         val token = tokenStore.token()
             ?: return CommandResults.failed(command, "no reset-password token provisioned")
