@@ -26,7 +26,7 @@ services:
     # Pull-based updates use the versioned GHCR image; `build:` is the source-deploy fallback (when an
     # image tag isn't published locally, compose builds it and tags it with this name). apply.sh bumps
     # SERVER_VERSION in .env then `docker compose pull server` to fetch the new signed image.
-    image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-server:${SERVER_VERSION:-latest}
+    image: ${SERVER_IMAGE:-ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-server:${SERVER_VERSION:-latest}}
     build:
       context: .
       dockerfile: docker/server.Dockerfile
@@ -59,7 +59,7 @@ services:
   caddy:
     # The web image (Caddy + baked SPA). Same pull/build duality as `server`; WEB_VERSION tracks the
     # release. apply.sh recreates `server` + `caddy` together so the SPA matches the API.
-    image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-web:${WEB_VERSION:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-web:${WEB_VERSION:-latest}}
     build:
       context: .
       dockerfile: docker/web.Dockerfile

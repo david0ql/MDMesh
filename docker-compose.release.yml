@@ -24,7 +24,7 @@ services:
       retries: 20
 
   server:
-    image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-server:${SERVER_VERSION:-latest}
+    image: ${SERVER_IMAGE:-ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-server:${SERVER_VERSION:-latest}}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -52,7 +52,7 @@ services:
       - dallycontroldata:/opt/dallycontrol
 
   caddy:
-    image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-web:${WEB_VERSION:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-web:${WEB_VERSION:-latest}}
     restart: unless-stopped
     depends_on:
       - server

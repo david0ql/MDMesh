@@ -49,6 +49,18 @@ if [ -f "$ENV_SNAP" ]; then
   OLD_WEB="$(grep -E '^WEB_VERSION=' "$ENV_SNAP" | head -1 | cut -d= -f2-)"
   [ -n "$OLD_SERVER" ] && { set_env SERVER_VERSION "$OLD_SERVER"; set_env CURRENT_VERSION "$OLD_SERVER"; }
   [ -n "$OLD_WEB" ] && set_env WEB_VERSION "$OLD_WEB"
+  # The previous digest-pinned images (empty when the previous deploy ran by tag). Anything else is ignored.
+  for pair in SERVER_IMAGE:server WEB_IMAGE:web; do
+    k="${pair%%:*}"; comp="${pair##*:}"
+    if grep -qE "^$k=" "$ENV_SNAP"; then
+      v="$(grep -E "^$k=" "$ENV_SNAP" | head -1 | cut -d= -f2-)"
+      if [ -z "$v" ] || [[ "$v" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-$comp@sha256:[0-9a-f]{64}$ ]]; then
+        set_env "$k" "$v"
+      else
+        errln "ignoring an unpinned $k in the snapshot"
+      fi
+    fi
+  done
 else
   errln "version snapshot $ENV_SNAP missing — recreating current images"
 fi

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# apply.sh <target-version>
+# apply.sh <target-version> <server-image@sha256:…> <web-image@sha256:…>
 #
+# The images are the digest-pinned references from the verified manifest; they are deployed as SERVER_IMAGE /
+# WEB_IMAGE, so what runs is exactly what was signed (a tag can be re-pushed; a digest cannot).
 # Runs inside the supervisor container (project mounted at /project, docker.sock mounted). Applies a VERIFIED
 # update to the `server` + `caddy` services with a pre-update DB backup and AUTOMATIC ROLLBACK on any
 # failure. Emits `PHASE <name>` / `ERR <msg>` / `OK <version>` lines on stdout — server.js parses these
@@ -12,7 +14,13 @@
 # NOT exercised in CI/sandbox (needs a live Docker daemon). Validate on a staging deploy.
 set -uo pipefail   # deliberately NOT -e: failures are handled explicitly so we can roll back.
 
-VERSION="${1:?usage: apply.sh <version>}"
+VERSION="${1:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
+NEW_SERVER_IMAGE="${2:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
+NEW_WEB_IMAGE="${3:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
+pinned() { [[ "$1" =~ ^ghcr\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-$2@sha256:[0-9a-f]{64}$ ]]; }
+if ! pinned "$NEW_SERVER_IMAGE" server || ! pinned "$NEW_WEB_IMAGE" web; then
+  echo "ERR images are not digest-pinned dallycontrol references" >&2; echo "PHASE failed"; exit 1
+fi
 PROJECT_DIR="${COMPOSE_PROJECT_DIR:-/project}"
 ENV_FILE="$PROJECT_DIR/.env"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
@@ -50,6 +58,8 @@ healthy() {
 
 OLD_SERVER="$(get_env SERVER_VERSION)"
 OLD_WEB="$(get_env WEB_VERSION)"
+OLD_SERVER_IMAGE="$(get_env SERVER_IMAGE)"
+OLD_WEB_IMAGE="$(get_env WEB_IMAGE)"
 [ -n "$OLD_SERVER" ] || OLD_SERVER="${CURRENT_VERSION:-latest}"
 [ -n "$OLD_WEB" ]    || OLD_WEB="$OLD_SERVER"
 
@@ -62,6 +72,8 @@ rollback() {
   phase rollback
   set_env SERVER_VERSION "$OLD_SERVER"
   set_env WEB_VERSION "$OLD_WEB"
+  set_env SERVER_IMAGE "$OLD_SERVER_IMAGE"
+  set_env WEB_IMAGE "$OLD_WEB_IMAGE"
   set_env CURRENT_VERSION "$OLD_SERVER"
   dc up -d --no-deps server caddy || errln "rollback recreate failed"
   if [ -s "$BACKUP_SQL" ]; then
@@ -75,7 +87,7 @@ rollback() {
 # ---------------- backup ----------------
 phase backup
 mkdir -p "$BACKUP_DIR"
-{ echo "SERVER_VERSION=$OLD_SERVER"; echo "WEB_VERSION=$OLD_WEB"; } > "$BACKUP_ENV"
+{ echo "SERVER_VERSION=$OLD_SERVER"; echo "WEB_VERSION=$OLD_WEB"; echo "SERVER_IMAGE=$OLD_SERVER_IMAGE"; echo "WEB_IMAGE=$OLD_WEB_IMAGE"; } > "$BACKUP_ENV"
 if ! dc exec -T postgres pg_dump --clean --if-exists -U "$DB_USER" "$DB_NAME" > "$BACKUP_SQL"; then
   errln "pg_dump failed — aborting before any change"
   rm -f "$BACKUP_SQL"
@@ -88,6 +100,8 @@ echo "$STAMP" > "$BACKUP_DIR/latest"   # pointer the recovery page / rollback re
 phase pull
 set_env SERVER_VERSION "$VERSION"
 set_env WEB_VERSION "$VERSION"
+set_env SERVER_IMAGE "$NEW_SERVER_IMAGE"
+set_env WEB_IMAGE "$NEW_WEB_IMAGE"
 set_env CURRENT_VERSION "$VERSION"
 if ! dc pull server caddy; then
   errln "image pull failed"

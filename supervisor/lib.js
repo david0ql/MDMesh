@@ -47,6 +47,17 @@ function imageTags(manifest) {
   };
 }
 
+/**
+ * The digest-pinned image reference a verified manifest names for a component, or null. Only
+ * `ghcr.io/<owner>/dallycontrol-<component>@sha256:<64 hex>` is accepted: a mutable tag in a signed
+ * manifest would let whoever can push to the registry swap what every host runs.
+ */
+function pinnedImage(ref, component) {
+  if (typeof ref !== 'string') return null;
+  const re = new RegExp('^ghcr\\.io/[a-z0-9][a-z0-9._-]*/dallycontrol-' + component + '@sha256:[0-9a-f]{64}$');
+  return re.test(ref) ? ref : null;
+}
+
 /** Resolve the downloadable APK for a verified release: the manifest's apk block + the GitHub asset's
  *  download URL (matched by file name). Returns null if any piece is missing. */
 function apkAsset(release, manifest) {
@@ -102,6 +113,7 @@ function recoveryPage(html, applySupported) {
 }
 
 module.exports = {
+  pinnedImage,
   parseSemver, semverGt, pickRelease, shapeStatus,
   imageTags, nextPhase, isTerminal, APPLY_PHASES, APPLY_TERMINAL,
   apkAsset, sha256Matches, recoveryPage, isPublishTemp,

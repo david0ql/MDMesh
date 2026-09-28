@@ -7,7 +7,7 @@ const os = require('os');
 const cp = require('child_process');
 const path = require('path');
 const crypto = require('crypto');
-const { pickRelease, shapeStatus, imageTags, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp } = require('./lib');
+const { pickRelease, shapeStatus, imageTags, isTerminal, apkAsset, sha256Matches, recoveryPage, isPublishTemp, pinnedImage } = require('./lib');
 
 const PORT = +(process.env.SUPERVISOR_PORT || 9000);
 // Bind address. Docker keeps the default (all interfaces — the container has no published ports);
@@ -228,12 +228,16 @@ function spawnPhases(args, onClose) {
 function startApply(trigger) {
   if (apply && !isTerminal(apply.phase)) return { ok: false, code: 409, msg: 'apply already in progress' };
   if (!state.updateAvailable || !lastManifest) return { ok: false, code: 400, msg: 'no verified update available' };
-  const { version: toVersion } = imageTags(lastManifest);
+  const { version: toVersion, serverImage, webImage } = imageTags(lastManifest);
   if (!toVersion) return { ok: false, code: 400, msg: 'manifest has no version' };
+  // Deploy exactly the images the signed manifest pins, by digest — never a (re-pushable) tag.
+  const server = pinnedImage(serverImage, 'server');
+  const web = pinnedImage(webImage, 'web');
+  if (!server || !web) return { ok: false, code: 400, msg: 'manifest images are not digest-pinned; refusing to apply' };
 
   apply = { phase: 'authorizing', fromVersion: currentVersion, toVersion, trigger, startedAt: Date.now(), finishedAt: null, error: null };
   state.apply = apply;
-  spawnPhases([APPLY_SCRIPT, toVersion], (code) => {
+  spawnPhases([APPLY_SCRIPT, toVersion, server, web], (code) => {
     if (code === 0) { currentVersion = toVersion; apply = { ...apply, phase: 'done', finishedAt: Date.now() }; }
     else if (!isTerminal(apply.phase)) { apply = { ...apply, phase: 'failed', finishedAt: Date.now() }; }
     else { apply = { ...apply, finishedAt: Date.now() }; }

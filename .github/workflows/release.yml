@@ -100,7 +100,10 @@ jobs:
           IMG="ghcr.io/${O}/dallycontrol-server"
           docker build -f docker/server.Dockerfile -t "$IMG:$VERSION" .
           docker push "$IMG:$VERSION"
-          echo "SERVER_IMG=$IMG:$VERSION" >> "$GITHUB_ENV"
+          # The signed manifest pins the image by digest (a tag can be re-pushed; a digest cannot).
+          REF=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMG:$VERSION")
+          echo "$REF" | grep -Eq "^${IMG}@sha256:[0-9a-f]{64}$" || { echo "no digest for $IMG:$VERSION ($REF)"; exit 1; }
+          echo "SERVER_IMG=$REF" >> "$GITHUB_ENV"
       - name: Web image (bake release QR checksum/package)
         env:
           OWNER: ${{ github.repository_owner }}
@@ -115,7 +118,9 @@ jobs:
             --build-arg VITE_APP_VERSION="$VERSION" \
             -t "$IMG:$VERSION" .
           docker push "$IMG:$VERSION"
-          echo "WEB_IMG=$IMG:$VERSION" >> "$GITHUB_ENV"
+          REF=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMG:$VERSION")
+          echo "$REF" | grep -Eq "^${IMG}@sha256:[0-9a-f]{64}$" || { echo "no digest for $IMG:$VERSION ($REF)"; exit 1; }
+          echo "WEB_IMG=$REF" >> "$GITHUB_ENV"
       - name: Supervisor image
         env:
           OWNER: ${{ github.repository_owner }}
