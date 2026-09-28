@@ -313,33 +313,65 @@ which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:90
 
 ## Security notes
 
-- Secrets (`DB_PASSWORD`, `HASH_SECRET`, admin password, JWT signing key) are generated per install; `.env` is
-  `chmod 600`.
-- The JWT signing key signs the tokens of REST API clients that sign in through `/rest/public/jwt/login`; the console
-  itself uses a session cookie. It is generated once and kept, so those tokens survive restarts and upgrades.
-  **Docker:** the server generates it on its first start into its data volume (`/opt/dallycontrol/jwt.secret`, mode 600)
-  and reuses it on every start; an install made before it existed gets one on its first start of the new image, with
-  no manual step. It is not in `.env`, so `docker compose down -v` deletes it with the volume and API clients sign in
-  again. To pin it, set `SERVER_JWT_SECRET=<output of openssl rand -hex 64>` in `.env` (the server gets it as
-  `JWT_SECRET`); it wins over the file. A quick-start install made before this release also needs the line
-  `JWT_SECRET: ${SERVER_JWT_SECRET:-}` under `server:` → `environment:` in its `docker-compose.yml` for that.
-  **Native:** the installer writes it as `jwt.secretkey` in Tomcat's `ROOT.xml` (mode 600, next to `hash.secret`) and
-  keeps it across re-runs and upgrades; an install made before it existed gets one on its next installer run. Use
-  only a hex value that is a multiple of 4 characters and at least 128 long: the JWT library silently drops other
-  characters, so the Docker server refuses to start with any other `SERVER_JWT_SECRET` (and replaces a key file that
-  holds one), and the native installer replaces such a `jwt.secretkey`.
-- TLS everywhere (Cloudflare or Caddy/Let's Encrypt). DB + server ports are never published.
-- The agent talks HTTPS only. Set `SECURE_ENROLLMENT=1` (and the matching secret on the agent) to
-  require signed enrollment.
-- The admin starts with a generated password and is **required to set its own on first login** (the
-  console routes the first sign-in to a "set your password" screen). Configure SMTP in `.env` to enable
-  email-based password recovery thereafter.
-- The supervisor mounts the Docker socket (to drive updates) and is trusted: it acts only on
-  **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token). Native
-  installation also verifies the signed release manifest before it accepts an initial agent APK.
-  Apply/rollback only ever recreate `server`/`caddy` — never `postgres` or the supervisor itself.
+See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) for the audit this release went through, what was fixed
+and the residual risks. `scripts/security-check.sh` re-checks the fixes against a running install.
+
+- Secrets (`DB_PASSWORD`, `HASH_SECRET`, admin password, JWT signing key) are generated per install; `.env` is created
+  owner-only before any secret is written into it.
+- Only the REST surface the console, the agent and the edge use is reachable without a session (an allowlist in the
+  server, repeated in Caddy): console login/logout/options, password reset, the agent protocol and a health probe.
+  The legacy Headwind endpoints (launcher sync, notification queue, plugin device APIs, stats, signup, QR, Swagger,
+  `/rest/public/jwt/login`) answer 404.
+- The JWT signing key still signs tokens accepted on `/rest/private/*`; it is generated once into the server's data
+  volume (`/opt/dallycontrol/jwt.secret`, mode 600) or pinned with `SERVER_JWT_SECRET=<openssl rand -hex 64>` in
+  `.env` (hex, a multiple of 4 characters, at least 128 long — the server refuses anything else).
+- TLS everywhere (Cloudflare or Caddy/Let's Encrypt), HSTS, a strict Content-Security-Policy on the console, no
+  framing by other sites. DB + server ports are never published; the VNC repeater's plain port binds loopback.
+- Passwords are stored as PBKDF2-HMAC-SHA256 with a per-user salt; accounts lock after 5 failed logins (5 min,
+  doubling to 30); the session id is renewed at login; the session cookie is HttpOnly, SameSite=Lax and Secure when
+  `BASE_URL` is https; sessions expire after 8 h idle.
+- The default password `admin` is refused at login (only the dev stack allows it). The installers keep the edge down
+  until the admin's generated password is in place; the admin must set their own on first login.
+- Containers run with `no-new-privileges` and all Linux capabilities dropped except the few each entrypoint needs.
+  Images are pinned by digest (PostgreSQL 17, cloudflared) or by version.
+- The supervisor mounts the Docker socket (to drive updates) and is trusted: it applies only **minisign-verified**
+  manifests whose images are **pinned by digest**, and only for **authorized** callers (admin session, or the
+  recovery token). Apply/rollback only ever recreate `server`/`caddy` — never `postgres` or the supervisor itself.
+  Pre-update database backups are owner-only; the newest 5 are kept.
 - On native installs the supervisor runs as the unprivileged `dallycontrol` user (like Tomcat), with its settings in the
   root-owned `/etc/dallycontrol/supervisor.env`. A `GITHUB_TOKEN` there reaches the supervisor's environment, which that user
   can read, so use a read-only token.
 - The native installer stops if the `dallycontrol` account has a crontab or `at` jobs (it never needs any): inspect them
   (`crontab -l -u dallycontrol`, `atq`), remove them (`crontab -r -u dallycontrol`, `atrm <id>`) and re-run.
+
+## Before going live (checklist)
+
+1. `BASE_URL` is the public **https** URL (the session cookie is Secure only then).
+2. The host firewall allows only **80/443** (own-domain mode) or nothing inbound (Cloudflare Tunnel). Do not publish
+   `REPEATER_PORT`; devices reach the repeater through the encrypted tunnel.
+3. `.env` is mode 600 and its secrets are the generated ones (`DB_PASSWORD`, `HASH_SECRET`); nothing in it came from
+   `docker/dev.env`, and `ALLOW_DEFAULT_PASSWORD` is not set anywhere.
+4. You signed in once and replaced the generated admin password; create named users with the least role they need
+   (Observer for read-only) instead of sharing `admin`.
+5. Run the checks against the install (or a staging copy — it creates and deletes one temporary read-only user):
+   `ADMIN_PW='<admin password>' scripts/security-check.sh https://mdm.example.com` — every line must PASS.
+6. Configure SMTP in `.env` if you want email password recovery.
+7. Keep backups of the `pgdata` and `dallycontroldata` volumes off the host.
+
+### Existing installs on PostgreSQL 14
+
+PostgreSQL 14 reaches end of life on 2026-11-12, and this release runs PostgreSQL 17. PostgreSQL does not open an older
+major version's data directory, so an existing install moves its data once, with the stack stopped:
+
+```bash
+docker compose exec -T postgres pg_dumpall -U dallycontrol > dallycontrol-pg14.sql   # BEFORE pulling the new compose
+# check the dump (non-empty, ends with "PostgreSQL database cluster dump complete"), keep a copy off the host
+docker compose down                        # stops the stack; keeps the volumes
+docker volume rm <project>_pgdata          # only the database volume (docker volume ls to get the exact name)
+# update docker-compose.yml to this release, then:
+docker compose up -d postgres
+docker compose exec -T postgres psql -U dallycontrol -d postgres < dallycontrol-pg14.sql   # "already exists" notices are expected
+docker compose up -d
+```
+
+Compare a few row counts (devices, users, configurations) before and after.

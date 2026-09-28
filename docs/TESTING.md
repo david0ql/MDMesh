@@ -125,3 +125,11 @@ Android 6 has no remote view (droidVNC-NG needs Android 7).
 
 The native installer was verified separately on a root-only Debian 12 container (no sudo, no systemd):
 it installs, migrates, seeds, and the Agent v1 suite passes 56/56 against it.
+
+## Security regression checks
+
+`scripts/security-check.sh [BASE_URL] [SERVER_URL]` re-checks the pre-launch hardening (docs/SECURITY-HARDENING.md)
+against a running install: security headers and CSP, the closed legacy endpoints (at the edge and, with SERVER_URL,
+directly on Tomcat, including encoded-path tricks), cookie flags and session renewal, a read-only user unable to
+escalate, unsafe file names refused, the login lockout, and the update status hidden from anonymous callers. It
+creates and deletes one temporary Observer user. Dev stack: 43/43.
