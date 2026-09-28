@@ -36,6 +36,12 @@
     </parent>
 
     <repositories>
+        <!-- Central FIRST: repositories declared here are tried before the super-POM's central, and jitpack
+             answers some Central artifacts (xml-apis-ext) with empty files that break compilation. -->
+        <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
