@@ -86,7 +86,9 @@ docker compose down
 ## Option C — Native (no Docker)
 
 Debian/Ubuntu, as root. The leaner path: Postgres + Tomcat on the host; you terminate TLS yourself
-(your reverse proxy/cert, or Caddy in front).
+(your reverse proxy/cert, or Caddy in front). The installer reads the console's Node requirement from
+`web/package.json`; if the installed Node/npm does not satisfy it, it installs the needed Node major
+from the signed NodeSource APT repository. This avoids Debian 12's obsolete stock Node 18 package.
 
 ```bash
 sudo ./setup.sh --native      # → install/install-native.sh
@@ -111,6 +113,17 @@ journalctl -u mdmesh-server -f        # follow Tomcat's stdout/stderr
 The installer stops whatever it started before (the unit, or a pre-0.2.9 root Tomcat launched with `catalina.sh`) and
 refuses to continue if the chosen port is held by anything else, so it never kills a process it does not own. The JDK
 does not run as root, and the installer does not open ports 80/443; front it with your own TLS proxy.
+
+To enable password-recovery email on a native install, pass the same SMTP settings used by the Docker deployment when
+running the installer. They are written into the root-only Tomcat context file:
+
+```bash
+SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_STARTTLS=true \
+SMTP_USERNAME=mdmesh SMTP_PASSWORD='...' SMTP_FROM=mdm@example.com \
+sudo ./setup.sh --native
+```
+
+`SMTP_SSL` and `SMTP_STARTTLS` accept `true` or `false` (both default to `false`).
 
 ## Uninstalling
 
@@ -287,7 +300,8 @@ which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:90
   console routes the first sign-in to a "set your password" screen). Configure SMTP in `.env` to enable
   email-based password recovery thereafter.
 - The supervisor mounts the Docker socket (to drive updates) and is trusted: it acts only on
-  **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token).
+  **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token). Native
+  installation also verifies the signed release manifest before it accepts an initial agent APK.
   Apply/rollback only ever recreate `server`/`caddy` — never `postgres` or the supervisor itself.
 - On native installs the supervisor runs as the unprivileged `mdmesh` user (like Tomcat), with its settings in the
   root-owned `/etc/mdmesh/supervisor.env`. A `GITHUB_TOKEN` there reaches the supervisor's environment, which that user

@@ -20,6 +20,35 @@ REPO="$PWD"   # repo root — used for absolute paths inside subshells (e.g. exp
 [ "$(id -u)" = "0" ] || { echo "Run as root (sudo)."; exit 1; }
 command -v apt-get >/dev/null || { echo "This script targets Debian/Ubuntu."; exit 1; }
 
+# The `engines.node` constraint in web/package.json is the one source of truth for
+# the console's Node requirement. The installer supports a lower-bound constraint
+# such as ">=22", which is deliberately simple and appropriate for a dedicated
+# appliance host. Fail before confirmation if the project declaration is malformed.
+required_node_major() {
+  local engine
+  engine=$(sed -nE 's/^[[:space:]]*"node"[[:space:]]*:[[:space:]]*">=([0-9]+)"[[:space:]]*,?[[:space:]]*$/\1/p' \
+    "$REPO/web/package.json" | head -n 1)
+  [ -n "$engine" ] && printf '%s' "$engine"
+}
+NODE_REQUIRED_MAJOR="$(required_node_major)"
+[ -n "$NODE_REQUIRED_MAJOR" ] || {
+  echo "web/package.json must declare engines.node as a lower bound (for example, \">=22\")." >&2
+  exit 1
+}
+node_major() {
+  command -v node >/dev/null 2>&1 || return 1
+  node --version 2>/dev/null | sed -n 's/^v\([0-9][0-9]*\).*/\1/p'
+}
+node_satisfies_requirement() {
+  local major
+  major="$(node_major || true)"
+  [ -n "$major" ] && [ "$major" -ge "$NODE_REQUIRED_MAJOR" ] && command -v npm >/dev/null 2>&1
+}
+
+# This installer already requires root, including in root-only Proxmox containers.
+# Switch to PostgreSQL's service account without depending on sudo being installed.
+as_postgres() { runuser -u postgres -- "$@"; }
+
 ASSUME_YES="${ASSUME_YES:-0}"; VERBOSE="${VERBOSE:-0}"
 for a in "$@"; do case "$a" in -y|--yes) ASSUME_YES=1 ;; -v|--verbose) VERBOSE=1 ;; esac; done
 
@@ -102,7 +131,8 @@ printf '\n  %sMDMesh · native install%s\n' "$c_bold" "$c_reset"
 cat <<WARN
 
   ${c_yel}⚠  This will modify THIS host:${c_reset}
-    • apt-get install openjdk-17-jdk, postgresql, maven, nodejs, npm, curl, python3, aapt
+    • apt-get install openjdk-17-jdk, postgresql, maven, curl, python3, aapt
+    • install Node.js ${NODE_REQUIRED_MAJOR}+ from NodeSource when the current Node/npm does not satisfy web/package.json
     • create or alter a PostgreSQL role and database "mdmesh" (resets that role's password)
     • download and unpack Apache Tomcat 9 into /opt/mdmesh-tc (clears its webapps/)
     • write config and uploaded files under /opt/mdmesh (the server logs to the systemd journal)
@@ -128,11 +158,34 @@ if [ -z "$BASE_URL" ]; then
   [ "$ASSUME_YES" = "1" ] && { echo "  BASE_URL must be set when running with -y (e.g. BASE_URL=https://mdm.example.com)."; exit 1; }
   read -rp "  Public base URL (e.g. https://mdm.example.com): " BASE_URL
 fi
+case "$BASE_URL" in http://*|https://*) ;; *) echo "  Public base URL must start with http:// or https://."; exit 1 ;; esac
+case "$BASE_URL" in *$'\n'*|*$'\r'*|*$'\t'*|*' '*) echo "  Public base URL must not contain whitespace."; exit 1 ;; esac
+# Values written into ROOT.xml must be escaped rather than trusted as XML-safe shell input.
+xml_escape() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"; }
+BASE_URL_XML=$(xml_escape "$BASE_URL")
 # HTTP port Tomcat listens on. Override non-interactively with HTTP_PORT=9090; default 8080.
 HTTP_PORT="${HTTP_PORT:-}"
 if [ -z "$HTTP_PORT" ]; then read -rp "  HTTP port [8080]: " _p; HTTP_PORT="${_p:-8080}"; fi
 case "$HTTP_PORT" in ''|*[!0-9]*) echo "  Port must be a number."; exit 1 ;; esac
 { [ "$HTTP_PORT" -ge 1 ] && [ "$HTTP_PORT" -le 65535 ]; } || { echo "  Port must be 1-65535."; exit 1; }
+
+# Optional SMTP (parity with the Docker entrypoint), environment-driven so the interactive path stays short.
+# Needed for password-reset emails. ROOT.xml and the installer log remain root-readable only.
+SMTP_HOST="${SMTP_HOST:-}"
+SMTP_PORT="${SMTP_PORT:-25}"
+SMTP_SSL="${SMTP_SSL:-false}"
+SMTP_STARTTLS="${SMTP_STARTTLS:-false}"
+SMTP_USERNAME="${SMTP_USERNAME:-}"
+SMTP_PASSWORD="${SMTP_PASSWORD:-}"
+SMTP_FROM="${SMTP_FROM:-mdm@localhost}"
+case "$SMTP_PORT" in ''|*[!0-9]*) echo "  SMTP_PORT must be a number."; exit 1 ;; esac
+{ [ "$SMTP_PORT" -ge 1 ] && [ "$SMTP_PORT" -le 65535 ]; } || { echo "  SMTP_PORT must be 1-65535."; exit 1; }
+case "$SMTP_SSL" in true|false) ;; *) echo "  SMTP_SSL must be true or false."; exit 1 ;; esac
+case "$SMTP_STARTTLS" in true|false) ;; *) echo "  SMTP_STARTTLS must be true or false."; exit 1 ;; esac
+SMTP_HOST_XML=$(xml_escape "$SMTP_HOST")
+SMTP_USERNAME_XML=$(xml_escape "$SMTP_USERNAME")
+SMTP_PASSWORD_XML=$(xml_escape "$SMTP_PASSWORD")
+SMTP_FROM_XML=$(xml_escape "$SMTP_FROM")
 DB_PASSWORD=$(rand); HASH_SECRET=$(rand); ADMIN_PASSWORD=$(rand); RESET_TOKEN=$(openssl rand -hex 16)
 JWT_SECRET=$(openssl rand -hex 64)   # jwt.secretkey: hex only (see the reuse rule below)
 BASE_DIR=/opt/mdmesh
@@ -384,11 +437,14 @@ PKGS=()
 select_jdk17 >/dev/null || PKGS+=(openjdk-17-jdk)
 command -v psql    >/dev/null && command -v pg_ctlcluster >/dev/null || PKGS+=(postgresql)
 command -v mvn     >/dev/null || PKGS+=(maven)
-command -v node    >/dev/null || PKGS+=(nodejs)
-command -v npm     >/dev/null || PKGS+=(npm)
 command -v curl    >/dev/null || PKGS+=(curl)
 command -v python3 >/dev/null || PKGS+=(python3)
 command -v aapt    >/dev/null || PKGS+=(aapt)
+command -v minisign >/dev/null || PKGS+=(minisign)   # verifies the signed release manifest
+if ! node_satisfies_requirement; then
+  command -v gpg >/dev/null || PKGS+=(gnupg)
+  command -v update-ca-certificates >/dev/null || PKGS+=(ca-certificates)
+fi
 if [ ${#PKGS[@]} -eq 0 ]; then
   ok "all build/runtime dependencies already present — nothing to install"
 else
@@ -396,6 +452,33 @@ else
   # publish for → "does not have a Release file") — the native install only needs base Debian packages.
   run "$(IFS=,; echo "${PKGS[*]}" | sed 's/,/, /g')" bash -c \
     "apt-get update -y || echo '(some apt sources failed to refresh — continuing)'; DEBIAN_FRONTEND=noninteractive apt-get install -y ${PKGS[*]}"
+fi
+
+# NodeSource supplies maintained Node releases for Debian versions whose native nodejs package is
+# behind the web console's declared engine. Import its signing key into a dedicated keyring and use
+# an explicitly signed APT source; do not pipe a remote installer into a root shell.
+if node_satisfies_requirement; then
+  ok "Node.js $(node --version) + npm $(npm --version) satisfy web/package.json (>=${NODE_REQUIRED_MAJOR})"
+else
+  step "Installing Node.js ${NODE_REQUIRED_MAJOR}+"
+  run "NodeSource Node.js ${NODE_REQUIRED_MAJOR}" bash -c "
+    set -euo pipefail
+    install -d -m 0755 /etc/apt/keyrings
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key |
+      gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
+    # The installer-wide umask is 077, but Apt's _apt sandbox user must be able to
+    # read a keyring referenced by signed-by=.
+    chmod 0644 /etc/apt/keyrings/nodesource.gpg
+    printf '%s\\n' 'deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_REQUIRED_MAJOR}.x nodistro main' \\
+      > /etc/apt/sources.list.d/nodesource.list
+    apt-get update -y
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nodejs
+  "
+  node_satisfies_requirement || {
+    echo "  ${c_red}✗ Node.js installation did not satisfy web/package.json (>=${NODE_REQUIRED_MAJOR})${c_reset}" >&2
+    exit 1
+  }
+  ok "Node.js $(node --version) + npm $(npm --version) installed from NodeSource"
 fi
 # minisign verifies release-manifest signatures for the updater supervisor. Best-effort: without it
 # the supervisor still runs but reports releases as unverified (and never mirrors an APK).
@@ -413,6 +496,14 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ok "$(javac -version 2>&1) — $JAVA_HOME"
 
 step "Database"
+# apt starts the packaged cluster through systemd; root-only containers without systemd (Docker, some LXC setups)
+# leave it down, and every psql below would fail. Start any cluster that is not online.
+if ! as_postgres psql -tAc 'SELECT 1' >/dev/null 2>&1 && command -v pg_lsclusters >/dev/null 2>&1; then
+  pg_lsclusters --no-header 2>/dev/null | awk '$4 != "online" {print $1, $2}' | while read -r _pgv _pgc; do
+    pg_ctlcluster "$_pgv" "$_pgc" start
+  done >> "$LOGFILE" 2>&1 || true
+  as_postgres psql -tAc 'SELECT 1' >/dev/null 2>&1 && ok "started the local PostgreSQL cluster (no systemd)"
+fi
 # Idempotent: every run generates a fresh DB_PASSWORD, so ALWAYS set the role's password to match — ALTER
 # if the role already exists from a previous run, else CREATE — so ROOT.xml + seeding always authenticate.
 # The password reaches psql on stdin as a psql variable (:'pw' quotes it as an SQL literal), never on its command line,
@@ -420,13 +511,13 @@ step "Database"
 # statement (password included) into $LOGFILE, which is owner-only (above).
 role_password_sql() { printf '%s\n' "\\set pw $(_mdm_psql_arg "$DB_PASSWORD")" "$1 USER mdmesh WITH PASSWORD :'pw';"; }
 {
-  if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mdmesh'" | grep -q 1; then
-    role_password_sql ALTER | sudo -u postgres psql -v ON_ERROR_STOP=1
+  if as_postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mdmesh'" | grep -q 1; then
+    role_password_sql ALTER | as_postgres psql -v ON_ERROR_STOP=1
   else
-    role_password_sql CREATE | sudo -u postgres psql -v ON_ERROR_STOP=1
+    role_password_sql CREATE | as_postgres psql -v ON_ERROR_STOP=1
   fi
-  sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='mdmesh'" | grep -q 1 || \
-    sudo -u postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
+  as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='mdmesh'" | grep -q 1 || \
+    as_postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
 } >> "$LOGFILE" 2>&1
 ok "PostgreSQL role + database 'mdmesh' ready"
 
@@ -479,9 +570,9 @@ if [ "$DB_STATE" = seeded ]; then
     info "Replacing the database — dropping $dc device(s), $uc user(s)"
     stop_tomcat   # release DB connections first
     {
-      sudo -u postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='mdmesh' AND pid<>pg_backend_pid();"
-      sudo -u postgres psql -c "DROP DATABASE mdmesh;"
-      sudo -u postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
+      as_postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='mdmesh' AND pid<>pg_backend_pid();"
+      as_postgres psql -c "DROP DATABASE mdmesh;"
+      as_postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
     } >> "$LOGFILE" 2>&1
     SEED=yes
   else
@@ -502,6 +593,9 @@ step "Fetching the agent APK from GitHub Releases"
 # debug defaults and you host an APK manually — enrollment just needs a matching APK at /files/agent.apk.
 GITHUB_REPO="${GITHUB_REPO:-$(git remote get-url origin 2>/dev/null | sed -E 's#(git@|https?://)[^/:]+[/:]##; s#\.git$##')}"
 AGENT_APK=""
+AGENT_FETCH_DIR=""
+cleanup_agent_fetch() { if [ -n "$AGENT_FETCH_DIR" ]; then rm -rf -- "$AGENT_FETCH_DIR"; AGENT_FETCH_DIR=""; fi; }
+trap cleanup_agent_fetch EXIT
 if [ -n "$GITHUB_REPO" ]; then
   # gh_curl ARGS...: curl, sending GITHUB_TOKEN (when set) as an Authorization header read from stdin (-H @-, curl 7.55+),
   # never on curl's command line, which every local user can read (ps, /proc/<pid>/cmdline).
@@ -512,24 +606,34 @@ if [ -n "$GITHUB_REPO" ]; then
   jget() { python3 -c 'import sys,json;
 d=json.load(sys.stdin)
 def asset(n): return next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]==n),"")
-print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json")}.get(sys.argv[1],""))' "$1" 2>/dev/null; }
+print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json"),"signature":asset("manifest.json.minisig")}.get(sys.argv[1],""))' "$1" 2>/dev/null || true; }
+  # (|| true: no release, a 404 or a rate limit leaves REL empty; under set -e + pipefail a failing jget aborted the
+  #  whole install instead of falling through to "host the APK manually".)
   REL=$(gh_curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>>"$LOGFILE" || true)
-  APK_URL=$(printf '%s' "$REL" | jget apk); MAN_URL=$(printf '%s' "$REL" | jget manifest)
-  if [ -n "$APK_URL" ] && [ -n "$MAN_URL" ]; then
-    MAN=$(gh_curl -fsSL "$MAN_URL" 2>>"$LOGFILE" || true)
-    AGENT_CK=$(printf '%s' "$MAN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["components"]["apk"]["signatureChecksum"])' 2>/dev/null || true)
-    WANT_SHA=$(printf '%s' "$MAN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["components"]["apk"]["sha256"])' 2>/dev/null || true)
-    TMP_APK=$(mktemp)
-    if gh_curl -fsSL "$APK_URL" -o "$TMP_APK" 2>>"$LOGFILE" && [ -n "$AGENT_CK" ] \
+  APK_URL=$(printf '%s' "$REL" | jget apk); MAN_URL=$(printf '%s' "$REL" | jget manifest); SIG_URL=$(printf '%s' "$REL" | jget signature)
+  if [ -n "$APK_URL" ] && [ -n "$MAN_URL" ] && [ -n "$SIG_URL" ] && command -v minisign >/dev/null 2>&1; then
+    # Trust the APK's checksum/sha256 only from a manifest signed with the committed release key.
+    AGENT_FETCH_DIR=$(mktemp -d)
+    TMP_MAN="$AGENT_FETCH_DIR/manifest.json"; TMP_SIG="$AGENT_FETCH_DIR/manifest.json.minisig"; TMP_APK="$AGENT_FETCH_DIR/agent.apk"
+    AGENT_CK=""; WANT_SHA=""
+    if gh_curl -fsSL "$MAN_URL" -o "$TMP_MAN" 2>>"$LOGFILE" \
+       && gh_curl -fsSL "$SIG_URL" -o "$TMP_SIG" 2>>"$LOGFILE" \
+       && minisign -V -p "$REPO/release/minisign.pub" -m "$TMP_MAN" >>"$LOGFILE" 2>&1; then
+      AGENT_CK=$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["components"]["apk"]["signatureChecksum"])' "$TMP_MAN" 2>/dev/null || true)
+      WANT_SHA=$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["components"]["apk"]["sha256"])' "$TMP_MAN" 2>/dev/null || true)
+    else
+      info "Could not verify the signed release manifest — host an agent APK manually"
+    fi
+    if [ -n "$AGENT_CK" ] && gh_curl -fsSL "$APK_URL" -o "$TMP_APK" 2>>"$LOGFILE" \
        && [ "$(sha256sum "$TMP_APK" | awk '{print $1}')" = "$WANT_SHA" ]; then
       AGENT_APK="$TMP_APK"
       export VITE_AGENT_PACKAGE="com.mdmesh.agent" VITE_AGENT_CHECKSUM="$AGENT_CK" VITE_AGENT_APK_URL="/files/agent.apk"
-      ok "release agent APK fetched + sha256-verified (checksum ${AGENT_CK})"
+      ok "release agent APK fetched + signed-manifest/sha256 verified (checksum ${AGENT_CK})"
     else
       info "Could not fetch/verify the release APK — continuing; host one at /files/agent.apk manually"
     fi
   else
-    info "No published release found for ${GITHUB_REPO} — console uses debug defaults; host /files/agent.apk manually"
+    info "No signed release found for ${GITHUB_REPO}, or minisign is unavailable — console uses debug defaults; host /files/agent.apk manually"
   fi
 else
   info "No GitHub repo detected — skipping release fetch; host /files/agent.apk manually"
@@ -607,6 +711,7 @@ while IFS= read -r -d '' _email; do
 done < <(find "$REPO/install/emails" -type f -print0)
 # Host the release agent APK the QR points at (/files/agent.apk), if we fetched one above.
 [ -n "$AGENT_APK" ] && { base_write files/agent.apk cat "$AGENT_APK"; ok "agent APK hosted at /files/agent.apk"; }
+cleanup_agent_fetch
 # ROOT.xml carries the DB password, hash.secret and jwt.secretkey: tc_write makes it mode 600.
 tc_write conf/Catalina/localhost/ROOT.xml cat <<XML
 <?xml version="1.0" encoding="UTF-8"?>
@@ -620,7 +725,7 @@ tc_write conf/Catalina/localhost/ROOT.xml cat <<XML
     <Parameter name="JDBC.password" value="${DB_PASSWORD}"/>
     <Parameter name="base.directory"  value="${BASE_DIR}"/>
     <Parameter name="files.directory" value="${BASE_DIR}/files"/>
-    <Parameter name="base.url"        value="${BASE_URL}"/>
+    <Parameter name="base.url"        value="${BASE_URL_XML}"/>
     <Parameter name="usage.scenario"    value="private"/>
     <Parameter name="secure.enrollment" value="0"/>
     <Parameter name="hash.secret"       value="${HASH_SECRET}"/>
@@ -637,9 +742,15 @@ tc_write conf/Catalina/localhost/ROOT.xml cat <<XML
     <!-- Loopback updater supervisor; /update/* is passed through by UpdateProxyServlet so the
          console's Updates + staged-rollout views are same-origin (no proxy config needed). -->
     <Parameter name="supervisor.base" value="http://127.0.0.1:9000"/>
-    <!-- TODO(parity): the Docker stack wires SMTP via env (smtp.host/port/ssl/starttls/username/
-         password/from — see docker/entrypoint.sh); this installer writes no smtp.* Parameters yet,
-         so password-reset emails stay disabled on native installs. Add them when SMTP is needed. -->
+    <Parameter name="smtp.host" value="${SMTP_HOST_XML}"/>
+    <Parameter name="smtp.port" value="${SMTP_PORT}"/>
+    <Parameter name="smtp.ssl" value="${SMTP_SSL}"/>
+    <Parameter name="smtp.starttls" value="${SMTP_STARTTLS}"/>
+    <Parameter name="smtp.username" value="${SMTP_USERNAME_XML}"/>
+    <Parameter name="smtp.password" value="${SMTP_PASSWORD_XML}"/>
+    <Parameter name="smtp.from" value="${SMTP_FROM_XML}"/>
+    <Parameter name="email.recovery.subj" value="${BASE_DIR}/emails/_LANGUAGE_/recovery_subj.txt"/>
+    <Parameter name="email.recovery.body" value="${BASE_DIR}/emails/_LANGUAGE_/recovery_body.txt"/>
 </Context>
 XML
 # Tomcat runs unprivileged (like the Docker image). Create the service account and hand it the trees it
@@ -662,8 +773,8 @@ if [ "$SEED" = no ]; then
   # their own .mdmesh-tmp. names only (as in write_under).
   rm -f "$BK_DIR"/.mdmesh-pre-upgrade-*.dump.mdmesh-tmp.??????
   _bk_tmp=$(mktemp "$BK_DIR/.${BK##*/}.mdmesh-tmp.XXXXXX")
-  # shellcheck disable=SC2024  # we ARE root here (checked at the top); sudo only switches to the postgres role
-  if sudo -u postgres pg_dump -Fc mdmesh > "$_bk_tmp" 2>>"$LOGFILE" && mv -fT "$_bk_tmp" "$BK"; then
+  # shellcheck disable=SC2024  # we ARE root here (checked at the top); runuser only switches to the postgres role
+  if as_postgres pg_dump -Fc mdmesh > "$_bk_tmp" 2>>"$LOGFILE" && mv -fT "$_bk_tmp" "$BK"; then
     ok "pg_dump written: $BK  (restore: pg_restore -c -d mdmesh $BK)"
   else
     rm -f "$_bk_tmp"
