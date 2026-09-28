@@ -16,7 +16,7 @@ Both sides flatten a `CapabilityMatrix.capabilities` object into a flat `Set<Str
 |--------|-----------|---------|
 | `policy[]` entry | `policy.<key>` | `policy.wifi`, `policy.camera`, `policy.kioskLockTask` |
 | `appManagement[]` entry | `app.<key>` | `app.silentInstall` |
-| `remoteControl.tier` (if not `none`) | `remote.<tier>` | `remote.view`, `remote.control` |
+| `remoteControl.tier` (if not `none`) | `remote.<tier>` (`control` also gives `remote.view`) | `remote.view`, `remote.control` |
 | `oem.knox` (if true) | `oem.knox` | `oem.knox` |
 
 A `CommandEnvelope.requiresCapability` (when present) MUST be one of these tokens. The server

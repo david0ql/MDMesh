@@ -55,6 +55,8 @@ public class AgentCapabilityTokensTest {
 
         Set<String> control = AgentCapabilityTokens.flatten("{\"remoteControl\":{\"tier\":\"control\"}}");
         Assert.assertTrue(control.contains("remote.control"));
+        Assert.assertTrue("control implies view", control.contains("remote.view"));
+        Assert.assertFalse("view does not imply control", view.contains("remote.control"));
     }
 
     @Test
@@ -85,8 +87,9 @@ public class AgentCapabilityTokensTest {
         Assert.assertTrue(tokens.contains("policy.kioskLockTask"));
         Assert.assertTrue(tokens.contains("app.silentInstall"));
         Assert.assertTrue(tokens.contains("remote.control"));
+        Assert.assertTrue(tokens.contains("remote.view")); // control implies view
         Assert.assertTrue(tokens.contains("oem.knox"));
-        Assert.assertEquals(5, tokens.size());
+        Assert.assertEquals(6, tokens.size());
     }
 
     @Test

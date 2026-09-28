@@ -37,7 +37,7 @@ import java.util.Set;
  * <ul>
  *     <li>each {@code capabilities.policy[]} entry &rarr; {@code policy.<key>}</li>
  *     <li>each {@code capabilities.appManagement[]} entry &rarr; {@code app.<key>}</li>
- *     <li>{@code capabilities.remoteControl.tier} (when not {@code none}) &rarr; {@code remote.<tier>}</li>
+ *     <li>{@code capabilities.remoteControl.tier} (when not {@code none}) &rarr; {@code remote.<tier>}; {@code control} also emits {@code remote.view}</li>
  *     <li>{@code capabilities.oem.knox == true} &rarr; {@code oem.knox}</li>
  * </ul>
  */
@@ -90,6 +90,11 @@ public final class AgentCapabilityTokens {
             if (tier != null && tier.isTextual()) {
                 String tierValue = tier.asText();
                 if (!tierValue.isEmpty() && !"none".equals(tierValue)) {
+                    // Tiers are cumulative: a device that can be controlled can also just be viewed, so a
+                    // view-only session (gated on remote.view) must reach a control-tier device too.
+                    if ("control".equals(tierValue)) {
+                        tokens.add("remote.view");
+                    }
                     tokens.add("remote." + tierValue);
                 }
             }

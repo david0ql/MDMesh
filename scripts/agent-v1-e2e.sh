@@ -224,6 +224,11 @@ chk "device receives remote.vnc.start over the encrypted transport" \
   "$(curl -s -X POST -H "Authorization: Bearer $SEC" -H 'Content-Type: application/json' -d "{\"deviceId\":\"$DID\",\"capabilities\":{\"policy\":[\"wifi\"],\"remoteControl\":{\"tier\":\"control\",\"transport\":[\"vnc-repeater\",\"vnc-repeater-wss\"]}}}" "$BASE/rest/public/agent/v1/checkin" \
      | field "[(c['requiresCapability'], c['payload']['transport'], c['payload']['sessionId']) for c in d['data']['commands'] if c['type']=='remote.vnc.start'] == [('remote.control', 'wss', '$RSID')]")" \
   "True"
+chk "view-only session reaches a control-tier device (control implies view)" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":true}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start" >/dev/null; \
+     curl -s -X POST -H "Authorization: Bearer $SEC" -H 'Content-Type: application/json' -d "{\"deviceId\":\"$DID\",\"capabilities\":{\"policy\":[\"wifi\"],\"remoteControl\":{\"tier\":\"control\",\"transport\":[\"vnc-repeater\",\"vnc-repeater-wss\"]}}}" "$BASE/rest/public/agent/v1/checkin" \
+     | field "[(c['requiresCapability'], c['payload']['viewOnly']) for c in d['data']['commands'] if c['type']=='remote.vnc.start']")" \
+  "[('remote.view', True)]"
 chk "history hides the session password" \
   "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "'$(echo "$RS" | field "d['data']['password']")' in json.dumps(d)")" "False"
 chk "tunnel open for the device with a queued session (204)" \
