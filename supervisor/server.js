@@ -321,6 +321,14 @@ async function authorizeApply(req) {
   }
 }
 
+function publicStatus(s) {
+  return {
+    restricted: true,
+    applySupported: s.applySupported,
+    apply: s.apply ? { phase: s.apply.phase } : null,
+  };
+}
+
 const RECOVERY = recoveryPage(fs.readFileSync(path.join(__dirname, 'recovery.html'), 'utf8'), APPLY_SUPPORTED);
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
 function readJson(req) {
@@ -335,7 +343,13 @@ function readJson(req) {
 http.createServer(async (req, res) => {
   try {
     if (req.url === '/healthz') { res.writeHead(200).end('ok'); return; }
-    if (req.url.startsWith('/update/status')) { json(res, 200, state); return; }
+    if (req.url.startsWith('/update/status')) {
+      // Full detail (versions, errors) only for an admin console session or the recovery token; anyone else
+      // learns just whether an update is running, which the recovery page needs while the server is down.
+      const full = validToken(req) || (await authorizeApply(req));
+      json(res, 200, full ? state : publicStatus(state));
+      return;
+    }
     if (req.url.startsWith('/update/agent.apk')) {
       // The mirrored agent APK for device rollouts. Public GET (the device fetches it during an
       // app.install); integrity is guaranteed by the SHA-256 check in ensureApk + the agent's own

@@ -55,6 +55,7 @@ chk "private API without session -> 403" "$(code "$BASE/rest/private/devices/sea
 chk "remote viewer without session -> 403" "$(code "$BASE/remote/vnc/vnc.html")" "403"
 body=$(curl -s "$BASE/rest/private/sec-probe-nonexistent")
 printf '%s' "$body" | grep -qi 'apache tomcat' && ko "error pages hide the server version" || ok "error pages hide the server version"
+chk "update status hides versions from anonymous callers" "$(curl -s "$BASE/update/status" | field "str(d.get('restricted'))+':'+str('current' in d)")" "True:False"
 chk "no CORS for other origins" "$(curl -sI -H 'Origin: https://evil.example' "$BASE/rest/public/name" | grep -ci '^access-control-allow-origin')" "0"
 
 echo "== login and session"

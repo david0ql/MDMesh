@@ -43,6 +43,12 @@ function esc(x){return x==null?'':String(x).replace(/[&<>"']/g,function(c){retur
 function v(x){return x==null?'—':esc(x)}
 function render(s){
   if(typeof s.applySupported==='boolean')document.body.setAttribute('data-apply',s.applySupported?'1':'0');
+  if(s.restricted){
+    document.getElementById('status').innerHTML='<div class="row"><span class="k">Details</span><span>Sign in to the console as an administrator, or enter the recovery token below, to see versions and errors.</span></div>';
+    var ra=s.apply, rc=document.getElementById('applycard');
+    if(ra){rc.style.display='';document.getElementById('apply').innerHTML='<div class="row"><span>'+(PH[ra.phase]||esc(ra.phase))+'</span></div>';}else{rc.style.display='none';}
+    return;
+  }
   var badge=s.verified?'<span class="ok">verified</span>':'<span class="warn">unverified</span>';
   document.getElementById('status').innerHTML=
    '<div class="row"><span class="k">Current version</span><span class="mono">'+v(s.current)+'</span></div>'+
@@ -61,7 +67,7 @@ function render(s){
      (a.error?'<div class="row"><span class="k">Detail</span><span class="warn">'+esc(a.error)+'</span></div>':'');
   } else { card.style.display='none'; }
 }
-function tick(){fetch('/update/status').then(function(r){return r.json()}).then(render).catch(function(){document.getElementById('status').innerHTML='<div class="row"><span class="err">Status unavailable.</span></div>';});}
+function tick(){var th={'Accept':'application/json'};var tt=(document.getElementById('tok')||{}).value;if(tt&&tt.trim())th['X-Recovery-Token']=tt.trim();fetch('/update/status',{credentials:'include',headers:th}).then(function(r){return r.json()}).then(render).catch(function(){document.getElementById('status').innerHTML='<div class="row"><span class="err">Status unavailable.</span></div>';});}
 tick();setInterval(tick,3000);
 document.getElementById('rb').onclick=function(){
   if(!confirm('Roll back to the previous version? This restores the last database backup and restarts the server.'))return;

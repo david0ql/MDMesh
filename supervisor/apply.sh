@@ -13,6 +13,8 @@
 #
 # NOT exercised in CI/sandbox (needs a live Docker daemon). Validate on a staging deploy.
 set -uo pipefail   # deliberately NOT -e: failures are handled explicitly so we can roll back.
+umask 077          # backups hold the whole database (incl. password hashes): owner-only
+BACKUPS_KEPT="${BACKUPS_KEPT:-5}"
 
 VERSION="${1:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
 NEW_SERVER_IMAGE="${2:?usage: apply.sh <version> <server-image@sha256> <web-image@sha256>}"
@@ -120,6 +122,10 @@ fi
 # ---------------- healthcheck ----------------
 phase healthcheck
 if healthy; then
+  # Keep only the newest BACKUPS_KEPT pre-update backups (each is a full database dump).
+  ls -1t "$BACKUP_DIR"/*.sql 2>/dev/null | tail -n +"$((BACKUPS_KEPT + 1))" | while read -r old; do
+    rm -f -- "$old" "${old%.sql}.env"
+  done
   phase done
   echo "OK $VERSION"
   exit 0
