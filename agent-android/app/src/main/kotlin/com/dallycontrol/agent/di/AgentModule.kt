@@ -224,7 +224,8 @@ object AgentModule {
     @Provides
     @Singleton
     fun provideKioskController(handle: DpmHandle): KioskController =
-        LockTaskKioskController(handle.dpm, handle.admin)
+        // droidVNC-NG stays startable in kiosk so remote support works on locked devices (ADR 0010).
+        LockTaskKioskController(handle.dpm, handle.admin, supportPackages = listOf(DroidVncController.PACKAGE))
 
     @Provides
     @Singleton

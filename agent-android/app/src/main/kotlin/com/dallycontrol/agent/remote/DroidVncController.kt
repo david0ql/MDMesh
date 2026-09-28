@@ -90,6 +90,7 @@ class DroidVncController @Inject constructor(
             }
         }
         ensureInputService()
+        allowInKiosk()
         return configured.exceptionOrNull()?.let { "cannot configure droidVNC-NG: ${it.message}" }
     }
 
@@ -178,6 +179,20 @@ class DroidVncController @Inject constructor(
     private fun accessKey(): String = prefs.getString(KEY_ACCESS, null) ?: run {
         val bytes = ByteArray(ACCESS_KEY_BYTES).also { SecureRandom().nextBytes(it) }
         bytes.joinToString("") { "%02x".format(it) }.also { prefs.edit().putString(KEY_ACCESS, it).apply() }
+    }
+
+    /**
+     * A device in kiosk (lock task) can only start allowlisted packages, and droidVNC-NG's capture start opens an
+     * activity of its own. Kiosks applied by this agent already allowlist it; this also covers kiosks applied before
+     * that (or by an older agent) without re-applying the configuration. No-op when not in kiosk.
+     */
+    private fun allowInKiosk() {
+        runCatching {
+            val current = handle.dpm.getLockTaskPackages(handle.admin)
+            if (current.isNotEmpty() && PACKAGE !in current) {
+                handle.dpm.setLockTaskPackages(handle.admin, current + PACKAGE)
+            }
+        }.onFailure { Log.w(TAG, "could not allow droidVNC-NG in kiosk", it) }
     }
 
     private fun ensureInputService() {

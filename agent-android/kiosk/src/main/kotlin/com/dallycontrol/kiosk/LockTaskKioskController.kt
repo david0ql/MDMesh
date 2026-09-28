@@ -27,6 +27,12 @@ import android.os.Build
 class LockTaskKioskController(
     private val dpm: DevicePolicyManager,
     private val admin: ComponentName,
+    /**
+     * Packages the agent itself must be able to start while the device is locked, though the user never sees them
+     * (they are not on the kiosk launcher): droidVNC-NG, whose screen-capture start opens a short-lived activity of its
+     * own. Without it on the lock-task allowlist, remote support is impossible on a kiosk device.
+     */
+    private val supportPackages: List<String> = emptyList(),
 ) : KioskController {
 
     override fun enter(homeComponent: ComponentName, allowedPackages: List<String>, features: Int): KioskResult {
@@ -34,7 +40,7 @@ class LockTaskKioskController(
         if (!dpm.isDeviceOwnerApp(ownPackage)) return KioskResult.Unsupported
         return runGuarded {
             // Own package must stay allowlisted so the kiosk launcher can run.
-            val allowlist = (allowedPackages + ownPackage).distinct().toTypedArray()
+            val allowlist = (allowedPackages + ownPackage + supportPackages).distinct().toTypedArray()
             dpm.setLockTaskPackages(admin, allowlist)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
