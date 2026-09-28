@@ -303,6 +303,16 @@ public class UserResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response updateUserDetails(User user) {
         return SecurityContext.get().getCurrentUser().map(u -> {
+            // Own details, or someone who may manage users (same rule as updateUser): a user's email drives password
+            // recovery, so changing another user's email is an account takeover.
+            if (user == null || user.getId() == null) {
+                return Response.ERROR("error.user.not.found");
+            }
+            boolean self = user.getId().equals(u.getId());
+            if (!self && !u.getUserRole().isSuperAdmin() && !this.userDAO.isOrgAdmin(u)) {
+                logger.warn("Permission denied: user {} tried to change the details of user {}", u.getLogin(), user.getId());
+                return Response.PERMISSION_DENIED();
+            }
             User dbUser = userDAO.getUserDetails(user.getId());
             if (dbUser == null) {
                 return Response.ERROR("error.user.not.found");

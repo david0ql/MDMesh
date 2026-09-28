@@ -93,6 +93,11 @@ public class IconFileResource {
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response uploadIconFile(@FormDataParam("file") InputStream uploadedInputStream,
                                    @ApiParam("An icon file to upload") @FormDataParam("file") FormDataContentDisposition fileDetail) throws Exception {
+        if (!SecurityContext.get().hasPermission("edit_files")) {
+            logger.warn("Permission denied: uploading an icon requires 'edit_files' (user {})",
+                    SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
         try {
             BufferedImage img = ImageIO.read(uploadedInputStream);
             if (img.getWidth() != img.getHeight()) {

@@ -66,6 +66,8 @@ public class AuthResource {
     private RsaKeyService rsaKeyService;
     private boolean transmitPassword;
     private HmdmAuthInterface authEngine;
+    private com.hmdm.rest.resource.support.LoginThrottle loginThrottle;
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AuthResource.class);
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -85,7 +87,9 @@ public class AuthResource {
                         RsaKeyService rsaKeyService,
                         @Named("customer.signup") boolean customerSignup,
                         @Named("transmit.password") boolean transmitPassword,
-                        @Named("auth.class") HmdmAuthInterface authEngine) {
+                        @Named("auth.class") HmdmAuthInterface authEngine,
+                        com.hmdm.rest.resource.support.LoginThrottle loginThrottle) {
+        this.loginThrottle = loginThrottle;
         this.userDAO = userDAO;
         this.customerDAO = customerDAO;
         this.settingsDAO = settingsDAO;
@@ -115,8 +119,15 @@ public class AuthResource {
             return Response.ERROR();
         }
 
+        // Brute-force lock (per account): refused before the password is checked, same answer as a wrong password.
+        if (loginThrottle.isLocked(credentials.getLogin(), System.currentTimeMillis())) {
+            Thread.sleep(1000);
+            return Response.ERROR();
+        }
+
         User user = authEngine.findUser(credentials.getLogin());
         if (user == null) {
+            loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
             Thread.sleep(1000);
             return Response.ERROR();
         }
@@ -136,16 +147,27 @@ public class AuthResource {
 
         // Web app sends MD5 hash, we need to re-hash it to compare with the DB value
         if (!authEngine.authenticate(user, password)) {
+            long lockedUntil = loginThrottle.failed(credentials.getLogin(), System.currentTimeMillis());
+            if (lockedUntil > 0) {
+                logger.warn("Console login for '{}' locked until {} after repeated failures", credentials.getLogin(),
+                        new java.util.Date(lockedUntil));
+            }
             Thread.sleep(1000);
             return Response.ERROR();
         }
+        loginThrottle.succeeded(credentials.getLogin());
 
         try {
             this.taskRunner.submitTask(() -> {
                 this.customerDAO.recordLastLoginTime(user.getCustomerId(), System.currentTimeMillis());
             });
 
-            HttpSession userSession = req.getSession();
+            // A fresh session on every login: a session id fixed before authentication must never become authenticated.
+            HttpSession previous = req.getSession(false);
+            if (previous != null) {
+                previous.invalidate();
+            }
+            HttpSession userSession = req.getSession(true);
             userSession.setAttribute(AuthFilter.sessionCredentials, user );
 
             Settings settings = settingsDAO.getSettings(user.getCustomerId());

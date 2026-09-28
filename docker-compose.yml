@@ -76,6 +76,7 @@ services:
       - supervisor
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      CF_IP_HEADER_STRIP: ${CF_IP_HEADER_STRIP:-CF-Connecting-IP}
       ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - caddy_data:/data

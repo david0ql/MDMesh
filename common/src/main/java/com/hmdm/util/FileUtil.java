@@ -221,4 +221,31 @@ public final class FileUtil {
     public static boolean isSafePath(String path) {
         return path == null || !path.contains("..");
     }
+
+    /**
+     * <p>Resolve a client-supplied file name to a file directly inside {@code baseDir}, or null when the name is not
+     * a plain file name: empty, "." / "..", containing a path separator, a NUL or control character, or resolving
+     * (canonically) anywhere but a direct child of {@code baseDir}. Never trust an upload's file name as a path.</p>
+     */
+    public static File resolveInside(File baseDir, String fileName) {
+        if (baseDir == null || fileName == null) {
+            return null;
+        }
+        for (int i = 0; i < fileName.length(); i++) {
+            if (Character.isISOControl(fileName.charAt(i))) {
+                return null;
+            }
+        }
+        String name = fileName.trim();
+        if (name.isEmpty() || name.equals(".") || name.equals("..") || name.contains("/") || name.contains("\\")) {
+            return null;
+        }
+        try {
+            File base = baseDir.getCanonicalFile();
+            File target = new File(base, name).getCanonicalFile();
+            return base.equals(target.getParentFile()) ? target : null;
+        } catch (IOException e) {
+            return null;
+        }
+    }
 }

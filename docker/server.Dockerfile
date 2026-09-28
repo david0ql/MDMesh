@@ -16,7 +16,10 @@ RUN cp server/build.properties.example server/build.properties || true
 RUN mvn -q -B -DskipTests package
 
 FROM tomcat:9.0-jdk17-temurin
-RUN rm -rf /usr/local/tomcat/webapps/*
+RUN rm -rf /usr/local/tomcat/webapps/* \
+ # Error pages without the Tomcat version or stack traces.
+ && sed -i 's#</Host>#  <Valve className="org.apache.catalina.valves.ErrorReportValve" showReport="false" showServerInfo="false"/>\n      </Host>#' /usr/local/tomcat/conf/server.xml \
+ && grep -q 'showServerInfo="false"' /usr/local/tomcat/conf/server.xml
 COPY --from=build /src/server/target/launcher.war /usr/local/tomcat/webapps/ROOT.war
 # App base directory (data, plugins, email templates). /opt/dallycontrol should be a volume
 # so uploaded files + the hosted agent APK survive container recreation.

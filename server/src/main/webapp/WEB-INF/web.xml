@@ -29,6 +29,11 @@
         <url-pattern>/rest/*</url-pattern>
     </filter-mapping>
 
+    <!-- First: session cookie flags must be set before the context starts serving. -->
+    <listener>
+        <listener-class>com.hmdm.rest.SessionCookieHardening</listener-class>
+    </listener>
+
     <listener>
         <listener-class>com.hmdm.guice.Initializer</listener-class>
     </listener>
@@ -50,6 +55,7 @@
     </servlet-mapping>
 
     <session-config>
-        <session-timeout>1440</session-timeout>
+        <!-- 8 h idle (was 24 h). The console's own idle logout can be shorter (Settings). -->
+        <session-timeout>480</session-timeout>
     </session-config>
 </web-app>

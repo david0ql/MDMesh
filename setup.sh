@@ -138,6 +138,7 @@ else
     read -rp "Cloudflare Tunnel token (Zero Trust → Tunnels → your tunnel): " TUNNEL_TOKEN
     BASE_URL="https://${HOST}"
     SITE_ADDRESS=":80"
+    CF_IP_HEADER_STRIP="X-DallyControl-Unused"   # cloudflared sets CF-Connecting-IP: keep it
     ACME_EMAIL=""
     COMPOSE_ARGS="--profile cloudflare"
     COMPOSE_FILE="docker-compose.yml"
@@ -148,6 +149,7 @@ else
     read -rp "Email for Let's Encrypt: " ACME_EMAIL
     BASE_URL="https://${HOST}"
     SITE_ADDRESS="${HOST}"
+    CF_IP_HEADER_STRIP="CF-Connecting-IP"        # no Cloudflare in front: a client-sent value is a spoof, drop it
     TUNNEL_TOKEN=""
     COMPOSE_ARGS="-f docker-compose.yml -f docker-compose.domain.yml"
     COMPOSE_FILE="docker-compose.yml:docker-compose.domain.yml"
@@ -155,6 +157,7 @@ else
     EXTRA_NOTE="Make sure ${HOST} resolves to this server and ports 80/443 are open."
   fi
 
+  ( umask 077; : > .env )   # created owner-only before any secret is written into it
   cat > .env <<EOF
 DB_NAME=dallycontrol
 DB_USER=dallycontrol
@@ -163,6 +166,7 @@ BASE_URL=${BASE_URL}
 HASH_SECRET=${HASH_SECRET}
 SECURE_ENROLLMENT=0
 SITE_ADDRESS=${SITE_ADDRESS}
+CF_IP_HEADER_STRIP=${CF_IP_HEADER_STRIP}
 ACME_EMAIL=${ACME_EMAIL}
 TUNNEL_TOKEN=${TUNNEL_TOKEN}
 GITHUB_REPO=${GITHUB_REPO:-}

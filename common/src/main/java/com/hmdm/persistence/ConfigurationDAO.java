@@ -167,7 +167,8 @@ public class ConfigurationDAO extends AbstractLinkedDAO<Configuration, Applicati
                                         if (legacyFile != null && file.getExternalUrl().equals(legacyFile.getExternalUrl())) {
                                             file.setChecksum(legacyFile.getChecksum());
                                         } else {
-                                            final String checksum = CryptoUtil.calculateChecksum(new URL(file.getExternalUrl()).openStream());
+                                            // SSRF guard: the server only fetches public http(s) URLs to checksum them.
+                                            final String checksum = CryptoUtil.calculateChecksum(com.hmdm.util.UrlGuard.open(file.getExternalUrl()));
                                             file.setChecksum(checksum);
                                         }
                                     } catch (NoSuchAlgorithmException | IOException e) {

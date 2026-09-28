@@ -16,6 +16,25 @@
 {$SITE_ADDRESS} {
 	encode gzip
 
+	# --- Security baseline (every response) -------------------------------------------------------------------------
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+		-X-Powered-By
+	}
+	# Largest legitimate body is an APK / split bundle upload.
+	request_body {
+		max_size 512MB
+	}
+	# A client-supplied CF-Connecting-IP would be taken as the device's public IP. Only Cloudflare mode, where
+	# cloudflared sets it, keeps it (setup sets CF_IP_HEADER_STRIP to a dummy name there).
+	request_header -{$CF_IP_HEADER_STRIP:CF-Connecting-IP}
+
 	# Canonical agent-APK URL: /files/agent.apk works on BOTH deployment shapes (native serves a
 	# real file from Tomcat; here it's the supervisor's sha256-verified release mirror — the same
 	# upstream as /update/agent.apk, which stays below for back-compat). The exact-path matcher
@@ -28,9 +47,20 @@
 
 	# API, uploaded files, and the agent wake WebSocket → the Tomcat server. reverse_proxy
 	# upgrades WebSockets automatically, so /agent/ws works without extra config.
-	@backend path /rest/* /files/* /agent/ws/*
+	# Only the REST surface DallyControl uses (same allowlist as the server's RestSurfaceFilter): the session API,
+	# the agent protocol, console login/logout/options, password reset, and the name probe. Legacy Headwind endpoints
+	# (launcher sync, notifications, plugins, stats, signup, QR, Swagger) never reach the server.
+	@backend path /rest/private/* /rest/public/agent/v1/* /rest/public/auth/login /rest/public/auth/logout /rest/public/auth/options /rest/public/passwordReset/* /rest/public/name /files/* /agent/ws/*
 	handle @backend {
-		reverse_proxy server:8080
+		reverse_proxy server:8080 {
+			header_down -Server
+		}
+	}
+	handle /rest/* {
+		respond 404
+	}
+	handle /api/* {
+		respond 404
 	}
 
 	# Remote control (ADR 0010): /remote/vnc/vnc.html is the official noVNC viewer and /remote/vnc/websockify
@@ -41,6 +71,8 @@
 		forward_auth server:8080 {
 			uri /rest/private/users/current
 		}
+		# The unmodified noVNC viewer has an inline module script; it may only be framed by the console itself.
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		reverse_proxy websockify:6080
 	}
 
@@ -98,8 +130,11 @@
 		}
 	}
 
-	# Everything else is the single-page app.
+	# Everything else is the single-page app, under a strict Content-Security-Policy: scripts only from this origin
+	# (no inline, no eval), map tiles from OpenStreetMap, fonts from Google Fonts, frames only from this origin (the
+	# Remote tab's viewer) and never framed by other sites.
 	handle {
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
 		root * /srv
 		try_files {path} /index.html
 		file_server

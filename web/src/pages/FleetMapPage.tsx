@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { AppShell } from '../ui/AppShell';
+import { escapeHtml } from '../ui/html';
 import { listFleetLocations, type FleetDevice, type FleetFix, type FleetLocations } from '../api/fleetLocations';
 
 const HOUR = 60 * 60 * 1000;
@@ -43,7 +44,7 @@ function positionAt(fixes: FleetFix[], t: number): FleetFix | null {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const nameOf = (d: FleetDevice) => d.description?.trim() || d.number;
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const esc = escapeHtml;
 
 /**
  * Fleet map: pick a time range and see where every device was — each device's trail in its own colour, and a
@@ -136,7 +137,7 @@ export function FleetMapPage() {
         .bindPopup(
           `<strong>${esc(nameOf(d))}</strong><br>${fmt(f.capturedAt)}` +
           (stale > 10 * 60 * 1000 ? ` <span style="opacity:.7">(${Math.round(stale / 60000)} min before)</span>` : '') +
-          (f.accuracy != null ? `<br>±${Math.round(f.accuracy)} m` : '') +
+          (f.accuracy != null ? `<br>±${esc(Math.round(Number(f.accuracy)))} m` : '') +
           `<br><a href="/devices/${encodeURIComponent(d.number)}">Open device</a>`,
         )
         .addTo(layer);

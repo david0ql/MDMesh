@@ -19,6 +19,9 @@ public class MainRestModule extends ServletModule {
     }
 
     protected void configureServlets() {
+        // First: only the REST surface DallyControl uses is reachable without a session (see RestSurfaceFilter).
+        this.filter("/rest/*").through(com.hmdm.rest.filter.RestSurfaceFilter.class);
+        this.filter("/api/*").through(com.hmdm.rest.filter.RestSurfaceFilter.class);
         this.filter("/rest/*").through(ApiOriginFilter.class);
         // Deprecated and shouldn't be used
         this.filter("/api/*").through(ApiOriginFilter.class);

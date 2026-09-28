@@ -86,9 +86,13 @@ fi
 rm -f "$CONF_DIR"/.ROOT.xml.dallycontrol-tmp.??????
 _root_xml_tmp=$(mktemp "$CONF_DIR/.ROOT.xml.dallycontrol-tmp.XXXXXX")
 trap 'rm -f "$_root_xml_tmp"' EXIT
+# Secure session cookie whenever the public URL is https (Tomcat only sees plain HTTP behind the edge).
+case "$BASE_URL" in https://*) SESSION_COOKIE_SECURE=true ;; *) SESSION_COOKIE_SECURE=false ;; esac
 cat > "$_root_xml_tmp" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <Context>
+    <CookieProcessor className="org.apache.tomcat.util.http.Rfc6265CookieProcessor" sameSiteCookies="lax"/>
+    <Parameter name="session.cookie.secure" value="${SESSION_COOKIE_SECURE}"/>
     <Parameter name="JDBC.driver"   value="org.postgresql.Driver"/>
     <Parameter name="JDBC.url"      value="jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}"/>
     <Parameter name="JDBC.username" value="${DB_USER}"/>

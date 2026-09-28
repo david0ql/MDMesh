@@ -760,31 +760,8 @@ public class FilesResource {
         }
     }
 
-    // =================================================================================================================
-    @ApiOperation(
-            value = "Download a file",
-            notes = "Downloads the content of the file",
-            responseHeaders = {@ResponseHeader(name = "Content-Disposition")}
-    )
-    @GET
-    @Path("/{filePath}")
-    @Produces(MediaType.APPLICATION_OCTET_STREAM)
-    public javax.ws.rs.core.Response downloadFile(@PathParam("filePath") @ApiParam("A path to a file") String filePath) throws Exception {
-        File file = new File(filePath + "/" + URLDecoder.decode(filePath, "UTF8"));
-        if (!file.exists()) {
-            return javax.ws.rs.core.Response.status(404).build();
-        } else {
-            ContentDisposition contentDisposition = ContentDisposition.type("attachment").fileName(file.getName()).creationDate(new Date()).build();
-            return javax.ws.rs.core.Response.ok( ( StreamingOutput ) output -> {
-                try {
-                    InputStream input = new FileInputStream( file );
-                    IOUtils.copy(input, output);
-                    output.flush();
-                } catch ( Exception e ) { e.printStackTrace(); }
-            } ).header( "Content-Disposition", contentDisposition ).build();
-
-        }
-    }
+    // (DallyControl: the unauthenticated-path "Download a file" endpoint was removed — it built a file path straight
+    // from the request with no containment check and nothing used it. Files are served by DownloadFilesServlet.)
 
     private List<FileView> generateFilesList(String value) {
         List<FileView> files = SecurityContext.get().getCurrentUser().map(u -> {

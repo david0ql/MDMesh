@@ -107,7 +107,15 @@ public class DownloadFilesServlet extends HttpServlet {
         }
 
         File file = new File(String.format("%s/%s", this.filesDirectory, path));
-        if (file.exists()) {
+        // Containment (defence in depth — Tomcat and Caddy also normalise the URI): never serve a file whose canonical
+        // path is outside the files directory.
+        String base = this.baseDirectory.getCanonicalPath() + File.separator;
+        if (!file.getCanonicalPath().startsWith(base)) {
+            log.warn("Blocked file request outside the files directory: {}", path);
+            resp.sendError(404);
+            return;
+        }
+        if (file.exists() && file.isFile()) {
 
             long modifiedSince = req.getDateHeader("If-Modified-Since");
             if (modifiedSince != -1 && modifiedSince > file.lastModified()) {

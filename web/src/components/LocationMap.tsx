@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LocationFix } from '../api/deviceLocations';
+import { escapeHtml } from '../ui/html';
 
 /**
  * Leaflet + OpenStreetMap breadcrumb map. [fixes] are newest-first (as the API returns them);
@@ -45,9 +46,10 @@ export function LocationMap({ fixes }: { fixes: LocationFix[] }) {
         weight: latest ? 2 : 1,
       })
         .bindPopup(
-          `${new Date(f.capturedAt).toLocaleString()}` +
-            (f.accuracy != null ? ` · ±${Math.round(f.accuracy)} m` : '') +
-            (f.provider ? ` · ${f.provider}` : ''),
+          // Leaflet renders popup strings as HTML and the provider comes from the device: escape everything.
+          escapeHtml(new Date(f.capturedAt).toLocaleString()) +
+            (f.accuracy != null ? ` · ±${escapeHtml(Math.round(Number(f.accuracy)))} m` : '') +
+            (f.provider ? ` · ${escapeHtml(f.provider)}` : ''),
         )
         .addTo(layer);
     });

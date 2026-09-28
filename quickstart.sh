@@ -77,12 +77,14 @@ if [ "$MODE" = "1" ]; then
   read -rp "Public hostname devices will use (e.g. mdm.example.com): " HOST
   read -rp "Cloudflare Tunnel token (Zero Trust → Tunnels → your tunnel): " TUNNEL_TOKEN
   BASE_URL="https://${HOST}"; SITE_ADDRESS=":80"; ACME_EMAIL=""
+  CF_IP_HEADER_STRIP="X-DallyControl-Unused"   # cloudflared sets CF-Connecting-IP: keep it
   COMPOSE_FILE="docker-compose.yml"; COMPOSE_PROFILES="cloudflare"
   EXTRA_NOTE="In Cloudflare, route the tunnel's public hostname ($HOST) to http://caddy:80."
 else
   read -rp "Your domain (DNS already pointing here, e.g. mdm.example.com): " HOST
   read -rp "Email for Let's Encrypt: " ACME_EMAIL
   BASE_URL="https://${HOST}"; SITE_ADDRESS="${HOST}"; TUNNEL_TOKEN=""
+  CF_IP_HEADER_STRIP="CF-Connecting-IP"        # no Cloudflare in front: a client-sent value is a spoof, drop it
   COMPOSE_FILE="docker-compose.yml:docker-compose.domain.yml"; COMPOSE_PROFILES=""
   EXTRA_NOTE="Make sure ${HOST} resolves to this server and ports 80/443 are open."
 fi
@@ -103,6 +105,7 @@ curl -fsSL "${RAW}/install/lib/db.sh"             -o install/lib/db.sh
 # shellcheck source=install/lib/db.sh
 . ./install/lib/db.sh
 
+( umask 077; : > .env )   # created owner-only before any secret is written into it
 cat > .env <<EOF
 DB_NAME=dallycontrol
 DB_USER=dallycontrol
@@ -111,6 +114,7 @@ BASE_URL=${BASE_URL}
 HASH_SECRET=${HASH_SECRET}
 SECURE_ENROLLMENT=0
 SITE_ADDRESS=${SITE_ADDRESS}
+CF_IP_HEADER_STRIP=${CF_IP_HEADER_STRIP}
 ACME_EMAIL=${ACME_EMAIL}
 TUNNEL_TOKEN=${TUNNEL_TOKEN}
 IMAGE_OWNER=${IMAGE_OWNER}

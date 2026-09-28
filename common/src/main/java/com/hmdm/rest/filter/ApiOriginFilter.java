@@ -45,10 +45,8 @@ public class ApiOriginFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        HttpServletResponse res = (HttpServletResponse) response;
-        res.addHeader("Access-Control-Allow-Origin", "*");
-        res.addHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT");
-        res.addHeader("Access-Control-Allow-Headers", "Content-Type, api_key, Authorization");
+        // DallyControl: no CORS. The console is served from the API's own origin and the agent is not a browser, so
+        // a wildcard Access-Control-Allow-Origin only widened what other sites could call. Same-origin by default.
         chain.doFilter(request, response);
     }
 

@@ -156,7 +156,8 @@ echo "== desired-state: kiosk (mainAppId is an application VERSION id) =="
 # applications.id and applicationVersions.id differ, so matching by the wrong id fails here.
 KCFG_SRC=$(curl -s -b "$CJ" "$BASE/rest/private/configurations/$CFG_ID")
 KAPPS=$(curl -s -b "$CJ" "$BASE/rest/private/configurations/applications/$CFG_ID")
-KPICK=$(echo "$KAPPS" | field "' '.join(str(x) for x in next((a['id'],a['usedVersionId'],a['pkg']) for a in d['data'] if a.get('selected') and a.get('action')==1 and a.get('usedVersionId') and a.get('pkg') and a['id']!=a['usedVersionId']))")
+KPICK=$(echo "$KAPPS" | field "' '.join(str(x) for x in next(((a['id'],a.get('usedVersionId') or a.get('latestVersion'),a['pkg']) for a in sorted(d['data'], key=lambda a: not (a.get('selected') and a.get('action')==1)) if (a.get('usedVersionId') or a.get('latestVersion')) and a.get('pkg') and a['id']!=(a.get('usedVersionId') or a.get('latestVersion'))), ()))")
+if [ -n "$KPICK" ]; then
 read -r KAPP_ID KVID KPKG <<<"$KPICK"
 chk "picked install app has a distinct version id" "$([ -n "$KVID" ] && [ "$KAPP_ID" != "$KVID" ] && echo yes)" "yes"
 KNAME="e2e-kiosk-$(date +%s)-$$"
@@ -191,6 +192,9 @@ chk "restore kioskMode=false" "$(curl -s -b "$CJ" -X PUT -H 'Content-Type: appli
 chk "device restored to its configuration" "$(curl -s -b "$CJ" -X PUT -H 'Content-Type: application/json' -d "{\"ids\":[$KDEV],\"configurationId\":$CFG_ID}" "$BASE/rest/private/devices" | field "d['status']")" "OK"
 chk "kiosk scenario configuration deleted" "$(curl -s -b "$CJ" -X DELETE "$BASE/rest/private/configurations/$KCFG" | field "d['status']")" "OK"
 
+else
+  echo "  SKIP: kiosk desired-state (no app with a hosted version in the library)"
+fi
 echo "== command history (payload-free, 6.6) =="
 HIST=$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0")
 chk "history has completedAt" "$(echo "$HIST" | field "any(c.get('completedAt') for c in d['data'])")" "True"

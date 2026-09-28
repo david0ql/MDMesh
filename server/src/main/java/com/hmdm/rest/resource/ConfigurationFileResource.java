@@ -106,6 +106,12 @@ public class ConfigurationFileResource {
     public Response uploadConfigurationFile(@FormDataParam("file") InputStream uploadedInputStream,
                                             @ApiParam("A configuration file to upload") @FormDataParam("file")
                                                     FormDataContentDisposition fileDetail) {
+        // Configuration files are part of editing a configuration.
+        if (!SecurityContext.get().hasPermission("configurations")) {
+            logger.warn("Permission denied: uploading a configuration file requires 'configurations' (user {})",
+                    SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
         try {
 
             return SecurityContext.get().getCurrentCustomerId().map(customerId -> {
@@ -120,12 +126,20 @@ public class ConfigurationFileResource {
                     // For some reason, the browser sends the file name in ISO_8859_1, so we use a workaround to convert
                     // it to UTF_8 and enable non-ASCII characters
                     // https://stackoverflow.com/questions/50582435/jersey-filename-encoded
-                    String fileName = new String(fileDetail.getFileName().getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
-                    File configFile = new File(customerFilesDirectory, fileName);
+                    String fileName = fileDetail == null || fileDetail.getFileName() == null ? null
+                            : new String(fileDetail.getFileName().getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
+                    // The name must stay a plain file name inside the customer's directory (no "..", no separators).
+                    File configFile = FileUtil.resolveInside(customerFilesDirectory, fileName);
+                    if (configFile == null) {
+                        logger.warn("Rejected configuration file upload with an unsafe name: {}", fileName);
+                        return Response.ERROR("error.file.name.invalid");
+                    }
 
+                    // Never overwrite: this directory also hosts the APKs the devices install, so an overwrite would
+                    // swap an app under every device that installs it.
                     if (configFile.exists()) {
-                        logger.warn("The file already exists and will be overwritten: {}", configFile.getAbsolutePath());
-//                        return Response.FILE_EXISTS();
+                        logger.warn("Refused to overwrite an existing file: {}", configFile.getAbsolutePath());
+                        return Response.FILE_EXISTS();
                     }
 
                     FileOutputStream fos = new FileOutputStream(configFile);
