@@ -77,5 +77,33 @@ to check-ins reusing NAT-dropped pooled connections and fixed (commit `ddabb1c`)
 Re-validation with the final agent (`ddabb1c`, clean emulators): API 23 43/43, API 25 46/46, API 30 50/50,
 API 35 50/50, API 37.2 50/50.
 
+## Remote view/control (ADR 0010)
+
+`scripts/remote-e2e.mjs` runs against a device enrolled with `scripts/adb-enroll.sh --remote`: it starts a session
+with `scripts/remote-session.sh`, opens the stack's noVNC viewer (`/remote/vnc/vnc.html`) in Chromium signed in to
+the console, and checks that the viewer connects, renders the screen, that a key pressed in the viewer controls the
+device (Settings is opened over adb, Home in the viewer must bring the launcher back), and that `remote.vnc.stop`
+ends the session. `REMOTE_E2E=1 VNC_APK=… scripts/emulator-matrix.sh …` runs it on clean emulators.
+
+| Android | API | Remote e2e (fresh enrollment) |
+|---|---|---|
+| 7.0 | 24 | 5/5 |
+| 7.1 | 25 | 5/5 |
+| 8.0 | 26 | 5/5 on an emulator that has been up a while; right after a fresh enrollment the stock 8.0 image's System UI crashes (NavigationBarFragment NPE on keyguard-occluded), so it cannot answer the capture request — an emulator image bug |
+| 8.1 | 27 | 5/5 |
+| 9 | 28 | 5/5 |
+| 10 | 29 | 5/5 |
+| 11 | 30 | 5/5 |
+| 12 | 31 | 5/5 |
+| 12L | 32 | 5/5 |
+| 13 | 33 | 5/5 |
+| 14 | 34 | 5/5 |
+| 15 | 35 | 5/5 |
+| 16 | 36 | 5/5 |
+| 17 | 37 | 5/5 |
+| 17 QPR2 | 37.2 | 5/5 |
+
+Android 6 has no remote view (droidVNC-NG needs Android 7).
+
 The native installer was verified separately on a root-only Debian 12 container (no sudo, no systemd):
 it installs, migrates, seeds, and the Agent v1 suite passes 56/56 against it.
