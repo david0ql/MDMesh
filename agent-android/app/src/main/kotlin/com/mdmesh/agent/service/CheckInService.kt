@@ -142,6 +142,13 @@ class CheckInService : LifecycleService() {
                 startFastSync()
             }
             else -> runCatching { coordinator.runOnce() }
+                .recoverCatching {
+                    // One retry on a network error: the failed connection has left the pool, so this goes
+                    // out on a fresh one. Without it a single dead pooled socket cost the whole wake.
+                    if (it !is java.io.IOException) throw it
+                    delay(WAKE_RETRY_DELAY_MS)
+                    coordinator.runOnce()
+                }
                 .onFailure { Log.w(TAG, "wake check-in failed", it) }
         }
         reevaluateSocket() // a device.powerMode command may have just changed the mode
@@ -217,6 +224,7 @@ class CheckInService : LifecycleService() {
     }
 
     companion object {
+        private const val WAKE_RETRY_DELAY_MS = 2_000L
         private const val TAG = "CheckInService"
         private const val CHANNEL_ID = "mdm_checkin"
         private const val NOTIFICATION_ID = 1001
