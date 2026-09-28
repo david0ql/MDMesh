@@ -57,7 +57,7 @@ class DroidVncController @Inject constructor(
             tier = if (control) RemoteControlTier.CONTROL else RemoteControlTier.VIEW,
             screenCapture = true,
             inputInjection = control,
-            transport = listOf(TRANSPORT),
+            transport = listOf(TRANSPORT, TRANSPORT_WSS),
         )
     }
 
@@ -196,6 +196,8 @@ class DroidVncController @Inject constructor(
         const val PACKAGE = "net.christianbeier.droidvnc_ng"
         const val INPUT_SERVICE = "$PACKAGE/$PACKAGE.InputService"
         const val TRANSPORT = "vnc-repeater"
+        /** The repeater connection tunnelled over the server's HTTPS origin ([com.mdmesh.core.remote.RepeaterTunnel]). */
+        const val TRANSPORT_WSS = "vnc-repeater-wss"
         const val DEFAULT_REPEATER_PORT = 5500
         private const val ACTION_START = "$PACKAGE.ACTION_START"
         private const val ACTION_STOP = "$PACKAGE.ACTION_STOP"

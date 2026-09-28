@@ -78,6 +78,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import javax.inject.Singleton
+import com.mdmesh.core.remote.RepeaterTunnel
+import com.mdmesh.core.store.DeviceIdentity
 
 /**
  * Assembles the device-specific capability graph and binds it to the `:core`
@@ -343,12 +345,17 @@ object AgentModule {
 
     @Provides
     @IntoSet
-    fun provideRemoteVncStartHandler(vnc: DroidVncController, serverConfig: ServerConfigStore): CommandHandler =
-        RemoteVncStartHandler(vnc, serverConfig)
+    fun provideRemoteVncStartHandler(
+        vnc: DroidVncController,
+        serverConfig: ServerConfigStore,
+        tunnel: RepeaterTunnel,
+        identity: DeviceIdentity,
+    ): CommandHandler = RemoteVncStartHandler(vnc, serverConfig, tunnel, identity)
 
     @Provides
     @IntoSet
-    fun provideRemoteVncStopHandler(vnc: DroidVncController): CommandHandler = RemoteVncStopHandler(vnc)
+    fun provideRemoteVncStopHandler(vnc: DroidVncController, tunnel: RepeaterTunnel): CommandHandler =
+        RemoteVncStopHandler(vnc, tunnel)
 
     // --- Desired-state configuration (config.apply) ---
 

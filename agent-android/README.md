@@ -44,7 +44,9 @@ to the same server without special-casing. Unknown command types degrade to
 - **No accessibility declaration at all.** Remote view/control runs through droidVNC-NG, a separate
   open-source app the agent deploys and drives (`app/.../remote/DroidVncController.kt`, commands
   `remote.vnc.start` / `remote.vnc.stop`, [ADR 0010](../docs/adr/0010-remote-control-droidvnc.md)); its input
-  service belongs to that app, not to the agent.
+  service belongs to that app, not to the agent. droidVNC-NG dials a loopback port and the agent's
+  `core/.../remote/RepeaterTunnel.kt` carries the session to the server inside a WebSocket over its HTTPS origin,
+  so the screen never crosses the network in clear.
 - No phone-state / device-identifier permissions — identity is server-issued.
 
 ## Build
