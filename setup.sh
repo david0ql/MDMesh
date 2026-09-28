@@ -266,7 +266,8 @@ d=json.load(sys.stdin)
 def asset(n): return next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]==n),"")
 print({"apk":asset("dallycontrol-agent.apk"),"manifest":asset("manifest.json")}.get(sys.argv[1],""))' "$1" 2>/dev/null; }
   REL=$(gh_curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null || true)
-  APK_URL=$(printf '%s' "$REL" | jget apk); MAN_URL=$(printf '%s' "$REL" | jget manifest)
+  # No release yet (404) → empty JSON → jget fails: under set -e that must not end the run (the path below is the fallback).
+  APK_URL=$(printf '%s' "$REL" | jget apk || true); MAN_URL=$(printf '%s' "$REL" | jget manifest || true)
   if [ -n "$APK_URL" ] && [ -n "$MAN_URL" ]; then
     MAN=$(gh_curl -fsSL "$MAN_URL" 2>/dev/null || true)
     AGENT_CK=$(printf '%s' "$MAN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["components"]["apk"]["signatureChecksum"])' 2>/dev/null || true)
