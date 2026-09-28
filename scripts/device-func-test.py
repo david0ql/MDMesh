@@ -392,8 +392,17 @@ def t_wipe():
     print("== wipe (factory reset)")
     s, d = run("device.wipe", None, "device.wipe", timeout=60)
     check("wipe: command accepted", s in ("done", "delivered", "timeout"), f"{s} {d}")
-    gone = until(lambda: "com.mdmesh" not in sh("pm list packages com.mdmesh"), timeout=400, step=5)
-    check("wipe: device reset (agent gone)", gone)
+    # Emulator images have no /misc partition, so RecoverySystem cannot reboot into the wipe there; the
+    # platform still logs the wipe command it received from our admin (uncrypt). Real devices reset.
+    def wiped_or_ordered():
+        if "com.mdmesh" not in sh("pm list packages com.mdmesh"):
+            return "reset"
+        log = adb("logcat", "-d")
+        if "--wipe_data" in log and "wipeDataWithReason() from com.mdmesh.agent" in log:
+            return "ordered"
+        return None
+    outcome = until(wiped_or_ordered, timeout=400, step=5)
+    check(f"wipe: factory reset performed or handed to recovery by the platform ({outcome})", outcome is not None)
 
 
 def main():
