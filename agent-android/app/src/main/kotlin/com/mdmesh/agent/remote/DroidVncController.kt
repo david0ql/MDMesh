@@ -209,7 +209,7 @@ class DroidVncController @Inject constructor(
         private const val EXTRA_REPEATER_ID = "$PACKAGE.EXTRA_REPEATER_ID"
         private const val EXTRA_RECONNECT_TRIES = "$PACKAGE.EXTRA_RECONNECT_TRIES"
         private const val RECONNECT_TRIES = 3
-        private const val START_TIMEOUT_MS = 30_000L
+        private const val START_TIMEOUT_MS = 90_000L // a first start after install compiles + loads native code
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val CONNECT_TIMEOUT_MS = 20_000L
         private const val EXTRA_REQUEST_SUCCESS = "$PACKAGE.EXTRA_REQUEST_SUCCESS"
