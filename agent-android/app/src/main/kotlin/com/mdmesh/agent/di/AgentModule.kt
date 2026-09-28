@@ -139,8 +139,15 @@ object AgentModule {
             // Silent install needs Device Owner — advertise app.silentInstall only when we have it, so
             // the server's capability gate won't queue an app.install we can't perform.
             deviceOwnerAppManagementKeys = AppManagement.DEVICE_OWNER_KEYS,
-            deviceActionKeys = DeviceAction.ADVERTISED_KEYS,
+            deviceActionKeys = DeviceAction.ADVERTISED_KEYS.filter(::deviceActionSupported),
         )
+    }
+
+    /** Device actions whose platform API exists on this release (DevicePolicyManager.reboot and
+     *  setDeviceOwnerLockScreenInfo are API 24+), so the console never offers what can't run. */
+    private fun deviceActionSupported(key: String): Boolean = when (key) {
+        "reboot", "lockscreenMessage" -> android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N
+        else -> true
     }
 
     /** Expose the collector behind its interface for the Android-free sync/enroll logic. */

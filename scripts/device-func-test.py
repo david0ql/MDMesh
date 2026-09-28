@@ -21,6 +21,7 @@ P.add_argument("--pkg", default="com.mdmesh.agent.debug")
 P.add_argument("--only", default="")
 P.add_argument("--destructive", action="store_true")
 P.add_argument("--adb", default="adb")
+P.add_argument("--pg-container", default="mdmesh-dev-postgres-1")
 A = P.parse_args()
 
 CJ = http.cookiejar.CookieJar()
@@ -128,6 +129,26 @@ def lockscreen_info_has(msg):
     return "locksettings.db" in sh(f"grep -l '{msg}' /data/system/locksettings.db")
 
 
+_CAPS = {}
+
+
+def advertised(cap):
+    """True when the device advertises capability token `cap` (policy.x / device.x / app.x). Read from the
+    dev stack's database (the admin API does not expose it). Not advertised = the server withholds the command."""
+    if not _CAPS:
+        out = subprocess.run(["docker", "exec", A.pg_container, "psql", "-U", "mdmesh", "-tAc",
+                              f"select agentCapabilities from devices where number='{A.device_id}'"],
+                             capture_output=True, text=True).stdout.strip()
+        c = json.loads(out or "{}")
+        toks = {f"policy.{k}" for k in c.get("policy", [])} | {f"app.{k}" for k in c.get("appManagement", [])} \
+            | {f"device.{k}" for k in c.get("device", [])}
+        _CAPS["t"] = toks
+    ok = cap in _CAPS["t"]
+    if not ok:
+        print(f"  SKIP  {cap} (not advertised on this release)", flush=True)
+    return ok
+
+
 def want(key):
     return not A.only or key in A.only.split(",")
 
@@ -142,36 +163,45 @@ def login():
 # ------------------------------------------------------------------------------------------------
 def t_policies():
     print("== policies")
-    s, d = run("policy.apply", {"policy": "camera", "value": False}, "policy.camera")
-    check("camera disable: done", s == "done", f"{s} {d}")
-    check("camera disable: DPM reports camera disabled", until(camera_disabled))
-    s, d = run("policy.apply", {"policy": "camera", "value": True}, "policy.camera")
-    check("camera enable: done", s == "done", f"{s} {d}")
-    check("camera enable: DPM no longer disables camera", until(lambda: not camera_disabled()))
-    s, d = run("policy.apply", {"policy": "screenshots", "value": False}, "policy.screenshots")
-    check("screenshots disable: done", s == "done", f"{s} {d}")
-    check("screenshots disable: DPM", until(screen_capture_disabled))
-    s, d = run("policy.apply", {"policy": "screenshots", "value": True}, "policy.screenshots")
-    check("screenshots enable: done", s == "done", f"{s} {d}")
-    s, d = run("policy.apply", {"policy": "wifi", "value": False}, "policy.wifi")
-    check("wifi policy off: done", s == "done", f"{s} {d}")
-    s, d = run("policy.apply", {"policy": "wifi", "value": True}, "policy.wifi")
-    check("wifi policy on: done", s == "done", f"{s} {d}")
-    for pol in ("bluetooth", "usbStorage"):
+    if advertised("policy.camera"):
+        t_camera()
+    if advertised("policy.screenshots"):
+        t_screenshots()
+    for pol in ("wifi", "bluetooth", "usbStorage"):
+        if not advertised(f"policy.{pol}"):
+            continue
         s, d = run("policy.apply", {"policy": pol, "value": False}, f"policy.{pol}")
         check(f"{pol} restrict: done", s == "done", f"{s} {d}")
         s, d = run("policy.apply", {"policy": pol, "value": True}, f"policy.{pol}")
         check(f"{pol} allow: done", s == "done", f"{s} {d}")
 
 
+def t_camera():
+    s, d = run("policy.apply", {"policy": "camera", "value": False}, "policy.camera")
+    check("camera disable: done", s == "done", f"{s} {d}")
+    check("camera disable: DPM reports camera disabled", until(camera_disabled))
+    s, d = run("policy.apply", {"policy": "camera", "value": True}, "policy.camera")
+    check("camera enable: done", s == "done", f"{s} {d}")
+    check("camera enable: DPM no longer disables camera", until(lambda: not camera_disabled()))
+
+
+def t_screenshots():
+    s, d = run("policy.apply", {"policy": "screenshots", "value": False}, "policy.screenshots")
+    check("screenshots disable: done", s == "done", f"{s} {d}")
+    check("screenshots disable: DPM", until(screen_capture_disabled))
+    s, d = run("policy.apply", {"policy": "screenshots", "value": True}, "policy.screenshots")
+    check("screenshots enable: done", s == "done", f"{s} {d}")
+
+
 def t_messages():
     print("== lockscreen message / alert / ring")
     msg = "MDMesh test %d" % int(time.time())
-    s, d = run("device.lockscreenMessage", {"message": msg}, "device.lockscreenMessage")
-    check("lockscreen message: done", s == "done", f"{s} {d}")
-    check("lockscreen message: stored by the system", until(lambda: lockscreen_info_has(msg)))
-    s, d = run("device.lockscreenMessage", {"message": ""}, "device.lockscreenMessage")
-    check("lockscreen message clear: done", s == "done", f"{s} {d}")
+    if advertised("device.lockscreenMessage"):
+        s, d = run("device.lockscreenMessage", {"message": msg}, "device.lockscreenMessage")
+        check("lockscreen message: done", s == "done", f"{s} {d}")
+        check("lockscreen message: stored by the system", until(lambda: lockscreen_info_has(msg)))
+        s, d = run("device.lockscreenMessage", {"message": ""}, "device.lockscreenMessage")
+        check("lockscreen message clear: done", s == "done", f"{s} {d}")
     title = "Alerta %d" % int(time.time())
     s, d = run("device.alert", {"title": title, "body": "cuerpo de prueba"}, "device.alert")
     check("alert: done", s == "done", f"{s} {d}")
@@ -278,6 +308,8 @@ def t_apps():
 
 def t_reboot():
     print("== reboot")
+    if not advertised("device.reboot"):
+        return
     boot_before = sh("cat /proc/sys/kernel/random/boot_id").strip()
     s, d = run("device.reboot", None, "device.reboot")
     check("reboot: queued/done", s in ("done", "timeout", "delivered"), f"{s} {d}")

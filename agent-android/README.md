@@ -5,7 +5,7 @@ Modern Kotlin: coroutines/Flow, Hilt, Room, DataStore, WorkManager,
 kotlinx.serialization + Retrofit.
 
 - `applicationId` / base namespace: `com.mdmesh.agent`
-- `minSdk 24`, `targetSdk 35`, `compileSdk 35`
+- `minSdk 23` (Android 6), `targetSdk 35`, `compileSdk 35`
 - Identity is a **server-issued device id** (DataStore). The agent never uses
   IMEI/IMSI/serial as identity (restricted post-Android 10).
 
@@ -81,6 +81,18 @@ adb shell dpm set-device-owner com.mdmesh.agent.debug/com.mdmesh.agent.admin.Adm
 # 3. Confirm.
 adb shell dumpsys device_policy | grep -i "Device Owner"
 ```
+
+Then give it the server and an enroll token (what the QR bundle does in production), or run
+`scripts/adb-enroll.sh`, which does all three steps:
+
+```bash
+adb shell am broadcast -a com.mdmesh.agent.ADB_PROVISION \
+  -n com.mdmesh.agent.debug/com.mdmesh.agent.provisioning.AdbProvisionReceiver \
+  --es server_url http://10.0.2.2:8088 --es enroll_token <token>
+```
+
+Debug builds may use plain HTTP to `10.0.2.2` / `localhost` (the emulator's host and `adb reverse`), so an
+emulator reaches the loopback dev stack directly; release builds need HTTPS.
 
 If `set-device-owner` fails with "Not allowed to set the device owner because
 there are already some accounts" — remove all accounts, or factory reset.

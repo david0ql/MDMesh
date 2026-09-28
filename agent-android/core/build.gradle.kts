@@ -11,7 +11,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        minSdk = 24
+        minSdk = 23
         consumerProguardFiles("consumer-rules.pro")
 
         // Network base URL. Overridable at build time WITHOUT editing this file (so the

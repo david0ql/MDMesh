@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.mdmesh.agent"
-        minSdk = 24
+        minSdk = 23
         targetSdk = 35
         // Release CI overrides these from the git tag (see release/version.sh); the defaults are the
         // dev/debug values. versionCode must stay monotonic across the scheme switch (115 > 16).

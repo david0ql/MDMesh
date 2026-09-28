@@ -144,6 +144,24 @@ enrollment QR (`com.mdmesh.SERVER_URL`), not baked into the APK. Host the APK on
 generate the QR from the console's **Enroll** page; it embeds your `BASE_URL`, the APK location, and
 a single-use token.
 
+### Over USB (ADB) — when QR provisioning is blocked
+
+On devices with Google Play services, Play Protect blocks QR / zero-touch / Knox provisioning of any
+device-policy app that is not on Google's DPC allowlist, which includes a self-signed MDMesh agent. USB
+enrollment is not subject to that check. On a factory-reset device with USB debugging enabled and **no
+accounts** added:
+
+```bash
+scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --admin-user admin
+# or with a token minted on the Enroll page:  --token <token>
+# bind it to a configuration:                 --configuration-id <id>
+```
+
+The script installs the APK, makes it Device Owner (`dpm set-device-owner`), then hands it the server URL
+and the single-use token through `AdbProvisionReceiver` (only the shell can send that broadcast). The agent
+applies the same Device-Owner baseline as QR provisioning and enrolls within seconds. `--serial` picks a
+device when several are attached; run it once per device (a USB hub and a loop do a whole batch).
+
 ## Updates & recovery
 
 A decoupled **supervisor** service polls your GitHub releases, verifies the minisign-signed manifest,
