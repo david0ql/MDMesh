@@ -32,7 +32,10 @@ class LocationCollector @Inject constructor(
     fun collect(): LocationDto? {
         if (!hasPermission()) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-        val loc = if (modeStore.isActive()) (currentFix(lm) ?: lastKnown(lm)) else lastKnown(lm)
+        val active = modeStore.isActive()
+        val fresh = if (active) currentFix(lm) else null
+        val loc = fresh ?: lastKnown(lm)
+        android.util.Log.d(TAG, "collect active=$active fresh=${fresh != null} loc=${loc?.time}")
         return loc?.let {
             LocationDto(
                 lat = it.latitude,
@@ -116,5 +119,8 @@ class LocationCollector @Inject constructor(
         }
     }.getOrNull()
 
-    private companion object { const val FIX_TIMEOUT_SEC = 5L }
+    private companion object {
+        const val FIX_TIMEOUT_SEC = 5L
+        const val TAG = "LocationCollector"
+    }
 }

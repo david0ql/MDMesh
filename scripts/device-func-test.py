@@ -344,6 +344,11 @@ def t_wipe():
 def main():
     login()
     print(f"device {A.device_id} on {A.serial} (API {sdk()})")
+    # The API 30+ emulator GNSS stamps every injected fix with the same elapsed-realtime, so the framework
+    # keeps only the FIRST fix it sees after boot. Make that one Bogota, before any step turns on active mode.
+    for _ in range(3):
+        adb("emu", "geo", "fix", "-74.0721", "4.7110")
+        time.sleep(1)
     tests = [("policies", t_policies), ("messages", t_messages), ("lock", t_lock), ("modes", t_modes),
              ("kiosk", t_kiosk), ("passcode", t_passcode), ("apps", t_apps), ("location", t_location)]
     if A.destructive:
