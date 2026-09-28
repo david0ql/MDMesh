@@ -199,7 +199,8 @@ scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --
 ```
 
 Start a session from the console: device page → **Remote** → **View & control** (or **View only**). The screen
-opens inside the console; **Open in new tab**, **Full screen** and **End session** are next to it. From a terminal,
+opens inside the console with Android's soft keys under it (◁ Back, ○ Home, □ Recents; Power, Volume and Rotate
+on the left); **Open in new tab**, **Full screen** and **End session** are next to it. From a terminal,
 `scripts/remote-session.sh --api https://mdm.example.com --device <device id>` (`--view-only`, `--stop`) prints the
 same viewer link.
 

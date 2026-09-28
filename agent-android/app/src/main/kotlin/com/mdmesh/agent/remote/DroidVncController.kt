@@ -221,13 +221,24 @@ class DroidVncController @Inject constructor(
     }
 }
 
-/** droidVNC-NG's managed restrictions: our access key, never listening, no start-on-boot. */
+/**
+ * droidVNC-NG's managed restrictions: our access key, never listening, no start-on-boot, and the key chords
+ * for the system actions pinned to droidVNC-NG's defaults. The console's navigation bar (Back, Home, Recents,
+ * Power, Volume, Rotate) sends exactly these, so a chord changed on the device must not break it.
+ */
 private fun restrictions(accessKey: String) = Bundle().apply {
     putString("accessKey", accessKey)
     putBoolean("startOnBoot", false)
     putInt("port", -1)
     putBoolean("showPointers", true)
     putBoolean("fileTransfer", false)
+    putString("chordBack", "Escape")
+    putString("chordHome", "Home")
+    putString("chordRecents", "Control_L+Shift_L+Escape")
+    putString("chordPower", "End")
+    putString("chordVolumeUp", "Control_L+Alt_L+Page_Up")
+    putString("chordVolumeDown", "Control_L+Alt_L+Page_Down")
+    putString("chordRotate", "Control_L+Alt_L+Delete")
 }
 
 private fun canWriteSecureSettings(context: Context): Boolean =

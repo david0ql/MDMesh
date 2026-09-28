@@ -78,7 +78,9 @@ try {
     // A fresh enrollment is in battery-saver: the tab must say so and "Set Always-on" must switch the device.
     const saver = page.getByRole('button', { name: 'Set Always-on' });
     const warned = await saver.isVisible().catch(() => false);
-    check('battery-saver device: the tab offers "Set Always-on"', warned);
+    const mode0 = (await fetchJson(page, `${api}/rest/private/agent/v1/devices/${device}/remote`)).data?.powerMode;
+    if (mode0 !== 'alwaysOn') check('battery-saver device: the tab offers "Set Always-on"', warned);
+    else console.log('  SKIP  "Set Always-on" (device already always-on)');
     if (warned) {
       await saver.click();
       let mode = '';
@@ -123,6 +125,18 @@ try {
     before.includes('settings') && !after.includes('settings'), `${before} -> ${after}`);
 
   if (viaConsole) {
+    // The Nexus-style soft keys under the viewer: each must take the device out of Settings.
+    for (const name of ['Back', 'Home', 'Recent apps']) {
+      adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+      await page.waitForTimeout(2500);
+      const was = top();
+      await page.locator('.rp-nav').getByRole('button', { name }).click();
+      let now = was;
+      for (let i = 0; i < 10 && now === was; i++) { await page.waitForTimeout(1000); now = top(); }
+      check(`soft key "${name}" reaches the device (Settings -> ${now.split('.').pop()})`,
+        was.includes('settings') && !now.includes('settings'), `${was} -> ${now}`);
+    }
+    await page.locator('.rp-nav').getByRole('button', { name: 'Home' }).click();
     await page.getByRole('button', { name: 'End session' }).click();
     // The inline viewer is removed at once; the device must also drop its repeater connection.
     const gone = await page.locator('.rp-viewer').waitFor({ state: 'detached', timeout: 10000 }).then(() => true, () => false);

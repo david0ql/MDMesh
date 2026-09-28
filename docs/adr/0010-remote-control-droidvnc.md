@@ -41,7 +41,9 @@ Use existing open-source components instead of writing a remote-control stack:
   device's capabilities and queues the command. The console waits for the device's `done`, then shows the viewer
   inline (`/remote/vnc/vnc.html#path=remote/vnc/websockify&repeaterID=<id>&password=<pw>&autoconnect=true`; the
   parameters ride in the URL fragment so the password never reaches access logs), with open-in-new-tab,
-  full-screen and end-session controls. `GET .../devices/{id}/remote` reports tier, transports, encryption and
+  full-screen and end-session controls, and in control sessions a Nexus-style soft-key bar (Back, Home, Recents,
+  plus Power, Volume and Rotate) that sends droidVNC-NG's action chords through the viewer's connection. The
+  agent pins those chords in droidVNC-NG's managed restrictions so the bar keeps working. `GET .../devices/{id}/remote` reports tier, transports, encryption and
   power mode for the tab.
 - **Unattended grants** a Device Owner cannot give itself are made once at USB enrollment
   (`scripts/adb-enroll.sh --remote --vnc-apk …`): the PROJECT_MEDIA app-op for droidVNC-NG (no capture-consent

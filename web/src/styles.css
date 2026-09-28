@@ -2761,3 +2761,23 @@ a {
 .tabs { overflow-x: auto; scrollbar-width: none; }
 .tabs button { flex: 0 0 auto; }
 .timeline-item .t-detail { min-width: 0; overflow-wrap: anywhere; }
+
+/* Remote viewer: Nexus-style soft keys under the screen */
+.rp .rp-viewer { border-bottom-left-radius:0; border-bottom-right-radius:0; }
+.rp .rp-nav { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px;
+  background:#000; color:#e8e8e8; padding:6px 10px; border:1px solid var(--border); border-top:0;
+  border-radius:0 0 var(--radius) var(--radius); }
+.rp .rp-nav-main { display:flex; gap:clamp(24px, 8vw, 72px); }
+.rp .rp-nav-side { display:flex; gap:4px; }
+.rp .rp-nav-btn { display:inline-flex; align-items:center; justify-content:center; width:48px; height:40px;
+  border:0; border-radius:20px; background:transparent; color:inherit; cursor:pointer; opacity:.85; }
+.rp .rp-nav-btn:hover { background:rgba(255,255,255,.12); opacity:1; }
+.rp .rp-nav-btn:active { background:rgba(255,255,255,.22); }
+.rp .rp-nav-btn:focus-visible { outline:2px solid #fff; outline-offset:-2px; }
+.rp .rp-nav-btn.small { width:36px; height:34px; opacity:.6; }
+.rp .rp-nav-btn.small svg { width:18px; height:18px; }
+@media (max-width: 640px) {
+  .rp .rp-nav { grid-template-columns:1fr; justify-items:center; }
+  .rp .rp-nav-main { order:-1; }
+  .rp .rp-nav-side:last-child { display:none; }
+}

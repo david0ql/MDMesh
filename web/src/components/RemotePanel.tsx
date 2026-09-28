@@ -5,6 +5,7 @@ import {
 } from '../api/remote';
 import { listCommandHistory, queueCommand } from '../api/commands';
 import { useToast } from '../ui/toast';
+import { NavBar } from './NavBar';
 
 type Device = { number: string };
 
@@ -221,6 +222,12 @@ export function RemotePanel({ device }: { device: Device }) {
             src={viewerUrl(phase.session)}
             allow="fullscreen; clipboard-read; clipboard-write"
           />
+          {!phase.session.viewOnly && (
+            <NavBar
+              frame={frame}
+              onUnavailable={() => toast.push('err', 'Viewer not connected', 'Wait until the screen shows, then try again.')}
+            />
+          )}
         </>
       )}
 

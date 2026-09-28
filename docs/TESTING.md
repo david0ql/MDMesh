@@ -85,8 +85,9 @@ the console, and checks that the viewer connects, renders the screen, that a key
 device (Settings is opened over adb, Home in the viewer must bring the launcher back), and that `remote.vnc.stop`
 ends the session. `--console` drives the console instead: device page → **Remote**, the battery-saver warning and
 **Set Always-on** (the device must report always-on and the warning go away), **View & control**, the viewer inline
-in the page, the command detail proving the device used the encrypted tunnel, and **End session** (11 checks; the
-8 session checks when the device is already always-on). `REMOTE_E2E=1 REMOTE_E2E_MODES="script console" VNC_APK=… scripts/emulator-matrix.sh …` runs both on
+in the page, the command detail proving the device used the encrypted tunnel, the soft keys (Back, Home, Recents
+each take the device out of Settings) and **End session** (14 checks; 11 when the device is already always-on).
+The emulator table below predates the soft keys; they were verified on API 34 (11/11, already always-on). `REMOTE_E2E=1 REMOTE_E2E_MODES="script console" VNC_APK=… scripts/emulator-matrix.sh …` runs both on
 clean emulators. `scripts/agent-v1-e2e.sh` covers the server side (status, session start, the tunnel gate's
 204/401/403, the password kept out of the history, Observer denied).
 
