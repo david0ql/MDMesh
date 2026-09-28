@@ -900,9 +900,11 @@ a {
 }
 .detail-rail .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 16px 0 8px;
 }
+.detail-rail .actions button { white-space: nowrap; }
 .detail-rail .pri {
   background: var(--ink);
   color: var(--on-ink);
@@ -2488,8 +2490,10 @@ a {
 }
 @media (max-width: 920px) {
   .dd-cols {
-    grid-template-columns: 1fr;
+    /* minmax(0, …): a plain 1fr never shrinks below its content (the long device id), which overflowed phones. */
+    grid-template-columns: minmax(0, 1fr);
   }
+  .detail-rail h1 { overflow-wrap: anywhere; }
   .detail-grid,
   .dash-grid {
     grid-template-columns: 1fr;
@@ -2739,3 +2743,21 @@ a {
 .rollout-device { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; font-size:13px; }
 .rollout-device:hover { background:var(--panel-2); }
 .rollout-device .muted { color:var(--muted); }
+
+/* Remote control panel (device detail → Remote) */
+.rp .rp-power { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.rp .rp-start { display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 12px; }
+.rp .rp-wait { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--secondary); margin:8px 0 12px; }
+.rp .rp-bar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px; }
+.rp .rp-viewer { display:block; width:100%; height:min(78vh, 900px); border:1px solid var(--border);
+  border-radius:var(--radius); background:#111; }
+@media (max-width: 640px) {
+  .rp .rp-power { flex-direction:column; align-items:flex-start; }
+  .rp .rp-viewer { height:70vh; }
+}
+.rp .rp-note { font-size:12px; align-self:center; }
+
+/* Phones: the device tabs scroll sideways instead of widening the page; long command details wrap. */
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs button { flex: 0 0 auto; }
+.timeline-item .t-detail { min-width: 0; overflow-wrap: anywhere; }

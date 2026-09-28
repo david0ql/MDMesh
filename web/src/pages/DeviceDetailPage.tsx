@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceGlyph } from '../ui/DeviceGlyph';
@@ -10,6 +10,7 @@ import { TelemetryCard } from '../components/TelemetryCard';
 import { EventTimeline } from '../components/EventTimeline';
 import { LocationPanel } from '../components/LocationPanel';
 import { AppsPanel } from '../components/AppsPanel';
+import { RemotePanel } from '../components/RemotePanel';
 import { ConfigStatusCard } from '../components/ConfigStatusCard';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import { getConfigStatus, type ConfigStatus } from '../api/configSync';
@@ -21,7 +22,7 @@ import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 
-type Tab = 'control' | 'apps' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'apps' | 'telemetry' | 'events' | 'location';
 
 interface Row {
   k: string;
@@ -127,6 +128,7 @@ export function DeviceDetailPage() {
   const [ds, setDs] = useState<DeviceState | null>(null);
   const [cfgStatus, setCfgStatus] = useState<ConfigStatus | null>(null);
   const [tab, setTab] = useState<Tab>('control');
+  const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -350,6 +352,17 @@ export function DeviceDetailPage() {
             <button className="pri" disabled={busy} onClick={() => void syncNow()}>
               Sync now
             </button>
+            <button
+              className="sec"
+              disabled={busy}
+              onClick={() => {
+                setTab('remote');
+                // On a phone the tabs sit below the rail: bring the Remote panel into view.
+                requestAnimationFrame(() => workRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+              }}
+            >
+              Remote
+            </button>
             <button className="sec" disabled={busy} onClick={() => void lock()}>
               Lock
             </button>
@@ -374,10 +387,13 @@ export function DeviceDetailPage() {
         </aside>
 
         {/* RIGHT: work */}
-        <section className="panel detail-main">
+        <section className="panel detail-main" ref={workRef}>
           <div className="tabs" role="tablist">
             <button className={tab === 'control' ? 'on' : ''} onClick={() => setTab('control')}>
               Control
+            </button>
+            <button className={tab === 'remote' ? 'on' : ''} onClick={() => setTab('remote')}>
+              Remote
             </button>
             <button className={tab === 'apps' ? 'on' : ''} onClick={() => setTab('apps')}>
               Apps
@@ -395,6 +411,7 @@ export function DeviceDetailPage() {
 
           <div className="tabbody">
             {tab === 'control' && <ActionConsole device={device} />}
+            {tab === 'remote' && <RemotePanel device={device} />}
             {tab === 'apps' && <AppsPanel device={device} />}
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}

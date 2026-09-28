@@ -204,7 +204,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   },
   {
     key: 'power-always', label: 'Connectivity: Always-on', group: 'safe',
-    description: 'Keep the live connection up 24/7 for constant instant connectivity (higher battery use).',
+    description: 'Keep the live connection up 24/7 so commands and remote sessions reach the device instantly, even locked on battery (higher battery use). Use it for devices that need immediate support.',
     request: {
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
       payload: JSON.stringify({ mode: 'alwaysOn' }),
