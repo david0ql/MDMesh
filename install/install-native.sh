@@ -606,7 +606,9 @@ if [ -n "$GITHUB_REPO" ]; then
   jget() { python3 -c 'import sys,json;
 d=json.load(sys.stdin)
 def asset(n): return next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]==n),"")
-print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json"),"signature":asset("manifest.json.minisig")}.get(sys.argv[1],""))' "$1" 2>/dev/null; }
+print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json"),"signature":asset("manifest.json.minisig")}.get(sys.argv[1],""))' "$1" 2>/dev/null || true; }
+  # (|| true: no release, a 404 or a rate limit leaves REL empty; under set -e + pipefail a failing jget aborted the
+  #  whole install instead of falling through to "host the APK manually".)
   REL=$(gh_curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>>"$LOGFILE" || true)
   APK_URL=$(printf '%s' "$REL" | jget apk); MAN_URL=$(printf '%s' "$REL" | jget manifest); SIG_URL=$(printf '%s' "$REL" | jget signature)
   if [ -n "$APK_URL" ] && [ -n "$MAN_URL" ] && [ -n "$SIG_URL" ] && command -v minisign >/dev/null 2>&1; then
