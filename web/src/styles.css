@@ -1006,6 +1006,10 @@ a {
   /* ActionConsole live state — duplicated by the rail Status group */
   display: none;
 }
+/* Tab panels whose header carries their own controls (Apps: Scan now; Location: Refresh). */
+.tabbody > .panel > .panel-head.keep {
+  display: flex;
+}
 
 .seg {
   display: inline-flex;

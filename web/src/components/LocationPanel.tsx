@@ -23,7 +23,7 @@ export function LocationPanel({ device }: { device: { number: string } }) {
 
   return (
     <div className="panel">
-      <div className="panel-head">
+      <div className="panel-head keep">
         <h2 className="panel-title">Location history</h2>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {fixes && (

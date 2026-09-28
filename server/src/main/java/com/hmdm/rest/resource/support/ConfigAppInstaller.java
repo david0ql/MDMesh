@@ -26,9 +26,9 @@ import javax.inject.Singleton;
 import java.util.List;
 
 /**
- * Turns a device's configuration app list into queued {@code app.install} commands — the piece
- * that makes a configuration a "golden image" for the command-driven agent (which never reads the
- * configuration itself). Used at enrollment and by the admin "sync apps" action.
+ * Turns a device's configuration app list into queued {@code app.install} / {@code app.uninstall}
+ * commands — the piece that makes a configuration a "golden image" for the command-driven agent
+ * (which never reads the configuration itself). Used at enrollment and by the admin "sync apps" action.
  */
 @Singleton
 public class ConfigAppInstaller {
@@ -37,6 +37,10 @@ public class ConfigAppInstaller {
 
     /** Action value in configurationApplications meaning "install this app". */
     private static final int ACTION_INSTALL = 1;
+    /** Action value in configurationApplications meaning "remove this app from the device". */
+    private static final int ACTION_REMOVE = 2;
+    /** The agent's own packages (release + debug) — a configuration can never make it uninstall itself. */
+    private static final String AGENT_PACKAGE_PREFIX = "com.mdmesh.agent";
 
     private final UnsecureDAO unsecureDAO;
     private final AgentCommandDAO commandDAO;
@@ -64,6 +68,19 @@ public class ConfigAppInstaller {
                     device.getCustomerId(), device.getConfigurationId());
             long now = System.currentTimeMillis();
             for (Application app : apps) {
+                String uninstallPkg = uninstallTarget(app);
+                if (uninstallPkg != null) {
+                    AgentCommand cmd = new AgentCommand();
+                    cmd.setDeviceNumber(device.getNumber());
+                    cmd.setType("app.uninstall");
+                    cmd.setPayload(uninstallPayload(uninstallPkg));
+                    cmd.setRequiresCapability(RolloutProgress.INSTALL_CAPABILITY);
+                    cmd.setStatus("pending");
+                    cmd.setCreatedAt(now);
+                    commandDAO.insert(cmd);
+                    queued++;
+                    continue;
+                }
                 if (app == null || app.getAction() != ACTION_INSTALL) {
                     continue;
                 }
@@ -91,6 +108,30 @@ public class ConfigAppInstaller {
         }
         return queued;
     }
+
+    /**
+     * The package an action=remove configuration app asks the device to uninstall, or null when the
+     * app is not a removal (or would remove the agent itself). Silent uninstall needs Device Owner,
+     * the same capability gate as install.
+     */
+    static String uninstallTarget(Application app) {
+        if (app == null || app.getAction() != ACTION_REMOVE || app.getPkg() == null) {
+            return null;
+        }
+        String pkg = app.getPkg().trim();
+        if (pkg.isEmpty() || pkg.startsWith(AGENT_PACKAGE_PREFIX)) {
+            return null;
+        }
+        return pkg;
+    }
+
+    /** {@code {"packageName":"..."}}, JSON-escaped. */
+    static String uninstallPayload(String pkg) {
+        return JSON.createObjectNode().put("packageName", pkg).toString();
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
      * Only http(s) URLs are installable by the agent, and the upstream seed ships literal

@@ -32,23 +32,23 @@ class AppInventoryCollector(private val context: Context) {
                 0,
             ).mapNotNull { it.activityInfo?.packageName }.toSet()
         }.getOrDefault(emptySet())
-        // Only launchable apps are useful for kiosk, so skip everything else entirely — we never
-        // label or emit the ~hundreds of non-launchable system packages, which keeps the result
-        // small and the scan fast. getInstalledPackages gives version + ApplicationInfo in one call.
+        // Launchable apps (the kiosk picker's list) plus every user-installed app even without a
+        // launcher icon (services, keyboards, widget/config apps — the console must see them to
+        // uninstall them). The ~hundreds of non-launchable SYSTEM packages are still never labeled
+        // or emitted, which keeps the result small and the scan fast. getInstalledPackages gives
+        // version + ApplicationInfo in one call.
         return pm.getInstalledPackages(0).asSequence()
-            .filter { it.packageName in launchable }
+            .filter { it.packageName in launchable || !isSystem(it.applicationInfo) }
             .mapNotNull { pi ->
                 runCatching {
                     val ai = pi.applicationInfo
-                    val system = ai != null &&
-                        ((ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                            (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
+                    val system = isSystem(ai)
                     val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode else pi.versionCode.toLong()
                     AppInfo(
                         pkg = pi.packageName,
                         label = ai?.let { runCatching { pm.getApplicationLabel(it).toString() }.getOrNull() } ?: pi.packageName,
                         system = system,
-                        launchable = true,
+                        launchable = pi.packageName in launchable,
                         versionName = pi.versionName,
                         versionCode = code,
                     )
@@ -59,6 +59,9 @@ class AppInventoryCollector(private val context: Context) {
     }
 
     /** Render the requested packages' launcher icons as base64 PNGs (missing/failed ones omitted). */
+    private fun isSystem(ai: ApplicationInfo?): Boolean = ai != null &&
+        ((ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0 || (ai.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0)
+
     fun icons(packages: List<String>): List<AppIcon> {
         val pm = context.packageManager
         return packages.distinct().mapNotNull { pkg ->

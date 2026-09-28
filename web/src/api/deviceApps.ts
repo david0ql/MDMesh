@@ -103,3 +103,19 @@ export async function fetchIcons(
   }
   return out;
 }
+
+/**
+ * Silently uninstall a package (Device Owner) and wait for the device's answer. Gated like install on
+ * `app.silentInstall`, so the server never queues it for a device that can't do it.
+ */
+export async function uninstallApp(
+  deviceId: number | string,
+  packageName: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await runForResult(deviceId, {
+    type: 'app.uninstall',
+    requiresCapability: 'app.silentInstall',
+    payload: JSON.stringify({ packageName }),
+  }, 120000, signal);
+}
