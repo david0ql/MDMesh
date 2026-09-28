@@ -116,6 +116,29 @@ services:
       - .:/project
       - backups:/backups
 
+  # Remote control (ADR 0010), opt-in: COMPOSE_PROFILES=remote. Devices dial OUT to the repeater on
+  # REPEATER_PORT (open it on the host firewall); the console reaches it only through websockify behind
+  # Caddy's /remote/vnc (signed-in sessions). Neither service decodes the stream.
+  vnc-repeater:
+    image: ghcr.io/${IMAGE_OWNER:-local}/mdmesh-vnc-repeater:${REPEATER_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/vnc-repeater.Dockerfile
+    restart: unless-stopped
+    profiles: ["remote"]
+    ports:
+      - "${REPEATER_BIND:-0.0.0.0}:${REPEATER_PORT:-5500}:5500"
+
+  websockify:
+    image: ghcr.io/${IMAGE_OWNER:-local}/mdmesh-websockify:${REPEATER_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: docker/websockify.Dockerfile
+    restart: unless-stopped
+    profiles: ["remote"]
+    depends_on:
+      - vnc-repeater
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

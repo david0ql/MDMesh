@@ -33,6 +33,17 @@
 		reverse_proxy server:8080
 	}
 
+	# Remote control (ADR 0010): /remote/vnc/vnc.html is the official noVNC viewer and /remote/vnc/websockify
+	# its WebSocket to the repeater's viewer port, both served by websockify. Only for signed-in console
+	# sessions: forward_auth asks the server (403 without a session). Without the `remote` compose profile
+	# websockify is absent and this answers 502.
+	handle_path /remote/vnc/* {
+		forward_auth server:8080 {
+			uri /rest/private/users/current
+		}
+		reverse_proxy websockify:6080
+	}
+
 	# Updater status + recovery page → the decoupled supervisor (always up, independent of the
 	# server), so "update available" + recovery stay reachable even mid-update.
 	handle /update/* {

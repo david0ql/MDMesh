@@ -51,7 +51,6 @@ dependencies {
     api(project(":policy"))
     api(project(":oem"))
     api(project(":kiosk"))
-    api(project(":remote"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)

@@ -95,7 +95,6 @@ dependencies {
     implementation(project(":policy"))
     implementation(project(":oem"))
     implementation(project(":kiosk"))
-    implementation(project(":remote"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

@@ -175,6 +175,33 @@ and the single-use token through `AdbProvisionReceiver` (only the shell can send
 applies the same Device-Owner baseline as QR provisioning and enrolls within seconds. `--serial` picks a
 device when several are attached; run it once per device (a USB hub and a loop do a whole batch).
 
+## Remote view/control (optional)
+
+Remote support uses droidVNC-NG on the device and a repeater on the server (see
+[ADR 0010](docs/adr/0010-remote-control-droidvnc.md)). On the server:
+
+```bash
+COMPOSE_PROFILES=remote docker compose up -d      # adds vnc-repeater + websockify (noVNC viewer)
+```
+
+Open `REPEATER_PORT` (default **5500/tcp**) on the host firewall: devices dial out to it. Per device, enroll over
+USB with remote support (Android 7+):
+
+```bash
+APK=$(scripts/fetch-droidvnc.sh /tmp)                                   # pinned droidVNC-NG release
+scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --admin-user admin \
+  --remote --vnc-apk "$APK"
+```
+
+Start a session and open the printed link in a browser signed in to the console:
+
+```bash
+scripts/remote-session.sh --api https://mdm.example.com --device <device id>        # --view-only, --stop
+```
+
+VNC traffic between device and repeater is not encrypted beyond the password exchange; keep that in mind, or
+reach the repeater over a VPN.
+
 ## Updates & recovery
 
 A decoupled **supervisor** service polls your GitHub releases, verifies the minisign-signed manifest,

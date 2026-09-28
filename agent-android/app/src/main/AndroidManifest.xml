@@ -41,6 +41,8 @@
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
     <queries>
+        <!-- droidVNC-NG: remote view/control app this DPC deploys and drives (ADR 0010). -->
+        <package android:name="net.christianbeier.droidvnc_ng" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />

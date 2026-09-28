@@ -67,7 +67,10 @@ import com.mdmesh.oem.OemAdapter
 import com.mdmesh.policy.CapabilityRegistry
 import com.mdmesh.policy.TogglePolicy
 import com.mdmesh.policy.wifi.DpmHandle
-import com.mdmesh.remote.RemoteControlTierDetector
+import com.mdmesh.agent.remote.DroidVncController
+import com.mdmesh.agent.remote.RemoteVncStartHandler
+import com.mdmesh.agent.remote.RemoteVncStopHandler
+import com.mdmesh.core.config.ServerConfigStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -108,22 +111,13 @@ object AgentModule {
         return candidates.first { it.isAvailable() }
     }
 
-    @Provides
-    @Singleton
-    fun provideRemoteTierDetector(): RemoteControlTierDetector =
-        // MediaProjection + accessibility probes land with :remote's real impl;
-        // until then advertise tier=none honestly.
-        RemoteControlTierDetector(
-            screenCaptureAvailable = false,
-            inputInjectionAvailable = false,
-        )
 
     @Provides
     @Singleton
     fun provideCapabilityCollector(
         @ApplicationContext context: Context,
         registry: CapabilityRegistry,
-        remoteTierDetector: RemoteControlTierDetector,
+        vnc: DroidVncController,
         oemAdapter: OemAdapter,
         handle: DpmHandle,
     ): CapabilityCollector {
@@ -134,7 +128,9 @@ object AgentModule {
             // flips to true partway through provisioning — see CapabilityCollector.collect().
             isDeviceOwner = { handle.dpm.isDeviceOwnerApp(context.packageName) },
             policyKeys = registry::supportedPolicyKeys,
-            remoteControl = remoteTierDetector::capability,
+            // Remote view/control via droidVNC-NG (ADR 0010): probed per check-in, so installing it or
+            // granting its input service shows up without an agent restart.
+            remoteControl = vnc::capability,
             oem = oemAdapter::capability,
             // Silent install needs Device Owner — advertise app.silentInstall only when we have it, so
             // the server's capability gate won't queue an app.install we can't perform.
@@ -342,6 +338,17 @@ object AgentModule {
     @IntoSet
     fun provideLocationModeHandler(store: LocationModeStore): CommandHandler =
         DeviceLocationModeHandler(store)
+
+    // --- Remote view/control (droidVNC-NG, ADR 0010) ---
+
+    @Provides
+    @IntoSet
+    fun provideRemoteVncStartHandler(vnc: DroidVncController, serverConfig: ServerConfigStore): CommandHandler =
+        RemoteVncStartHandler(vnc, serverConfig)
+
+    @Provides
+    @IntoSet
+    fun provideRemoteVncStopHandler(vnc: DroidVncController): CommandHandler = RemoteVncStopHandler(vnc)
 
     // --- Desired-state configuration (config.apply) ---
 

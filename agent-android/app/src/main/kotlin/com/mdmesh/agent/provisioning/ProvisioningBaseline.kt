@@ -38,6 +38,13 @@ object ProvisioningBaseline {
             }
             // Enable location services (DO) so location + Wi-Fi SSID telemetry are readable.
             runCatching { AdminReceiver.enableLocationServices(dpm, handle.admin) }
+            // Remote control (ADR 0010): configure droidVNC-NG before anything starts it. It reads its managed
+            // restrictions (our access key) only when its service starts, so a service started first (e.g. by
+            // enabling its input service) rejected every request with "Access key missing or incorrect".
+            runCatching {
+                val vnc = com.mdmesh.agent.remote.DroidVncController(ctx.applicationContext, handle)
+                if (vnc.isInstalled()) vnc.prepare()
+            }
         }
     }
 }
