@@ -13,6 +13,7 @@ import com.dallycontrol.core.location.TrailStore
 import com.dallycontrol.core.sync.CheckInWorker
 import com.dallycontrol.core.telemetry.EventLog
 import com.dallycontrol.core.telemetry.SimMonitor
+import com.dallycontrol.policy.wifi.DpmHandle
 import com.dallycontrol.proto.EventType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,10 @@ import javax.inject.Singleton
  *  - apps installed/removed (registered at runtime: since Android 8 a manifest receiver no longer gets these),
  *    re-enforcing the app policy on every install;
  *  - the SIM card (removed / inserted / swapped → event + immediate check-in);
- *  - the location trail: a fresh fix every ConfigTracking interval, buffered and sent right away.
+ *  - the location trail: a fresh fix every ConfigTracking interval, buffered and sent right away;
+ *  - incoming calls in kiosk: lock task hides heads-up notifications, so a ringing call would be invisible and
+ *    could not be answered; when the kiosk allows the dialer, its in-call screen is brought to the front instead
+ *    (the notification shade stays closed).
  */
 @Singleton
 class DeviceWatch @Inject constructor(
@@ -38,6 +42,7 @@ class DeviceWatch @Inject constructor(
     private val sim: SimMonitor,
     private val appPolicy: AppPolicyEnforcer,
     private val eventLog: EventLog,
+    private val dpm: DpmHandle,
 ) {
     private var trailJob: Job? = null
     private var registered: Context? = null
@@ -64,6 +69,20 @@ class DeviceWatch @Inject constructor(
         }
     }
 
+    private val calls = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val state = intent.getStringExtra(android.telephony.TelephonyManager.EXTRA_STATE)
+            if (state != android.telephony.TelephonyManager.EXTRA_STATE_RINGING &&
+                state != android.telephony.TelephonyManager.EXTRA_STATE_OFFHOOK) return
+            val am = context.getSystemService(android.app.ActivityManager::class.java)
+            if (am?.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) return // heads-up works
+            val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager ?: return
+            val dialer = runCatching { telecom.defaultDialerPackage }.getOrNull() ?: return
+            if (Build.VERSION.SDK_INT >= 23 && !dpm.dpm.isLockTaskPermitted(dialer)) return // the kiosk does not allow calls
+            runCatching { telecom.showInCallScreen(false) }.onFailure { Log.w(TAG, "showInCallScreen", it) }
+        }
+    }
+
     @Synchronized
     fun start(context: Context, scope: CoroutineScope) {
         if (registered == null) {
@@ -78,6 +97,10 @@ class DeviceWatch @Inject constructor(
                 )
             }
             ContextCompat.registerReceiver(context, simReceiver, IntentFilter(SIM_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+            ContextCompat.registerReceiver(
+                context, calls, IntentFilter(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED),
+                ContextCompat.RECEIVER_EXPORTED,
+            )
             registered = context
             scope.launch(Dispatchers.IO) {
                 runCatching { appPolicy.reenforce() }
@@ -92,6 +115,7 @@ class DeviceWatch @Inject constructor(
         registered?.let { c ->
             runCatching { c.unregisterReceiver(packages) }
             runCatching { c.unregisterReceiver(simReceiver) }
+            runCatching { c.unregisterReceiver(calls) }
         }
         registered = null
         trailJob?.cancel()
