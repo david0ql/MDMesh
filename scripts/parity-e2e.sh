@@ -179,3 +179,41 @@ if want roles; then
   chk "an app the kiosk does not allow is refused" "$(get "$A/devices/$DEV/commands" | field "next((c['status']+':'+(c.get('detail') or '')) for c in d['data'] if c['type']=='device.appLaunch')")" "failed:not allowed by the kiosk"
   adb_ shell input keyevent KEYCODE_HOME
 fi
+
+# ================================================================================================ R9 browser
+# tap_text "<text>": tap the first on-screen node whose text/description contains it; false when absent.
+tap_text(){
+  local b; b=$(ui | python3 -c "
+import sys,re
+x=sys.stdin.read()
+for m in re.finditer(r'<node [^>]*>', x):
+    n=m.group(0)
+    t=(re.search(r'text=\"([^\"]*)\"',n) or [None,''])[1]+' '+(re.search(r'content-desc=\"([^\"]*)\"',n) or [None,''])[1]
+    if '''$1'''.lower() in t.lower():
+        b=re.search(r'bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"',n)
+        if b: print((int(b[1])+int(b[3]))//2,(int(b[2])+int(b[4]))//2); break")
+  [ -n "$b" ] && adb_ shell input tap $b && sleep 2
+}
+chrome_open(){ adb_ shell am start -a android.intent.action.VIEW -d "$1" -p com.android.chrome >/dev/null 2>&1; sleep 4
+  for _ in 1 2 3 4 5 6; do tap_text "Use without an account" || tap_text "Accept & continue" || tap_text "No thanks" || tap_text "Got it" || tap_text "Continue" || break; done; sleep 2; }
+if want browser; then
+  echo "== managed browser: Chrome allowlist (R9)"
+  chk "policy saved (Chrome: only example.com; kiosk allows the browser)" "$(set_policy '{"kioskRoles":["browser"],"browser":{"mode":"allowlist","allow":["example.com"]}}')" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision" "$(revision)"
+  chk "browser outcome" "$(outcome browser)" "applied"
+  chrome_open "https://en.wikipedia.org/wiki/Colombia"
+  u=$(ui); printf '%s' "$u" | grep -qiE "ERR_BLOCKED_BY_ADMINISTRATOR|blocked by (your )?administrator|administrator has blocked" \
+    && ok "a site outside the list is blocked in Chrome" || { ko "a site outside the list is blocked in Chrome" "$(printf '%s' "$u" | grep -oE 'text="[^"]{3,60}"' | head -5 | tr '\n' ' ')"; adb_ exec-out screencap -p > /tmp/dc-browser-fail.png; }
+  chrome_open "https://example.com/"
+  u=$(ui); printf '%s' "$u" | grep -q "Example Domain" && ok "an allowed site loads" || ko "an allowed site loads" "$(printf '%s' "$u" | grep -oE 'text="[^"]{3,60}"' | head -5 | tr '\n' ' ')"
+  # (the policy itself is proven by Chrome's behaviour: blocked vs. loaded pages in both modes)
+  echo "   blocklist mode"
+  chk "policy saved (Chrome: all but wikipedia.org)" "$(set_policy '{"kioskRoles":["browser"],"browser":{"mode":"blocklist","block":["wikipedia.org"]}}')" "OK"
+  wait_applied 120 && ok "device applied the new revision" || ko "device applied the new revision"
+  sleep 3
+  chrome_open "https://en.wikipedia.org/wiki/Ecuador"
+  printf '%s' "$(ui)" | grep -qiE "ERR_BLOCKED_BY_ADMINISTRATOR|blocked by (your )?administrator|administrator has blocked" && ok "the blocked site is blocked" || ko "the blocked site is blocked"
+  chrome_open "https://example.com/"
+  printf '%s' "$(ui)" | grep -q "Example Domain" && ok "other sites load" || ko "other sites load"
+  adb_ shell input keyevent KEYCODE_HOME
+fi
