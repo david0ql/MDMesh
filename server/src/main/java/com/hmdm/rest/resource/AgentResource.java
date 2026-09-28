@@ -403,7 +403,7 @@ public class AgentResource {
     }
 
     /** Header the agent names itself with on the tunnel's WebSocket handshake (the secret is in Authorization). */
-    public static final String REMOTE_DEVICE_HEADER = "X-MDMesh-Device";
+    public static final String REMOTE_DEVICE_HEADER = "X-DallyControl-Device";
 
     /**
      * Verifies the {@code Authorization: Bearer <deviceSecret>} header against the

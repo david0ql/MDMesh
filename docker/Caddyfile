@@ -1,4 +1,4 @@
-# Edge for MDMesh. Serves the SPA and reverse-proxies the API/files/wake-socket to the server.
+# Edge for DallyControl. Serves the SPA and reverse-proxies the API/files/wake-socket to the server.
 # SITE_ADDRESS is set by the setup wizard:
 #   own-domain  → "mdm.example.com" (Caddy auto-provisions + renews a Let's Encrypt cert)
 #   cloudflare  → ":80" (Cloudflare terminates TLS; cloudflared connects to this internally)

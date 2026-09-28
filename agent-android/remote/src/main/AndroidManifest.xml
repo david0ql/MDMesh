@@ -16,7 +16,7 @@
             remote-control session of mode=control is authorised.
         -->
         <service
-            android:name="com.mdmesh.remote.InputInjectionService"
+            android:name="com.dallycontrol.remote.InputInjectionService"
             android:enabled="false"
             android:exported="false"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">

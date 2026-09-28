@@ -1,5 +1,5 @@
 /*
- * MDMesh agent-v1: queues a device's configuration apps for installation.
+ * DallyControl agent-v1: queues a device's configuration apps for installation.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public class ConfigAppInstaller {
     /** Action value in configurationApplications meaning "remove this app from the device". */
     private static final int ACTION_REMOVE = 2;
     /** The agent's own packages (release + debug) — a configuration can never make it uninstall itself. */
-    private static final String AGENT_PACKAGE_PREFIX = "com.mdmesh.agent";
+    private static final String AGENT_PACKAGE_PREFIX = "com.dallycontrol.agent";
 
     private final UnsecureDAO unsecureDAO;
     private final AgentCommandDAO commandDAO;

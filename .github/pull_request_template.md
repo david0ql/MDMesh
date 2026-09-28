@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to MDMesh! Keep PRs small and focused. -->
+<!-- Thanks for contributing to DallyControl! Keep PRs small and focused. -->
 
 ## What & why
 

@@ -1,5 +1,5 @@
 /*
- * MDMesh: F-Droid catalogue proxy.
+ * DallyControl: F-Droid catalogue proxy.
  *
  * The F-Droid repository index (index-v2.json) is large (tens of MB) and is not
  * CORS-accessible from the browser, so the server fetches it, parses it with a
@@ -121,7 +121,7 @@ public class FDroidResource {
         URLConnection conn = url.openConnection();
         conn.setConnectTimeout(15000);
         conn.setReadTimeout(120000);
-        conn.setRequestProperty("User-Agent", "MDMesh");
+        conn.setRequestProperty("User-Agent", "DallyControl");
 
         JsonFactory factory = mapper.getFactory();
         try (InputStream in = conn.getInputStream();

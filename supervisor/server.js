@@ -1,4 +1,4 @@
-// MDMesh updater/recovery supervisor — decoupled, always-up. Polls GitHub for new releases, verifies
+// DallyControl updater/recovery supervisor — decoupled, always-up. Polls GitHub for new releases, verifies
 // the minisign-signed manifest against the baked public key, serves /update/status + a recovery page,
 // and drives compose to apply/rollback updates against the host daemon.
 const http = require('http');
@@ -56,7 +56,7 @@ function saveAuto() {
 let state = { current: currentVersion, latest: null, updateAvailable: false, verified: false, checkedAt: null, error: 'not polled yet', apply: null, auto: autoUpdate, applySupported: APPLY_SUPPORTED };
 
 async function ghJson(url) {
-  const headers = { 'User-Agent': 'mdmesh-updater', Accept: 'application/vnd.github+json' };
+  const headers = { 'User-Agent': 'dallycontrol-updater', Accept: 'application/vnd.github+json' };
   if (TOKEN) headers.Authorization = 'Bearer ' + TOKEN;
   const r = await fetch(url, { headers });
   if (!r.ok) throw new Error('github ' + r.status);
@@ -273,11 +273,11 @@ function startRollback() {
 const SERVER_BASE = process.env.SERVER_BASE || 'http://server:8080';
 const AUTHZ_PATH = process.env.AUTHZ_PATH || '/rest/private/users/all';
 
-// CSRF guard for the cookie-authorized state-changing routes. The console sends X-MDMesh-Console on
+// CSRF guard for the cookie-authorized state-changing routes. The console sends X-DallyControl-Console on
 // its fetches; a cross-site page cannot set a custom header without a CORS preflight, which the
 // supervisor never answers — so forged cross-origin POSTs (even with the victim's cookie) are blocked.
 function csrfOk(req) {
-  return req.headers['x-mdmesh-console'] === '1';
+  return req.headers['x-dallycontrol-console'] === '1';
 }
 
 // Recovery token: a random secret on the backups volume. It's the break-glass authz for rollback when

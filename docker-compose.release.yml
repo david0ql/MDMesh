@@ -1,7 +1,7 @@
-# Pull-only MDMesh stack — no build context, every service runs a published GHCR image. This is the
+# Pull-only DallyControl stack — no build context, every service runs a published GHCR image. This is the
 # "no clone, no build" deploy. Easiest via quickstart.sh, or by hand:
 #
-#   curl -fsSLO https://raw.githubusercontent.com/MDMesh-app/MDMesh/main/docker-compose.release.yml
+#   curl -fsSLO https://raw.githubusercontent.com/david0ql/MDMesh/main/docker-compose.release.yml
 #   # write a .env (DB_PASSWORD, HASH_SECRET, BASE_URL, IMAGE_OWNER, …) — see quickstart.sh
 #   docker compose -f docker-compose.release.yml --profile cloudflare up -d                 # tunnel
 #   docker compose -f docker-compose.release.yml -f docker-compose.domain.yml up -d         # own domain
@@ -12,19 +12,19 @@ services:
     image: postgres:14
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-mdmesh}
-      POSTGRES_USER: ${DB_USER:-mdmesh}
+      POSTGRES_DB: ${DB_NAME:-dallycontrol}
+      POSTGRES_USER: ${DB_USER:-dallycontrol}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mdmesh} -d ${DB_NAME:-mdmesh}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dallycontrol} -d ${DB_NAME:-dallycontrol}"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   server:
-    image: ghcr.io/${IMAGE_OWNER:-mdmesh-app}/mdmesh-server:${SERVER_VERSION:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-server:${SERVER_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -32,8 +32,8 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: ${DB_NAME:-mdmesh}
-      DB_USER: ${DB_USER:-mdmesh}
+      DB_NAME: ${DB_NAME:-dallycontrol}
+      DB_USER: ${DB_USER:-dallycontrol}
       DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       BASE_URL: ${BASE_URL:?set BASE_URL in .env}
       HASH_SECRET: ${HASH_SECRET:?set HASH_SECRET in .env}
@@ -49,10 +49,10 @@ services:
       # compose lets the shell override .env, and a generic JAVA_OPTS exported on a Java host must not reach the server.
       JAVA_OPTS: ${SERVER_JAVA_OPTS:-}
     volumes:
-      - mdmeshdata:/opt/mdmesh
+      - dallycontroldata:/opt/dallycontrol
 
   caddy:
-    image: ghcr.io/${IMAGE_OWNER:-mdmesh-app}/mdmesh-web:${WEB_VERSION:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-web:${WEB_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       - server
@@ -65,7 +65,7 @@ services:
       - caddy_config:/config
 
   supervisor:
-    image: ghcr.io/${IMAGE_OWNER:-mdmesh-app}/mdmesh-supervisor:${SUPERVISOR_VERSION:-latest}
+    image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-supervisor:${SUPERVISOR_VERSION:-latest}
     restart: unless-stopped
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-}
@@ -76,11 +76,11 @@ services:
       AUTO_UPDATE: ${AUTO_UPDATE:-0}
       # Set 0 to hide one-click apply (the console then shows the manual upgrade steps).
       APPLY_SUPPORTED: ${APPLY_SUPPORTED:-1}
-      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-mdmesh}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-dallycontrol}
       COMPOSE_FILE: ${COMPOSE_FILE:-docker-compose.yml}
       COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
-      DB_USER: ${DB_USER:-mdmesh}
-      DB_NAME: ${DB_NAME:-mdmesh}
+      DB_USER: ${DB_USER:-dallycontrol}
+      DB_NAME: ${DB_NAME:-dallycontrol}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/project
@@ -98,7 +98,7 @@ services:
 
 volumes:
   pgdata:
-  mdmeshdata:
+  dallycontroldata:
   caddy_data:
   caddy_config:
   backups:

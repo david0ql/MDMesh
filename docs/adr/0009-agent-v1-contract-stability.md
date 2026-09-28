@@ -4,7 +4,7 @@
 
 ## Context
 
-MDMesh deployments auto-update (CI/CD epic): a new server rolls out while devices in the field still
+DallyControl deployments auto-update (CI/CD epic): a new server rolls out while devices in the field still
 run older APKs, and Device-Owner devices **cannot be force-updated** (the user must approve; some may
 lag indefinitely). So at any moment a deployment serves a mix of agent versions. If a server update
 silently breaks the agent-facing wire contract, those older devices fall off management — the worst

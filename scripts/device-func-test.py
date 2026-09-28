@@ -4,7 +4,7 @@ Functional test of a REAL enrolled agent: queues every console command through t
 verifies both the command result the agent reports AND the effect on the device (read over adb).
 
     scripts/device-func-test.py --api http://localhost:8088 --serial emulator-5580 --device-id <id>
-        [--admin-password admin] [--pkg com.mdmesh.agent.debug] [--only kiosk,lock] [--destructive]
+        [--admin-password admin] [--pkg com.dallycontrol.agent.debug] [--only kiosk,lock] [--destructive]
 
 --destructive also runs reboot and wipe (wipe is last; it factory-resets the device).
 Exit code 0 only if every executed check passed.
@@ -17,11 +17,11 @@ P.add_argument("--serial", required=True)
 P.add_argument("--device-id", required=True)
 P.add_argument("--admin-user", default="admin")
 P.add_argument("--admin-password", default="admin")
-P.add_argument("--pkg", default="com.mdmesh.agent.debug")
+P.add_argument("--pkg", default="com.dallycontrol.agent.debug")
 P.add_argument("--only", default="")
 P.add_argument("--destructive", action="store_true")
 P.add_argument("--adb", default="adb")
-P.add_argument("--pg-container", default="mdmesh-dev-postgres-1")
+P.add_argument("--pg-container", default="dallycontrol-dev-postgres-1")
 P.add_argument("--self-update-apk", default="", help="agent APK with a higher versionCode: tests the agent updating itself")
 P.add_argument("--self-update-code", type=int, default=0)
 A = P.parse_args()
@@ -140,7 +140,7 @@ def advertised(cap):
     """True when the device advertises capability token `cap` (policy.x / device.x / app.x). Read from the
     dev stack's database (the admin API does not expose it). Not advertised = the server withholds the command."""
     if not _CAPS:
-        out = subprocess.run(["docker", "exec", A.pg_container, "psql", "-U", "mdmesh", "-tAc",
+        out = subprocess.run(["docker", "exec", A.pg_container, "psql", "-U", "dallycontrol", "-tAc",
                               f"select agentCapabilities from devices where number='{A.device_id}'"],
                              capture_output=True, text=True).stdout.strip()
         c = json.loads(out or "{}")
@@ -199,7 +199,7 @@ def t_screenshots():
 
 def t_messages():
     print("== lockscreen message / alert / ring")
-    msg = "MDMesh test %d" % int(time.time())
+    msg = "DallyControl test %d" % int(time.time())
     if advertised("device.lockscreenMessage"):
         s, d = run("device.lockscreenMessage", {"message": msg}, "device.lockscreenMessage")
         check("lockscreen message: done", s == "done", f"{s} {d}")
@@ -286,7 +286,7 @@ def t_kiosk():
     payload = {"mode": "launcher", "allowedPackages": ["com.android.settings", "com.android.chrome"]}
     s, d = run("kiosk.enter", payload)
     check("kiosk launcher: done", s == "done", f"{s} {d}")
-    check("kiosk launcher: MDMesh launcher in front",
+    check("kiosk launcher: DallyControl launcher in front",
           until(lambda: any(a in sh("dumpsys activity activities | grep ResumedActivity")
                             for a in ("KioskLauncherActivity", "KioskHomeAlias"))))
     s, d = run("kiosk.exit")
@@ -320,7 +320,7 @@ def t_apps():
     check("telemetry: hardware present", bool((r.get("data") or {})), str(r)[:200])
 
 
-TESTAPP = "com.mdmesh.testapp"
+TESTAPP = "com.dallycontrol.testapp"
 TESTAPP_DIR = __import__("os").path.join(__import__("os").path.dirname(__file__), "testapp")
 
 
@@ -419,10 +419,10 @@ def t_wipe():
     # Emulator images have no /misc partition, so RecoverySystem cannot reboot into the wipe there; the
     # platform still logs the wipe command it received from our admin (uncrypt). Real devices reset.
     def wiped_or_ordered():
-        if "com.mdmesh" not in sh("pm list packages com.mdmesh"):
+        if "com.dallycontrol" not in sh("pm list packages com.dallycontrol"):
             return "reset"
         log = adb("logcat", "-d")
-        if "--wipe_data" in log and ("from com.mdmesh.agent" in log or "REBOOTING TO WIPE" in log
+        if "--wipe_data" in log and ("from com.dallycontrol.agent" in log or "REBOOTING TO WIPE" in log
                                      or "rebootWipeUserData" in log or "uncrypt" in log):
             return "ordered"
         if "REBOOTING TO WIPE USER DATA" in log:  # older releases log only RecoverySystem's banner

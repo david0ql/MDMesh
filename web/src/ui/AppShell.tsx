@@ -56,11 +56,11 @@ export function AppShell({
       />
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <span className="wordmark" aria-label="MDMesh">
+          <span className="wordmark" aria-label="DallyControl">
             <span className="bullet" aria-hidden="true" />
             <span>
-              <span className="mdm">MDM</span>
-              <span className="esh">esh</span>
+              <span className="mdm">Dally</span>
+              <span className="esh">Control</span>
             </span>
           </span>
         </div>
@@ -107,7 +107,7 @@ export function AppShell({
           >
             <IconMenu />
           </button>
-          <span style={{ fontWeight: 600 }}>{title ?? 'MDMesh'}</span>
+          <span style={{ fontWeight: 600 }}>{title ?? 'DallyControl'}</span>
         </div>
         <main className="content route-enter"><ReloadPrompt /><UpdateBanner />{children}</main>
       </div>

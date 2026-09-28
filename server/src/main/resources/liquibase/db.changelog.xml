@@ -2850,7 +2850,7 @@
         </rollback>
     </changeSet>
 
-    <changeSet id="26.09.28-device-location-captured-idx" author="mdmesh" context="common">
+    <changeSet id="26.09.28-device-location-captured-idx" author="dallycontrol" context="common">
         <comment>Index: device_location by capture time, for the fleet map's time-range query across devices</comment>
         <sql>
             CREATE INDEX IF NOT EXISTS device_location_cap_idx ON device_location (capturedAt);

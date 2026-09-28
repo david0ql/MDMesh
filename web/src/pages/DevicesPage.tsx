@@ -393,7 +393,7 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Delete devices</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Permanently remove {selected.size} device{selected.size === 1 ? '' : 's'} from MDMesh?
+              Permanently remove {selected.size} device{selected.size === 1 ? '' : 's'} from DallyControl?
               The device(s) will re-appear if they check in again.
             </p>
             <div className="modal-actions">

@@ -110,7 +110,7 @@ updates:
     schedule: { interval: weekly, day: monday }
     groups:
       compose-images: { patterns: ["*"] }
-    # Scans docker-compose*.yml. Our own ghcr.io/.../mdmesh-* images use ${VAR:-latest} tags and are skipped;
+    # Scans docker-compose*.yml. Our own ghcr.io/.../dallycontrol-* images use ${VAR:-latest} tags and are skipped;
     # cloudflared is :latest (nothing to bump).
     ignore:
       # Postgres stays on 14.x: a new major cannot open an existing 14 data directory (dump/restore or

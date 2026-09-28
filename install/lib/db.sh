@@ -2,9 +2,9 @@
 # Shared database provisioning steps for the three installers (setup.sh, quickstart.sh,
 # install/install-native.sh). Source this file; do not execute it.
 #
-# The caller defines PSQL as an ARRAY that runs psql against the MDMesh database, e.g.
-#   PSQL=(docker compose exec -T postgres psql -U mdmesh -d mdmesh)
-#   PSQL=(mdmesh_psql)   # a function that passes the password off the command line (install-native.sh)
+# The caller defines PSQL as an ARRAY that runs psql against the DallyControl database, e.g.
+#   PSQL=(docker compose exec -T postgres psql -U dallycontrol -d dallycontrol)
+#   PSQL=(dallycontrol_psql)   # a function that passes the password off the command line (install-native.sh)
 # Every function here is strict (ON_ERROR_STOP) and verifies its own postcondition, so a
 # failure is a non-zero return with the psql output on stderr — never a warning.
 #

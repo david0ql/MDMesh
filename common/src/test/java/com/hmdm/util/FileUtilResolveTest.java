@@ -1,5 +1,5 @@
 /*
- * MDMesh: fork of Headwind MDM. Apache-2.0.
+ * DallyControl: fork of Headwind MDM. Apache-2.0.
  */
 package com.hmdm.util;
 

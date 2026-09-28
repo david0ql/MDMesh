@@ -4,7 +4,7 @@
 
 ## Context
 
-Remote support (see the device's screen, tap and type on it) is the one MobiControl feature MDMesh lacked.
+Remote support (see the device's screen, tap and type on it) is the one MobiControl feature DallyControl lacked.
 The `:remote` module held only a skeleton for an in-agent implementation (MediaProjection capture plus an
 AccessibilityService for input). Building that meant a capture encoder, a transport and our own relay, and it
 would put an accessibility declaration into the agent APK, which ADR 0005 keeps out because it trips Play

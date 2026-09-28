@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$API" ] && [ -n "$DEVICE" ] || { echo "--api and --device are required" >&2; exit 2; }
 
-PW="${MDMESH_ADMIN_PASSWORD:-}"
+PW="${DALLYCONTROL_ADMIN_PASSWORD:-}"
 [ -n "$PW" ] || { read -r -s -p "password for $ADMIN_USER: " PW; echo; }
 CJ=$(mktemp); trap 'rm -f "$CJ"' EXIT
 if command -v md5sum >/dev/null 2>&1; then MD5=$(printf '%s' "$PW" | md5sum | awk '{print toupper($1)}')

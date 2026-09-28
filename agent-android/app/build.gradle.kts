@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mdmesh.agent"
+    namespace = "com.dallycontrol.agent"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mdmesh.agent"
+        applicationId = "com.dallycontrol.agent"
         minSdk = 23
         targetSdk = 35
         // Release CI overrides these from the git tag (see release/version.sh); the defaults are the

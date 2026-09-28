@@ -52,7 +52,7 @@ export async function checkForUpdates(): Promise<UpdateStatus | null> {
     const r = await fetch('/update/check', {
       method: 'POST',
       credentials: 'include',
-      headers: { Accept: 'application/json', 'X-MDMesh-Console': '1' },
+      headers: { Accept: 'application/json', 'X-DallyControl-Console': '1' },
     });
     return r.ok ? ((await r.json()) as UpdateStatus) : null;
   } catch {
@@ -63,7 +63,7 @@ export async function checkForUpdates(): Promise<UpdateStatus | null> {
 /** Kick off a one-click apply. credentials:'include' forwards JSESSIONID for the supervisor's authz. */
 export async function applyUpdate(): Promise<{ ok: boolean; error?: string }> {
   try {
-    const r = await fetch('/update/apply', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json', 'X-MDMesh-Console': '1' } });
+    const r = await fetch('/update/apply', { method: 'POST', credentials: 'include', headers: { Accept: 'application/json', 'X-DallyControl-Console': '1' } });
     if (r.status === 202) return { ok: true };
     const body = await r.json().catch(() => ({}));
     return { ok: false, error: (body as { error?: string }).error || `HTTP ${r.status}` };
@@ -77,7 +77,7 @@ export async function setAutoUpdate(auto: boolean): Promise<{ ok: boolean; error
   try {
     const r = await fetch('/update/auto', {
       method: 'POST', credentials: 'include',
-      headers: { 'content-type': 'application/json', Accept: 'application/json', 'X-MDMesh-Console': '1' },
+      headers: { 'content-type': 'application/json', Accept: 'application/json', 'X-DallyControl-Console': '1' },
       body: JSON.stringify({ auto }),
     });
     if (r.ok) return { ok: true };

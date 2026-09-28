@@ -1,4 +1,4 @@
-# Testing MDMesh end to end
+# Testing DallyControl end to end
 
 Three layers, from fastest to most complete. All of them run against the loopback dev stack
 (`docker compose --env-file docker/dev.env up -d --build` + `scripts/dev-seed.sh`, see [DEV.md](DEV.md)).

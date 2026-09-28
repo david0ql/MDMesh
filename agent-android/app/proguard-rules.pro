@@ -1,6 +1,6 @@
 # Manifest entry points (provisioning / kiosk launcher) — kept explicitly.
--keep class com.mdmesh.agent.admin.AdminReceiver { *; }
--keep class com.mdmesh.agent.KioskLauncherActivity { *; }
+-keep class com.dallycontrol.agent.admin.AdminReceiver { *; }
+-keep class com.dallycontrol.agent.KioskLauncherActivity { *; }
 
 # --- kotlinx.serialization (annotation-based, package-agnostic) ---
 # Covers @Serializable DTOs in :proto AND the private Payload classes in :core handlers, which a
@@ -20,7 +20,7 @@
 }
 
 # --- Retrofit / OkHttp ---
--keep,allowobfuscation interface com.mdmesh.core.net.MdmApi
+-keep,allowobfuscation interface com.dallycontrol.core.net.MdmApi
 # Package-agnostic keep for every Retrofit service interface (the official Retrofit rule),
 # so a package rename can never silently orphan the explicit rule above again.
 -if interface * { @retrofit2.http.* public *** *(...); }

@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f7f9" />
-    <title>MDMesh</title>
+    <title>DallyControl</title>
     <script>
       // Apply the saved theme/density before first paint to avoid a flash.
       (function () {
         try {
-          var t = localStorage.getItem('mdmesh-theme');
+          var t = localStorage.getItem('dallycontrol-theme');
           if (t !== 'light' && t !== 'dark') {
             t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           }
           document.documentElement.setAttribute('data-theme', t);
-          if (localStorage.getItem('mdmesh-density') === 'compact') {
+          if (localStorage.getItem('dallycontrol-density') === 'compact') {
             document.documentElement.setAttribute('data-density', 'compact');
           }
         } catch (e) {}

@@ -28,8 +28,8 @@ public class ConfigAppInstallerTest {
 
     @Test
     public void neverRemovesTheAgentItself() {
-        assertNull(ConfigAppInstaller.uninstallTarget(app("com.mdmesh.agent", 2)));
-        assertNull(ConfigAppInstaller.uninstallTarget(app("com.mdmesh.agent.debug", 2)));
+        assertNull(ConfigAppInstaller.uninstallTarget(app("com.dallycontrol.agent", 2)));
+        assertNull(ConfigAppInstaller.uninstallTarget(app("com.dallycontrol.agent.debug", 2)));
     }
 
     @Test

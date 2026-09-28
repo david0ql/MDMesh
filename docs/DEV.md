@@ -14,7 +14,7 @@ Three planes run independently; you only need the toolchain for the one you are 
 
 The dev stack is the production stack (`docker-compose.yml`: Postgres, server, Caddy with the console, supervisor)
 plus a thin overlay, `docker-compose.dev.yml`, that publishes loopback-only ports and a debugger port. Its settings
-live in `docker/dev.env`: the project name `mdmesh-dev`, dev-only passwords, `:dev` image tags and an inert
+live in `docker/dev.env`: the project name `dallycontrol-dev`, dev-only passwords, `:dev` image tags and an inert
 supervisor. Pass that file on **every** compose command for the dev stack. It replaces `.env`, so a production `.env`
 in the same checkout is never read, and the overlay refuses to load without it.
 
@@ -27,7 +27,7 @@ scripts/dev-seed.sh                                        # first run: seed the
 |------|-------|
 | Console | <http://localhost:8088>, login **admin / admin** (after `scripts/dev-seed.sh`) |
 | API (direct to Tomcat) | <http://localhost:8080/rest/> |
-| Postgres | `localhost:5432`, database, user and password `mdmesh` |
+| Postgres | `localhost:5432`, database, user and password `dallycontrol` |
 | Debugger (JDWP) | attach your IDE to `localhost:5005` |
 
 Every port binds to `127.0.0.1`. If one is taken, export `DEV_WEB_PORT`, `DEV_API_PORT`, `DEV_PG_PORT` or
@@ -56,14 +56,14 @@ server tests, which T0 runs) fails if the root or `AuditLogger` level is not INF
 change keeps the old external config across WAR reloads: recreate the server once (`docker compose --env-file
 docker/dev.env up -d --force-recreate server`).
 
-`down -v` deletes the server's data volume too (`/opt/mdmesh`: uploaded files and the JWT signing key in
+`down -v` deletes the server's data volume too (`/opt/dallycontrol`: uploaded files and the JWT signing key in
 `jwt.secret`), so the next start generates a new key. With `--env-file docker/dev.env`, `down -v` deletes the
-`mdmesh-dev` project's volumes, unless your shell exports `COMPOSE_PROJECT_NAME`: shell variables beat the env file.
+`dallycontrol-dev` project's volumes, unless your shell exports `COMPOSE_PROJECT_NAME`: shell variables beat the env file.
 Before a `down -v`, check which project it will hit: `docker compose --env-file docker/dev.env config | head -1` must
-print `name: mdmesh-dev`.
+print `name: dallycontrol-dev`.
 
 Do not run the dev stack in a checkout that also runs a real install (`./setup.sh` writes a `.env` there). The
-`MDMESH_DEV` guard in `docker-compose.dev.yml` stops `up` and `config` without `--env-file docker/dev.env`, but not
+`DALLYCONTROL_DEV` guard in `docker-compose.dev.yml` stops `up` and `config` without `--env-file docker/dev.env`, but not
 `down -v`, `stop`, `rm`, `exec`, `logs` or `ps`. Run without it there, those act on the production project, even when
 they name the dev file, because compose falls back to the project name in `.env`.
 
@@ -105,7 +105,7 @@ cd agent-android
 ```
 
 To enroll an emulator or test device as Device Owner over ADB, follow "ADB Device-Owner dev enrollment loop" in
-`agent-android/README.md` (debug builds are `com.mdmesh.agent.debug`). Without a QR code, the agent uses the
+`agent-android/README.md` (debug builds are `com.dallycontrol.agent.debug`). Without a QR code, the agent uses the
 `MDM_BASE_URL` its build type bakes in (`agent-android/app/build.gradle.kts`). The agent has no cleartext-HTTP
 exception, so a device needs a server it can reach over HTTPS (see `DEPLOY.md`). The loopback dev stack serves the
 console, the API and the scripted agent loop below.

@@ -1,4 +1,4 @@
--- Post-seed repairs for MDMesh, shared by BOTH installers (setup.sh Docker + install-native.sh).
+-- Post-seed repairs for DallyControl, shared by BOTH installers (setup.sh Docker + install-native.sh).
 -- Run on EVERY install/upgrade — not just after a fresh seed — so older deployments pick up these
 -- fixes too. Idempotent, and a safe no-op on an empty database: every statement's WHERE clause
 -- matches nothing until the seed/migrations have created rows. Requires the schema to exist

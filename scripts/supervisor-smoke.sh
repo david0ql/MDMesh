@@ -12,17 +12,17 @@
 # Needs only a Docker daemon (no host ports published; probes run inside the container).
 # The docker compose files themselves are parsed by scripts/edge-check.sh (`docker compose config -q`), not here.
 #
-# Usage: scripts/supervisor-smoke.sh <image>      e.g. scripts/supervisor-smoke.sh mdmesh-supervisor:ci-local
+# Usage: scripts/supervisor-smoke.sh <image>      e.g. scripts/supervisor-smoke.sh dallycontrol-supervisor:ci-local
 set -euo pipefail
 IMG="${1:?usage: scripts/supervisor-smoke.sh <image>}"
 # Unique per run, even across CI jobs sharing one daemon ($$ alone can repeat across PID namespaces), so parallel
 # runs never probe or `docker rm -f` each other's containers. The label marks leftovers from a SIGKILLed run.
-BASE_NAME="mdmesh-supervisor-smoke-${GITHUB_RUN_ID:-local}-$$-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
+BASE_NAME="dallycontrol-supervisor-smoke-${GITHUB_RUN_ID:-local}-$$-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
 NAME="$BASE_NAME"                    # the container the helpers below probe
 PROJ="$(mktemp -d)"
 cleanup() { docker rm -f "$BASE_NAME" "$BASE_NAME-noapply" >/dev/null 2>&1 || true; rm -rf "$PROJ"; }
 trap cleanup EXIT
-printf 'COMPOSE_PROJECT_NAME=mdmesh\n' > "$PROJ/.env"   # a deploy dir holds .env + compose files, never server.js
+printf 'COMPOSE_PROJECT_NAME=dallycontrol\n' > "$PROJ/.env"   # a deploy dir holds .env + compose files, never server.js
 
 PASS=0
 pass() { echo "  ok   $*"; PASS=$((PASS + 1)); }
@@ -38,8 +38,8 @@ code() { in_c curl -s -o /dev/null -w '%{http_code}' -m 5 "$@"; }
 # start <name> [extra docker-run args…]: run the image compose-shaped as <name> and wait for /healthz.
 start() {
   NAME="$1"; shift
-  docker run -d --name "$NAME" --label mdmesh.smoke=1 -w /project -v "$PROJ:/project" --tmpfs /backups \
-    -e GITHUB_REPO= -e CURRENT_VERSION=0.0.0 -e COMPOSE_PROJECT_NAME=mdmesh "$@" "$IMG" >/dev/null
+  docker run -d --name "$NAME" --label dallycontrol.smoke=1 -w /project -v "$PROJ:/project" --tmpfs /backups \
+    -e GITHUB_REPO= -e CURRENT_VERSION=0.0.0 -e COMPOSE_PROJECT_NAME=dallycontrol "$@" "$IMG" >/dev/null
   local up=0
   for _ in $(seq 1 30); do
     running || fail "$NAME exited (code $(docker inspect -f '{{.State.ExitCode}}' "$NAME")) during startup — see logs (#27: the entrypoint must not depend on the working dir)"
@@ -78,7 +78,7 @@ check "bash, minisign, pg_dump/psql, docker compose present" toolchain
 # and the recovery page must hide Roll back (CSS keyed on the marker) and show the manual update steps instead.
 # Its startup poll gets a repo but no network: poll() must record the fetch error in /update/status and keep serving.
 docker rm -f "$NAME" >/dev/null
-start "$BASE_NAME-noapply" -e APPLY_SUPPORTED=0 -e GITHUB_REPO=mdmesh-smoke/unreachable \
+start "$BASE_NAME-noapply" -e APPLY_SUPPORTED=0 -e GITHUB_REPO=dallycontrol-smoke/unreachable \
   --network none --add-host api.github.com:127.0.0.1
 poll_error() { local s=""
   for _ in $(seq 1 15); do
@@ -91,7 +91,7 @@ poll_error() { local s=""
 check "startup poll against an unreachable repo reports its fetch error in /update/status and keeps running" poll_error
 status_noapply() { grep -q '"applySupported":false' <<<"$(body http://127.0.0.1:9000/update/status)"; }
 apply_501()      { [ "$(code -X POST http://127.0.0.1:9000/update/apply)" = 501 ]; }
-rollback_501()   { [ "$(code -X POST -H 'X-MDMesh-Console: 1' http://127.0.0.1:9000/update/rollback)" = 501 ]; }
+rollback_501()   { [ "$(code -X POST -H 'X-DallyControl-Console: 1' http://127.0.0.1:9000/update/rollback)" = 501 ]; }
 recovery_noapply() { local b; b="$(body http://127.0.0.1:9000/recovery)"
   grep -q '<body data-apply="0">' <<<"$b" \
     && grep -qF 'body[data-apply="0"] #rbcard{display:none}' <<<"$b" \

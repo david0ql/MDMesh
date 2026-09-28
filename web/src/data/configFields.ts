@@ -31,7 +31,7 @@ export interface FieldDef {
   help: string;
   /** Shown in the always-visible core section. */
   focused?: boolean;
-  /** Applied on devices by the MDMesh agent via config.apply. Unset = legacy Headwind field, not enforced. */
+  /** Applied on devices by the DallyControl agent via config.apply. Unset = legacy Headwind field, not enforced. */
   enforced?: boolean;
   /** Configuration metadata (name, description): always shown, never sent to devices, not "Enforced". */
   metadata?: boolean;

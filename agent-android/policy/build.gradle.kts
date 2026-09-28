@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mdmesh.policy"
+    namespace = "com.dallycontrol.policy"
     compileSdk = 35
 
     defaultConfig {

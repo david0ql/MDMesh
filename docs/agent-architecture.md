@@ -1,4 +1,4 @@
-# Agent architecture — bakeoff conclusions (MDMesh device agent)
+# Agent architecture — bakeoff conclusions (DallyControl device agent)
 
 Synthesis of the Headwind teardown (`reference/hmdm-android/`, Apache-2.0) + current Android docs.
 Verdict per area: **take** (port the pattern), **modernize** (keep idea, new impl), **build-new**.
@@ -54,7 +54,7 @@ are: `mainAppId`, `kioskMode`, `kioskExit`, `kioskHome`, `kioskRecents`, `kioskN
 for the per-key result. `config.apply` is protocol 1.1 — an additive change; 1.0 agents keep working unchanged.
 
 ## Status UI — BUILD-NEW (Views, minSdk 24 friendly)
-Replace the `TextView` stub `MainActivity` with a real MDMesh status screen: managed state, device id,
+Replace the `TextView` stub `MainActivity` with a real DallyControl status screen: managed state, device id,
 applied policies, kiosk on/off, last check-in, install results. `ComponentActivity` (Hilt). Drive from
 a `StateFlow`. Edge-to-edge handled for Android 15.
 

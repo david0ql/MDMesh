@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# MDMesh quick start — deploy from PUBLISHED images, no clone and no build. Needs only Docker.
+# DallyControl quick start — deploy from PUBLISHED images, no clone and no build. Needs only Docker.
 # Run from anywhere (the `bash <(...)` form keeps the prompts interactive):
 #
-#   bash <(curl -fsSL https://raw.githubusercontent.com/MDMesh-app/MDMesh/main/quickstart.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/david0ql/MDMesh/main/quickstart.sh)
 #
-# It creates ./mdmesh, downloads the pull-only compose + seed, generates secrets, brings the stack
+# It creates ./dallycontrol, downloads the pull-only compose + seed, generates secrets, brings the stack
 # up, and prints the console URL + a temporary admin password (you set your own on first login).
 set -euo pipefail
 
-REPO="MDMesh-app/MDMesh"
+REPO="david0ql/MDMesh"
 BRANCH="main"   # where the compose + seed come from only when the release can't be resolved (see below)
-IMAGE_OWNER_DEFAULT="mdmesh-app"
+IMAGE_OWNER_DEFAULT="david0ql"
 
 say()  { printf '\033[1;36m%s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m%s\033[0m\n' "$*"; }
@@ -32,11 +32,11 @@ docker compose version >/dev/null 2>&1 || { err "Docker Compose v2 is required (
 command -v curl    >/dev/null || { err "curl is required."; exit 1; }
 command -v openssl >/dev/null || { err "openssl is required."; exit 1; }
 
-DIR="${MDMESH_DIR:-mdmesh}"
+DIR="${DALLYCONTROL_DIR:-dallycontrol}"
 mkdir -p "$DIR" && cd "$DIR"
 [ -f .env ] && { err "An .env already exists in $(pwd) — refusing to overwrite. Remove it to re-run."; exit 1; }
 
-say "== MDMesh quick start (published images) =="
+say "== DallyControl quick start (published images) =="
 echo "Installing into: $(pwd)"
 echo
 echo "Hosting mode:"
@@ -104,8 +104,8 @@ curl -fsSL "${RAW}/install/lib/db.sh"             -o install/lib/db.sh
 . ./install/lib/db.sh
 
 cat > .env <<EOF
-DB_NAME=mdmesh
-DB_USER=mdmesh
+DB_NAME=dallycontrol
+DB_USER=dallycontrol
 DB_PASSWORD=${DB_PASSWORD}
 BASE_URL=${BASE_URL}
 HASH_SECRET=${HASH_SECRET}
@@ -123,7 +123,7 @@ POLL_INTERVAL_HOURS=6
 CURRENT_VERSION=${CURRENT_VERSION}
 GITHUB_TOKEN=
 AUTO_UPDATE=0
-COMPOSE_PROJECT_NAME=mdmesh
+COMPOSE_PROJECT_NAME=dallycontrol
 COMPOSE_FILE=${COMPOSE_FILE}
 COMPOSE_PROFILES=${COMPOSE_PROFILES}
 SMTP_HOST=
@@ -144,15 +144,15 @@ docker compose pull || { err "Could not pull the :${IMAGE_TAG} images from ghcr.
 # that `up` would create anyway.
 say "Starting the stack…"
 docker compose stop server >/dev/null 2>&1 || true
-docker compose run --rm --no-deps -T -u mdmesh --entrypoint rm server -f /opt/mdmesh/initialized.txt \
-  || { err "Could not remove the previous start's init marker (/opt/mdmesh/initialized.txt) from the server's volume."; exit 1; }
+docker compose run --rm --no-deps -T -u dallycontrol --entrypoint rm server -f /opt/dallycontrol/initialized.txt \
+  || { err "Could not remove the previous start's init marker (/opt/dallycontrol/initialized.txt) from the server's volume."; exit 1; }
 docker compose up -d
 
 say "Waiting for the server to finish first-boot (Liquibase)…"
 BOOTED=0
 for _ in $(seq 1 60); do
   sleep 5   # first: `up -d` can return before the entrypoint has removed the previous start's marker
-  if docker compose exec -T server test -s /opt/mdmesh/initialized.txt 2>/dev/null; then BOOTED=1; break; fi
+  if docker compose exec -T server test -s /opt/dallycontrol/initialized.txt 2>/dev/null; then BOOTED=1; break; fi
 done
 if [ "$BOOTED" != 1 ]; then
   err "Server did not finish first-boot within ~5 minutes. Last server logs:"
@@ -162,7 +162,7 @@ fi
 # The marker holds "OK" or the server's initialization error (docker/entrypoint.sh removes the previous start's marker,
 # so it is this boot's). It is read as the server's own user: the volume is that account's, and the container's root
 # would follow a link planted there.
-INIT_RESULT=$(docker compose exec -T -u mdmesh server cat /opt/mdmesh/initialized.txt 2>/dev/null || true)
+INIT_RESULT=$(docker compose exec -T -u dallycontrol server cat /opt/dallycontrol/initialized.txt 2>/dev/null || true)
 if ! grep -q '^OK' <<< "$INIT_RESULT"; then
   err "The server reported an initialization error:"
   printf '%s\n' "${INIT_RESULT:0:2000}" | tr -d '\000-\010\013-\037\177' | sed 's/^/    /'   # the server's text: no control chars
@@ -172,7 +172,7 @@ fi
 # Same rules as setup.sh (shared install/lib/db.sh): seed only a fresh database, verify the seed, then
 # the always-run repairs that switch on QR/token enrollment (this step used to be missing here).
 # shellcheck disable=SC2034  # PSQL is consumed by install/lib/db.sh
-PSQL=(docker compose exec -T postgres psql -U mdmesh -d mdmesh)
+PSQL=(docker compose exec -T postgres psql -U dallycontrol -d dallycontrol)
 STATE=$(mdm_db_state)
 case "$STATE" in
   fresh)  ;;
@@ -188,7 +188,7 @@ if ! mdm_post_seed install/sql/post_seed.sql; then
 fi
 
 echo
-say "== MDMesh is up =="
+say "== DallyControl is up =="
 echo "  Console:        ${BASE_URL}"
 echo "  REST API base:  ${BASE_URL}/rest"
 echo "  Login:          admin"

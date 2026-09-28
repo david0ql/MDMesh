@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lean native (non-Docker) installer for MDMesh — Debian/Ubuntu. Stands up Postgres + Tomcat 9 + the
+# Lean native (non-Docker) installer for DallyControl — Debian/Ubuntu. Stands up Postgres + Tomcat 9 + the
 # server on the host and assumes you terminate TLS yourself (your own reverse proxy / cert, or Caddy in
 # front). For the turnkey experience use ./setup.sh (Docker). Flags: -y/--yes (skip confirm), -v/--verbose
 # (stream all output instead of hiding it in the log). Best-effort + idempotent; review before prod use.
@@ -57,8 +57,8 @@ for a in "$@"; do case "$a" in -y|--yes) ASSUME_YES=1 ;; -v|--verbose) VERBOSE=1
 # tucked into a logfile that is auto-expanded only when something fails. Run with -v to stream it inline.
 # Colour/spinner auto-disable when stdout isn't a TTY or NO_COLOR is set, so piped runs stay clean.
 # ------------------------------------------------------------------------------------------------------
-LOGFILE="${LOGFILE:-/var/log/mdmesh-install.log}"
-: > "$LOGFILE" 2>/dev/null || LOGFILE="/tmp/mdmesh-install.log"; : > "$LOGFILE" 2>/dev/null || true
+LOGFILE="${LOGFILE:-/var/log/dallycontrol-install.log}"
+: > "$LOGFILE" 2>/dev/null || LOGFILE="/tmp/dallycontrol-install.log"; : > "$LOGFILE" 2>/dev/null || true
 # The log can capture echoed SQL (including the DB password — see the Database step), so keep it
 # owner-only even if it pre-existed with looser modes (umask only covers newly created files).
 chmod 600 "$LOGFILE" 2>/dev/null || true
@@ -127,16 +127,16 @@ run() {
 }
 
 # ------------------------------------------------------------------------------------------------------
-printf '\n  %sMDMesh · native install%s\n' "$c_bold" "$c_reset"
+printf '\n  %sDallyControl · native install%s\n' "$c_bold" "$c_reset"
 cat <<WARN
 
   ${c_yel}⚠  This will modify THIS host:${c_reset}
     • apt-get install openjdk-17-jdk, postgresql, maven, curl, python3, aapt
     • install Node.js ${NODE_REQUIRED_MAJOR}+ from NodeSource when the current Node/npm does not satisfy web/package.json
-    • create or alter a PostgreSQL role and database "mdmesh" (resets that role's password)
-    • download and unpack Apache Tomcat 9 into /opt/mdmesh-tc (clears its webapps/)
-    • write config and uploaded files under /opt/mdmesh (the server logs to the systemd journal)
-    • write the updater's settings to /etc/mdmesh/supervisor.env
+    • create or alter a PostgreSQL role and database "dallycontrol" (resets that role's password)
+    • download and unpack Apache Tomcat 9 into /opt/dallycontrol-tc (clears its webapps/)
+    • write config and uploaded files under /opt/dallycontrol (the server logs to the systemd journal)
+    • write the updater's settings to /etc/dallycontrol/supervisor.env
     • start Tomcat, run database migrations, and seed the admin account
 
   Intended for a dedicated server you control. This script does not undo these changes.
@@ -188,25 +188,25 @@ SMTP_PASSWORD_XML=$(xml_escape "$SMTP_PASSWORD")
 SMTP_FROM_XML=$(xml_escape "$SMTP_FROM")
 DB_PASSWORD=$(rand); HASH_SECRET=$(rand); ADMIN_PASSWORD=$(rand); RESET_TOKEN=$(openssl rand -hex 16)
 JWT_SECRET=$(openssl rand -hex 64)   # jwt.secretkey: hex only (see the reuse rule below)
-BASE_DIR=/opt/mdmesh
-CATALINA=/opt/mdmesh-tc
+BASE_DIR=/opt/dallycontrol
+CATALINA=/opt/dallycontrol-tc
 TOMCAT_VER=9.0.89
 # Tomcat lifecycle helpers. CATALINA_PID lets `catalina.sh stop -force` actually kill a JVM that ignores
 # the shutdown command (the server keeps scheduler threads alive after context stop), and the pgrep
 # fallback covers instances started by older versions of this script without a PID file.
 export CATALINA_PID="$CATALINA/tomcat.pid"
-SVC_USER=mdmesh            # unprivileged account Tomcat runs as (mirrors the Docker image)
-SVC_UNIT=mdmesh-server     # systemd unit that owns Tomcat
-SUP_UNIT=mdmesh-supervisor # systemd unit that owns the updater supervisor (also runs as $SVC_USER)
+SVC_USER=dallycontrol            # unprivileged account Tomcat runs as (mirrors the Docker image)
+SVC_UNIT=dallycontrol-server     # systemd unit that owns Tomcat
+SUP_UNIT=dallycontrol-supervisor # systemd unit that owns the updater supervisor (also runs as $SVC_USER)
 # The supervisor's settings (GITHUB_TOKEN included). They live outside $BASE_DIR on purpose: systemd reads an
 # EnvironmentFile as root and follows links, so one inside the service user's tree would let that user point it at any
 # root-only KEY=VALUE file and receive its contents in the supervisor's environment.
-SUP_ENV_DIR=/etc/mdmesh
+SUP_ENV_DIR=/etc/dallycontrol
 # Root writes into $CATALINA and $BASE_DIR, which this script chowns to $SVC_USER (on this run and on every earlier one),
 # so a link planted there must never be followed. guard_under ROOT REL refuses (fails the install) when ROOT or any
 # component of ROOT/REL is a symbolic link. write_under ROOT REL CMD... guards REL, runs CMD with its stdout going to a
 # fresh mode-600 file (mktemp) in REL's directory, and renames that over REL in one step (mv -fT never follows a link or
-# descends into a directory there). The temp file is named .NAME.mdmesh-tmp.XXXXXX, and the ones a killed run left
+# descends into a directory there). The temp file is named .NAME.dallycontrol-tmp.XXXXXX, and the ones a killed run left
 # behind (ROOT.xml's hold its secrets) are removed first, by that pattern only: a plain NAME.?????? glob would also
 # delete an admin's NAME.backup. (Earlier versions used NAME.XXXXXX; such leftovers are left alone.) tc_guard/tc_write REL and base_guard/base_write REL are these for $CATALINA and $BASE_DIR. Before these run,
 # Tomcat and the supervisor (both run as $SVC_USER) are stopped, every other $SVC_USER process is killed (kill_svc_user),
@@ -230,8 +230,8 @@ write_under() {
   guard_under "$root" "$rel"
   dir=$(dirname "$root/$rel") name=$(basename "$rel")
   mkdir -p "$dir"
-  rm -f "$dir/.$name".mdmesh-tmp.??????
-  tmp=$(mktemp "$dir/.$name.mdmesh-tmp.XXXXXX")
+  rm -f "$dir/.$name".dallycontrol-tmp.??????
+  tmp=$(mktemp "$dir/.$name.dallycontrol-tmp.XXXXXX")
   if "$@" > "$tmp" && chmod 600 "$tmp" && mv -fT "$tmp" "$root/$rel"; then return 0; fi
   rm -f "$tmp"
   _fail "Could not write $root/$rel"
@@ -359,7 +359,7 @@ port_owner() {
 refuse_foreign_port() {
   printf '  %s✗ port %s is already in use%s by another server:\n' "$c_red" "$HTTP_PORT" "$c_reset"
   printf '    %s%s%s\n' "$c_dim" "$(port_holder)" "$c_reset"
-  printf '  Not an MDMesh Tomcat, so this installer will not stop it. Stop it yourself, or pick another port\n'
+  printf '  Not an DallyControl Tomcat, so this installer will not stop it. Stop it yourself, or pick another port\n'
   printf '  (HTTP_PORT=9090), then re-run.  %s(sudo fuser -k %s/tcp kills whatever holds the port)%s\n' "$c_dim" "$HTTP_PORT" "$c_reset"
   exit 1
 }
@@ -509,27 +509,27 @@ fi
 # The password reaches psql on stdin as a psql variable (:'pw' quotes it as an SQL literal), never on its command line,
 # which every local user can read (ps, /proc/<pid>/cmdline) and sudo logs. A psql error here can still echo the
 # statement (password included) into $LOGFILE, which is owner-only (above).
-role_password_sql() { printf '%s\n' "\\set pw $(_mdm_psql_arg "$DB_PASSWORD")" "$1 USER mdmesh WITH PASSWORD :'pw';"; }
+role_password_sql() { printf '%s\n' "\\set pw $(_mdm_psql_arg "$DB_PASSWORD")" "$1 USER dallycontrol WITH PASSWORD :'pw';"; }
 {
-  if as_postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='mdmesh'" | grep -q 1; then
+  if as_postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='dallycontrol'" | grep -q 1; then
     role_password_sql ALTER | as_postgres psql -v ON_ERROR_STOP=1
   else
     role_password_sql CREATE | as_postgres psql -v ON_ERROR_STOP=1
   fi
-  as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='mdmesh'" | grep -q 1 || \
-    as_postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
+  as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='dallycontrol'" | grep -q 1 || \
+    as_postgres psql -c "CREATE DATABASE dallycontrol OWNER dallycontrol;"
 } >> "$LOGFILE" 2>&1
-ok "PostgreSQL role + database 'mdmesh' ready"
+ok "PostgreSQL role + database 'dallycontrol' ready"
 
 # Data safety: the seed (hmdm_init.en.sql) is FRESH-DB-ONLY — it DELETEs configurations and re-inserts a
 # demo device. So decide now whether to seed. If the DB already holds data (an existing install), default
 # to KEEPING it: we only deploy new code + run Liquibase migrations (non-destructive). Replacing is opt-in
 # and drops the DB for a clean slate. Override non-interactively with REPLACE_DATA=yes|no.
-q() { PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
+q() { PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U dallycontrol -d dallycontrol -tAc "$1" 2>/dev/null | tr -d '[:space:]'; }
 # A function, not `env PGPASSWORD=... psql`: env would carry the password on its command line.
-mdmesh_psql() { PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh "$@"; }
+dallycontrol_psql() { PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U dallycontrol -d dallycontrol "$@"; }
 # shellcheck disable=SC2034  # PSQL is consumed by install/lib/db.sh
-PSQL=(mdmesh_psql)
+PSQL=(dallycontrol_psql)
 SEED=yes
 DB_STATE=$(mdm_db_state)   # fresh | seeded | inconsistent | unavailable (no schema yet on a new box)
 # "unavailable" on a box that already HAS the schema means we could not read the settings table, not that
@@ -550,7 +550,7 @@ if [ "$DB_STATE" = seeded ]; then
     if [ "$ASSUME_YES" = 1 ]; then
       REPLACE_DATA=no   # never destroy data unprompted
     else
-      printf '\n  %s%s⚠  Existing MDMesh data found: %s device(s), %s user(s).%s\n' "$c_red" "$c_bold" "$dc" "$uc" "$c_reset"
+      printf '\n  %s%s⚠  Existing DallyControl data found: %s device(s), %s user(s).%s\n' "$c_red" "$c_bold" "$dc" "$uc" "$c_reset"
       printf '  What should the installer do with it?\n'
       printf '    %s[K]eep%s  — deploy new code + run migrations; devices, users and configs untouched %s(default)%s\n' "$c_bold" "$c_reset" "$c_bold" "$c_reset"
       printf '    %s[E]rase%s — drop the database and start from an empty seed. %sThis cannot be undone.%s\n' "$c_bold" "$c_reset" "$c_red" "$c_reset"
@@ -570,9 +570,9 @@ if [ "$DB_STATE" = seeded ]; then
     info "Replacing the database — dropping $dc device(s), $uc user(s)"
     stop_tomcat   # release DB connections first
     {
-      as_postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='mdmesh' AND pid<>pg_backend_pid();"
-      as_postgres psql -c "DROP DATABASE mdmesh;"
-      as_postgres psql -c "CREATE DATABASE mdmesh OWNER mdmesh;"
+      as_postgres psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='dallycontrol' AND pid<>pg_backend_pid();"
+      as_postgres psql -c "DROP DATABASE dallycontrol;"
+      as_postgres psql -c "CREATE DATABASE dallycontrol OWNER dallycontrol;"
     } >> "$LOGFILE" 2>&1
     SEED=yes
   else
@@ -606,7 +606,7 @@ if [ -n "$GITHUB_REPO" ]; then
   jget() { python3 -c 'import sys,json;
 d=json.load(sys.stdin)
 def asset(n): return next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]==n),"")
-print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json"),"signature":asset("manifest.json.minisig")}.get(sys.argv[1],""))' "$1" 2>/dev/null || true; }
+print({"apk":asset("dallycontrol-agent.apk"),"manifest":asset("manifest.json"),"signature":asset("manifest.json.minisig")}.get(sys.argv[1],""))' "$1" 2>/dev/null || true; }
   # (|| true: no release, a 404 or a rate limit leaves REL empty; under set -e + pipefail a failing jget aborted the
   #  whole install instead of falling through to "host the APK manually".)
   REL=$(gh_curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>>"$LOGFILE" || true)
@@ -627,7 +627,7 @@ print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json"),"signat
     if [ -n "$AGENT_CK" ] && gh_curl -fsSL "$APK_URL" -o "$TMP_APK" 2>>"$LOGFILE" \
        && [ "$(sha256sum "$TMP_APK" | awk '{print $1}')" = "$WANT_SHA" ]; then
       AGENT_APK="$TMP_APK"
-      export VITE_AGENT_PACKAGE="com.mdmesh.agent" VITE_AGENT_CHECKSUM="$AGENT_CK" VITE_AGENT_APK_URL="/files/agent.apk"
+      export VITE_AGENT_PACKAGE="com.dallycontrol.agent" VITE_AGENT_CHECKSUM="$AGENT_CK" VITE_AGENT_APK_URL="/files/agent.apk"
       ok "release agent APK fetched + signed-manifest/sha256 verified (checksum ${AGENT_CK})"
     else
       info "Could not fetch/verify the release APK — continuing; host one at /files/agent.apk manually"
@@ -655,7 +655,7 @@ stop_supervisor
 kill_svc_user
 refuse_svc_user_jobs stopped
 # Install Tomcat if it's missing OR a previous run left it partial/corrupt. Check for the actual launcher
-# script, not just the directory, so a broken /opt/mdmesh-tc self-heals instead of failing at startup.
+# script, not just the directory, so a broken /opt/dallycontrol-tc self-heals instead of failing at startup.
 # archive.apache.org keeps every release permanently, so the pinned version URL never rots.
 TC_FRESH=0   # 1 when root unpacks Tomcat below (see the server.xml read)
 if [ ! -x "$CATALINA/bin/catalina.sh" ]; then
@@ -720,8 +720,8 @@ tc_write conf/Catalina/localhost/ROOT.xml cat <<XML
          Rules live in webapps/ROOT/WEB-INF/rewrite.config (written below). -->
     <Valve className="org.apache.catalina.valves.rewrite.RewriteValve"/>
     <Parameter name="JDBC.driver"   value="org.postgresql.Driver"/>
-    <Parameter name="JDBC.url"      value="jdbc:postgresql://127.0.0.1:5432/mdmesh"/>
-    <Parameter name="JDBC.username" value="mdmesh"/>
+    <Parameter name="JDBC.url"      value="jdbc:postgresql://127.0.0.1:5432/dallycontrol"/>
+    <Parameter name="JDBC.username" value="dallycontrol"/>
     <Parameter name="JDBC.password" value="${DB_PASSWORD}"/>
     <Parameter name="base.directory"  value="${BASE_DIR}"/>
     <Parameter name="files.directory" value="${BASE_DIR}/files"/>
@@ -767,15 +767,15 @@ if [ "$SEED" = no ]; then
   step "Backing up the database before upgrading"
   # Liquibase migrations run against live data on the next start; keep a restorable dump first.
   BK_DIR="$BASE_DIR/backups"; base_guard backups; mkdir -p "$BK_DIR"; chmod 700 "$BK_DIR"
-  BK="$BK_DIR/mdmesh-pre-upgrade-$(date +%Y%m%d-%H%M%S).dump"
+  BK="$BK_DIR/dallycontrol-pre-upgrade-$(date +%Y%m%d-%H%M%S).dump"
   # Dumped into a fresh mktemp file that is renamed over $BK (mv -fT replaces a link planted at that name instead of
   # writing through it; mktemp already made it mode 600). Temp dumps a killed run left behind are removed first, by
-  # their own .mdmesh-tmp. names only (as in write_under).
-  rm -f "$BK_DIR"/.mdmesh-pre-upgrade-*.dump.mdmesh-tmp.??????
-  _bk_tmp=$(mktemp "$BK_DIR/.${BK##*/}.mdmesh-tmp.XXXXXX")
+  # their own .dallycontrol-tmp. names only (as in write_under).
+  rm -f "$BK_DIR"/.dallycontrol-pre-upgrade-*.dump.dallycontrol-tmp.??????
+  _bk_tmp=$(mktemp "$BK_DIR/.${BK##*/}.dallycontrol-tmp.XXXXXX")
   # shellcheck disable=SC2024  # we ARE root here (checked at the top); runuser only switches to the postgres role
-  if as_postgres pg_dump -Fc mdmesh > "$_bk_tmp" 2>>"$LOGFILE" && mv -fT "$_bk_tmp" "$BK"; then
-    ok "pg_dump written: $BK  (restore: pg_restore -c -d mdmesh $BK)"
+  if as_postgres pg_dump -Fc dallycontrol > "$_bk_tmp" 2>>"$LOGFILE" && mv -fT "$_bk_tmp" "$BK"; then
+    ok "pg_dump written: $BK  (restore: pg_restore -c -d dallycontrol $BK)"
   else
     rm -f "$_bk_tmp"
     printf '  %s✗ pg_dump failed — not upgrading without a backup. See %s%s\n' "$c_red" "$LOGFILE" "$c_reset"; exit 1
@@ -826,7 +826,7 @@ NODE_BIN=$(command -v node)
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   cat > "/etc/systemd/system/${SUP_UNIT}.service" <<UNIT
 [Unit]
-Description=MDMesh updater supervisor (release polling + verified agent-APK mirror)
+Description=DallyControl updater supervisor (release polling + verified agent-APK mirror)
 After=network-online.target
 Wants=network-online.target
 
@@ -855,7 +855,7 @@ UNIT
     || info "supervisor unit failed to start — check: journalctl -u ${SUP_UNIT}"
 else
   info "no systemd — start the supervisor manually, as $SVC_USER (never as root):"
-  info "  env -i PATH=/usr/local/bin:/usr/bin:/bin sh -c 'cd /; set -a; . ${SUP_ENV_DIR}/supervisor.env; setsid setpriv --reuid=$SVC_USER --regid=$SVC_USER --init-groups --no-new-privs $NODE_BIN ${SUP_DIR}/server.js </dev/null >>/var/log/mdmesh-supervisor.log 2>&1 &'"
+  info "  env -i PATH=/usr/local/bin:/usr/bin:/bin sh -c 'cd /; set -a; . ${SUP_ENV_DIR}/supervisor.env; setsid setpriv --reuid=$SVC_USER --regid=$SVC_USER --init-groups --no-new-privs $NODE_BIN ${SUP_DIR}/server.js </dev/null >>/var/log/dallycontrol-supervisor.log 2>&1 &'"
 fi
 
 step "Starting the server"
@@ -871,7 +871,7 @@ rm -f "$BASE_DIR/initialized.txt"   # Initializer only writes the completion mar
 if have_systemd; then
   cat > "/etc/systemd/system/${SVC_UNIT}.service" <<UNIT
 [Unit]
-Description=MDMesh server (Tomcat 9)
+Description=DallyControl server (Tomcat 9)
 After=network-online.target postgresql.service
 Wants=network-online.target
 
@@ -921,7 +921,7 @@ last_log_line() {
 INIT_MARKER="$BASE_DIR/initialized.txt"
 schema_ready() {
   [ -f "$INIT_MARKER" ] || return 1
-  PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U mdmesh -d mdmesh -tAc "SELECT to_regclass('public.users')" 2>/dev/null | grep -q '^users$'
+  PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U dallycontrol -d dallycontrol -tAc "SELECT to_regclass('public.users')" 2>/dev/null | grep -q '^users$'
 }
 # Wait up to ~5 min for first boot (Liquibase) to complete. On a TTY, show the latest Tomcat log line live.
 _migrate_wait() {
@@ -986,7 +986,7 @@ else
 fi
 
 trap - ERR
-printf '\n  %s%s✓ MDMesh installed (native)%s\n\n' "$c_grn" "$c_bold" "$c_reset"
+printf '\n  %s%s✓ DallyControl installed (native)%s\n\n' "$c_grn" "$c_bold" "$c_reset"
 printf '  %sConsole%s        %s\n' "$c_dim" "$c_reset" "${BASE_URL}"
 printf '  %sREST API%s       %s/rest\n' "$c_dim" "$c_reset" "${BASE_URL}"
 if [ "$SEED" = yes ]; then

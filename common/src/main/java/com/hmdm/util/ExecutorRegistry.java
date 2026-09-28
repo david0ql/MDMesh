@@ -1,5 +1,5 @@
 /*
- * MDMesh — process-wide registry of thread pools so a web-app stop can end them.
+ * DallyControl — process-wide registry of thread pools so a web-app stop can end them.
  */
 package com.hmdm.util;
 

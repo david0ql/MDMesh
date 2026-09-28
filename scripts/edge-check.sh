@@ -151,20 +151,20 @@ if [ "$rc" -ne 0 ] && [ "$n" -eq 0 ]; then fail "health routes: probe container 
 
 # --- 4. The dev stack, configured by docker/dev.env ALONE (not the fixed env file above), so a variable
 # docker-compose.yml requires but dev.env lacks fails here. dev.env pins the project name: without it the project
-# would be named after the checkout directory ("MDMesh" -> mdmesh, the production project). And `config`/`up` of the
-# overlay must refuse to run without dev.env, or a setup.sh .env in the same checkout (COMPOSE_PROJECT_NAME=mdmesh)
+# would be named after the checkout directory ("DallyControl" -> dallycontrol, the production project). And `config`/`up` of the
+# overlay must refuse to run without dev.env, or a setup.sh .env in the same checkout (COMPOSE_PROJECT_NAME=dallycontrol)
 # would point the dev stack at the production containers and database volume. The guard only covers commands that
 # interpolate the files (`config`, `up`); `down -v`, `stop`, `rm`, `exec`, `logs` and `ps` still run against the
 # project that .env names, so docs/DEV.md passes --env-file docker/dev.env on every command. ---
 echo "Dev stack (docker compose --env-file docker/dev.env):"
 # Shell variables beat --env-file, so unset every variable the compose files require (${VAR:?...}, which includes the
-# MDMESH_DEV guard): only dev.env may supply them here, whatever the developer's shell exports.
+# DALLYCONTROL_DEV guard): only dev.env may supply them here, whatever the developer's shell exports.
 # shellcheck disable=SC2046  # word splitting intended: one variable name per word
 unset $(grep -ohE '\$\{[A-Za-z_][A-Za-z0-9_]*:\?' docker-compose.yml docker-compose.dev.yml | sed 's/^\${//; s/:?$//' | sort -u)
 if out="$(docker compose --env-file docker/dev.env config 2>&1)"; then
   proj="$(printf '%s\n' "$out" | awk '$1 == "name:" { print $2; exit }')"
-  if [ "$proj" = mdmesh-dev ]; then pass "compose --env-file docker/dev.env (project $proj)"
-  else fail "compose --env-file docker/dev.env: project is '$proj', want mdmesh-dev"; fi
+  if [ "$proj" = dallycontrol-dev ]; then pass "compose --env-file docker/dev.env (project $proj)"
+  else fail "compose --env-file docker/dev.env: project is '$proj', want dallycontrol-dev"; fi
 else
   fail "compose --env-file docker/dev.env"
   printf '%s\n' "$out" | tail -5 | sed 's/^/         /'
@@ -175,7 +175,7 @@ if out="$(docker compose --env-file "$ENVF" -f docker-compose.yml -f docker-comp
 elif grep -qF 'run the dev stack with --env-file docker/dev.env' <<<"$out"; then
   pass "the dev overlay refuses config without docker/dev.env"
 else
-  fail "the dev overlay failed without docker/dev.env, but not on its MDMESH_DEV guard"
+  fail "the dev overlay failed without docker/dev.env, but not on its DALLYCONTROL_DEV guard"
   printf '%s\n' "$out" | tail -5 | sed 's/^/         /'
 fi
 

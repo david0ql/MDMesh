@@ -6,7 +6,7 @@ import {
 } from '../api/rollout';
 import { searchDevices, type DeviceView } from '../api/devices';
 
-const AGENT_PACKAGE = (import.meta.env.VITE_AGENT_PACKAGE as string) || 'com.mdmesh.agent';
+const AGENT_PACKAGE = (import.meta.env.VITE_AGENT_PACKAGE as string) || 'com.dallycontrol.agent';
 
 /** A labelled progress bar for one cohort (canary or fleet). */
 function CohortBar({ label, c }: { label: string; c: RolloutCounts }) {

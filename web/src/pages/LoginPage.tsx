@@ -40,7 +40,7 @@ export function LoginPage() {
       <form className="login-card route-enter" onSubmit={onSubmit}>
         <Wordmark />
         <div className="login-head">
-          <h1>Sign in to MDMesh</h1>
+          <h1>Sign in to DallyControl</h1>
           <p>Device fleet command console.</p>
         </div>
 

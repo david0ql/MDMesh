@@ -9,13 +9,13 @@ import { QrCanvas } from '../components/QrCanvas';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
-const DEFAULT_CONFIG_KEY = 'mdmesh-default-config';
+const DEFAULT_CONFIG_KEY = 'dallycontrol-default-config';
 const SECURITY_VALUES: WifiSecurity[] = ['WPA', 'WEP', 'NONE', 'EAP'];
 
 const STEPS = [
   { title: 'Start from a factory-reset device', sub: 'On the first "Hi there" welcome screen, don\'t sign in yet.' },
   { title: 'Tap the screen 6 times', sub: 'This opens the QR provisioning scanner. Connect to Wi-Fi if asked.' },
-  { title: 'Scan this code', sub: 'Android downloads the MDMesh agent and sets it as device owner.' },
+  { title: 'Scan this code', sub: 'Android downloads the DallyControl agent and sets it as device owner.' },
   { title: 'Wait for enrollment', sub: 'The device appears in Devices after its first check-in.' },
 ];
 
@@ -206,8 +206,8 @@ export function EnrollPage() {
                   <p className="note">
                     Single-use token{expiresAt ? `, expires ${fmtDateTime(expiresAt)}` : ''}. For headless
                     or scripted provisioning — embed it as{' '}
-                    <span className="mono">com.mdmesh.ENROLL_TOKEN</span> (with{' '}
-                    <span className="mono">com.mdmesh.SERVER_URL</span>). The QR is the usual path.
+                    <span className="mono">com.dallycontrol.ENROLL_TOKEN</span> (with{' '}
+                    <span className="mono">com.dallycontrol.SERVER_URL</span>). The QR is the usual path.
                   </p>
                 </>
               ) : (

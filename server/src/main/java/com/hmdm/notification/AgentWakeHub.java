@@ -1,5 +1,5 @@
 /*
- * MDMesh agent wake hub: holds live device WebSocket sessions and fans out wake-only signals.
+ * DallyControl agent wake hub: holds live device WebSocket sessions and fans out wake-only signals.
  */
 package com.hmdm.notification;
 

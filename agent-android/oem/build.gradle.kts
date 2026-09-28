@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mdmesh.oem"
+    namespace = "com.dallycontrol.oem"
     compileSdk = 35
 
     defaultConfig {

@@ -1,4 +1,4 @@
-// Capture MDMesh docs screenshots from the REAL built SPA, answering its REST calls with sample
+// Capture DallyControl docs screenshots from the REAL built SPA, answering its REST calls with sample
 // fixtures (Playwright request interception), in dark mode, then round the corners (sharp).
 //
 //   node capture.mjs            # build is expected to exist at ../../web/dist
@@ -76,8 +76,8 @@ async function newContext(browser, user) {
   // Seed theme (+ auth when given) before any app script runs.
   await context.addInitScript((u) => {
     if (u) localStorage.setItem('hmdm.admin.user', JSON.stringify(u));
-    localStorage.setItem('mdmesh-theme', 'dark');
-    localStorage.setItem('mdmesh-density', 'comfortable');
+    localStorage.setItem('dallycontrol-theme', 'dark');
+    localStorage.setItem('dallycontrol-density', 'comfortable');
   }, user);
 
   // Answer the SPA's API calls from fixtures.

@@ -37,5 +37,5 @@ New components (Kotlin agent, `proto/`, React `web/`, agent v1 endpoints) are or
 - (+) Free to commercialize and keep our work closed; no obligation to upstream.
 - (+) Strangler path de-risks: never blocked, migrate at our pace.
 - (−) Must pick and apply a product brand (the `com.hmdm` package namespace is cosmetic legacy,
-  not a legal issue; renaming it is optional cleanup). The new agent already uses `com.mdmesh`.
+  not a legal issue; renaming it is optional cleanup). The new agent already uses `com.dallycontrol`.
 - This is practical guidance, not legal advice; §5 sign-off remains required.

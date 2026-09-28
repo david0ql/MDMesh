@@ -53,7 +53,7 @@ jobs:
     # project name and image tag carry the run id, and port 0 publishes each loopback port on a free ephemeral port
     # (dev-seed.sh and the suite step ask compose which one).
     env:
-      COMPOSE_PROJECT_NAME: mdmesh-t1-${{ github.run_id }}-${{ github.run_attempt }}
+      COMPOSE_PROJECT_NAME: dallycontrol-t1-${{ github.run_id }}-${{ github.run_attempt }}
       SERVER_VERSION: t1-${{ github.run_id }}-${{ github.run_attempt }}
       DEV_API_PORT: "0"
       DEV_PG_PORT: "0"

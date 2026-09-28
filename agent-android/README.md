@@ -4,7 +4,7 @@ A from-scratch, self-hosted **custom DPC** (Device Owner) Android MDM agent.
 Modern Kotlin: coroutines/Flow, Hilt, Room, DataStore, WorkManager,
 kotlinx.serialization + Retrofit.
 
-- `applicationId` / base namespace: `com.mdmesh.agent`
+- `applicationId` / base namespace: `com.dallycontrol.agent`
 - `minSdk 23` (Android 6), `targetSdk 35`, `compileSdk 35`
 - Identity is a **server-issued device id** (DataStore). The agent never uses
   IMEI/IMSI/serial as identity (restricted post-Android 10).
@@ -77,9 +77,9 @@ factory-reset). Then:
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # 2. Bind it as Device Owner (note the .debug applicationIdSuffix on debug builds).
-adb shell dpm set-device-owner com.mdmesh.agent.debug/com.mdmesh.agent.admin.AdminReceiver
+adb shell dpm set-device-owner com.dallycontrol.agent.debug/com.dallycontrol.agent.admin.AdminReceiver
 #   release build would be:
-#   adb shell dpm set-device-owner com.mdmesh.agent/com.mdmesh.agent.admin.AdminReceiver
+#   adb shell dpm set-device-owner com.dallycontrol.agent/com.dallycontrol.agent.admin.AdminReceiver
 
 # 3. Confirm.
 adb shell dumpsys device_policy | grep -i "Device Owner"
@@ -89,8 +89,8 @@ Then give it the server and an enroll token (what the QR bundle does in producti
 `scripts/adb-enroll.sh`, which does all three steps:
 
 ```bash
-adb shell am broadcast -a com.mdmesh.agent.ADB_PROVISION \
-  -n com.mdmesh.agent.debug/com.mdmesh.agent.provisioning.AdbProvisionReceiver \
+adb shell am broadcast -a com.dallycontrol.agent.ADB_PROVISION \
+  -n com.dallycontrol.agent.debug/com.dallycontrol.agent.provisioning.AdbProvisionReceiver \
   --es server_url http://10.0.2.2:8088 --es enroll_token <token>
 ```
 
@@ -106,7 +106,7 @@ A Device Owner cannot simply be uninstalled. To clear it:
 
 ```bash
 # Clears the DO binding (works on debug/userdebug builds).
-adb shell dpm remove-active-admin com.mdmesh.agent.debug/com.mdmesh.agent.admin.AdminReceiver
+adb shell dpm remove-active-admin com.dallycontrol.agent.debug/com.dallycontrol.agent.admin.AdminReceiver
 
 # If that is blocked, factory reset:
 adb shell am broadcast -a android.intent.action.MASTER_CLEAR   # or wipe via Settings / recovery

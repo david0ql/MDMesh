@@ -1,4 +1,4 @@
-# MDMesh console (`web/`)
+# DallyControl console (`web/`)
 
 The admin console: a React + TypeScript single-page app built with Vite. In production it is baked into the web
 image and served by Caddy next to the API (`docker/web.Dockerfile`, `docker/Caddyfile`); the native installer serves

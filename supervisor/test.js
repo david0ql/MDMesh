@@ -30,15 +30,15 @@ t.test('shapeStatus', () => {
 });
 
 t.test('imageTags', () => {
-  const m = { version: '1.1.0', components: { serverImage: 'ghcr.io/o/mdmesh-server:1.1.0', webImage: 'ghcr.io/o/mdmesh-web:1.1.0' } };
-  a.deepEqual(imageTags(m), { serverImage: 'ghcr.io/o/mdmesh-server:1.1.0', webImage: 'ghcr.io/o/mdmesh-web:1.1.0', version: '1.1.0' });
+  const m = { version: '1.1.0', components: { serverImage: 'ghcr.io/o/dallycontrol-server:1.1.0', webImage: 'ghcr.io/o/dallycontrol-web:1.1.0' } };
+  a.deepEqual(imageTags(m), { serverImage: 'ghcr.io/o/dallycontrol-server:1.1.0', webImage: 'ghcr.io/o/dallycontrol-web:1.1.0', version: '1.1.0' });
   a.deepEqual(imageTags(null), { serverImage: null, webImage: null, version: null });
 });
 
 t.test('apkAsset', () => {
-  const manifest = { version: '1.2.0', components: { apk: { file: 'mdmesh-agent.apk', versionCode: 120, sha256: 'abc', signatureChecksum: 'x' } } };
-  const release = { assets: [{ name: 'mdmesh-agent.apk', browser_download_url: 'https://gh/dl/mdmesh-agent.apk' }, { name: 'manifest.json' }] };
-  a.deepEqual(apkAsset(release, manifest), { version: '1.2.0', versionCode: 120, sha256: 'abc', url: 'https://gh/dl/mdmesh-agent.apk' });
+  const manifest = { version: '1.2.0', components: { apk: { file: 'dallycontrol-agent.apk', versionCode: 120, sha256: 'abc', signatureChecksum: 'x' } } };
+  const release = { assets: [{ name: 'dallycontrol-agent.apk', browser_download_url: 'https://gh/dl/dallycontrol-agent.apk' }, { name: 'manifest.json' }] };
+  a.deepEqual(apkAsset(release, manifest), { version: '1.2.0', versionCode: 120, sha256: 'abc', url: 'https://gh/dl/dallycontrol-agent.apk' });
   a.equal(apkAsset({ assets: [] }, manifest), null);     // asset not present
   a.equal(apkAsset(release, { version: '1.2.0', components: {} }), null); // no apk block
   a.equal(apkAsset(null, null), null);
@@ -182,7 +182,7 @@ t.test('/update/status reports the mirrored APK as available once the warm-up do
     // A signed release: throwaway key pair, a manifest naming the APK by sha256, the detached signature beside it.
     const apk = crypto.randomBytes(4096);
     const manifest = { version: '9.9.9', channel: 'stable', components: { apk: {
-      file: 'mdmesh-agent.apk', versionCode: 999, sha256: crypto.createHash('sha256').update(apk).digest('hex') } } };
+      file: 'dallycontrol-agent.apk', versionCode: 999, sha256: crypto.createHash('sha256').update(apk).digest('hex') } } };
     fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest));
     cp.execFileSync('minisign', ['-G', '-W', '-p', path.join(dir, 'k.pub'), '-s', path.join(dir, 'k.key')], { stdio: 'ignore' });
     cp.execFileSync('minisign', ['-S', '-s', path.join(dir, 'k.key'), '-m', path.join(dir, 'manifest.json')], { stdio: 'ignore' });
@@ -194,9 +194,9 @@ t.test('/update/status reports the mirrored APK as available once the warm-up do
       if (req.url.startsWith('/repos/o/r/releases')) {
         releaseCalls++;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify([{ tag_name: 'v9.9.9', html_url: base + '/rel', assets: ['manifest.json', 'manifest.json.minisig', 'mdmesh-agent.apk']
+        res.end(JSON.stringify([{ tag_name: 'v9.9.9', html_url: base + '/rel', assets: ['manifest.json', 'manifest.json.minisig', 'dallycontrol-agent.apk']
           .map((name) => ({ name, browser_download_url: `${base}/dl/${name}` })) }]));
-      } else if (req.url === '/dl/mdmesh-agent.apk') {
+      } else if (req.url === '/dl/dallycontrol-agent.apk') {
         // A stale publish temp that appears after start-up (not seen by the start-up cleanup): the publish removes it.
         fs.writeFileSync(path.join(dir, 'files', 'agent.apk.1111111111111111.tmp'), 'STALE');
         res.end(apk);

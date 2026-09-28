@@ -1,5 +1,5 @@
 /*
- * MDMesh: same-origin passthrough to the updater/recovery supervisor.
+ * DallyControl: same-origin passthrough to the updater/recovery supervisor.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ public class UpdateProxyServlet extends HttpServlet {
 
     /** Headers forwarded to the supervisor — auth/CSRF material plus content negotiation. */
     private static final String[] FORWARD_HEADERS = {
-            "cookie", "content-type", "accept", "x-mdmesh-console", "x-recovery-token",
+            "cookie", "content-type", "accept", "x-dallycontrol-console", "x-recovery-token",
     };
 
     private String supervisorBase;

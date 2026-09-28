@@ -25,7 +25,7 @@ const api = arg('--api', 'http://localhost:8088');
 const device = arg('--device');
 const serial = arg('--serial');
 const user = arg('--admin-user', 'admin');
-const password = process.env.MDMESH_ADMIN_PASSWORD || 'admin';
+const password = process.env.DALLYCONTROL_ADMIN_PASSWORD || 'admin';
 const viaConsole = process.argv.includes('--console');
 if (!device || !serial) { console.error('--device and --serial are required'); process.exit(2); }
 
@@ -35,7 +35,7 @@ const top = () => (adb('shell', 'dumpsys activity activities')
   .match(/(?:topResumedActivity|mResumedActivity|mFocusedActivity)[=:].*? (\S+)\//) || [])[1] || '';
 const session = (...extra) => execFileSync(path.join(here, 'remote-session.sh'),
   ['--api', api, '--device', device, '--admin-user', user, ...extra],
-  { encoding: 'utf8', env: { ...process.env, MDMESH_ADMIN_PASSWORD: password } }).trim();
+  { encoding: 'utf8', env: { ...process.env, DALLYCONTROL_ADMIN_PASSWORD: password } }).trim();
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => {

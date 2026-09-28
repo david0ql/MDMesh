@@ -53,8 +53,8 @@ jobs:
     # on a daemon shared by several runners (vars.CI_RUNNER) a fixed tag lets concurrent runs retag each other's image,
     # so a run could smoke another PR's build.
     env:
-      SUP_IMG: mdmesh-supervisor:ci-${{ github.run_id }}-${{ github.run_attempt }}
-      WEB_IMG: mdmesh-web:ci-${{ github.run_id }}-${{ github.run_attempt }}
+      SUP_IMG: dallycontrol-supervisor:ci-${{ github.run_id }}-${{ github.run_attempt }}
+      WEB_IMG: dallycontrol-web:ci-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:

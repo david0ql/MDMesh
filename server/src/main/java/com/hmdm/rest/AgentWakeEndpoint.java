@@ -1,5 +1,5 @@
 /*
- * MDMesh agent wake channel — JSR-356 WebSocket endpoint.
+ * DallyControl agent wake channel — JSR-356 WebSocket endpoint.
  *
  * The device holds one wss connection here (over the same tunnel as the REST API); the server
  * pushes a tiny "sync now" signal when work is queued. The device then pulls + acks over the

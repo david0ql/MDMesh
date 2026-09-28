@@ -4,7 +4,7 @@ import { useToast } from '../ui/toast';
 import { fmtRelative } from '../ui/format';
 
 /** The agent's own packages: never offered for removal. */
-const AGENT_PREFIX = 'com.mdmesh.agent';
+const AGENT_PREFIX = 'com.dallycontrol.agent';
 
 /**
  * Installed apps on the device (from its latest `apps.scan`), with a remote silent uninstall per app.

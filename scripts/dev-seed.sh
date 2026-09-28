@@ -12,7 +12,7 @@ cd "$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . install/lib/db.sh
 DC=(docker compose --env-file docker/dev.env)
 # shellcheck disable=SC2034  # PSQL is used by install/lib/db.sh
-PSQL=("${DC[@]}" exec -T postgres psql -U mdmesh -d mdmesh)
+PSQL=("${DC[@]}" exec -T postgres psql -U dallycontrol -d dallycontrol)
 PW="${DEV_ADMIN_PASSWORD:-admin}"
 md5u() { printf '%s' "$1" | md5sum | awk '{print toupper($1)}'; }
 # POST a JSON body to $API$1 and print the response's "data" as JSON. The body goes on stdin, so password hashes and
@@ -38,9 +38,9 @@ reset_pw() {
     "{\"passwordResetToken\":\"$1\",\"newPassword\":\"$(md5u "$PW")\"}" >/dev/null
 }
 
-# Act only on a dev stack. docker/dev.env names the project mdmesh-dev, but an exported COMPOSE_PROJECT_NAME (how a
+# Act only on a dev stack. docker/dev.env names the project dallycontrol-dev, but an exported COMPOSE_PROJECT_NAME (how a
 # second, isolated dev stack runs) or an edited dev.env can point these commands at another project, such as a
-# production install's (setup.sh names it mdmesh). Compose labels each container with the files it was created from,
+# production install's (setup.sh names it dallycontrol). Compose labels each container with the files it was created from,
 # so require the dev overlay on every container this script uses; a production stack's never carry it.
 [ -f docker/dev.env ] || { echo "docker/dev.env is missing; this script only seeds the dev stack" >&2; exit 1; }
 cfg=$("${DC[@]}" config --format json) || exit 1
@@ -64,7 +64,7 @@ API="http://$("${DC[@]}" port server 8080)"   # the published host port, whereve
 # docker/entrypoint.sh removes initialized.txt at every start, and the server writes it when its initialization is over
 # (with "OK" or the error), so also wait for the API to answer, which it does only after a boot that worked. Both
 # probes are silent: while Tomcat boots, refused or reset connections are expected, not errors worth printing.
-ready() { "${DC[@]}" exec -T server test -f /opt/mdmesh/initialized.txt >/dev/null 2>&1 \
+ready() { "${DC[@]}" exec -T server test -f /opt/dallycontrol/initialized.txt >/dev/null 2>&1 \
           && curl -fs -o /dev/null -m 5 "$API/rest/public/auth/options" 2>/dev/null; }
 printf 'dev stack %s: waiting for the server (the first boot runs Liquibase)' "$project"
 up=

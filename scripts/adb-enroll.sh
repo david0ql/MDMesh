@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# USB/ADB enrollment of a factory-reset Android device (or emulator) into MDMesh.
+# USB/ADB enrollment of a factory-reset Android device (or emulator) into DallyControl.
 #
 # This is the enrollment path Google's Play-Protect DPC allowlist does NOT block (QR/zero-touch/Knox
 # provisioning of a self-signed DPC is blocked on devices with Google Play services). One run:
@@ -13,7 +13,7 @@
 #      WRITE_SECURE_SETTINGS so it can keep that input service on. A Device Owner cannot grant these itself.
 #
 # The token is either given (--token, minted in the console's Enroll page) or minted here with admin
-# credentials (--admin-user/--admin-password, or MDMESH_ADMIN_PASSWORD).
+# credentials (--admin-user/--admin-password, or DALLYCONTROL_ADMIN_PASSWORD).
 #
 # Usage:
 #   scripts/adb-enroll.sh --server https://mdm.example.com --apk agent.apk [--token T | --admin-user admin]
@@ -22,11 +22,11 @@
 #   --server        URL the DEVICE uses to reach the server (for an emulator and the dev stack:
 #                   http://10.0.2.2:8088, debug builds only).
 #   --api-url       URL THIS machine uses to mint the token (default: --server).
-#   --debug-build   the APK is a debug build (package com.mdmesh.agent.debug).
+#   --debug-build   the APK is a debug build (package com.dallycontrol.agent.debug).
 set -euo pipefail
 
 SERVER=""; API_URL=""; APK=""; TOKEN=""; SERIAL="${ANDROID_SERIAL:-}"; ADMIN_USER=""; CONFIG_ID=""
-REMOTE=0; VNC_APK=""; PKG="com.mdmesh.agent"; ADB="${ADB:-adb}"
+REMOTE=0; VNC_APK=""; PKG="com.dallycontrol.agent"; ADB="${ADB:-adb}"
 VNC_PKG="net.christianbeier.droidvnc_ng"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,11 +36,11 @@ while [ $# -gt 0 ]; do
     --token) TOKEN="$2"; shift 2 ;;
     --serial) SERIAL="$2"; shift 2 ;;
     --admin-user) ADMIN_USER="$2"; shift 2 ;;
-    --admin-password) MDMESH_ADMIN_PASSWORD="$2"; shift 2 ;;
+    --admin-password) DALLYCONTROL_ADMIN_PASSWORD="$2"; shift 2 ;;
     --configuration-id) CONFIG_ID="$2"; shift 2 ;;
     --remote) REMOTE=1; shift ;;
     --vnc-apk) VNC_APK="$2"; shift 2 ;;
-    --debug-build) PKG="com.mdmesh.agent.debug"; shift ;;
+    --debug-build) PKG="com.dallycontrol.agent.debug"; shift ;;
     -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -48,7 +48,7 @@ done
 [ -n "$SERVER" ] || { echo "--server is required" >&2; exit 2; }
 API_URL="${API_URL:-$SERVER}"
 A=("$ADB"); [ -z "$SERIAL" ] || A+=(-s "$SERIAL")
-ADMIN_COMPONENT="$PKG/com.mdmesh.agent.admin.AdminReceiver"
+ADMIN_COMPONENT="$PKG/com.dallycontrol.agent.admin.AdminReceiver"
 say(){ printf '\033[1m==> %s\033[0m\n' "$*"; }
 die(){ printf '\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -59,7 +59,7 @@ say "device $("${A[@]}" shell getprop ro.product.model | tr -d '\r') (API $SDK)"
 # --- 1. token ---------------------------------------------------------------------------------------
 if [ -z "$TOKEN" ]; then
   [ -n "$ADMIN_USER" ] || die "pass --token, or --admin-user to mint one"
-  PW="${MDMESH_ADMIN_PASSWORD:-}"
+  PW="${DALLYCONTROL_ADMIN_PASSWORD:-}"
   [ -n "$PW" ] || { read -r -s -p "password for $ADMIN_USER: " PW; echo; }
   CJ=$(mktemp); trap 'rm -f "$CJ"' EXIT
   if command -v md5sum >/dev/null 2>&1; then MD5=$(printf '%s' "$PW" | md5sum | awk '{print toupper($1)}')
@@ -110,15 +110,15 @@ fi
 
 # --- 4. hand over server URL + token -----------------------------------------------------------------
 say "provisioning server $SERVER"
-RES=$("${A[@]}" shell am broadcast -a com.mdmesh.agent.ADB_PROVISION \
-  -n "$PKG/com.mdmesh.agent.provisioning.AdbProvisionReceiver" \
+RES=$("${A[@]}" shell am broadcast -a com.dallycontrol.agent.ADB_PROVISION \
+  -n "$PKG/com.dallycontrol.agent.provisioning.AdbProvisionReceiver" \
   --es server_url "$SERVER" --es enroll_token "$TOKEN" 2>&1 | tr -d '\r')
 if echo "$RES" | grep -q 'already enrolled'; then
   say "already enrolled with a server; left as is (re-enroll: factory reset, or send the broadcast with --ez force true)"
 else
   echo "$RES" | grep -q 'data="ok' || die "provisioning broadcast failed: $RES"
 fi
-"${A[@]}" shell am start -n "$PKG/com.mdmesh.agent.MainActivity" >/dev/null 2>&1 || true
+"${A[@]}" shell am start -n "$PKG/com.dallycontrol.agent.MainActivity" >/dev/null 2>&1 || true
 if [ "$REMOTE" = 1 ]; then
   # Fallback: if the agent could not enable droidVNC-NG's input service, do it now (after its key is set).
   SVC="$VNC_PKG/$VNC_PKG.InputService"   # the full class name; the short /.InputService form is ignored

@@ -1,4 +1,4 @@
-# MDMesh — design system ("Instrument")
+# DallyControl — design system ("Instrument")
 
 A device-fleet command console for IT admins. The direction is an **instrument / control
 panel**: calm, precise, data-dense, watched for long stretches. The opposite of a generic
@@ -48,7 +48,7 @@ Scale: 11 (label) · 13 (small) · 14 (body) · 16 · 20 · 28 · 40 (vitals rea
 
 ## Layout — app shell
 
-- **Left sidebar (240px, fixed):** MDMesh wordmark at top (condensed; render as
+- **Left sidebar (240px, fixed):** DallyControl wordmark at top (condensed; render as
   `MDM` in `--text` + `esh` in `--muted`, with a small amber square bullet before it).
   Nav: Dashboard · Devices · Enroll · Settings. Active item = amber 2px left bar + brighter text.
   Bottom: signed-in user + Sign out.
@@ -66,7 +66,7 @@ like an instrument cluster, keep everything else restrained.
 
 ## Pages
 
-1. **Login** — centered card on `--ink`; wordmark; "Sign in to MDMesh"; amber CTA. Errors are
+1. **Login** — centered card on `--ink`; wordmark; "Sign in to DallyControl"; amber CTA. Errors are
    direct ("Wrong login or password"), in the alert color, no apology.
 2. **Dashboard** — vitals strip + a "Fleet" panel (compact recent-devices table) + an "Activity"
    panel (recent enrollments/commands; if no data source yet, a quiet empty state: "No activity yet").

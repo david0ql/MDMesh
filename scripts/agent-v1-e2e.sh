@@ -53,7 +53,7 @@ TOK=$(curl -s -b "$CJ" -X POST "$BASE/rest/private/agent/v1/token" | field "d['d
 [ -n "$TOK" ] || { echo "  FAIL: no token"; exit 1; }
 
 echo "== enroll =="
-ENR=$(curl -s -X POST -H 'Content-Type: application/json' -d "{\"enrollToken\":\"$TOK\",\"agent\":{\"version\":\"0.1.0\",\"package\":\"com.mdmesh.agent\"},\"device\":{\"androidSdkInt\":34,\"isDeviceOwner\":true},\"capabilities\":{\"policy\":[\"wifi\"],\"appManagement\":[],\"remoteControl\":{\"tier\":\"none\"},\"oem\":{\"vendor\":\"samsung\",\"knox\":false}}}" "$BASE/rest/public/agent/v1/enroll")
+ENR=$(curl -s -X POST -H 'Content-Type: application/json' -d "{\"enrollToken\":\"$TOK\",\"agent\":{\"version\":\"0.1.0\",\"package\":\"com.dallycontrol.agent\"},\"device\":{\"androidSdkInt\":34,\"isDeviceOwner\":true},\"capabilities\":{\"policy\":[\"wifi\"],\"appManagement\":[],\"remoteControl\":{\"tier\":\"none\"},\"oem\":{\"vendor\":\"samsung\",\"knox\":false}}}" "$BASE/rest/public/agent/v1/enroll")
 chk "enroll OK" "$(echo "$ENR" | field "d['status']")" "OK"
 DID=$(echo "$ENR" | field "d['data']['deviceId']"); SEC=$(echo "$ENR" | field "d['data']['deviceSecret']")
 
@@ -205,7 +205,7 @@ chk "force sync OK" \
 echo "== remote control (ADR 0010): status, session start, device tunnel gate =="
 code(){ curl -s -o /dev/null -w '%{http_code}' "$@"; }
 chk "tunnel refused before any session (403)" \
-  "$(code -H "Authorization: Bearer $SEC" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "403"
+  "$(code -H "Authorization: Bearer $SEC" -H "X-DallyControl-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "403"
 chk "start refused while the device reports no remote support" \
   "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":false}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start" | field "d['status']+':'+str(d.get('message'))")" \
   "ERROR:error.agent.remote.unsupported"
@@ -232,9 +232,9 @@ chk "view-only session reaches a control-tier device (control implies view)" \
 chk "history hides the session password" \
   "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "'$(echo "$RS" | field "d['data']['password']")' in json.dumps(d)")" "False"
 chk "tunnel open for the device with a queued session (204)" \
-  "$(code -H "Authorization: Bearer $SEC" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "204"
+  "$(code -H "Authorization: Bearer $SEC" -H "X-DallyControl-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "204"
 chk "tunnel refused with a wrong secret (401)" \
-  "$(code -H "Authorization: Bearer WRONG" -H "X-MDMesh-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
+  "$(code -H "Authorization: Bearer WRONG" -H "X-DallyControl-Device: $DID" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
 chk "tunnel refused without the device header (401)" \
   "$(code -H "Authorization: Bearer $SEC" "$BASE/rest/public/agent/v1/remote/tunnel")" "401"
 
@@ -275,7 +275,7 @@ chk "observer: force sync denied" "$(curl -s -b "$OJ" -X POST "$BASE/rest/privat
 # Registered before the create call: unless the create is clearly denied, cleanup() cancels a 9.9.9-e2e rollout.
 LIVE_RVER="9.9.9-e2e"
 ROUT=$(curl -s -b "$OJ" -X POST -H 'Content-Type: application/json' \
-  -d "{\"targetVersion\":\"9.9.9-e2e\",\"packageName\":\"com.mdmesh.agent\",\"apkVersionCode\":999999,\"apkSha256\":\"$(printf '0%.0s' $(seq 64))\",\"canaryDeviceNumbers\":[\"$DID\"]}" \
+  -d "{\"targetVersion\":\"9.9.9-e2e\",\"packageName\":\"com.dallycontrol.agent\",\"apkVersionCode\":999999,\"apkSha256\":\"$(printf '0%.0s' $(seq 64))\",\"canaryDeviceNumbers\":[\"$DID\"]}" \
   "$BASE/rest/private/agent/v1/rollout" || true)
 OCREATE=$(echo "$ROUT" | ores || true)
 chk "observer: rollout create denied" "$OCREATE" "$DENIED"
@@ -294,7 +294,7 @@ fi
 if [ "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/rollout/active" | field "d['data'] is None")" = True ]; then
   LIVE_RVER="9.9.8-e2e"   # before the create call: if its response is lost, cleanup() still finds the rollout
   AROUT=$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' \
-    -d "{\"targetVersion\":\"9.9.8-e2e\",\"packageName\":\"com.mdmesh.agent\",\"apkVersionCode\":999998,\"apkSha256\":\"$(printf '0%.0s' $(seq 64))\",\"canaryDeviceNumbers\":[\"$DID\"]}" \
+    -d "{\"targetVersion\":\"9.9.8-e2e\",\"packageName\":\"com.dallycontrol.agent\",\"apkVersionCode\":999998,\"apkSha256\":\"$(printf '0%.0s' $(seq 64))\",\"canaryDeviceNumbers\":[\"$DID\"]}" \
     "$BASE/rest/private/agent/v1/rollout" || true)
   LIVE_RID=$(echo "$AROUT" | field "(d.get('data') or {}).get('id') or ''" || true)
   chk "admin: rollout created (canary)" "$(echo "$AROUT" | field "str(d['status'])+':'+str((d.get('data') or {}).get('stage'))")" "OK:canary"

@@ -1,6 +1,6 @@
 # Security policy
 
-MDMesh is a device-management control plane: a vulnerability here can reach every enrolled device. Please report
+DallyControl is a device-management control plane: a vulnerability here can reach every enrolled device. Please report
 security issues privately rather than in a public issue.
 
 ## Reporting

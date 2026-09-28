@@ -1,8 +1,8 @@
 {
-  "name": "mdmesh-shots",
+  "name": "dallycontrol-shots",
   "private": true,
   "type": "module",
-  "description": "Reproducible screenshot harness for MDMesh docs (renders the real SPA against mocked data).",
+  "description": "Reproducible screenshot harness for DallyControl docs (renders the real SPA against mocked data).",
   "dependencies": {
     "playwright": "^1.48.0",
     "sharp": "^0.35.4"

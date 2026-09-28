@@ -10,7 +10,7 @@ APK=$1; shift
 HERE=$(cd "$(dirname "$0")" && pwd)
 SDK=${ANDROID_HOME:-$HOME/Library/Android/sdk}
 ADB=$SDK/platform-tools/adb; export PATH=$SDK/platform-tools:$PATH
-OUT=${MATRIX_OUT:-/tmp/mdmesh-matrix}; mkdir -p "$OUT"
+OUT=${MATRIX_OUT:-/tmp/dallycontrol-matrix}; mkdir -p "$OUT"
 PORT=5600
 for AVD in "$@"; do
   SER=emulator-$PORT; LOG=$OUT/$AVD.log
@@ -22,10 +22,10 @@ for AVD in "$@"; do
   sleep 8
   API=$($ADB -s $SER shell getprop ro.build.version.sdk | tr -d '\r')
   EXTRA=(); [ "${REMOTE_E2E:-0}" = 1 ] && EXTRA=(--remote --vnc-apk "$VNC_APK")
-  MDMESH_ADMIN_PASSWORD=${MDMESH_ADMIN_PASSWORD:-admin} "$HERE/adb-enroll.sh" --serial $SER --server http://10.0.2.2:8088 \
+  DALLYCONTROL_ADMIN_PASSWORD=${DALLYCONTROL_ADMIN_PASSWORD:-admin} "$HERE/adb-enroll.sh" --serial $SER --server http://10.0.2.2:8088 \
       --api-url http://localhost:8088 --admin-user admin --apk "$APK" --debug-build "${EXTRA[@]}" >>"$LOG" 2>&1 || echo "enroll script failed" >>"$LOG"
   DID=""; for i in $(seq 1 40); do
-    DID=$($ADB -s $SER shell run-as com.mdmesh.agent.debug cat files/datastore/mdm_identity.preferences_pb 2>/dev/null | strings | grep -oE '[0-9a-f]{8}-[0-9a-f-]{27}' | head -1)
+    DID=$($ADB -s $SER shell run-as com.dallycontrol.agent.debug cat files/datastore/mdm_identity.preferences_pb 2>/dev/null | strings | grep -oE '[0-9a-f]{8}-[0-9a-f-]{27}' | head -1)
     [ -n "$DID" ] && break; sleep 3; done
   if [ -z "$DID" ]; then echo "RESULT $AVD (API $API): ENROLL-FAILED" | tee -a "$LOG"
   else

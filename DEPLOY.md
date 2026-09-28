@@ -1,4 +1,4 @@
-# Deploying MDMesh
+# Deploying DallyControl
 
 <sub>[← README](README.md) · **Deploy** · [Structure](STRUCTURE.md) · [Contributing](CONTRIBUTING.md) · [Releasing](RELEASING.md)</sub>
 
@@ -10,10 +10,10 @@ admin is forced to set its own password on first login.
 The fastest path: pull the released images from GHCR — no clone, no build. Needs only Docker + `curl`.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MDMesh-app/MDMesh/main/quickstart.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/david0ql/MDMesh/main/quickstart.sh)
 ```
 
-It creates `./mdmesh`, downloads the pull-only compose (`docker-compose.release.yml`) + seed, generates
+It creates `./dallycontrol`, downloads the pull-only compose (`docker-compose.release.yml`) + seed, generates
 secrets, `docker compose pull && up -d`, seeds, and prints the console URL + a temporary admin password.
 
 It pins the latest published release: `SERVER_VERSION`, `WEB_VERSION` and `CURRENT_VERSION` in `.env` all name that
@@ -24,7 +24,7 @@ only if you want to freeze it. If the GitHub API can't be reached (or is rate-li
 `:latest` images and the `main` compose + seed with `CURRENT_VERSION=0.0.0`: the install works, but the console shows "Update available" until the
 first update, which pins the versions (or set `SERVER_VERSION`/`WEB_VERSION`/`CURRENT_VERSION` to the running release by hand).
 
-> **Requires a published release**, and the GHCR packages (`mdmesh-server`/`-web`/`-supervisor`) must be
+> **Requires a published release**, and the GHCR packages (`dallycontrol-server`/`-web`/`-supervisor`) must be
 > **public** — or run `docker login ghcr.io` first. See [RELEASING.md](RELEASING.md).
 
 > **Upgrading a from-source Docker install made with `./setup.sh` between v0.2.2 and v0.2.6?** A bug in the
@@ -57,7 +57,7 @@ first update, which pins the versions (or set `SERVER_VERSION`/`WEB_VERSION`/`CU
 Prereqs: Docker + Compose v2, and `openssl`.
 
 ```bash
-git clone https://github.com/MDMesh-app/MDMesh.git && cd MDMesh
+git clone https://github.com/david0ql/MDMesh.git && cd MDMesh
 ./setup.sh
 ```
 
@@ -97,17 +97,17 @@ sudo ./setup.sh --native      # → install/install-native.sh
 **Upgrading a native install** is the same command after `git pull`. The installer detects existing data and
 asks **Keep** (default, just press Enter) or **Erase** (requires typing `ERASE`). Keep redeploys the code, runs
 migrations, and leaves configurations, devices, users and the enrollment secret untouched; a `pg_dump` is written
-to `/opt/mdmesh/backups/` first. Unattended: `sudo ./setup.sh --native -y` never erases; set `REPLACE_DATA=yes` to
+to `/opt/dallycontrol/backups/` first. Unattended: `sudo ./setup.sh --native -y` never erases; set `REPLACE_DATA=yes` to
 opt into a wipe, `HTTP_PORT=9090` to pick the port. Only missing packages are installed, and a JDK 17 found via
 `JAVA17_HOME` or under `/opt` is used as-is (Debian 13 ships no `openjdk-17-jdk`).
 
-Tomcat runs as the unprivileged `mdmesh` system user under systemd (`mdmesh-server.service`, enabled at boot).
+Tomcat runs as the unprivileged `dallycontrol` system user under systemd (`dallycontrol-server.service`, enabled at boot).
 Manage it like any other service:
 
 ```bash
-systemctl status mdmesh-server        # health, PID, recent log lines
-systemctl restart mdmesh-server       # after editing conf/Catalina/localhost/ROOT.xml
-journalctl -u mdmesh-server -f        # follow Tomcat's stdout/stderr
+systemctl status dallycontrol-server        # health, PID, recent log lines
+systemctl restart dallycontrol-server       # after editing conf/Catalina/localhost/ROOT.xml
+journalctl -u dallycontrol-server -f        # follow Tomcat's stdout/stderr
 ```
 
 The installer stops whatever it started before (the unit, or a pre-0.2.9 root Tomcat launched with `catalina.sh`) and
@@ -119,7 +119,7 @@ running the installer. They are written into the root-only Tomcat context file:
 
 ```bash
 SMTP_HOST=smtp.example.com SMTP_PORT=587 SMTP_STARTTLS=true \
-SMTP_USERNAME=mdmesh SMTP_PASSWORD='...' SMTP_FROM=mdm@example.com \
+SMTP_USERNAME=dallycontrol SMTP_PASSWORD='...' SMTP_FROM=mdm@example.com \
 sudo ./setup.sh --native
 ```
 
@@ -127,23 +127,23 @@ sudo ./setup.sh --native
 
 ## Uninstalling
 
-**Docker (`setup.sh` or the quick start).** Everything lives in the compose project `mdmesh` plus the directory
-you ran it from (`./mdmesh` for the quick start). Take a dump first if you want one:
+**Docker (`setup.sh` or the quick start).** Everything lives in the compose project `dallycontrol` plus the directory
+you ran it from (`./dallycontrol` for the quick start). Take a dump first if you want one:
 
 ```bash
-docker compose exec -T postgres pg_dump -U mdmesh -Fc mdmesh > mdmesh-final.dump
+docker compose exec -T postgres pg_dump -U dallycontrol -Fc dallycontrol > dallycontrol-final.dump
 docker compose down -v --remove-orphans     # stops containers and DELETES the volumes (database, uploads, certs, backups)
 rm -f .env                                  # secrets; the directory itself can go too for a quick-start install
-docker image rm $(docker image ls 'ghcr.io/mdmesh-app/mdmesh-*' -q) 2>/dev/null   # optional: free the images
+docker image rm $(docker image ls 'ghcr.io/david0ql/dallycontrol-*' -q) 2>/dev/null   # optional: free the images
 ```
 
 `docker compose down` without `-v` keeps the data volumes, so a later `./setup.sh` picks up where you left off.
 
-**Native.** `sudo ./install/uninstall-native.sh` shows exactly what it will remove (Tomcat under `/opt/mdmesh-tc`,
-the app dir `/opt/mdmesh`, the `mdmesh-server` and `mdmesh-supervisor` units and the supervisor's settings in
-`/etc/mdmesh`, the `mdmesh` system user, the install log, and the `mdmesh` database + role),
+**Native.** `sudo ./install/uninstall-native.sh` shows exactly what it will remove (Tomcat under `/opt/dallycontrol-tc`,
+the app dir `/opt/dallycontrol`, the `dallycontrol-server` and `dallycontrol-supervisor` units and the supervisor's settings in
+`/etc/dallycontrol`, the `dallycontrol` system user, the install log, and the `dallycontrol` database + role),
 writes a final `pg_dump` to `/root`, and only proceeds when you type `UNINSTALL`. `--keep-data` removes the code
-and services but leaves the database, `/opt/mdmesh/files` and `/opt/mdmesh/backups` in place; `-y` skips the
+and services but leaves the database, `/opt/dallycontrol/files` and `/opt/dallycontrol/backups` in place; `-y` skips the
 prompt for scripted use. Packages installed by apt, your reverse proxy and the git checkout are never touched.
 
 Devices that are still enrolled keep polling the old server URL until they are factory-reset or re-provisioned;
@@ -153,19 +153,19 @@ follow.
 ## Enrolling devices
 
 One prebuilt agent APK works for **every** deployment — the server URL is delivered in the
-enrollment QR (`com.mdmesh.SERVER_URL`), not baked into the APK. Host the APK on your server and
+enrollment QR (`com.dallycontrol.SERVER_URL`), not baked into the APK. Host the APK on your server and
 generate the QR from the console's **Enroll** page; it embeds your `BASE_URL`, the APK location, and
 a single-use token.
 
 ### Over USB (ADB) — when QR provisioning is blocked
 
 On devices with Google Play services, Play Protect blocks QR / zero-touch / Knox provisioning of any
-device-policy app that is not on Google's DPC allowlist, which includes a self-signed MDMesh agent. USB
+device-policy app that is not on Google's DPC allowlist, which includes a self-signed DallyControl agent. USB
 enrollment is not subject to that check. On a factory-reset device with USB debugging enabled and **no
 accounts** added:
 
 ```bash
-scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --admin-user admin
+scripts/adb-enroll.sh --server https://mdm.example.com --apk dallycontrol-agent.apk --admin-user admin
 # or with a token minted on the Enroll page:  --token <token>
 # bind it to a configuration:                 --configuration-id <id>
 ```
@@ -194,7 +194,7 @@ Per device, enroll over USB with remote support (Android 7+):
 
 ```bash
 APK=$(scripts/fetch-droidvnc.sh /tmp)                                   # pinned droidVNC-NG release
-scripts/adb-enroll.sh --server https://mdm.example.com --apk mdmesh-agent.apk --admin-user admin \
+scripts/adb-enroll.sh --server https://mdm.example.com --apk dallycontrol-agent.apk --admin-user admin \
   --remote --vnc-apk "$APK"
 ```
 
@@ -264,30 +264,30 @@ Set these in `.env` (the wizard seeds them; add by hand for an existing deploy):
 ## Server logs
 
 The server logs to stdout only, at INFO: read it with `docker compose logs -f server` (Docker) or
-`journalctl -u mdmesh-server -f` (native). Audit events (sign-ins, password changes, edits to devices, configurations,
+`journalctl -u dallycontrol-server -f` (native). Audit events (sign-ins, password changes, edits to devices, configurations,
 applications and groups) are the lines of the `AuditLogger` logger, for example
 `docker compose logs server | grep AuditLogger`; the audit plugin also stores them in the `plugin_audit_log` table.
 Tomcat also writes its own files (`catalina.<date>.log`, which repeats its console lines and the database migrations,
-and the HTTP access log) under `/usr/local/tomcat/logs` in the container and `/opt/mdmesh-tc/logs` on native installs.
+and the HTTP access log) under `/usr/local/tomcat/logs` in the container and `/opt/dallycontrol-tc/logs` on native installs.
 
 Docker's default `json-file` log driver keeps container logs without a size limit. To cap them, set `log-opts` in
 `/etc/docker/daemon.json` (for example `"log-opts": {"max-size": "10m", "max-file": "5"}`) and recreate the
 containers. journald caps the journal on its own.
 
-An install upgraded from v0.2.1–v0.3.x keeps `/opt/mdmesh/log4j-mdmesh.xml` (and `/opt/mdmesh/logs/`, if a development build
+An install upgraded from v0.2.1–v0.3.x keeps `/opt/dallycontrol/log4j-dallycontrol.xml` (and `/opt/dallycontrol/logs/`, if a development build
 created it). The server no longer reads or writes them; delete them if you like.
 
-For a temporary DEBUG log, put a log4j 1.2 XML config at `/opt/mdmesh/log4j-debug.xml` and start the server with
-the JVM flag `-Dlog4j.configuration=file:///opt/mdmesh/log4j-debug.xml`:
-- Docker: `docker compose cp log4j-debug.xml server:/opt/mdmesh/`, add
-  `SERVER_JAVA_OPTS=-Dlog4j.configuration=file:///opt/mdmesh/log4j-debug.xml` to `.env` (the server gets it as
+For a temporary DEBUG log, put a log4j 1.2 XML config at `/opt/dallycontrol/log4j-debug.xml` and start the server with
+the JVM flag `-Dlog4j.configuration=file:///opt/dallycontrol/log4j-debug.xml`:
+- Docker: `docker compose cp log4j-debug.xml server:/opt/dallycontrol/`, add
+  `SERVER_JAVA_OPTS=-Dlog4j.configuration=file:///opt/dallycontrol/log4j-debug.xml` to `.env` (the server gets it as
   `JAVA_OPTS`), then `docker compose up -d server`. Quote a value that holds several flags
-  (`SERVER_JAVA_OPTS="-Xmx1g -Dlog4j.configuration=file:///opt/mdmesh/log4j-debug.xml"`): `setup.sh` reads `.env` as
+  (`SERVER_JAVA_OPTS="-Xmx1g -Dlog4j.configuration=file:///opt/dallycontrol/log4j-debug.xml"`): `setup.sh` reads `.env` as
   shell, and an unquoted space stops it. A quick-start install made before this release also needs the line
   `JAVA_OPTS: ${SERVER_JAVA_OPTS:-}` under `server:` → `environment:` in its `docker-compose.yml` for that.
-- Native: copy the file there (readable by the `mdmesh` user), run `systemctl edit mdmesh-server`, add
-  `Environment=JAVA_OPTS=-Dlog4j.configuration=file:///opt/mdmesh/log4j-debug.xml` under `[Service]`, then
-  `systemctl restart mdmesh-server`.
+- Native: copy the file there (readable by the `dallycontrol` user), run `systemctl edit dallycontrol-server`, add
+  `Environment=JAVA_OPTS=-Dlog4j.configuration=file:///opt/dallycontrol/log4j-debug.xml` under `[Service]`, then
+  `systemctl restart dallycontrol-server`.
 
 Undo it the same way afterwards: DEBUG logs every SQL statement.
 
@@ -309,7 +309,7 @@ an update takes to recreate the server.
 (an install from before this release serves the console there until its next installer run, `sudo ./setup.sh
 --native -y`). Point the monitor at `https://<host>/rest/public/name` through your proxy, and check the supervisor,
 which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:9000/healthz` or
-`systemctl is-active mdmesh-supervisor`.
+`systemctl is-active dallycontrol-supervisor`.
 
 ## Security notes
 
@@ -317,7 +317,7 @@ which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:90
   `chmod 600`.
 - The JWT signing key signs the tokens of REST API clients that sign in through `/rest/public/jwt/login`; the console
   itself uses a session cookie. It is generated once and kept, so those tokens survive restarts and upgrades.
-  **Docker:** the server generates it on its first start into its data volume (`/opt/mdmesh/jwt.secret`, mode 600)
+  **Docker:** the server generates it on its first start into its data volume (`/opt/dallycontrol/jwt.secret`, mode 600)
   and reuses it on every start; an install made before it existed gets one on its first start of the new image, with
   no manual step. It is not in `.env`, so `docker compose down -v` deletes it with the volume and API clients sign in
   again. To pin it, set `SERVER_JWT_SECRET=<output of openssl rand -hex 64>` in `.env` (the server gets it as
@@ -338,8 +338,8 @@ which listens on loopback `:9000` only, on the host with `curl -fsS 127.0.0.1:90
   **minisign-verified** manifests and **authorized** callers (admin session, or the recovery token). Native
   installation also verifies the signed release manifest before it accepts an initial agent APK.
   Apply/rollback only ever recreate `server`/`caddy` — never `postgres` or the supervisor itself.
-- On native installs the supervisor runs as the unprivileged `mdmesh` user (like Tomcat), with its settings in the
-  root-owned `/etc/mdmesh/supervisor.env`. A `GITHUB_TOKEN` there reaches the supervisor's environment, which that user
+- On native installs the supervisor runs as the unprivileged `dallycontrol` user (like Tomcat), with its settings in the
+  root-owned `/etc/dallycontrol/supervisor.env`. A `GITHUB_TOKEN` there reaches the supervisor's environment, which that user
   can read, so use a read-only token.
-- The native installer stops if the `mdmesh` account has a crontab or `at` jobs (it never needs any): inspect them
-  (`crontab -l -u mdmesh`, `atq`), remove them (`crontab -r -u mdmesh`, `atrm <id>`) and re-run.
+- The native installer stops if the `dallycontrol` account has a crontab or `at` jobs (it never needs any): inspect them
+  (`crontab -l -u dallycontrol`, `atq`), remove them (`crontab -r -u dallycontrol`, `atrm <id>`) and re-run.

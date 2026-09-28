@@ -152,7 +152,7 @@
             android:exported="true"
             android:permission="android.permission.DUMP">
             <intent-filter>
-                <action android:name="com.mdmesh.agent.ADB_PROVISION" />
+                <action android:name="com.dallycontrol.agent.ADB_PROVISION" />
             </intent-filter>
         </receiver>
 
@@ -161,7 +161,7 @@
             android:name=".install.InstallResultReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.mdmesh.INSTALL_RESULT" />
+                <action android:name="com.dallycontrol.INSTALL_RESULT" />
             </intent-filter>
         </receiver>
 

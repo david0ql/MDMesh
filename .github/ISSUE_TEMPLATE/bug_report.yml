@@ -10,7 +10,7 @@ body:
     id: component
     attributes:
       label: Component
-      description: Which part of MDMesh is affected?
+      description: Which part of DallyControl is affected?
       options:
         - Server / REST API
         - Admin console (web)
@@ -41,7 +41,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: MDMesh version / commit
+      label: DallyControl version / commit
       description: Console version (Settings → Server & connection) or the git commit.
     validations:
       required: true

@@ -1,4 +1,4 @@
-# Releasing MDMesh
+# Releasing DallyControl
 
 <sub>[← README](README.md) · [Deploy](DEPLOY.md) · [Structure](STRUCTURE.md) · [Contributing](CONTRIBUTING.md) · **Releasing**</sub>
 
@@ -10,7 +10,7 @@ git tag v1.2.3 && git push --tags
 
 `.github/workflows/release.yml` then: runs the agent unit tests + builds the **signed** release APK,
 builds & pushes the **server**, **web**, and **supervisor** images to GHCR as `:VERSION`, builds a
-**minisign-signed manifest**, and publishes a **GitHub Release** with `mdmesh-agent.apk`, `manifest.json`,
+**minisign-signed manifest**, and publishes a **GitHub Release** with `dallycontrol-agent.apk`, `manifest.json`,
 and `manifest.json.minisig`. The fleet auto-updater consumes that signed manifest to apply/roll-out updates.
 
 `:latest` moves **last**: only after the anonymous-pull check, the manifest signing and the GitHub Release
@@ -26,11 +26,11 @@ and try to recreate the Release). Fix `:latest` by hand, logged in to GHCR with 
 ```bash
 V=1.2.3                   # edit: the release version, no leading v
 O=owner-lowercase-here    # edit: the GitHub owner, lowercased
-for img in mdmesh-server mdmesh-web mdmesh-supervisor; do
+for img in dallycontrol-server dallycontrol-web dallycontrol-supervisor; do
   docker buildx imagetools create --prefer-index=false --tag "ghcr.io/$O/$img:latest" "ghcr.io/$O/$img:$V"
 done
 # verify: each pair must print the same digest
-for img in mdmesh-server mdmesh-web mdmesh-supervisor; do
+for img in dallycontrol-server dallycontrol-web dallycontrol-supervisor; do
   for t in "$V" latest; do docker buildx imagetools inspect --format "$img:$t {{.Manifest.Digest}}{{println}}" "ghcr.io/$O/$img:$t"; done
 done
 ```
@@ -52,32 +52,32 @@ changes, OTA updates are rejected *and* every enrolled device must be factory-re
 generated **once** and used **forever**.
 
 ```bash
-keytool -genkeypair -v -keystore mdmesh-release.jks -alias mdmesh \
+keytool -genkeypair -v -keystore dallycontrol-release.jks -alias dallycontrol \
   -keyalg RSA -keysize 4096 -validity 10000
-base64 -w0 mdmesh-release.jks   # value for the MDM_RELEASE_STORE_B64 secret
+base64 -w0 dallycontrol-release.jks   # value for the MDM_RELEASE_STORE_B64 secret
 ```
 
 Secrets: `MDM_RELEASE_STORE_B64` (the base64), `MDM_RELEASE_STORE_PASSWORD`, `MDM_RELEASE_KEY_ALIAS`
-(`mdmesh`), `MDM_RELEASE_KEY_PASSWORD`.
+(`dallycontrol`), `MDM_RELEASE_KEY_PASSWORD`.
 
 ### 2. Manifest signing key (minisign)
 Establishes release trust: deployments verify the manifest against the committed public key and
 reject anything unsigned/tampered.
 
 ```bash
-minisign -G -p release/minisign.pub -s mdmesh-release.key   # set a password
+minisign -G -p release/minisign.pub -s dallycontrol-release.key   # set a password
 ```
 
 - **Commit** the generated `release/minisign.pub` (replace the placeholder in the repo).
-- Secrets: `MINISIGN_SECRET_KEY` = the full contents of `mdmesh-release.key`; `MINISIGN_PASSWORD` =
+- Secrets: `MINISIGN_SECRET_KEY` = the full contents of `dallycontrol-release.key`; `MINISIGN_PASSWORD` =
   its password.
 - No `minisign` binary? Generate it in a container:
   `docker run --rm -it -v "$PWD:/keys" -w /keys alpine sh -c 'apk add --no-cache minisign && minisign -G -p minisign.pub -s minisign.key'`
 
 ### 3. Make the GHCR packages public (one-time, after the first release)
 Images pushed by Actions to an org are **private by default**. For the no-clone `docker compose pull`
-to work anonymously, set each package to public: **org → Packages → `mdmesh-server` / `mdmesh-web` /
-`mdmesh-supervisor` → Package settings → Change visibility → Public.** (Otherwise deployers must
+to work anonymously, set each package to public: **org → Packages → `dallycontrol-server` / `dallycontrol-web` /
+`dallycontrol-supervisor` → Package settings → Change visibility → Public.** (Otherwise deployers must
 `docker login ghcr.io` with a PAT.) The release workflow verifies this: after pushing, it fetches each image
 manifest **anonymously** and fails the release with instructions if any package is still private. Release notes
 come from the annotated tag message (`git tag -a vX.Y.Z -m "..."`) plus GitHub's generated list.

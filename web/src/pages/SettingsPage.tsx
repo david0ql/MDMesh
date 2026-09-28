@@ -11,7 +11,7 @@ import { RolloutPanel } from '../components/RolloutPanel';
 import { orDash, fmtRelative } from '../ui/format';
 
 const APP_VERSION = '0.1.0';
-const DEFAULT_CONFIG_KEY = 'mdmesh-default-config';
+const DEFAULT_CONFIG_KEY = 'dallycontrol-default-config';
 
 type Conn = 'checking' | 'ok' | 'down';
 
@@ -163,7 +163,7 @@ export function SettingsPage() {
           </div>
           <div className="set-row">
             <span className="k">Console version</span>
-            <span className="v mono">MDMesh {APP_VERSION}</span>
+            <span className="v mono">DallyControl {APP_VERSION}</span>
           </div>
         </section>
 

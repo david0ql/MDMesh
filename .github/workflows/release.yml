@@ -22,7 +22,7 @@ jobs:
     env:
       # Per-run local tag for the smoked supervisor build (never pushed under this name): unique so a shared
       # daemon can't swap in another run's image between the smoke and the push that retags it.
-      SUP_IMG: mdmesh-supervisor:smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      SUP_IMG: dallycontrol-supervisor:smoke-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -38,7 +38,7 @@ jobs:
           {
             echo "version=$V"
             echo "code=$(release/version.sh "$V")"
-            echo "proto=$(grep -oP 'PROTOCOL_VERSION[^\"]*\"\K[^\"]+' agent-android/proto/src/main/kotlin/com/mdmesh/proto/ProtocolJson.kt)"
+            echo "proto=$(grep -oP 'PROTOCOL_VERSION[^\"]*\"\K[^\"]+' agent-android/proto/src/main/kotlin/com/dallycontrol/proto/ProtocolJson.kt)"
           } >> "$GITHUB_OUTPUT"
 
       # Supervisor smoke BEFORE anything is built or pushed (#27): a supervisor that can't start the way
@@ -80,8 +80,8 @@ jobs:
             -PversionName="$VERSION" -PversionCode="$CODE"
       - name: Stage APK + compute checksum
         run: |
-          cp agent-android/app/build/outputs/apk/release/app-release.apk mdmesh-agent.apk
-          CK=$(release/apk-checksum.sh mdmesh-agent.apk)
+          cp agent-android/app/build/outputs/apk/release/app-release.apk dallycontrol-agent.apk
+          CK=$(release/apk-checksum.sh dallycontrol-agent.apk)
           [ -n "$CK" ] || { echo "APK signature checksum came out empty — aborting the release"; exit 1; }
           echo "CK=$CK" >> "$GITHUB_ENV"
 
@@ -97,7 +97,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           O=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')   # GHCR repo names must be lowercase
-          IMG="ghcr.io/${O}/mdmesh-server"
+          IMG="ghcr.io/${O}/dallycontrol-server"
           docker build -f docker/server.Dockerfile -t "$IMG:$VERSION" .
           docker push "$IMG:$VERSION"
           echo "SERVER_IMG=$IMG:$VERSION" >> "$GITHUB_ENV"
@@ -107,9 +107,9 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           O=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          IMG="ghcr.io/${O}/mdmesh-web"
+          IMG="ghcr.io/${O}/dallycontrol-web"
           docker build -f docker/web.Dockerfile \
-            --build-arg VITE_AGENT_PACKAGE=com.mdmesh.agent \
+            --build-arg VITE_AGENT_PACKAGE=com.dallycontrol.agent \
             --build-arg VITE_AGENT_CHECKSUM="$CK" \
             --build-arg VITE_AGENT_APK_URL=/files/agent.apk \
             --build-arg VITE_APP_VERSION="$VERSION" \
@@ -122,7 +122,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           O=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          IMG="ghcr.io/${O}/mdmesh-supervisor"
+          IMG="ghcr.io/${O}/dallycontrol-supervisor"
           # Publish exactly the image the smoke step tested (no rebuild).
           docker tag "$SUP_IMG" "$IMG:$VERSION"
           docker push "$IMG:$VERSION"
@@ -133,7 +133,7 @@ jobs:
         run: |
           O=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
           fail=0
-          for img in mdmesh-server mdmesh-web mdmesh-supervisor; do
+          for img in dallycontrol-server dallycontrol-web dallycontrol-supervisor; do
             # No credentials on purpose: this is exactly what the quickstart does on a fresh box.
             tok=$(curl -fsS "https://ghcr.io/token?scope=repository:${O}/${img}:pull" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
             code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${tok}" \
@@ -159,7 +159,7 @@ jobs:
         run: |
           sudo apt-get update -y && sudo apt-get install -y minisign
           release/build-manifest.sh "$VERSION" stable \
-            "$SERVER_IMG" "$WEB_IMG" mdmesh-agent.apk "$CODE" "$CK" "$PROTO"
+            "$SERVER_IMG" "$WEB_IMG" dallycontrol-agent.apk "$CODE" "$CK" "$PROTO"
           release/sign-manifest.sh manifest.json
 
       # --- Publish ---
@@ -173,7 +173,7 @@ jobs:
           body_path: release-notes.md
           generate_release_notes: true
           files: |
-            mdmesh-agent.apk
+            dallycontrol-agent.apk
             manifest.json
             manifest.json.minisig
 
@@ -191,7 +191,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           O=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          IMGS="mdmesh-server mdmesh-web mdmesh-supervisor"
+          IMGS="dallycontrol-server dallycontrol-web dallycontrol-supervisor"
           digest() { docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$1"; }
           declare -A want
           for img in $IMGS; do

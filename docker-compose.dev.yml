@@ -1,6 +1,6 @@
 # Dev stack = the production stack (docker-compose.yml) + this overlay: the same images, entrypoints, env contract,
 # volumes, Caddy routing and supervisor as a real install. This file only adds loopback-only ports and a debugger.
-# Always run it through docker/dev.env, which names the project mdmesh-dev, lists both compose files and holds the
+# Always run it through docker/dev.env, which names the project dallycontrol-dev, lists both compose files and holds the
 # dev-only values:
 #   docker compose --env-file docker/dev.env up -d --build     # build + start
 #   scripts/dev-seed.sh                                         # first run: seed the DB (login admin / admin)
@@ -8,10 +8,10 @@
 # A port is taken? Export DEV_WEB_PORT / DEV_API_PORT / DEV_PG_PORT / DEV_DEBUG_PORT first. The full loop: docs/DEV.md.
 
 # Guard: without docker/dev.env, `up` and `config` stop here. That file pins the project name; without it, the .env
-# that setup.sh writes (COMPOSE_PROJECT_NAME=mdmesh) would point this overlay at a production stack's containers and
+# that setup.sh writes (COMPOSE_PROJECT_NAME=dallycontrol) would point this overlay at a production stack's containers and
 # database volume. The guard does NOT stop `down -v`, `stop`, `rm`, `exec`, `logs` or `ps` (compose does not
 # interpolate this for them), so those act on whatever project .env names: always pass --env-file docker/dev.env.
-x-dev-env: ${MDMESH_DEV:?run the dev stack with --env-file docker/dev.env (see docs/DEV.md)}
+x-dev-env: ${DALLYCONTROL_DEV:?run the dev stack with --env-file docker/dev.env (see docs/DEV.md)}
 
 services:
   postgres:

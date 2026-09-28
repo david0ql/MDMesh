@@ -32,7 +32,7 @@ Request (`agent-enroll-request.schema.json`):
 {
   "protocolVersion": "1.0",
   "enrollToken": "<single-use server-issued token>",
-  "agent": { "version": "0.1.0", "package": "com.mdmesh.agent" },
+  "agent": { "version": "0.1.0", "package": "com.dallycontrol.agent" },
   "device": { "androidSdkInt": 34, "androidRelease": "14", "manufacturer": "samsung", "model": "SM-X510", "isDeviceOwner": true },
   "capabilities": { "policy": ["wifi","camera"], "appManagement": [], "remoteControl": {"tier":"none"}, "oem": {"vendor":"samsung","knox":false} }
 }

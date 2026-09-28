@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MDMesh setup wizard. Generates secrets, writes .env, brings up the Docker stack, and seeds a
+# DallyControl setup wizard. Generates secrets, writes .env, brings up the Docker stack, and seeds a
 # functional admin with a generated password. Re-runnable: an existing .env is reused as-is (so
 # secrets stay stable) and a database that already holds data is never re-seeded — a re-run just
 # rebuilds/redeploys code and applies idempotent repairs.
@@ -55,7 +55,7 @@ fi
 command -v docker >/dev/null || { err "Docker is required (or run ./setup.sh --native)."; exit 1; }
 if ! docker compose version >/dev/null 2>&1; then
   if command -v docker-compose >/dev/null; then
-    err "Found legacy 'docker-compose' (v1). MDMesh needs the Docker Compose v2 plugin ('docker compose')."
+    err "Found legacy 'docker-compose' (v1). DallyControl needs the Docker Compose v2 plugin ('docker compose')."
     err "Install the 'docker-compose-plugin' package, or run ./setup.sh --native."
   else
     err "Docker Compose v2 is required ('docker compose'). Install the 'docker-compose-plugin' package,"
@@ -65,7 +65,7 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 command -v openssl >/dev/null || { err "openssl is required."; exit 1; }
 
-say "== MDMesh setup =="
+say "== DallyControl setup =="
 echo
 
 # The checkout's latest release tag (install/lib/version.sh, same rule as the native installer); empty when there is no
@@ -156,8 +156,8 @@ else
   fi
 
   cat > .env <<EOF
-DB_NAME=mdmesh
-DB_USER=mdmesh
+DB_NAME=dallycontrol
+DB_USER=dallycontrol
 DB_PASSWORD=${DB_PASSWORD}
 BASE_URL=${BASE_URL}
 HASH_SECRET=${HASH_SECRET}
@@ -178,7 +178,7 @@ WEB_VERSION=${CURRENT_VERSION:-0.0.0}
 SUPERVISOR_VERSION=${CURRENT_VERSION:-0.0.0}
 AUTO_UPDATE=0
 # Pin the compose identity so the supervisor drives the SAME stack the host launched.
-COMPOSE_PROJECT_NAME=mdmesh
+COMPOSE_PROJECT_NAME=dallycontrol
 COMPOSE_FILE=${COMPOSE_FILE}
 COMPOSE_PROFILES=${COMPOSE_PROFILES}
 SMTP_HOST=
@@ -256,7 +256,7 @@ if [ -n "${GITHUB_REPO:-}" ] && command -v python3 >/dev/null && command -v curl
   jget() { python3 -c 'import sys,json;
 d=json.load(sys.stdin)
 def asset(n): return next((a["browser_download_url"] for a in d.get("assets",[]) if a["name"]==n),"")
-print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json")}.get(sys.argv[1],""))' "$1" 2>/dev/null; }
+print({"apk":asset("dallycontrol-agent.apk"),"manifest":asset("manifest.json")}.get(sys.argv[1],""))' "$1" 2>/dev/null; }
   REL=$(gh_curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null || true)
   APK_URL=$(printf '%s' "$REL" | jget apk); MAN_URL=$(printf '%s' "$REL" | jget manifest)
   if [ -n "$APK_URL" ] && [ -n "$MAN_URL" ]; then
@@ -266,7 +266,7 @@ print({"apk":asset("mdmesh-agent.apk"),"manifest":asset("manifest.json")}.get(sy
     TMP_APK=$(mktemp)
     if gh_curl -fsSL "$APK_URL" -o "$TMP_APK" 2>/dev/null && [ -n "$AGENT_CK" ] \
        && [ "$(sha256sum "$TMP_APK" | awk '{print $1}')" = "$WANT_SHA" ]; then
-      VITE_AGENT_PACKAGE="com.mdmesh.agent"; VITE_AGENT_CHECKSUM="$AGENT_CK"; VITE_AGENT_APK_URL="/files/agent.apk"
+      VITE_AGENT_PACKAGE="com.dallycontrol.agent"; VITE_AGENT_CHECKSUM="$AGENT_CK"; VITE_AGENT_APK_URL="/files/agent.apk"
       say "Release APK verified (signing checksum ${AGENT_CK}) — the QR will point at /files/agent.apk."
     else
       warn "Could not fetch/verify the release APK — the console keeps its debug enrollment defaults."
@@ -293,7 +293,7 @@ say "Waiting for the server to finish first-boot (Liquibase)…"
 BOOTED=0
 for _ in $(seq 1 60); do
   sleep 5   # first: `up -d` can return before the entrypoint has removed the previous start's marker
-  if docker compose exec -T server test -s /opt/mdmesh/initialized.txt 2>/dev/null; then BOOTED=1; break; fi
+  if docker compose exec -T server test -s /opt/dallycontrol/initialized.txt 2>/dev/null; then BOOTED=1; break; fi
 done
 if [ "$BOOTED" != 1 ]; then
   # Hard-fail rather than seed a half-migrated database: everything after this point assumes the
@@ -306,7 +306,7 @@ fi
 # The marker holds "OK" or the server's initialization error (docker/entrypoint.sh removes the previous start's marker,
 # so it is this boot's). It is read as the server's own user: the volume is that account's, and the container's root
 # would follow a link planted there.
-INIT_RESULT=$(docker compose exec -T -u mdmesh server cat /opt/mdmesh/initialized.txt 2>/dev/null || true)
+INIT_RESULT=$(docker compose exec -T -u dallycontrol server cat /opt/dallycontrol/initialized.txt 2>/dev/null || true)
 if ! grep -q '^OK' <<< "$INIT_RESULT"; then
   err "The server reported an initialization error:"
   printf '%s\n' "${INIT_RESULT:0:2000}" | tr -d '\000-\010\013-\037\177' | sed 's/^/    /'   # the server's text: no control chars
@@ -317,7 +317,7 @@ fi
 # rows, so it must NEVER run against live data. The gate is the settings row (only the seed creates
 # it); counting users does NOT work because Liquibase inserts the admin user on first boot.
 # shellcheck disable=SC2034  # PSQL is consumed by install/lib/db.sh
-PSQL=(docker compose exec -T postgres psql -U mdmesh -d mdmesh)
+PSQL=(docker compose exec -T postgres psql -U dallycontrol -d dallycontrol)
 case "$(mdm_db_state)" in
   fresh)  SEED=yes ;;
   seeded) SEED=no ;;
@@ -352,7 +352,7 @@ if ! mdm_post_seed install/sql/post_seed.sql; then
 fi
 
 echo
-say "== MDMesh is up =="
+say "== DallyControl is up =="
 echo "  Console:        ${BASE_URL}"
 echo "  REST API base:  ${BASE_URL}/rest"
 echo "  Recovery page:  ${BASE_URL}/recovery"

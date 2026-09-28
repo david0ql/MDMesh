@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mdmesh.kiosk"
+    namespace = "com.dallycontrol.kiosk"
     compileSdk = 35
 
     defaultConfig {

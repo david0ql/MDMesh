@@ -5,16 +5,16 @@
 # is safe. MQTT is intentionally off (our agent wakes over WebSocket; see ROOT.xml mqtt.server.uri="").
 set -e
 
-# The server writes /opt/mdmesh/initialized.txt when its initialization is over ("OK", or the error), and only if the
+# The server writes /opt/dallycontrol/initialized.txt when its initialization is over ("OK", or the error), and only if the
 # file is absent. It is on the persistent volume, so remove the previous start's first: setup.sh, quickstart.sh and
 # scripts/dev-seed.sh wait for it and read it as this start's result. First thing, so a start that fails below does not
 # leave the last one's "OK" behind. rm -f removes a link planted there, never its target.
-rm -f /opt/mdmesh/initialized.txt
+rm -f /opt/dallycontrol/initialized.txt
 
 : "${DB_HOST:=postgres}"
 : "${DB_PORT:=5432}"
-: "${DB_NAME:=mdmesh}"
-: "${DB_USER:=mdmesh}"
+: "${DB_NAME:=dallycontrol}"
+: "${DB_USER:=dallycontrol}"
 : "${BASE_URL:?BASE_URL is required}"
 : "${HASH_SECRET:?HASH_SECRET is required}"
 : "${DB_PASSWORD:?DB_PASSWORD is required}"
@@ -28,23 +28,23 @@ CONF_DIR=/usr/local/tomcat/conf/Catalina/localhost
 # The chown -R below hands conf/Catalina to the server user, and root writes ROOT.xml into CONF_DIR on the next start:
 # never follow a link planted there (a linked CONF_DIR is removed and recreated as a directory).
 [ -L "$CONF_DIR" ] && rm -f "$CONF_DIR"
-mkdir -p "$CONF_DIR" /opt/mdmesh/files /opt/mdmesh/plugins
+mkdir -p "$CONF_DIR" /opt/dallycontrol/files /opt/dallycontrol/plugins
 
 # jwt.secretkey signs the JWTs of REST API clients (/rest/public/jwt/login; the console uses its session cookie). Left
 # empty, the server picks a random key at every start and signs those clients out on each restart. So: an explicit
-# JWT_SECRET wins; otherwise the key is generated once into the persistent /opt/mdmesh volume and reused on every
+# JWT_SECRET wins; otherwise the key is generated once into the persistent /opt/dallycontrol volume and reused on every
 # start. That covers every Docker install with no manual step, including quick-start ones whose compose never changes.
 # JJWT 0.9.1 base64-decodes the key and silently DROPS characters outside the base64 alphabet and a trailing partial
 # 4-character group, so accept only hex, a multiple of 4 characters, at least 128 (512 bits, the HS512 minimum).
-JWT_SECRET_FILE=/opt/mdmesh/jwt.secret
+JWT_SECRET_FILE=/opt/dallycontrol/jwt.secret
 jwt_secret_ok() {
   case "$1" in '' | *[!0-9a-fA-F]*) return 1 ;; esac
   [ "${#1}" -ge 128 ] && [ $(( ${#1} % 4 )) -eq 0 ]
 }
 # Temp key files (mktemp below) of a start that was killed before publishing its key hold a key: remove them first.
-# They have a name of their own (.jwt.secret.mdmesh-tmp.XXXXXX), so an admin's jwt.secret.backup is never matched.
+# They have a name of their own (.jwt.secret.dallycontrol-tmp.XXXXXX), so an admin's jwt.secret.backup is never matched.
 # (Earlier images used jwt.secret.XXXXXX; such leftovers are left alone.)
-rm -f /opt/mdmesh/.jwt.secret.mdmesh-tmp.??????
+rm -f /opt/dallycontrol/.jwt.secret.dallycontrol-tmp.??????
 if [ -n "$JWT_SECRET" ]; then
   if ! jwt_secret_ok "$JWT_SECRET"; then
     echo "JWT_SECRET (SERVER_JWT_SECRET in .env) must be hex, a multiple of 4 characters and at least 128 long (the JWT library would silently drop anything else). Generate one with: openssl rand -hex 64 (or unset it to use the key kept in $JWT_SECRET_FILE)" >&2
@@ -66,7 +66,7 @@ else
     # it only if no key exists yet, so concurrent first starts converge on the first writer's key; mv is the fallback
     # for a volume without hard links. The chown -R below hands the file to the server user. The trap removes the temp
     # file if this start fails before it is published.
-    _jwt_tmp=$(mktemp /opt/mdmesh/.jwt.secret.mdmesh-tmp.XXXXXX)
+    _jwt_tmp=$(mktemp /opt/dallycontrol/.jwt.secret.dallycontrol-tmp.XXXXXX)
     trap 'rm -f "$_jwt_tmp"' EXIT
     printf '%s\n' "$_jwt_new" > "$_jwt_tmp"
     ln "$_jwt_tmp" "$JWT_SECRET_FILE" 2>/dev/null || [ -e "$JWT_SECRET_FILE" ] || mv -f "$_jwt_tmp" "$JWT_SECRET_FILE"
@@ -83,8 +83,8 @@ fi
 # (mv -fT replaces a link planted there instead of following it; a planted directory stops the start). The temp file
 # holds the secrets too: the trap removes it if this start fails before the rename, and leftovers of a start that was
 # killed outright are removed first, by the temp file's own name only (an admin's ROOT.xml.backup is kept).
-rm -f "$CONF_DIR"/.ROOT.xml.mdmesh-tmp.??????
-_root_xml_tmp=$(mktemp "$CONF_DIR/.ROOT.xml.mdmesh-tmp.XXXXXX")
+rm -f "$CONF_DIR"/.ROOT.xml.dallycontrol-tmp.??????
+_root_xml_tmp=$(mktemp "$CONF_DIR/.ROOT.xml.dallycontrol-tmp.XXXXXX")
 trap 'rm -f "$_root_xml_tmp"' EXIT
 cat > "$_root_xml_tmp" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -94,8 +94,8 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="JDBC.username" value="${DB_USER}"/>
     <Parameter name="JDBC.password" value="${DB_PASSWORD}"/>
 
-    <Parameter name="base.directory"  value="/opt/mdmesh"/>
-    <Parameter name="files.directory" value="/opt/mdmesh/files"/>
+    <Parameter name="base.directory"  value="/opt/dallycontrol"/>
+    <Parameter name="files.directory" value="/opt/dallycontrol/files"/>
     <Parameter name="base.url"        value="${BASE_URL}"/>
 
     <Parameter name="usage.scenario"    value="private"/>
@@ -103,7 +103,7 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="hash.secret"       value="${HASH_SECRET}"/>
     <Parameter name="jwt.secretkey"     value="${JWT_SECRET}"/>
 
-    <Parameter name="plugins.files.directory" value="/opt/mdmesh/plugins"/>
+    <Parameter name="plugins.files.directory" value="/opt/dallycontrol/plugins"/>
     <Parameter name="plugin.devicelog.persistence.config.class"
                value="com.hmdm.plugins.devicelog.persistence.postgres.DeviceLogPostgresPersistenceConfiguration"/>
     <Parameter name="role.orgadmin.id" value="2"/>
@@ -111,7 +111,7 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="swagger.host"      value=""/>
     <Parameter name="swagger.base.path" value="/rest"/>
 
-    <Parameter name="initialization.completion.signal.file" value="/opt/mdmesh/initialized.txt"/>
+    <Parameter name="initialization.completion.signal.file" value="/opt/dallycontrol/initialized.txt"/>
     <Parameter name="aapt.command" value="aapt"/>
 
     <!-- MQTT broker disabled: the agent wakes over the WebSocket, not MQTT. -->
@@ -128,8 +128,8 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="smtp.password" value="${SMTP_PASSWORD:-}"/>
     <Parameter name="smtp.from" value="${SMTP_FROM}"/>
 
-    <Parameter name="email.recovery.subj" value="/opt/mdmesh/emails/_LANGUAGE_/recovery_subj.txt"/>
-    <Parameter name="email.recovery.body" value="/opt/mdmesh/emails/_LANGUAGE_/recovery_body.txt"/>
+    <Parameter name="email.recovery.subj" value="/opt/dallycontrol/emails/_LANGUAGE_/recovery_subj.txt"/>
+    <Parameter name="email.recovery.body" value="/opt/dallycontrol/emails/_LANGUAGE_/recovery_body.txt"/>
 </Context>
 EOF
 mv -fT "$_root_xml_tmp" "$CONF_DIR/ROOT.xml"
@@ -137,9 +137,9 @@ trap - EXIT
 
 # Volumes from older deployments are root-owned; make them writable for the unprivileged user, then drop
 # root for good. setpriv ships with util-linux on the Debian-based tomcat image (no gosu needed).
-chown -R mdmesh:mdmesh /opt/mdmesh /usr/local/tomcat/conf/Catalina /usr/local/tomcat/logs /usr/local/tomcat/work /usr/local/tomcat/temp /usr/local/tomcat/webapps
+chown -R dallycontrol:dallycontrol /opt/dallycontrol /usr/local/tomcat/conf/Catalina /usr/local/tomcat/logs /usr/local/tomcat/work /usr/local/tomcat/temp /usr/local/tomcat/webapps
 # The secrets are in ROOT.xml now, and nothing reads them from the environment at runtime (the server has no
 # System.getenv), so keep them out of the environment Tomcat inherits (/proc/<pid>/environ). JAVA_OPTS and CATALINA_OPTS
 # stay: catalina.sh reads them.
 unset DB_PASSWORD HASH_SECRET JWT_SECRET SMTP_PASSWORD
-exec setpriv --reuid=mdmesh --regid=mdmesh --init-groups catalina.sh run
+exec setpriv --reuid=dallycontrol --regid=dallycontrol --init-groups catalina.sh run

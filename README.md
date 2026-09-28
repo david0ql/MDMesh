@@ -1,11 +1,11 @@
 <div align="center">
 
-# ◧ MDMesh
+# ◧ DallyControl
 
 **A modern, self-hosted Android MDM** — fleet control, kiosk, app delivery, and
 signed auto-updates, with a console that doesn't feel like 2012.
 
-[![Release](https://img.shields.io/github/v/release/MDMesh-app/MDMesh?sort=semver)](https://github.com/MDMesh-app/MDMesh/releases)
+[![Release](https://img.shields.io/github/v/release/david0ql/MDMesh?sort=semver)](https://github.com/david0ql/MDMesh/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 ![Server](https://img.shields.io/badge/server-Java%20%C2%B7%20Jersey%20%C2%B7%20PostgreSQL-orange)
@@ -17,17 +17,17 @@ signed auto-updates, with a console that doesn't feel like 2012.
 
 <br/>
 
-<img src="docs/screenshots/overview.png" width="860" alt="MDMesh console — fleet overview" />
+<img src="docs/screenshots/overview.png" width="860" alt="DallyControl console — fleet overview" />
 
-<sub><i>The MDMesh console — overview (shown with sample data).</i></sub>
+<sub><i>The DallyControl console — overview (shown with sample data).</i></sub>
 
 </div>
 
 ---
 
-## What is MDMesh?
+## What is DallyControl?
 
-MDMesh is an open-source **Mobile Device Management** platform for Android: enroll devices as
+DallyControl is an open-source **Mobile Device Management** platform for Android: enroll devices as
 Device Owner via a QR code, then manage them from a clean web console — push apps, lock devices into
 kiosk mode, track location, run remote actions, and keep the whole fleet (server **and** agent) updated
 with **signed, auto-rolling-back** releases.
@@ -178,18 +178,18 @@ One-click or unattended server updates with DB backup + auto-rollback, plus a re
 ### Option A — one line, no clone (published images)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/MDMesh-app/MDMesh/main/quickstart.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/david0ql/MDMesh/main/quickstart.sh)
 ```
 
-Pulls the released images from GHCR (no build), generates secrets, brings the stack up in `./mdmesh`,
+Pulls the released images from GHCR (no build), generates secrets, brings the stack up in `./dallycontrol`,
 and prints the console URL + a temporary admin password. *(Needs a published release with **public**
 GHCR packages — or `docker login ghcr.io` first; see [RELEASING.md](RELEASING.md).)* Image tags carry **no `v`
-prefix**: release `v0.2.6` publishes `ghcr.io/mdmesh-app/mdmesh-server:0.2.6` (and `:latest`).
+prefix**: release `v0.2.6` publishes `ghcr.io/david0ql/dallycontrol-server:0.2.6` (and `:latest`).
 
 ### Option B — from source (clone + build)
 
 ```bash
-git clone https://github.com/MDMesh-app/MDMesh.git
+git clone https://github.com/david0ql/MDMesh.git
 cd MDMesh
 ./setup.sh           # interactive: Cloudflare Tunnel, or your own HTTPS domain
 ```
@@ -244,8 +244,8 @@ No Docker? Run `./setup.sh --native`. Full details, hosting modes, updates, reco
 Contributions are welcome — code, docs, bug reports, and ideas. Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**
 for the dev setup (server, agent, console), build/test commands, and conventions.
 
-- **🐞 Found a bug?** Open a [bug report](https://github.com/MDMesh-app/MDMesh/issues/new?template=bug_report.yml).
-- **💡 Have an idea?** Open a [feature request](https://github.com/MDMesh-app/MDMesh/issues/new?template=feature_request.yml).
+- **🐞 Found a bug?** Open a [bug report](https://github.com/david0ql/MDMesh/issues/new?template=bug_report.yml).
+- **💡 Have an idea?** Open a [feature request](https://github.com/david0ql/MDMesh/issues/new?template=feature_request.yml).
 - **🔧 Sending a PR?** The [PR template](.github/pull_request_template.md) has the checklist — small, focused PRs with tests + docs are easiest to merge.
 
 > One hard rule for the agent ↔ server contract: the `/agent/v1` API is **additive-only** so older agents
@@ -255,8 +255,8 @@ for the dev setup (server, agent, console), build/test commands, and conventions
 
 ## 📜 License & credits
 
-MDMesh is licensed under the **[Apache License 2.0](LICENSE)**.
+DallyControl is licensed under the **[Apache License 2.0](LICENSE)**.
 
-It is a fork of and builds on **[Headwind MDM](https://h-mdm.com)** by Headwind Solutions LLC, also
-Apache-2.0. The licensing and rebrand rationale is recorded in
+It is a fork of **[MDMesh](https://github.com/MDMesh-app/MDMesh)** (Apache-2.0), which builds on
+**[Headwind MDM](https://h-mdm.com)** by Headwind Solutions LLC, also Apache-2.0. The licensing and rebrand rationale is recorded in
 [ADR-0008](docs/adr/0008-licensing-and-rebrand.md). Trademarks and brand names belong to their owners.

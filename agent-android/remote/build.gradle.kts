@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mdmesh.remote"
+    namespace = "com.dallycontrol.remote"
     compileSdk = 35
 
     defaultConfig {

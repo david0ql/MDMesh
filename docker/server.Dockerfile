@@ -18,11 +18,11 @@ RUN mvn -q -B -DskipTests package
 FROM tomcat:9.0-jdk17-temurin
 RUN rm -rf /usr/local/tomcat/webapps/*
 COPY --from=build /src/server/target/launcher.war /usr/local/tomcat/webapps/ROOT.war
-# App base directory (data, plugins, email templates). /opt/mdmesh should be a volume
+# App base directory (data, plugins, email templates). /opt/dallycontrol should be a volume
 # so uploaded files + the hosted agent APK survive container recreation.
-RUN mkdir -p /opt/mdmesh/files /opt/mdmesh/plugins \
- && groupadd -r mdmesh && useradd -r -g mdmesh -d /opt/mdmesh -s /usr/sbin/nologin mdmesh
-COPY install/emails /opt/mdmesh/emails
+RUN mkdir -p /opt/dallycontrol/files /opt/dallycontrol/plugins \
+ && groupadd -r dallycontrol && useradd -r -g dallycontrol -d /opt/dallycontrol -s /usr/sbin/nologin dallycontrol
+COPY install/emails /opt/dallycontrol/emails
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 # NOTE: full uploaded-APK metadata parsing uses `aapt`; install android build-tools aapt into the

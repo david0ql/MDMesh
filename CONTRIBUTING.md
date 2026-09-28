@@ -1,18 +1,18 @@
-# Contributing to MDMesh
+# Contributing to DallyControl
 
-Thanks for being here. MDMesh aims to be a **genuinely complete, robust, modernized** open-source
+Thanks for being here. DallyControl aims to be a **genuinely complete, robust, modernized** open-source
 Android MDM, and that only happens with good contributions — code, docs, bug reports, and ideas all
 count. This guide gets you from clone to a green PR.
 
-- 🐞 **Bug?** → [open a bug report](https://github.com/MDMesh-app/MDMesh/issues/new?template=bug_report.yml)
-- 💡 **Idea?** → [open a feature request](https://github.com/MDMesh-app/MDMesh/issues/new?template=feature_request.yml)
+- 🐞 **Bug?** → [open a bug report](https://github.com/david0ql/MDMesh/issues/new?template=bug_report.yml)
+- 💡 **Idea?** → [open a feature request](https://github.com/david0ql/MDMesh/issues/new?template=feature_request.yml)
 - 🔧 **Code?** → read on, then send a focused PR.
 
 ---
 
 ## Repository layout
 
-MDMesh is a monorepo with four planes (full map in **[STRUCTURE.md](STRUCTURE.md)**):
+DallyControl is a monorepo with four planes (full map in **[STRUCTURE.md](STRUCTURE.md)**):
 
 | Path | Plane | Stack |
 |------|-------|-------|
@@ -61,14 +61,14 @@ cd agent-android
 ./gradlew detekt                           # static analysis (baseline: config/detekt/baseline.xml)
 ```
 Install on an emulator and promote to Device Owner for testing:
-`adb install app-debug.apk && adb shell dpm set-device-owner com.mdmesh.agent.debug/com.mdmesh.agent.admin.AdminReceiver`
+`adb install app-debug.apk && adb shell dpm set-device-owner com.dallycontrol.agent.debug/com.dallycontrol.agent.admin.AdminReceiver`
 
 ### Updater/recovery (`supervisor/`)
 ```bash
 cd supervisor
 node --test          # pure-logic unit tests (no deps)
-cd .. && docker build -f docker/supervisor.Dockerfile -t mdmesh-supervisor:dev . \
-  && scripts/supervisor-smoke.sh mdmesh-supervisor:dev   # boots the image the way compose runs it
+cd .. && docker build -f docker/supervisor.Dockerfile -t dallycontrol-supervisor:dev . \
+  && scripts/supervisor-smoke.sh dallycontrol-supervisor:dev   # boots the image the way compose runs it
 ```
 
 ### The whole stack, locally

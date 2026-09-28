@@ -1,4 +1,4 @@
-// Representative sample data for the MDMesh docs screenshots. The harness renders the REAL SPA and
+// Representative sample data for the DallyControl docs screenshots. The harness renders the REAL SPA and
 // answers its REST calls with these fixtures (Playwright request interception). Not a live fleet —
 // believable demo data so the UI shows something worth looking at.
 
@@ -74,7 +74,7 @@ export function buildFixtures(now = Date.now()) {
   function loc(lat, lon, capturedAt) { return { lat, lon, accuracy: 12, provider: 'fused', capturedAt }; }
 
   const applications = [
-    app(1, 'MDMesh Agent', 'com.lunacy.mdm.agent', '0.1.15', 16),
+    app(1, 'DallyControl Agent', 'com.lunacy.mdm.agent', '0.1.15', 16),
     app(2, 'Field Ops', 'com.acme.fieldops', '4.2.0', 420),
     app(3, 'Chrome', 'com.android.chrome', '120.0', 6000),
     app(4, 'Microsoft Teams', 'com.microsoft.teams', '1.0.0', 100),

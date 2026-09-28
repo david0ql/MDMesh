@@ -19,8 +19,8 @@ interface ThemeApi {
 }
 
 const Ctx = createContext<ThemeApi | null>(null);
-const THEME_KEY = 'mdmesh-theme';
-const DENSITY_KEY = 'mdmesh-density';
+const THEME_KEY = 'dallycontrol-theme';
+const DENSITY_KEY = 'dallycontrol-density';
 
 function readTheme(): Theme {
   try {

@@ -527,10 +527,10 @@ function ConfigEditor({
       </section>
 
       <button className="cfg-adv-toggle" onClick={() => setAdvanced((v) => !v)}>
-        {advanced ? '▾' : '▸'} Legacy Headwind fields ({LEGACY_FIELDS.length}) — not applied by the MDMesh agent
+        {advanced ? '▾' : '▸'} Legacy Headwind fields ({LEGACY_FIELDS.length}) — not applied by the DallyControl agent
       </button>
       {advanced && (
-        <p className="cfg-legacy-note">These fields are stored with the configuration but the MDMesh agent does not enforce them yet. They are kept for the built-in launcher and for future ports.</p>
+        <p className="cfg-legacy-note">These fields are stored with the configuration but the DallyControl agent does not enforce them yet. They are kept for the built-in launcher and for future ports.</p>
       )}
 
       {advanced &&
@@ -575,7 +575,7 @@ function Field({
     <div className="cfg-field">
       <div className="cfg-field-label">
         <label>{def.label}</label>
-        {def.enforced ? <span className="chip chip-enforced" title="Applied on devices by the MDMesh agent">Enforced</span> : null}
+        {def.enforced ? <span className="chip chip-enforced" title="Applied on devices by the DallyControl agent">Enforced</span> : null}
         <span className="cfg-field-help">{def.help}</span>
       </div>
       <div className="cfg-field-ctl">
