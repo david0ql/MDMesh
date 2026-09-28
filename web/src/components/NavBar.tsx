@@ -30,17 +30,30 @@ const SECONDARY: Action[] = [
 
 interface Rfb { sendKey(keysym: number, code: string | null, down?: boolean): void }
 
+type ViewerWindow = Window & { __dallycontrolRfb?: () => Rfb | null };
+
 /**
- * The live noVNC connection inside the viewer iframe (same origin). noVNC keeps it in its UI module, which the
- * iframe's own realm returns when asked to import it again.
+ * The live noVNC connection inside the viewer iframe (same origin). noVNC keeps it in its UI module;
+ * /remote-keys.js, added to the viewer once as a module script, re-imports that module in the iframe's realm and
+ * exposes it. (Not eval: the viewer's CSP has no 'unsafe-eval', which silently broke the soft keys.)
  */
 async function rfbOf(frame: HTMLIFrameElement | null): Promise<Rfb | null> {
-  const win = frame?.contentWindow as (Window & { Function: FunctionConstructor }) | null;
-  if (!win) return null;
+  const win = frame?.contentWindow as ViewerWindow | null;
+  const doc = frame?.contentDocument;
+  if (!win || !doc) return null;
+  if (!win.__dallycontrolRfb) {
+    const loaded = await new Promise<boolean>((resolve) => {
+      const s = doc.createElement('script');
+      s.type = 'module';
+      s.src = '/remote-keys.js';
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      doc.head.appendChild(s);
+    });
+    if (!loaded) return null;
+  }
   try {
-    const load = new win.Function('u', 'return import(u)') as (u: string) => Promise<{ default: { rfb?: Rfb } }>;
-    const mod = await load(new URL('app/ui.js', win.location.href).href);
-    return mod.default.rfb ?? null;
+    return win.__dallycontrolRfb?.() ?? null;
   } catch {
     return null;
   }
