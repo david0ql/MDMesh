@@ -39,7 +39,9 @@ const check = (name, ok, detail = '') => {
 };
 
 adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP');
-adb('shell', 'wm', 'dismiss-keyguard');
+// KEYCODE_MENU dismisses a swipe keyguard. (`wm dismiss-keyguard` crashes Android 8.0's System UI -- a
+// NavigationBarFragment NPE in the stock emulator image -- which then can't answer the capture request.)
+adb('shell', 'input', 'keyevent', 'KEYCODE_MENU');
 let url = '';
 try {
   url = session();
