@@ -105,9 +105,11 @@ if [ -f .env ] && [ "$RESET" != 1 ]; then
   set -a; . ./.env; set +a
   version_preflight "${CURRENT_VERSION:-${SERVER_VERSION:-}}"
   HOST=${BASE_URL#*://}; HOST=${HOST%%/*}
-  if [ "${COMPOSE_PROFILES:-}" = "cloudflare" ]; then
+  # COMPOSE_PROFILES may list more than the hosting mode (e.g. cloudflare,remote): match the word, and pass every
+  # profile on, so a re-run never mistakes a tunnel install for the own-domain mode (which publishes 80/443).
+  if [[ ",${COMPOSE_PROFILES:-}," == *,cloudflare,* ]]; then
     MODE=1
-    COMPOSE_ARGS="--profile cloudflare"
+    COMPOSE_ARGS="--profile ${COMPOSE_PROFILES//,/ --profile }"
     EXTRA_NOTE="In Cloudflare, route the tunnel's public hostname ($HOST) to http://caddy:80."
   else
     MODE=2
@@ -249,7 +251,9 @@ say "Checking GitHub Releases for the signed agent APK…"
 # the supervisor's sha256-verified release mirror, so the download below is verification only.
 # Anonymous once the repo is public; honours GITHUB_TOKEN if set. Graceful: no release, unreachable,
 # or no python3/curl on the host → warn and keep the SPA's debug defaults, exactly like native.
-VITE_AGENT_PACKAGE=""; VITE_AGENT_CHECKSUM=""; VITE_AGENT_APK_URL=""
+# A self-hosted agent APK (no GitHub release: the operator uploads a release-signed APK and sets the three values in
+# .env or the environment) is kept as-is unless a verified release replaces it.
+VITE_AGENT_PACKAGE="${VITE_AGENT_PACKAGE:-}"; VITE_AGENT_CHECKSUM="${VITE_AGENT_CHECKSUM:-}"; VITE_AGENT_APK_URL="${VITE_AGENT_APK_URL:-}"
 if [ -n "${GITHUB_REPO:-}" ] && command -v python3 >/dev/null && command -v curl >/dev/null; then
   # gh_curl ARGS...: curl, sending GITHUB_TOKEN (when set) as an Authorization header read from stdin (-H @-, curl 7.55+),
   # never on curl's command line, which every local user can read (ps, /proc/<pid>/cmdline).
