@@ -153,6 +153,11 @@ public class UnsecureDAO {
         userMapper.setNewPassword(user);
     }
 
+    /** Replace a user's password hash only if it is still {@code oldHash}; true when replaced. */
+    public boolean upgradePasswordHash(int userId, String oldHash, String newHash) {
+        return userMapper.upgradePasswordHash(userId, oldHash, newHash) > 0;
+    }
+
     public void setUserLoginFailTime(User user, long ts) {
         user.setLastLoginFail(ts);
         userMapper.setLoginFailTime(user);

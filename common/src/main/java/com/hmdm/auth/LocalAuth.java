@@ -29,6 +29,12 @@ public class LocalAuth implements HmdmAuthInterface {
         boolean match = PasswordUtil.passwordMatch(password, user.getPassword());
         if (!match) {
             userDAO.setUserLoginFailTime(user, System.currentTimeMillis());
+        } else if (PasswordUtil.isLegacyHash(user.getPassword())) {
+            // Upgrade the inherited SHA-1 hash now that we hold the password (only if it is still the one we checked).
+            String upgraded = PasswordUtil.getHashFromMd5(password);
+            if (userDAO.upgradePasswordHash(user.getId(), user.getPassword(), upgraded)) {
+                user.setPassword(upgraded);
+            }
         }
         return match;
     }

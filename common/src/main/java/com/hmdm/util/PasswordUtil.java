@@ -28,12 +28,69 @@ public class PasswordUtil {
         return getHashFromMd5(md5);
     }
 
+    // --- Password storage -------------------------------------------------------------------------------------------
+    // The console sends MD5(password) (upper-case hex); that is what gets stored hashed. DallyControl stores
+    // PBKDF2-HMAC-SHA256 with a random per-user salt: "pbkdf2$<iterations>$<salt b64>$<hash b64>". The inherited Headwind
+    // format, SHA-1(md5 + one global salt), is still verified so existing users can log in, and is replaced by the new
+    // format at their next successful login (see LocalAuth).
+
+    private static final String PBKDF2_PREFIX = "pbkdf2$";
+    private static final int PBKDF2_ITERATIONS = 310_000;
+    private static final int PBKDF2_SALT_BYTES = 16;
+    private static final int PBKDF2_KEY_BITS = 256;
+
+    /** Hash a password (given as the console's MD5 hex) for storage. */
     public static String getHashFromMd5(String md5) {
-        return CryptoUtil.getSHA1String(md5 + PASS_SALT);
+        byte[] salt = new byte[PBKDF2_SALT_BYTES];
+        new java.security.SecureRandom().nextBytes(salt);
+        byte[] hash = pbkdf2(normalizeMd5(md5), salt, PBKDF2_ITERATIONS);
+        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder().withoutPadding();
+        return PBKDF2_PREFIX + PBKDF2_ITERATIONS + "$" + b64.encodeToString(salt) + "$" + b64.encodeToString(hash);
     }
 
+    /** Whether the entered password (MD5 hex) matches the stored hash, in either format. Constant-time compare. */
     public static boolean passwordMatch(String enteredPass, String dbPass) {
-        return getHashFromMd5(enteredPass).equalsIgnoreCase(dbPass);
+        if (enteredPass == null || dbPass == null || dbPass.isEmpty()) {
+            return false;
+        }
+        if (dbPass.startsWith(PBKDF2_PREFIX)) {
+            String[] parts = dbPass.split("\\$");
+            if (parts.length != 4) {
+                return false;
+            }
+            try {
+                int iterations = Integer.parseInt(parts[1]);
+                byte[] salt = java.util.Base64.getDecoder().decode(parts[2]);
+                byte[] expected = java.util.Base64.getDecoder().decode(parts[3]);
+                byte[] actual = pbkdf2(normalizeMd5(enteredPass), salt, iterations);
+                return java.security.MessageDigest.isEqual(expected, actual);
+            } catch (IllegalArgumentException e) {
+                return false;
+            }
+        }
+        String legacy = CryptoUtil.getSHA1String(enteredPass + PASS_SALT);
+        return legacy != null && java.security.MessageDigest.isEqual(
+                legacy.toLowerCase().getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                dbPass.toLowerCase().getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    }
+
+    /** True when the stored hash is the inherited weak format and should be upgraded. */
+    public static boolean isLegacyHash(String dbPass) {
+        return dbPass != null && !dbPass.startsWith(PBKDF2_PREFIX);
+    }
+
+    private static String normalizeMd5(String md5) {
+        return md5 == null ? "" : md5.trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private static byte[] pbkdf2(String secret, byte[] salt, int iterations) {
+        try {
+            javax.crypto.spec.PBEKeySpec spec =
+                    new javax.crypto.spec.PBEKeySpec(secret.toCharArray(), salt, iterations, PBKDF2_KEY_BITS);
+            return javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException("PBKDF2WithHmacSHA256 unavailable", e);
+        }
     }
 
     public static boolean checkPassword(String password, int length, int strength) {

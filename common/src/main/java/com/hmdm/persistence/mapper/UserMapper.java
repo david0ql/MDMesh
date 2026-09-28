@@ -77,6 +77,11 @@ public interface UserMapper {
             "authToken=#{authToken}, passwordResetToken=#{passwordResetToken} WHERE id=#{id}"})
     void setNewPassword(User user);
 
+    @Update({"UPDATE users SET password=#{newHash} WHERE id=#{id} AND password=#{oldHash}"})
+    int upgradePasswordHash(@org.apache.ibatis.annotations.Param("id") int id,
+                            @org.apache.ibatis.annotations.Param("oldHash") String oldHash,
+                            @org.apache.ibatis.annotations.Param("newHash") String newHash);
+
     @Update({"UPDATE users SET lastLoginFail=#{lastLoginFail} WHERE id=#{id}"})
     void setLoginFailTime(User user);
 

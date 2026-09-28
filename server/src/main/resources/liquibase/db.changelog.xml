@@ -2874,4 +2874,41 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.28-users-password-length" author="dallycontrol" context="common">
+        <comment>Room for PBKDF2 password hashes (pbkdf2$iterations$salt$hash, ~90 chars)</comment>
+        <sql>ALTER TABLE users ALTER COLUMN password TYPE VARCHAR(255);</sql>
+        <rollback>ALTER TABLE users ALTER COLUMN password TYPE VARCHAR(40);</rollback>
+    </changeSet>
+
+    <changeSet id="26.09.28-device-agent-data-cascade" author="dallycontrol" context="common">
+        <comment>Deleting a device deletes its agent data (commands, events, state, location trail, rollout canary):
+            these tables key on the device number without a foreign key, so they outlived the device. Also removes
+            the rows already orphaned.</comment>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_agent_data() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM agentCommand       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_event       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_state       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_location    WHERE deviceNumber = OLD.number;
+                DELETE FROM agentRolloutCanary WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <sql>
+            CREATE TRIGGER devices_delete_agent_data AFTER DELETE ON devices
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_delete_device_agent_data();
+            DELETE FROM agentCommand       x WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = x.deviceNumber);
+            DELETE FROM device_event       x WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = x.deviceNumber);
+            DELETE FROM device_state       x WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = x.deviceNumber);
+            DELETE FROM device_location    x WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = x.deviceNumber);
+            DELETE FROM agentRolloutCanary x WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = x.deviceNumber);
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS devices_delete_agent_data ON devices;
+            DROP FUNCTION IF EXISTS dallycontrol_delete_device_agent_data();
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

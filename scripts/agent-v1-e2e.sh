@@ -351,5 +351,11 @@ DELETED=$(curl -s -b "$CJ" -X DELETE "$BASE/rest/private/users/other/$OID" | fie
 chk "observer user deleted" "$DELETED" "OK"
 if [ "$DELETED" = OK ]; then LIVE_OID=""; LIVE_OLOGIN=""; fi
 
+echo "== deleting a device deletes its agent data =="
+# The e2e device has commands, events, state and a location by now; deleting it must leave none of them behind.
+chk "e2e device deleted" "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"ids\":[$DNUM_ID]}" "$BASE/rest/private/devices/deleteBulk" | field "d['status']")" "OK"
+chk "its command history is gone" "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "len(d.get('data') or [])")" "0"
+chk "its location trail is gone" "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/locations?from=0&to=$(( $(date +%s) * 1000 ))" | field "'$DID' in [x['number'] for x in (d.get('data') or {}).get('devices', [])]")" "False"
+
 echo "===== RESULT: PASS=$PASS FAIL=$FAIL ====="
 [ "$FAIL" -eq 0 ]
