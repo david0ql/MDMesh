@@ -56,6 +56,7 @@ class CheckInService : LifecycleService() {
     @Volatile private var deviceId: String? = null
     @Volatile private var secret: String? = null
     @Volatile private var fastSyncJob: Job? = null
+    @Volatile private var enrollJob: Job? = null
     // Reachability grace: hold the socket for a window after service (re)start even on idle
     // battery, so a device that just booted / self-updated is instantly commandable — a reboot
     // usually means an operator is acting on it. After the window, adaptive gating resumes.
@@ -112,21 +113,38 @@ class CheckInService : LifecycleService() {
         return START_STICKY
     }
 
+    /**
+     * Not enrolled yet: keep trying (a check-in enrolls once a token is present) and open the wake socket
+     * the moment credentials exist. A device made Device Owner over ADB starts this service before the
+     * provisioning broadcast hands it the token; a single refresh left it without a socket, so commands
+     * waited for the 15-minute floor until some screen/charger event happened to re-evaluate.
+     */
+    @Synchronized
+    private fun awaitEnrollment() {
+        if (enrollJob?.isActive == true) return
+        enrollJob = lifecycleScope.launch {
+            repeat(ENROLL_POLL_ATTEMPTS) {
+                deviceId = identity.current()
+                secret = identity.secret()
+                if (!deviceId.isNullOrBlank() && !secret.isNullOrBlank()) {
+                    reevaluateSocket()
+                    return@launch
+                }
+                runCatching { coordinator.runOnce() }
+                delay(ENROLL_POLL_MS)
+            }
+        }
+    }
+
     /** Hold the socket when always-on, screen-on, or charging; otherwise drop it (heartbeat covers idle). */
     private fun reevaluateSocket() {
         val id = deviceId
         val sec = secret
         if (id.isNullOrBlank() || sec.isNullOrBlank()) {
-            // Enrollment may have completed elsewhere (worker/heartbeat) since we cached these —
-            // refresh once and re-evaluate if credentials appeared.
-            lifecycleScope.launch {
-                deviceId = identity.current()
-                secret = identity.secret()
-                if (!deviceId.isNullOrBlank() && !secret.isNullOrBlank()) reevaluateSocket()
-            }
+            awaitEnrollment()
             return
         }
-        val hot = powerModeStore.isAlwaysOn() || isInteractive() || isCharging()
+        val hot = powerModeStore.isAlwaysOn() || isInteractive(this) || isCharging(this)
                 || System.currentTimeMillis() < graceUntil
         if (hot) {
             transport.start(id, sec) { signal -> onWake(signal) }
@@ -174,14 +192,6 @@ class CheckInService : LifecycleService() {
         }
     }
 
-    private fun isInteractive(): Boolean =
-        (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
-
-    private fun isCharging(): Boolean {
-        val batt = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val status = batt?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
-    }
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(powerReceiver) }
@@ -225,6 +235,8 @@ class CheckInService : LifecycleService() {
 
     companion object {
         private const val WAKE_RETRY_DELAY_MS = 2_000L
+        private const val ENROLL_POLL_MS = 5_000L
+        private const val ENROLL_POLL_ATTEMPTS = 120 // 10 minutes; the periodic worker covers beyond
         private const val TAG = "CheckInService"
         private const val CHANNEL_ID = "mdm_checkin"
         private const val NOTIFICATION_ID = 1001
@@ -232,4 +244,13 @@ class CheckInService : LifecycleService() {
         /** Post-(re)start window during which the socket is held regardless of power mode. */
         private const val REACHABILITY_GRACE_MS = 10L * 60L * 1000L
     }
+}
+
+private fun isInteractive(context: Context): Boolean =
+    (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+
+private fun isCharging(context: Context): Boolean {
+    val batt = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val status = batt?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+    return status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
 }
