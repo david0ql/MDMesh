@@ -8,6 +8,8 @@
 #       --serial emulator-5554 --config <kiosk configuration id> [--only folders,codes,...]
 #
 # Sections: folders codes roles browser apps trail sim passcode launch crashloop
+#   typedcode (opt-in, only with --only typedcode): re-enrolls the phone by typing a folder code on the agent screen
+#   and deletes the phone's previous device record; prints the new device number.
 # It creates folders/devices named e2e-* and removes them; it changes the given configuration's DallyControl policy
 # (dcPolicy) and restores it on exit. Needs bash 4+, curl, python3, adb. Exit 0 only if every check passes.
 set -uo pipefail
@@ -352,6 +354,31 @@ if want crashloop; then
   tap_text "kiosk-open-app"; sleep 5
   chk "one tap reopens the app" "$(top)" "co.amovil.preventa"
   chk "and the kiosk is still locked" "$(locktask)" "LOCKED"
+fi
+
+
+# ================================================================================================ R2 typed on the phone
+if [[ "$ONLY" == *",typedcode,"* ]]; then
+  echo "== enrollment code typed on the phone (R2, device side)"
+  GID=$(get "$F/devices/$DEV_ID/scope" | field "d['data']['groupId']")
+  CODE=$(post "$A/codes" "{\"groupId\":$GID,\"label\":\"e2e typed on the phone\"}" | field "d['data']['code']")
+  CID=$(get "$A/codes" | field "next(c['id'] for c in d['data'] if c['code']=='$CODE')"); CLEAN_CODES+=("$CID")
+  # A bogus token replaces the one the phone enrolled with (a still-valid code would re-enroll it on its own).
+  adb_ shell am broadcast -a com.dallycontrol.agent.ADB_PROVISION --es server_url "$BASE" --es enroll_token e2e-invalid-token \
+    --ez force true -n com.dallycontrol.agent/.provisioning.AdbProvisionReceiver >/dev/null
+  sleep 3; adb_ shell am start -n com.dallycontrol.agent/.MainActivity >/dev/null; sleep 4
+  printf '%s' "$(ui)" | grep -q 'content-desc="enroll-code"' && ok "the agent screen offers code entry while not enrolled" || ko "code entry offered"
+  tap_text "enroll-code"; adb_ shell input text "$(printf '%s' "${CODE:0:4}" | tr 'A-Z' 'a-z')-${CODE:4}"; adb_ shell input keyevent KEYCODE_BACK
+  tap_text "enroll-submit"
+  NEWDEV=""
+  for _ in $(seq 1 45); do sleep 2; NEWDEV=$(ui | grep -oE 'text="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"' | head -1 | cut -d'"' -f2); [ -n "$NEWDEV" ] && break; done
+  [ -n "$NEWDEV" ] && [ "$NEWDEV" != "$DEV" ] && ok "enrolled as $NEWDEV — the screen updated by itself" || ko "enrolled by typed code" "$NEWDEV"
+  NID=$(post "$API/private/devices/search" '{"pageSize":500,"pageNum":1}' | field "next(x['id'] for x in d['data']['devices']['items'] if x['number']=='$NEWDEV')")
+  chk "it landed in the code's folder" "$(get "$F/devices/$NID/scope" | field "d['data']['groupId']")" "$GID"
+  chk "the code counts the phone" "$(get "$A/codes" | field "next(c['uses'] for c in d['data'] if c['code']=='$CODE')")" "1"
+  post "$API/private/devices/deleteBulk" "{\"ids\":[$DEV_ID]}" >/dev/null
+  ORIG_GROUP=""   # the old record is gone; nothing to move back
+  echo "   NEW DEVICE NUMBER: $NEWDEV (old record $DEV removed)"
 fi
 
 echo "===== RESULT: PASS=$PASS FAIL=$FAIL ====="

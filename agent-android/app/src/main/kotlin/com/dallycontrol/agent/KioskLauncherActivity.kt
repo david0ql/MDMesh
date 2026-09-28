@@ -90,10 +90,21 @@ class KioskLauncherActivity : ComponentActivity() {
         val p = active ?: return
         if (p.mode == "single") {
             if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
-            crashGuard.registerFault()
-            if (pauseOnCrashLoop(p)) return
-            launchPinned(p)
+            autoLaunch(p)
         }
+    }
+
+    /**
+     * Every automatic (re)launch of the pinned app counts as a bounce — whether HOME resumed or Android recreated
+     * this activity (then the state flow relaunches it). One return can reach both paths, so launches within
+     * [BOUNCE_DEDUPE_MS] count once; [lastAutoLaunch] is process-wide because the activity instance may be new.
+     */
+    private fun autoLaunch(p: KioskApplyPayload) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastAutoLaunch > BOUNCE_DEDUPE_MS) crashGuard.registerFault()
+        lastAutoLaunch = now
+        if (pauseOnCrashLoop(p)) return
+        launchPinned(p)
     }
 
     private fun applyState(p: KioskApplyPayload?) {
@@ -106,8 +117,7 @@ class KioskLauncherActivity : ComponentActivity() {
         }
         startLockTaskSafely()
         if (p.mode == "single" && p.pinPackage != null) {
-            if (pauseOnCrashLoop(p)) return
-            launchPinned(p)
+            if (paused) setContentView(pausedView(p)) else autoLaunch(p)
         } else {
             setContentView(launcherGrid(p))
         }
@@ -394,6 +404,8 @@ class KioskLauncherActivity : ComponentActivity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private companion object {
+        const val BOUNCE_DEDUPE_MS = 1_500L
+        @Volatile var lastAutoLaunch = 0L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7
         const val GESTURE_WINDOW_MS = 3_000L

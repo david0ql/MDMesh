@@ -18,7 +18,9 @@ import android.widget.TextView
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.dallycontrol.agent.service.CheckInService
 import com.dallycontrol.core.config.ServerConfigStore
 import com.dallycontrol.core.store.DeviceIdStore
@@ -69,6 +71,7 @@ class MainActivity : ComponentActivity() {
         // launcher activity keeps us in the foreground-start allowance on Android 12+.
         ContextCompat.startForegroundService(this, Intent(this, CheckInService::class.java))
         refresh()
+        watchEnrollment()
     }
 
     /** Self-grant POST_NOTIFICATIONS (Device Owner, API 33+) so our FGS notification shows. */
@@ -90,6 +93,19 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+    }
+
+    /** While enrollment is pending (e.g. a code was just typed), keep the screen current without a reopen. */
+    private fun watchEnrollment() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (deviceIdStore.current().isNullOrBlank()) {
+                    kotlinx.coroutines.delay(2_000)
+                    refresh()
+                }
+                refresh()
+            }
+        }
     }
 
     private fun refresh() {
