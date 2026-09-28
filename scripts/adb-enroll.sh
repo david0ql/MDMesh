@@ -84,7 +84,13 @@ if "${A[@]}" shell dumpsys device_policy 2>/dev/null | grep -A4 -i "Device Owner
   say "already Device Owner"
 else
   say "setting Device Owner"
-  OUT=$("${A[@]}" shell dpm set-device-owner "$ADMIN_COMPONENT" 2>&1 | tr -d '\r')
+  # Retried: right after boot the device-policy service can refuse transiently. `|| true` keeps set -e from
+  # aborting silently on a non-zero adb exit, so the real error is reported below.
+  for _try in 1 2 3; do
+    OUT=$("${A[@]}" shell dpm set-device-owner "$ADMIN_COMPONENT" 2>&1 | tr -d '\r') || true
+    echo "$OUT" | grep -qi "success" && break
+    sleep 5
+  done
   echo "$OUT" | grep -qi "success" || die "dpm set-device-owner failed: $OUT (the device must have no accounts; factory reset it)"
 fi
 
