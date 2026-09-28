@@ -22,6 +22,8 @@ P.add_argument("--only", default="")
 P.add_argument("--destructive", action="store_true")
 P.add_argument("--adb", default="adb")
 P.add_argument("--pg-container", default="mdmesh-dev-postgres-1")
+P.add_argument("--self-update-apk", default="", help="agent APK with a higher versionCode: tests the agent updating itself")
+P.add_argument("--self-update-code", type=int, default=0)
 A = P.parse_args()
 
 CJ = http.cookiejar.CookieJar()
@@ -372,6 +374,28 @@ def t_install():
     check("app.uninstall: package gone", until(lambda: installed_version() is None))
 
 
+def pkg_version(pkg):
+    for line in sh(f"dumpsys package {pkg}").splitlines():
+        if "versionCode=" in line:
+            return int(line.split("versionCode=")[1].split()[0])
+    return None
+
+
+def t_self_update():
+    print("== agent self-update (app.install of its own package)")
+    adb("reverse", "tcp:8088", "tcp:8088")
+    before = pkg_version(A.pkg)
+    url, sha = upload_apk(A.self_update_apk)
+    q = queue("app.install", {"url": url, "packageName": A.pkg, "versionCode": A.self_update_code, "sha256": sha},
+              "app.silentInstall")
+    check("self-update: new version installed", until(lambda: pkg_version(A.pkg) == A.self_update_code, timeout=180),
+          f"before={before} now={pkg_version(A.pkg)}")
+    check("self-update: still Device Owner",
+          until(lambda: f"{A.pkg}/" in sh("dumpsys device_policy | grep -A4 -i 'Device Owner'")))
+    s, d = run("config.sync", timeout=180)
+    check("self-update: updated agent is back online executing commands", s == "done", f"{s} {d}")
+
+
 def t_reboot():
     print("== reboot")
     if not advertised("device.reboot"):
@@ -423,6 +447,8 @@ def main():
     tests = [("policies", t_policies), ("messages", t_messages), ("lock", t_lock), ("modes", t_modes),
              ("kiosk", t_kiosk), ("passcode", t_passcode), ("apps", t_apps), ("install", t_install),
              ("location", t_location)]
+    if A.self_update_apk:
+        tests.append(("selfupdate", t_self_update))
     if A.destructive:
         tests += [("reboot", t_reboot), ("wipe", t_wipe)]
     for key, fn in tests:
