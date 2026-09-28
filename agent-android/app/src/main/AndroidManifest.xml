@@ -40,6 +40,11 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    <!-- Keeps droidVNC-NG's input (accessibility) service on (DroidVncController). A Device Owner cannot grant it;
+         scripts/adb-enroll.sh does (`pm grant`), which Android refuses unless the permission is declared here. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <queries>
         <!-- droidVNC-NG: remote view/control app this DPC deploys and drives (ADR 0010). -->
         <package android:name="net.christianbeier.droidvnc_ng" />

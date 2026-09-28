@@ -54,6 +54,10 @@
 	# Hosted files (APKs, configuration files) and API responses are never documents to run: an empty, sandboxed CSP.
 	@hosted path /files/* /update/*
 	header @hosted Content-Security-Policy "default-src 'none'; sandbox; frame-ancestors 'none'"
+	# Never cached by a CDN in front (Cloudflare caches .apk for hours by default): a replaced APK or configuration
+	# file must reach the next device at once, and a deleted file must stop being downloadable. Deferred (>) so it
+	# overrides whatever the upstream sends.
+	header @hosted >Cache-Control "no-store"
 	@api path /rest/*
 	header @api Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 	handle @backend {
