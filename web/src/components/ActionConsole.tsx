@@ -1,3 +1,4 @@
+import { ScriptPanel } from './ScriptPanel';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt, queueCommand, getDeviceState,
@@ -123,6 +124,8 @@ export function ActionConsole({ device }: { device: Device }) {
           </div>
         </section>
       ))}
+
+      <ScriptPanel device={device} onQueued={() => { void refresh(); }} />
 
       <CommandTimeline items={history} />
 

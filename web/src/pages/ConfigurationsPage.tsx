@@ -1,3 +1,4 @@
+import { DcPolicyPanel } from '../components/DcPolicyPanel';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -525,6 +526,8 @@ function ConfigEditor({
           </div>
         ))}
       </section>
+
+      <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
 
       <button className="cfg-adv-toggle" onClick={() => setAdvanced((v) => !v)}>
         {advanced ? '▾' : '▸'} Legacy Headwind fields ({LEGACY_FIELDS.length}) — not applied by the DallyControl agent

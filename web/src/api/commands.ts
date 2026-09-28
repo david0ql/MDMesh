@@ -170,6 +170,16 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     request: { type: 'device.ringStop', requiresCapability: 'device.ringStop' },
   },
   {
+    key: 'app-launch', label: 'Open app', group: 'safe',
+    description: 'Bring an installed app to the front (in kiosk, only apps the kiosk allows).',
+    params: [{ key: 'packageName', label: 'Package', kind: 'text', required: true, placeholder: 'co.amovil.preventa' }],
+    request: { type: 'device.appLaunch', requiresCapability: 'device.appLaunch' },
+    build: (v) => ({
+      type: 'device.appLaunch', requiresCapability: 'device.appLaunch',
+      payload: JSON.stringify({ packageName: (v.packageName ?? '').trim() }),
+    }),
+  },
+  {
     key: 'lock', label: 'Lock device', group: 'disruptive', danger: true,
     description: 'Lock the device screen immediately.',
     request: { type: 'device.lock', requiresCapability: 'device.lock' },

@@ -7,10 +7,57 @@ import { bulkQueueCommand, type QueueCommandRequest } from './commands';
 export interface FleetGroup {
   id: number;
   name: string;
-  /** null: the group's devices use the global configuration. */
+  /** Parent folder; null = top level. */
+  parentId: number | null;
+  /** The group's own configuration; null = it inherits (nearest ancestor with one, else global). */
   configurationId: number | null;
   configurationName: string | null;
+  /** What its devices run when they do not pin their own (null = the global configuration). */
+  effectiveConfigurationId: number | null;
+  effectiveConfigurationName: string | null;
+  /** Devices directly in this group (not its sub-folders). */
   deviceCount: number;
+}
+
+export interface GroupNode {
+  group: FleetGroup;
+  depth: number;
+  /** "Colombia / Preventa / Agencia Norte" */
+  path: string;
+  /** Devices in this folder and every folder below it. */
+  totalDevices: number;
+  /** This folder and all its descendants' ids. */
+  subtree: Set<number>;
+}
+
+/** The folders as a tree, depth-first with siblings by name — for tables and selects. */
+export function groupTree(groups: FleetGroup[]): GroupNode[] {
+  const byParent = new Map<number | null, FleetGroup[]>();
+  const ids = new Set(groups.map((g) => g.id));
+  for (const g of groups) {
+    const parent = g.parentId != null && ids.has(g.parentId) ? g.parentId : null;
+    byParent.set(parent, [...(byParent.get(parent) ?? []), g]);
+  }
+  for (const list of byParent.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+  const out: GroupNode[] = [];
+  const walk = (parent: number | null, depth: number, prefix: string, seen: Set<number>): { total: number; ids: Set<number> } => {
+    let total = 0;
+    const all = new Set<number>();
+    for (const g of byParent.get(parent) ?? []) {
+      if (seen.has(g.id)) continue; // defensive: never loop on bad data
+      const path = prefix ? `${prefix} / ${g.name}` : g.name;
+      const node: GroupNode = { group: g, depth, path, totalDevices: 0, subtree: new Set([g.id]) };
+      out.push(node);
+      const below = walk(g.id, depth + 1, path, new Set([...seen, g.id]));
+      node.totalDevices = g.deviceCount + below.total;
+      below.ids.forEach((id) => node.subtree.add(id));
+      total += node.totalDevices;
+      node.subtree.forEach((id) => all.add(id));
+    }
+    return { total, ids: all };
+  };
+  walk(null, 0, '', new Set());
+  return out;
 }
 
 export interface GlobalConfig {
@@ -44,11 +91,11 @@ const BASE = '/private/fleet/v1';
 
 export const listGroups = () => apiClient.get<GroupsOverview>(`${BASE}/groups`);
 
-export const createGroup = (name: string, configurationId: number | null) =>
-  apiClient.post<FleetGroup>(`${BASE}/groups`, { name, configurationId });
+export const createGroup = (name: string, configurationId: number | null, parentId: number | null = null) =>
+  apiClient.post<FleetGroup>(`${BASE}/groups`, { name, configurationId, parentId });
 
-export const updateGroup = (id: number, name: string, configurationId: number | null) =>
-  apiClient.put<{ group: FleetGroup; devicesReconfigured: number }>(`${BASE}/groups/${id}`, { name, configurationId });
+export const updateGroup = (id: number, name: string, configurationId: number | null, parentId: number | null) =>
+  apiClient.put<{ group: FleetGroup; devicesReconfigured: number }>(`${BASE}/groups/${id}`, { name, configurationId, parentId });
 
 export const deleteGroup = (id: number) => apiClient.del<void>(`${BASE}/groups/${id}`);
 

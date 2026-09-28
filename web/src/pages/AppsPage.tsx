@@ -16,7 +16,7 @@ import {
 import { searchFdroid, type FDroidApp } from '../api/fdroid';
 import { DeployModal, type DeploySubject } from '../components/DeployModal';
 
-type SourceId = 'library' | 'custom' | 'fdroid' | 'play';
+type SourceId = 'library' | 'custom' | 'device' | 'fdroid' | 'play';
 
 interface Source {
   id: SourceId;
@@ -28,6 +28,7 @@ interface Source {
 const SOURCES: Source[] = [
   { id: 'library', label: 'Library', enabled: true, tip: 'Apps already uploaded to this DallyControl server.' },
   { id: 'custom', label: 'Custom APK', enabled: true, tip: 'Deploy any APK by file or URL — including APKMirror / APKPure downloads.' },
+  { id: 'device', label: 'On the phone', enabled: true, tip: 'Register an app the phones already have (Chrome, WhatsApp from the Play Store…) so configurations can allow it. Nothing is installed.' },
   { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Search the F-Droid open-source catalogue and deploy straight from f-droid.org.' },
   { id: 'play', label: 'Play Store', enabled: false, tip: 'Download via a Google account (Aurora-style dispenser). Not built yet.' },
 ];
@@ -110,6 +111,7 @@ export function AppsPage() {
         }} />
       )}
       {source === 'custom' && <CustomSource onDeploy={setDeploy} />}
+      {source === 'device' && <DeviceAppSource />}
       {source === 'fdroid' && <FDroidSource onDeploy={setDeploy} />}
 
       {deploy && <DeployModal subject={deploy} onClose={() => setDeploy(null)} />}
@@ -633,5 +635,83 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         Apps are downloaded by the device directly from f-droid.org. The device must be able to reach it.
       </p>
     </>
+  );
+}
+
+const PACKAGE_RE = /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
+const COMMON_DEVICE_APPS: { name: string; pkg: string }[] = [
+  { name: 'Chrome', pkg: 'com.android.chrome' },
+  { name: 'WhatsApp', pkg: 'com.whatsapp' },
+  { name: 'WhatsApp Business', pkg: 'com.whatsapp.w4b' },
+  { name: 'Google Maps', pkg: 'com.google.android.apps.maps' },
+  { name: 'Waze', pkg: 'com.waze' },
+  { name: 'Gmail', pkg: 'com.google.android.gm' },
+];
+
+/**
+ * Register an app that is already on the phones (preinstalled, or installed by the user from the Play Store): no APK,
+ * nothing is installed — it only becomes pickable in configurations (allowed in kiosk / by the app policy).
+ * For the phone's dialer, contacts, browser… prefer the configuration's "functions", which work on every brand.
+ */
+function DeviceAppSource() {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [pkg, setPkg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [existing, setExisting] = useState<Application[]>([]);
+  useEffect(() => { listApplications().then(setExisting).catch(() => undefined); }, []);
+  const known = new Set(existing.map((a) => a.pkg));
+
+  async function add(n: string, p: string) {
+    const nm = n.trim() || p.trim();
+    const pk = p.trim();
+    if (!PACKAGE_RE.test(pk)) {
+      toast.push('err', 'Invalid package name', 'Use the app\'s package, e.g. com.android.chrome.');
+      return;
+    }
+    if (known.has(pk)) {
+      toast.push('ok', 'Already in your Library', pk);
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveAndroidApplication({ name: nm, pkg: pk, type: 'app' });
+      toast.push('ok', 'Added to Library', `${nm} — allow it in a configuration (Allowed apps).`);
+      setName(''); setPkg('');
+      setExisting(await listApplications());
+    } catch (e) {
+      toast.push('err', 'Could not add', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel" data-testid="device-app-source">
+      <h2 className="panel-title">App already on the phone</h2>
+      <p className="note">
+        For apps the phones already have — Chrome, or WhatsApp installed from the Play Store. No APK is uploaded and nothing is
+        installed: the app becomes available to your configurations (kiosk and app policy). For the phone's dialer, contacts or
+        browser, use a configuration's <b>functions</b> instead: they work on every brand.
+      </p>
+      <div className="dcp-roles" style={{ margin: '8px 0 16px' }}>
+        {COMMON_DEVICE_APPS.map((a) => (
+          <button key={a.pkg} className="btn btn-sm" disabled={busy || known.has(a.pkg)} onClick={() => void add(a.name, a.pkg)}>
+            {known.has(a.pkg) ? '✓ ' : '+ '}{a.name}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+        <label className="field">
+          <span className="label">Name</span>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Chrome" />
+        </label>
+        <label className="field">
+          <span className="label">Package name *</span>
+          <input className="input mono" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="com.android.chrome" />
+        </label>
+        <button className="btn btn-primary" disabled={busy || !pkg.trim()} onClick={() => void add(name, pkg)}>Add to Library</button>
+      </div>
+    </section>
   );
 }

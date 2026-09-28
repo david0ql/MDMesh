@@ -13,7 +13,7 @@ import {
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
-import { listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
+import { groupTree, listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -72,6 +72,7 @@ export function DevicesPage() {
   const group = params.get('group') ?? 'all';
   const setGroup = (v: string) => setParams((p) => { if (v === 'all') p.delete('group'); else p.set('group', v); return p; }, { replace: true });
   const [groups, setGroups] = useState<FleetGroup[]>([]);
+  const tree = useMemo(() => groupTree(groups), [groups]);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupTarget, setGroupTarget] = useState('');
   const [android, setAndroid] = useState('all');
@@ -150,7 +151,12 @@ export function DevicesPage() {
       if (status === 'offline' && isOnline(d, now)) return false;
       if (config !== 'all' && configName(d, configurations) !== config) return false;
       if (group === 'none' && groupOf(d)) return false;
-      if (group !== 'all' && group !== 'none' && String(groupOf(d)?.id ?? '') !== group) return false;
+      // A folder shows its sub-folders' devices too.
+      if (group !== 'all' && group !== 'none') {
+        const sub = tree.find((n) => String(n.group.id) === group)?.subtree;
+        const gid = groupOf(d)?.id;
+        if (gid == null || !(sub ? sub.has(gid) : String(gid) === group)) return false;
+      }
       if (android !== 'all' && d.androidVersion !== android) return false;
       if (dupOnly && (d.hardwareId ? (dupCount.get(d.hardwareId) ?? 0) : 0) <= 1) return false;
       if (needle) {
@@ -159,7 +165,7 @@ export function DevicesPage() {
       }
       return true;
     });
-  }, [devices, status, config, group, android, q, dupOnly, dupCount, configurations, now]);
+  }, [devices, status, config, group, tree, android, q, dupOnly, dupCount, configurations, now]);
 
   // Route by number (not id) so the detail page can fetch the device with a narrow search.
   const go = (d: DeviceView) => navigate(`/devices/${encodeURIComponent(d.number)}`);
@@ -286,8 +292,8 @@ export function DevicesPage() {
         <span className="filter-div" />
         <select className="sel" value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Filter by group">
           <option value="all">Group: All</option>
-          {groups.map((g) => (
-            <option key={g.id} value={String(g.id)}>{g.name}</option>
+          {tree.map((n) => (
+            <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>
           ))}
           <option value="none">No group</option>
         </select>
@@ -452,8 +458,8 @@ export function DevicesPage() {
               <span>Group</span>
               <select className="sel" value={groupTarget} onChange={(e) => setGroupTarget(e.target.value)} style={{ width: '100%' }}>
                 <option value="">Select a group…</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={String(g.id)}>{g.name}</option>
+                {tree.map((n) => (
+                  <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>
                 ))}
                 <option value="none">No group</option>
               </select>

@@ -21,3 +21,29 @@ export async function mintEnrollToken(opts: { groupId?: number; configurationId?
     ...(opts.configurationId ? { configurationId: opts.configurationId } : {}),
   });
 }
+
+/** A folder's reusable enrollment code (see AgentAdminResource /codes). Shown as ABCD-EFGH. */
+export interface EnrollmentCode {
+  id: number;
+  code: string;
+  label: string | null;
+  groupId: number | null;
+  groupName: string | null;
+  uses: number;
+  revoked: boolean;
+  createdAt: number;
+  expiresAt: number | null;
+}
+
+export const displayCode = (c: string) => (c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c);
+
+export const listEnrollmentCodes = () => apiClient.get<EnrollmentCode[]>('/private/agent/v1/codes');
+
+export const createEnrollmentCode = (groupId: number, label?: string, expiresAt?: number) =>
+  apiClient.post<EnrollmentCode>('/private/agent/v1/codes', {
+    groupId,
+    ...(label ? { label } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
+  });
+
+export const revokeEnrollmentCode = (id: number) => apiClient.del<void>(`/private/agent/v1/codes/${id}`);

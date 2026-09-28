@@ -17,6 +17,11 @@ const EVENT_VERBS: Record<string, string> = {
   connectivityChange: 'changed network',
   lowBattery: 'reported low battery',
   enrolled: 'enrolled',
+  simRemoved: 'had its SIM removed',
+  simInserted: 'got a SIM inserted',
+  simChanged: 'had its SIM changed',
+  appBlocked: 'had an app blocked',
+  kioskCrashLoop: 'kiosk app closed repeatedly',
 };
 
 function configName(

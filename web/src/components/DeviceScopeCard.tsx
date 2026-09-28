@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import {
   getDeviceScope, listGroups, moveDevicesToGroup, setDevicesConfiguration,
-  type DeviceScope, type FleetGroup,
+  type DeviceScope, type FleetGroup, groupTree,
 } from '../api/fleet';
 import { useToast } from '../ui/toast';
 
@@ -69,7 +69,7 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
                   void change('Group changed', () => moveDevicesToGroup([deviceId], gid));
                 }}>
           <option value="">No group</option>
-          {groups.map((g) => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
+          {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
         </select>
       </div>
       <div className="row">

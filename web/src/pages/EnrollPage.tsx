@@ -3,10 +3,11 @@ import { AppShell } from '../ui/AppShell';
 import { IconCopy } from '../ui/icons';
 import { useToast } from '../ui/toast';
 import { mintEnrollToken } from '../api/enroll';
-import { listGroups, type FleetGroup } from '../api/fleet';
+import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
 import { ApiError } from '../api/client';
 import { fmtDateTime } from '../ui/format';
 import { QrCanvas } from '../components/QrCanvas';
+import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
@@ -21,7 +22,7 @@ const STEPS = [
   { title: 'Wait for enrollment', sub: 'The device appears in Devices after its first check-in.' },
 ];
 
-type Mode = 'qr' | 'token';
+type Mode = 'qr' | 'token' | 'codes';
 
 export function EnrollPage() {
   const toast = useToast();
@@ -109,12 +110,13 @@ export function EnrollPage() {
             <span>Group</span>
             <select className="sel" value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="Group">
               <option value="">No group</option>
-              {groups.map((g) => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
+              {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
             </select>
           </label>
           <span className="seg" role="tablist" aria-label="Enrollment method">
             <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Scan QR</button>
             <button className={mode === 'token' ? 'on' : ''} onClick={() => setMode('token')}>Token</button>
+            <button className={mode === 'codes' ? 'on' : ''} onClick={() => setMode('codes')}>Folder codes</button>
           </span>
         </div>
 
@@ -200,6 +202,8 @@ export function EnrollPage() {
             </p>
           </section>
         )}
+
+        {mode === 'codes' && <EnrollmentCodesPanel groups={groups} />}
 
         {mode === 'token' && (
           <section className="panel enroll-wrap">

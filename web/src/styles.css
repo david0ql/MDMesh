@@ -2848,3 +2848,26 @@ a {
 .scope-card .chip.scope-group { color:var(--ok); border-color:var(--ok); }
 .scope-note { font-size:12px; margin:6px 0 0; }
 .enroll-group { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--secondary); }
+
+/* DallyControl policies (DcPolicyPanel) */
+.dcp-roles { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.dcp-role { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.dcp-list {
+  width: 100%;
+  min-width: 260px;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+.dcp-list:focus { outline: none; border-color: var(--text-2); }
+.gr-tree { display: inline-flex; align-items: center; gap: 6px; }
+.gr-branch { color: var(--faint); font-size: 12px; }
+.codes-new { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 10px; margin: 12px 0 18px; }
+.codes-table .code-big { font-size: 15px; font-weight: 600; letter-spacing: 0.04em; }
+.codes-revoked { opacity: 0.55; }
+.codes-qr { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+@media (max-width: 640px) { .codes-new { grid-template-columns: 1fr; } }

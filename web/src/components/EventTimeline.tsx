@@ -11,6 +11,11 @@ const LABELS: Record<string, string> = {
   connectivityChange: 'Network change',
   lowBattery: 'Low battery',
   enrolled: 'Enrolled',
+  simRemoved: 'SIM removed',
+  simInserted: 'SIM inserted',
+  simChanged: 'SIM changed',
+  appBlocked: 'App blocked (not allowed)',
+  kioskCrashLoop: 'Kiosk app closed repeatedly',
 };
 
 export function EventTimeline({ device }: { device: Device }) {

@@ -284,7 +284,19 @@ export function DeviceDetailPage() {
     { k: 'Serial', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
   ];
+  // SIM (agent SimMonitor): state + carrier + number per slot; the number only when the carrier stores it on the SIM.
+  const sim = dyn.sim as { state?: string; slots?: { slot: number; carrier?: string; number?: string }[] } | undefined;
+  const simSlots = sim?.slots ?? [];
+  const phoneNumbers = simSlots.map((s) => s.number).filter(Boolean) as string[];
+  const idnNumbers = Array.isArray(idn.phoneNumber) ? (idn.phoneNumber as unknown[]).filter((x): x is string => typeof x === 'string' && x !== '') : [];
+  const simLabel = !sim?.state ? '—'
+    : sim.state === 'absent' ? 'No SIM'
+    : sim.state === 'locked' ? 'Locked (PIN/PUK)'
+    : sim.state === 'ready' ? (simSlots.map((s) => s.carrier).filter(Boolean).join(', ') || 'Ready')
+    : 'Unknown';
   const networkRows: Row[] = [
+    { k: 'SIM', v: simLabel },
+    { k: 'Phone number', v: orDash((phoneNumbers.length ? phoneNumbers : idnNumbers).join(', ') || undefined), mono: true },
     { k: 'Type', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
     { k: 'Local IP', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
     { k: 'Public IP', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
@@ -383,6 +395,12 @@ export function DeviceDetailPage() {
               ))}
             </div>
           ))}
+
+          {sim?.state === 'absent' && (
+            <div className="banner banner-alert" role="alert" data-testid="sim-absent">
+              <b>No SIM card.</b> The SIM was removed (see Events for when, and which card it was).
+            </div>
+          )}
 
           <DeviceScopeCard
             deviceId={device.id}
