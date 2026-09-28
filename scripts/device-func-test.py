@@ -247,9 +247,13 @@ def t_location():
     run("config.sync")
 
     def has_loc():
+        # Keep feeding the emulator's GPS like a real receiver does: on API 30+ a single fix sent while
+        # nothing is listening is not kept, so the agent's one-shot request would never see it.
+        adb("emu", "geo", "fix", "-74.0721", "4.7110")
         r = api("GET", f"/rest/private/agent/v1/devices/{A.device_id}/locations?limit=20")
         return [l for l in (r.get("data") or []) if abs(float(l.get("lat", 0)) - 4.711) < 0.01]
-    check("location: server stored a fix near Bogota", until(has_loc, timeout=120, step=5))
+    check("location: server stored a fix near Bogota", until(lambda: has_loc() or (run("config.sync", timeout=30) and has_loc()),
+                                                             timeout=180, step=3))
     run("device.locationMode", {"mode": "passive"}, "device.locationMode")
 
 
