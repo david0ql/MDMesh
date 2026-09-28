@@ -33,8 +33,8 @@ import org.apache.ibatis.annotations.Update;
  */
 public interface AgentEnrollmentTokenMapper {
 
-    @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt, configurationId) " +
-            "VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, #{expiresAt}, #{configurationId})"})
+    @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt, configurationId, groupId) " +
+            "VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, #{expiresAt}, #{configurationId}, #{groupId})"})
     @SelectKey(statement = "SELECT currval('agentenrollmenttoken_id_seq')", keyColumn = "id", keyProperty = "id",
             before = false, resultType = int.class)
     void insert(AgentEnrollmentToken token);

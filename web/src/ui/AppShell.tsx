@@ -8,6 +8,7 @@ import {
   IconDashboard,
   IconDevices,
   IconMap,
+  IconGroups,
   IconConfig,
   IconApps,
   IconEnroll,
@@ -26,6 +27,7 @@ interface NavEntry {
 
 const NAV: NavEntry[] = [
   { to: '/dashboard', label: 'Overview', Icon: IconDashboard },
+  { to: '/groups', label: 'Groups', Icon: IconGroups },
   { to: '/devices', label: 'Devices', Icon: IconDevices },
   { to: '/map', label: 'Map', Icon: IconMap },
   { to: '/configs', label: 'Configurations', Icon: IconConfig },

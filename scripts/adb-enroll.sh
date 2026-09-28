@@ -17,7 +17,11 @@
 #
 # Usage:
 #   scripts/adb-enroll.sh --server https://mdm.example.com --apk agent.apk [--token T | --admin-user admin]
-#                         [--serial SERIAL] [--configuration-id N] [--remote --vnc-apk FILE] [--debug-build]
+#                         [--serial SERIAL] [--group-id N] [--configuration-id N] [--remote --vnc-apk FILE]
+#                         [--debug-build]
+#
+#   --group-id      put the device in that group (company); it runs the group's configuration (else the global one).
+#   --configuration-id  pin a configuration on the device instead (wins over the group's and the global one).
 #
 #   --server        URL the DEVICE uses to reach the server (for an emulator and the dev stack:
 #                   http://10.0.2.2:8088, debug builds only).
@@ -25,7 +29,7 @@
 #   --debug-build   the APK is a debug build (package com.dallycontrol.agent.debug).
 set -euo pipefail
 
-SERVER=""; API_URL=""; APK=""; TOKEN=""; SERIAL="${ANDROID_SERIAL:-}"; ADMIN_USER=""; CONFIG_ID=""
+SERVER=""; API_URL=""; APK=""; TOKEN=""; SERIAL="${ANDROID_SERIAL:-}"; ADMIN_USER=""; CONFIG_ID=""; GROUP_ID=""
 REMOTE=0; VNC_APK=""; PKG="com.dallycontrol.agent"; ADB="${ADB:-adb}"
 VNC_PKG="net.christianbeier.droidvnc_ng"
 while [ $# -gt 0 ]; do
@@ -38,6 +42,7 @@ while [ $# -gt 0 ]; do
     --admin-user) ADMIN_USER="$2"; shift 2 ;;
     --admin-password) DALLYCONTROL_ADMIN_PASSWORD="$2"; shift 2 ;;
     --configuration-id) CONFIG_ID="$2"; shift 2 ;;
+    --group-id) GROUP_ID="$2"; shift 2 ;;
     --remote) REMOTE=1; shift ;;
     --vnc-apk) VNC_APK="$2"; shift 2 ;;
     --debug-build) PKG="com.dallycontrol.agent.debug"; shift ;;
@@ -67,7 +72,7 @@ if [ -z "$TOKEN" ]; then
   LOGIN=$(curl -fsS -c "$CJ" -H 'Content-Type: application/json' \
     -d "{\"login\":\"$ADMIN_USER\",\"password\":\"$MD5\"}" "$API_URL/rest/public/auth/login") || die "login request failed"
   echo "$LOGIN" | grep -q '"status":"OK"' || die "login rejected"
-  BODY='{}'; [ -z "$CONFIG_ID" ] || BODY="{\"configurationId\":$CONFIG_ID}"
+  BODY=$(python3 -c 'import json,sys; print(json.dumps({k: int(v) for k, v in (("configurationId", sys.argv[1]), ("groupId", sys.argv[2])) if v}))' "$CONFIG_ID" "$GROUP_ID")
   TOKEN=$(curl -fsS -b "$CJ" -X POST -H 'Content-Type: application/json' -d "$BODY" \
     "$API_URL/rest/private/agent/v1/token" | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["token"])') \
     || die "could not mint an enroll token"

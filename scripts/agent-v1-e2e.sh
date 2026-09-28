@@ -247,6 +247,35 @@ chk "fleet locations: reversed range rejected" \
 chk "fleet locations: range over 31 days rejected" \
   "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/locations?from=0&to=$NOWMS" | field "d['status']")" "ERROR"
 
+echo "== groups (companies) and configuration levels: device > group > global =="
+F="$BASE/rest/private/fleet/v1"
+DNUM_ID=$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"value\":\"$DID\",\"pageSize\":5,\"pageNum\":1}" "$BASE/rest/private/devices/search" \
+  | field "d['data']['devices']['items'][0]['id']")
+CFGS=$(curl -s -b "$CJ" "$BASE/rest/private/configurations/search" | field "','.join(str(c['id']) for c in d['data'][:2])")
+CFG_A=${CFGS%%,*}; CFG_B=${CFGS##*,}
+GNAME="E2E-GRP-$$"
+GRES=$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"name\":\"$GNAME\",\"configurationId\":$CFG_B}" "$F/groups")
+GID=$(echo "$GRES" | field "(d.get('data') or {}).get('id') or ''")
+chk "group created with a configuration" "$(echo "$GRES" | field "d['status']+':'+str(d['data']['configurationId'])")" "OK:$CFG_B"
+chk "group names are unique (case-insensitive)" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"name\":\"$(echo $GNAME | tr A-Z a-z)\"}" "$F/groups" | field "str(d.get('message'))")" "error.group.name.taken"
+curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"deviceIds\":[$DNUM_ID],\"groupId\":$GID}" "$F/devices/group" >/dev/null
+chk "device in the group runs the group's configuration" \
+  "$(curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s:%s' % (d['data']['groupName'], d['data']['source'], d['data']['configurationId'])")" "$GNAME:group:$CFG_B"
+curl -s -b "$CJ" -X PUT -H 'Content-Type: application/json' -d "{\"deviceIds\":[$DNUM_ID],\"configurationId\":$CFG_A}" "$F/devices/configuration" >/dev/null
+chk "a configuration set on the device wins over the group's" \
+  "$(curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s' % (d['data']['source'], d['data']['configurationId'])")" "device:$CFG_A"
+curl -s -b "$CJ" -X PUT -H 'Content-Type: application/json' -d "{\"deviceIds\":[$DNUM_ID],\"configurationId\":null}" "$F/devices/configuration" >/dev/null
+chk "inherit hands the device back to its group" \
+  "$(curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s' % (d['data']['source'], d['data']['configurationId'])")" "group:$CFG_B"
+chk "a group action reaches its devices" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"command":{"type":"device.ring","requiresCapability":"device.ring"}}' "$F/groups/$GID/commands" | field "'%s:%s' % (d['status'], d['data']['queued'])")" "OK:1"
+chk "a destructive group action is refused" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"command":{"type":"device.wipe"}}' "$F/groups/$GID/commands" | field "str(d.get('message'))")" "error.agent.command.bulkForbidden"
+GLOBAL_CFG=$(curl -s -b "$CJ" "$F/global" | field "d['data']['configurationId']")
+chk "deleting the group returns its device to the global configuration" \
+  "$(curl -s -b "$CJ" -X DELETE "$F/groups/$GID" >/dev/null; curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s:%s' % (d['data']['groupId'], d['data']['source'], d['data']['configurationId'])")" "None:global:$GLOBAL_CFG"
+
 echo "== permissions: read-only Observer (role 100) cannot mutate =="
 # A temporary Observer user of the same customer: agent/rollout mutations need edit_devices,
 # reads stay open to any user of the customer. The user is deleted at the end of this section.
@@ -309,6 +338,7 @@ if [ "$(curl -s -b "$CJ" "$BASE/rest/private/agent/v1/rollout/active" | field "d
 else
   echo "  SKIP: observer promote/cancel on a real rollout (this server already has an active rollout)"
 fi
+chk "observer: group creation denied" "$(curl -s -b "$OJ" -X POST -H 'Content-Type: application/json' -d '{"name":"OBS-NOPE"}' "$BASE/rest/private/fleet/v1/groups" | ores)" "$DENIED"
 chk "observer: remote session start denied" "$(curl -s -b "$OJ" -X POST -H 'Content-Type: application/json' -d '{"viewOnly":true}' "$BASE/rest/private/agent/v1/devices/$DID/remote/start" | ores)" "$DENIED"
 chk "observer: command history readable" "$(curl -s -b "$OJ" "$BASE/rest/private/agent/v1/devices/$DID/commands?since=0" | field "d['status']")" "OK"
 chk "observer: device state readable" "$(curl -s -b "$OJ" "$BASE/rest/private/agent/v1/devices/$DID/state" | field "str(d['status'])+':'+str(d['data']['battery'])")" "OK:77"

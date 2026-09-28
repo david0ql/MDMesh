@@ -3,13 +3,15 @@ import { AppShell } from '../ui/AppShell';
 import { IconCopy } from '../ui/icons';
 import { useToast } from '../ui/toast';
 import { mintEnrollToken } from '../api/enroll';
+import { listGroups, type FleetGroup } from '../api/fleet';
 import { ApiError } from '../api/client';
 import { fmtDateTime } from '../ui/format';
 import { QrCanvas } from '../components/QrCanvas';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
-const DEFAULT_CONFIG_KEY = 'dallycontrol-default-config';
+/** The group last enrolled into, remembered per browser for the next enrollment. */
+const ENROLL_GROUP_KEY = 'dallycontrol-enroll-group';
 const SECURITY_VALUES: WifiSecurity[] = ['WPA', 'WEP', 'NONE', 'EAP'];
 
 const STEPS = [
@@ -32,9 +34,17 @@ export function EnrollPage() {
   const [wifiPass, setWifiPass] = useState('');
   const [wifiSec, setWifiSec] = useState<WifiSecurity>('WPA');
   const [configs, setConfigs] = useState<Configuration[]>([]);
-  const [cfgId, setCfgId] = useState<string>(() => {
-    try { return localStorage.getItem(DEFAULT_CONFIG_KEY) ?? ''; } catch { return ''; }
+  // Only fills the Wi-Fi fields below; the device's configuration comes from its group (or the global one).
+  const [cfgId, setCfgId] = useState<string>('');
+  const [groups, setGroups] = useState<FleetGroup[]>([]);
+  const [groupId, setGroupId] = useState<string>(() => {
+    try { return localStorage.getItem(ENROLL_GROUP_KEY) ?? ''; } catch { return ''; }
   });
+  useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
+  useEffect(() => {
+    try { if (groupId) localStorage.setItem(ENROLL_GROUP_KEY, groupId); else localStorage.removeItem(ENROLL_GROUP_KEY); }
+    catch { /* ignore */ }
+  }, [groupId]);
 
   // Load configurations so the enroller can pull a config's saved provisioning Wi-Fi into the QR.
   useEffect(() => { getConfigurations().then(setConfigs).catch(() => undefined); }, []);
@@ -49,11 +59,12 @@ export function EnrollPage() {
     setWifiSec((SECURITY_VALUES as string[]).includes(sec) ? (sec as WifiSecurity) : 'WPA');
   }, [cfgId, configs]);
 
-  async function generate(configurationId?: number) {
+  async function generate() {
     setBusy(true);
     setTokError(null);
     try {
-      const res = await mintEnrollToken(configurationId);
+      const gid = Number(groupId);
+      const res = await mintEnrollToken({ groupId: Number.isFinite(gid) && gid > 0 ? gid : undefined });
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
@@ -69,14 +80,12 @@ export function EnrollPage() {
     }
   }
 
-  // Mint a token whenever the selected configuration changes (including first load): the token
-  // BINDS the device to that configuration server-side, so a QR generated for "Kiosk fleet"
-  // must never carry a token minted for a different config.
+  // Mint a token whenever the selected group changes (including first load): the token puts the device in
+  // that group server-side, so a QR shown for AMOVIL must never carry a token minted for another group.
   useEffect(() => {
-    const id = Number(cfgId);
-    void generate(Number.isFinite(id) && id > 0 ? id : undefined);
+    void generate();
     // eslint-disable-next-line
-  }, [cfgId]);
+  }, [groupId]);
 
   async function copy() {
     if (!token) return;
@@ -96,6 +105,13 @@ export function EnrollPage() {
             Enroll a device
           </h1>
           <div className="sp" />
+          <label className="enroll-group">
+            <span>Group</span>
+            <select className="sel" value={groupId} onChange={(e) => setGroupId(e.target.value)} aria-label="Group">
+              <option value="">No group</option>
+              {groups.map((g) => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
+            </select>
+          </label>
           <span className="seg" role="tablist" aria-label="Enrollment method">
             <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Scan QR</button>
             <button className={mode === 'token' ? 'on' : ''} onClick={() => setMode('token')}>Token</button>

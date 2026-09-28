@@ -148,10 +148,18 @@ public class AgentResource {
         String deviceId = UUID.randomUUID().toString();
         Device device = null;
         try {
-            // The device lands in the token's customer, and in the token's configuration when the
-            // admin bound one at mint time (else the customer's settings default).
-            device = unsecureDAO.createNewDeviceForToken(
-                    deviceId, token.getCustomerId(), token.getConfigurationId());
+            // The device lands in the token's customer and group (company). Its configuration is the one the
+            // token pins, else its group's, else the global default (settings) — device > group > global.
+            Integer groupId = token.getGroupId();
+            com.hmdm.persistence.domain.DeviceGroupView group =
+                    groupId == null ? null : commandDAO.findGroup(token.getCustomerId(), groupId);
+            Integer inherited = group == null ? null : group.getConfigurationId();
+            boolean pinned = token.getConfigurationId() != null;
+            device = unsecureDAO.createNewDeviceForToken(deviceId, token.getCustomerId(),
+                    pinned ? token.getConfigurationId() : inherited, group == null ? null : groupId);
+            if (device != null && pinned) {
+                commandDAO.updateDevicePinned(device.getId(), true);
+            }
             if (device == null) {
                 // Named error (not a generic internal one) — this exact failure cost a debugging
                 // session: valid token, reachable server, no device row.

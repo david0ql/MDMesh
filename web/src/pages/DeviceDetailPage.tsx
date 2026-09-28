@@ -12,6 +12,7 @@ import { LocationPanel } from '../components/LocationPanel';
 import { AppsPanel } from '../components/AppsPanel';
 import { RemotePanel } from '../components/RemotePanel';
 import { ConfigStatusCard } from '../components/ConfigStatusCard';
+import { DeviceScopeCard } from '../components/DeviceScopeCard';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import { getConfigStatus, type ConfigStatus } from '../api/configSync';
 import {
@@ -382,6 +383,11 @@ export function DeviceDetailPage() {
               ))}
             </div>
           ))}
+
+          <DeviceScopeCard
+            deviceId={device.id}
+            onChanged={() => { void getConfigStatus(device.number).then(setCfgStatus).catch(() => undefined); }}
+          />
 
           <ConfigStatusCard status={cfgStatus} />
         </aside>

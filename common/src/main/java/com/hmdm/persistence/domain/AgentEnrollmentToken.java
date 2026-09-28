@@ -43,6 +43,9 @@ public class AgentEnrollmentToken implements Serializable {
     /** Configuration the enrolled device is bound to; NULL = the customer's settings default. */
     private Integer configurationId;
 
+    /** Optional group (company) the enrolled device joins; its configuration then comes from the group. */
+    private Integer groupId;
+
     public AgentEnrollmentToken() {
     }
 
@@ -92,6 +95,14 @@ public class AgentEnrollmentToken implements Serializable {
 
     public void setConfigurationId(Integer configurationId) {
         this.configurationId = configurationId;
+    }
+
+    public Integer getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(Integer groupId) {
+        this.groupId = groupId;
     }
 
     public Long getExpiresAt() {

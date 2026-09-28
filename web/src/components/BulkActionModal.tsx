@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
-  ACTION_TEMPLATES, type CommandTemplateExt, bulkQueueCommand,
+  ACTION_TEMPLATES, type CommandTemplateExt,
   buildInstallCommand, type AppInstallSpec,
 } from '../api/commands';
 import { listApplications, type Application } from '../api/applications';
 import { BulkKioskModal } from './BulkKioskModal';
 import { useToast } from '../ui/toast';
+import { queueForTarget, targetLabel, type Target } from '../api/fleet';
 
 // Only safe + disruptive actions run in bulk; the destructive group (passcode-reset, wipe) is excluded.
 // kiosk-enter is handled by a dedicated Phase-3 flow, so it is filtered out here too.
@@ -40,10 +41,10 @@ function specForApp(app: Application): AppInstallSpec | null {
 }
 
 export function BulkActionModal({
-  deviceIds, onClose, onDone,
-}: { deviceIds: number[]; onClose: () => void; onDone: () => void }) {
+  target, onClose, onDone,
+}: { target: Target; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const n = deviceIds.length;
+  const who = targetLabel(target);
   const [active, setActive] = useState<CommandTemplateExt | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -67,8 +68,8 @@ export function BulkActionModal({
     setBusy(true);
     try {
       const req = t.build ? t.build(vals) : t.request;
-      const res = await bulkQueueCommand(deviceIds, req);
-      const skipped = res.skipped?.length ?? 0;
+      const res = await queueForTarget(target, req);
+      const skipped = res.skipped;
       toast.push('ok', `${t.label} queued`,
         `Queued for ${res.queued} device${res.queued === 1 ? '' : 's'}` +
         (skipped ? ` (${skipped} skipped)` : '') + '.');
@@ -86,8 +87,8 @@ export function BulkActionModal({
     if (!spec) { toast.push('err', 'Not installable', `${app.name} has no hosted APK.`); return; }
     setBusy(true);
     try {
-      const res = await bulkQueueCommand(deviceIds, buildInstallCommand(spec));
-      const skipped = res.skipped?.length ?? 0;
+      const res = await queueForTarget(target, buildInstallCommand(spec));
+      const skipped = res.skipped;
       toast.push('ok', 'Install queued',
         `${app.name} → ${res.queued} device${res.queued === 1 ? '' : 's'}` +
         (skipped ? ` (${skipped} skipped)` : '') + '.');
@@ -115,7 +116,7 @@ export function BulkActionModal({
   if (kioskOpen) {
     return (
       <BulkKioskModal
-        deviceIds={deviceIds}
+        target={target}
         onClose={() => setKioskOpen(false)}
         onDone={() => { onDone(); onClose(); }}
       />
@@ -125,7 +126,7 @@ export function BulkActionModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Run action on {n} device{n === 1 ? '' : 's'}</h3>
+        <h3>Run action on {who}</h3>
 
         {showCatalog && (
           <>
@@ -169,7 +170,7 @@ export function BulkActionModal({
           <>
             <h4>{active.label}</h4>
             <p className="muted">{active.description}</p>
-            <p className="muted">This will run on <strong>{n}</strong> device{n === 1 ? '' : 's'}.</p>
+            <p className="muted">This will run on <strong>{who}</strong>.</p>
             {active.params?.map((p) => (
               <label key={p.key} className="field">
                 <span>{p.label}</span>
@@ -188,7 +189,7 @@ export function BulkActionModal({
                 disabled={busy || !canSend}
                 onClick={() => { void run(active, values); }}
               >
-                {busy ? 'Queueing…' : `Run on ${n}`}
+                {busy ? 'Queueing…' : 'Run'}
               </button>
             </div>
           </>
@@ -196,7 +197,7 @@ export function BulkActionModal({
 
         {appPicker && (
           <>
-            <h4>Install app on {n} device{n === 1 ? '' : 's'}</h4>
+            <h4>Install app on {who}</h4>
             <input className="field" placeholder="Filter apps" value={appQuery}
                    onChange={(e) => setAppQuery(e.target.value)} />
             {appErr && <p className="muted">{appErr}</p>}

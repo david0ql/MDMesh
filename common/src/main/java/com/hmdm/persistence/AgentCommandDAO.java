@@ -174,6 +174,69 @@ public class AgentCommandDAO {
         return deviceMapper.listFleetLocations(customerId, from, to, limit);
     }
 
+    // --- Groups (companies) and configuration scopes ---
+
+    public java.util.List<com.hmdm.persistence.domain.DeviceGroupView> listGroups(int customerId) {
+        return deviceMapper.listGroups(customerId);
+    }
+
+    public com.hmdm.persistence.domain.DeviceGroupView findGroup(int customerId, int groupId) {
+        return deviceMapper.findGroup(customerId, groupId);
+    }
+
+    public boolean groupNameTaken(int customerId, String name, Integer exceptId) {
+        return deviceMapper.countGroupsNamed(customerId, name, exceptId) > 0;
+    }
+
+    public int insertGroup(int customerId, String name, Integer configurationId) {
+        com.hmdm.persistence.domain.DeviceGroupInsert g = new com.hmdm.persistence.domain.DeviceGroupInsert();
+        g.setCustomerId(customerId);
+        g.setName(name);
+        g.setConfigurationId(configurationId);
+        deviceMapper.insertGroup(g);
+        return g.getId();
+    }
+
+    public boolean updateGroup(int customerId, int id, String name, Integer configurationId) {
+        return deviceMapper.updateGroup(customerId, id, name, configurationId) > 0;
+    }
+
+    public boolean deleteGroup(int customerId, int id) {
+        return deviceMapper.deleteGroup(customerId, id) > 0;
+    }
+
+    /** Put the device in exactly one group, or in none when {@code groupId} is null. */
+    public void setDeviceGroup(int deviceId, Integer groupId) {
+        deviceMapper.clearDeviceGroups(deviceId);
+        if (groupId != null) {
+            deviceMapper.addDeviceGroup(deviceId, groupId);
+        }
+    }
+
+    public java.util.List<com.hmdm.persistence.domain.DeviceScopeRow> listDeviceScopes(int customerId) {
+        return deviceMapper.listDeviceScopes(customerId);
+    }
+
+    public com.hmdm.persistence.domain.DeviceScopeRow findDeviceScope(int customerId, int deviceId) {
+        return deviceMapper.findDeviceScope(customerId, deviceId);
+    }
+
+    public void updateDeviceConfiguration(int deviceId, int configurationId) {
+        deviceMapper.updateDeviceConfiguration(deviceId, configurationId);
+    }
+
+    public void updateDevicePinned(int deviceId, boolean pinned) {
+        deviceMapper.updateDevicePinned(deviceId, pinned);
+    }
+
+    public Integer getGlobalConfigurationId(int customerId) {
+        return deviceMapper.getGlobalConfigurationId(customerId);
+    }
+
+    public void updateGlobalConfigurationId(int customerId, int configurationId) {
+        deviceMapper.updateGlobalConfigurationId(customerId, configurationId);
+    }
+
     /** True if a pending or delivered command of {@code type} is already queued for the device. */
     public boolean hasOpenOfType(String deviceNumber, String type) {
         return mapper.countOpenOfType(deviceNumber, type) > 0;

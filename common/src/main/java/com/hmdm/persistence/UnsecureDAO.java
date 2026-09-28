@@ -564,6 +564,14 @@ public class UnsecureDAO {
      * config is bound AND the customer's settings disallow on-demand creation / name no default.
      */
     public Device createNewDeviceForToken(String deviceId, int customerId, Integer boundConfigurationId) {
+        return createNewDeviceForToken(deviceId, customerId, boundConfigurationId, null);
+    }
+
+    /**
+     * As above, placing the device in [groupId] (a group of the customer) instead of the settings' default group.
+     * The caller passes the group's configuration as [boundConfigurationId] when the device should inherit it.
+     */
+    public Device createNewDeviceForToken(String deviceId, int customerId, Integer boundConfigurationId, Integer groupIdOverride) {
         Settings settings = getSettings(customerId);
         Integer configurationId = boundConfigurationId;
         if (configurationId == null) {
@@ -581,7 +589,8 @@ public class UnsecureDAO {
         Device newDevice = new Device();
         newDevice.setCustomerId(customerId);
         newDevice.setConfigurationId(configurationId);
-        Integer groupId = settings == null ? null : settings.getNewDeviceGroupId();
+        Integer groupId = groupIdOverride != null ? groupIdOverride
+                : settings == null ? null : settings.getNewDeviceGroupId();
         if (groupId != null) {
             List<LookupItem> groups = new LinkedList<>();
             groups.add(new LookupItem(groupId, ""));
@@ -590,7 +599,7 @@ public class UnsecureDAO {
         newDevice.setNumber(deviceId);
         newDevice.setLastUpdate(0L);
         insertDevice(newDevice);
-        logger.info("New device {} added (customer {}, configuration {})", deviceId, customerId, configurationId);
+        logger.info("New device {} added (customer {}, configuration {}, group {})", deviceId, customerId, configurationId, groupId);
 
         return getDeviceByNumber(deviceId);
     }

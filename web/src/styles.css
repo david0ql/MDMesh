@@ -633,7 +633,8 @@ a {
 }
 .dev .kv {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   margin: 14px 0 0;
   padding-top: 12px;
   border-top: 1px solid var(--line-soft);
@@ -710,7 +711,7 @@ a {
 }
 .dev-row {
   display: grid;
-  grid-template-columns: 1fr 110px 130px 92px;
+  grid-template-columns: minmax(0, 1fr) 90px 130px 120px 92px;
   gap: 16px;
   align-items: center;
   background: var(--surface);
@@ -2564,7 +2565,8 @@ a {
   .dev-row {
     grid-template-columns: 1fr 70px;
   }
-  .dev-row .lc:nth-child(3) {
+  .dev-row .lc:nth-child(3),
+  .dev-row .lc:nth-child(4) {
     display: none;
   }
 }
@@ -2811,3 +2813,37 @@ a {
   .fm-map { height:60vh; }
   .fm-list { max-height:none; }
 }
+
+/* Groups (/groups) */
+.gr-global { padding:16px 18px; margin-bottom:16px; }
+.gr-global-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; }
+.gr-note { margin:4px 0 0; font-size:13px; max-width:560px; }
+.gr-field { max-width:360px; margin-top:12px; }
+.gr-list { padding:4px 0; }
+.gr-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.gr-table th { text-align:left; font-weight:500; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--faint); padding:10px 18px; border-bottom:1px solid var(--border); }
+.gr-table td { padding:10px 18px; border-bottom:1px solid var(--hairline); vertical-align:middle; }
+.gr-table tr:last-child td { border-bottom:0; }
+.gr-table .sel { max-width:260px; width:100%; }
+.gr-name { font-weight:600; color:var(--text); text-decoration:none; }
+.gr-name:hover { text-decoration:underline; }
+.gr-actions { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+.gr-del { color:var(--danger); }
+.gr-ungrouped { padding:10px 18px; margin:0; font-size:13px; }
+@media (max-width: 720px) {
+  .gr-table thead { display:none; }
+  .gr-table tr { display:grid; gap:6px; padding:12px 16px; border-bottom:1px solid var(--hairline); }
+  .gr-table td { padding:0; border:0; }
+  .gr-table td[data-label]::before { content:attr(data-label); display:block; font-size:10.5px; letter-spacing:.05em;
+    text-transform:uppercase; color:var(--faint); }
+  .gr-actions { justify-content:flex-start; }
+}
+
+/* Device page: group & configuration scope */
+.scope-card .row .sel.v { max-width:170px; font-size:12.5px; padding:4px 6px; }
+.scope-card .chip { font-size:10.5px; padding:1px 6px; margin-left:4px; }
+.scope-card .chip.scope-device { color:var(--warn); border-color:var(--warn); }
+.scope-card .chip.scope-group { color:var(--ok); border-color:var(--ok); }
+.scope-note { font-size:12px; margin:6px 0 0; }
+.enroll-group { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--secondary); }

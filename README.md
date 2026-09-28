@@ -233,6 +233,7 @@ No Docker? Run `./setup.sh --native`. Full details, hosting modes, updates, reco
 - ✅ Staged canary → fleet agent-APK rollout
 - ✅ Remote view/control (droidVNC-NG + Mode-II repeater + noVNC, [ADR 0010](docs/adr/0010-remote-control-droidvnc.md))
 - ✅ USB/ADB enrollment, Android 6 support, end-to-end device test matrix ([docs/TESTING.md](docs/TESTING.md))
+- ✅ Groups (companies): changes per device, per group or global — configuration and actions ([ADR 0011](docs/adr/0011-groups-and-configuration-levels.md))
 - ✅ Fleet map: every device's trail in a chosen time range, with a time slider showing where each one was
 - ✅ "Remote" tab in the console (view/control inline, encrypted tunnel, Always-on hint for instant support)
 - 🔭 OEM-privileged tier (Knox / Zebra adapters) — parked behind the capability layer

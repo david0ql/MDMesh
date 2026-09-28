@@ -2860,4 +2860,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.28-groups-configuration-scopes" author="dallycontrol" context="common">
+        <comment>Groups as companies: a group may carry a configuration; a device may pin its own; tokens may carry a group</comment>
+        <sql>
+            ALTER TABLE groups ADD COLUMN configurationId INT REFERENCES configurations(id) ON DELETE SET NULL;
+            ALTER TABLE devices ADD COLUMN configurationPinned BOOLEAN NOT NULL DEFAULT FALSE;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN groupId INT REFERENCES groups(id) ON DELETE SET NULL;
+        </sql>
+        <rollback>
+            ALTER TABLE agentEnrollmentToken DROP COLUMN groupId;
+            ALTER TABLE devices DROP COLUMN configurationPinned;
+            ALTER TABLE groups DROP COLUMN configurationId;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

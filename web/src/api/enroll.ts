@@ -11,11 +11,13 @@ export interface EnrollTokenResponse {
   [key: string]: unknown;
 }
 
-export async function mintEnrollToken(configurationId?: number): Promise<EnrollTokenResponse> {
-  // configurationId binds the enrolled device to that configuration (server validates ownership);
-  // omitted -> the server's settings default applies.
-  return apiClient.post<EnrollTokenResponse>(
-    '/private/agent/v1/token',
-    configurationId ? { configurationId } : {},
-  );
+/**
+ * groupId puts the enrolled device in that group (company); it then runs the group's configuration, or the
+ * global one. configurationId would pin a configuration on the device instead (device level wins over both).
+ */
+export async function mintEnrollToken(opts: { groupId?: number; configurationId?: number } = {}): Promise<EnrollTokenResponse> {
+  return apiClient.post<EnrollTokenResponse>('/private/agent/v1/token', {
+    ...(opts.groupId ? { groupId: opts.groupId } : {}),
+    ...(opts.configurationId ? { configurationId: opts.configurationId } : {}),
+  });
 }

@@ -9,9 +9,10 @@ import { fetchAuthOptions } from '../api/auth';
 import { getUpdateStatus, setAutoUpdate, checkForUpdates, applyUpdate, type UpdateStatus } from '../api/updates';
 import { RolloutPanel } from '../components/RolloutPanel';
 import { orDash, fmtRelative } from '../ui/format';
+import { useToast } from '../ui/toast';
+import { listGroups, setGlobalConfiguration } from '../api/fleet';
 
 const APP_VERSION = '0.1.0';
-const DEFAULT_CONFIG_KEY = 'dallycontrol-default-config';
 
 type Conn = 'checking' | 'ok' | 'down';
 
@@ -19,6 +20,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { theme, setTheme, density, setDensity } = useTheme();
+  const toast = useToast();
   const [configList, setConfigList] = useState<ConfigurationSummary[]>([]);
   const [conn, setConn] = useState<Conn>('checking');
   const [upd, setUpd] = useState<UpdateStatus | null>(null);
@@ -27,13 +29,25 @@ export function SettingsPage() {
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
   const [updMsg, setUpdMsg] = useState<string | null>(null);
-  const [defaultConfig, setDefaultConfig] = useState<string>(() => {
+  // The global configuration: devices without a group configuration or their own run it.
+  const [defaultConfig, setDefaultConfig] = useState<string>('');
+  useEffect(() => {
+    listGroups().then((o) => setDefaultConfig(o.global.configurationId == null ? '' : String(o.global.configurationId)))
+      .catch(() => undefined);
+  }, []);
+  async function changeGlobal(value: string) {
+    if (!value) return;
+    const before = defaultConfig;
+    setDefaultConfig(value);
     try {
-      return localStorage.getItem(DEFAULT_CONFIG_KEY) ?? '';
-    } catch {
-      return '';
+      const r = await setGlobalConfiguration(Number(value));
+      toast.push('ok', 'Global configuration changed',
+        r.devicesReconfigured ? `${r.devicesReconfigured} device(s) reconfigured.` : 'No device needed a change.');
+    } catch (e) {
+      setDefaultConfig(before);
+      toast.push('err', 'Change failed', e instanceof Error ? e.message : '');
     }
-  });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -94,14 +108,6 @@ export function SettingsPage() {
     setUpd((p) => (p ? { ...p, auto: next } : p));
   };
 
-  useEffect(() => {
-    try {
-      if (defaultConfig) localStorage.setItem(DEFAULT_CONFIG_KEY, defaultConfig);
-      else localStorage.removeItem(DEFAULT_CONFIG_KEY);
-    } catch {
-      /* ignore */
-    }
-  }, [defaultConfig]);
 
   const connMeta: Record<Conn, { tone: string; label: string }> = {
     checking: { tone: 'idle', label: 'Checking…' },
@@ -298,7 +304,7 @@ export function SettingsPage() {
         {/* Enrollment defaults */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Enrollment defaults</h2>
+            <h2 className="panel-title">Global configuration</h2>
             <button
               className="btn btn-sm btn-primary"
               onClick={() => navigate('/enroll')}
@@ -309,15 +315,15 @@ export function SettingsPage() {
           <div className="set-row">
             <span className="k">
               Default configuration
-              <small>Pre-selected when you enroll a new device.</small>
+              <small>For every device whose group has no configuration and that has none of its own.</small>
             </span>
             <span className="v">
               <select
                 className="sel"
                 value={defaultConfig}
-                onChange={(e) => setDefaultConfig(e.target.value)}
+                onChange={(e) => void changeGlobal(e.target.value)}
               >
-                <option value="">No default</option>
+                {defaultConfig === '' && <option value="">Select…</option>}
                 {configList.map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.name}

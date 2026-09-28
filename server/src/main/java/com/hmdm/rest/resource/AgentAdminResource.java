@@ -123,7 +123,8 @@ public class AgentAdminResource {
 
     // =================================================================================================================
     @ApiOperation(value = "Mint enrollment token", notes = "Creates a single-use enrollment token for the current customer. "
-            + "An optional configurationId binds the enrolled device to that configuration.")
+            + "An optional configurationId pins the enrolled device to that configuration; an optional groupId puts it "
+            + "in that group (company), whose configuration it then inherits.")
     @POST
     @Path("/token")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -148,18 +149,24 @@ public class AgentAdminResource {
             }
         }
 
+        Integer groupId = body == null ? null : body.getGroupId();
+        if (groupId != null && commandDAO.findGroup(customerId.get(), groupId) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+
         long now = System.currentTimeMillis();
         AgentEnrollmentToken token = new AgentEnrollmentToken();
         token.setToken(UUID.randomUUID().toString());
         token.setCustomerId(customerId.get());
         token.setConfigurationId(configurationId);
+        token.setGroupId(groupId);
         token.setUsed(false);
         token.setCreatedAt(now);
         token.setExpiresAt(now + DEFAULT_TOKEN_TTL_MILLIS);
         tokenDAO.insert(token);
 
-        logger.info("Agent enrollment token {} minted for customer {} (configuration {})",
-                token.getId(), customerId.get(), configurationId);
+        logger.info("Agent enrollment token {} minted for customer {} (configuration {}, group {})",
+                token.getId(), customerId.get(), configurationId, groupId);
         return Response.OK(token);
     }
 

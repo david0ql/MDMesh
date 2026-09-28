@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { listApplications, type Application } from '../api/applications';
-import { bulkQueueCommand } from '../api/commands';
+import { queueForTarget, targetLabel, type Target } from '../api/fleet';
 import { buildKioskPayload, type KioskChoice } from './KioskEnterModal';
 import { useToast } from '../ui/toast';
 
 type Mode = 'launcher' | 'single';
 
 export function BulkKioskModal({
-  deviceIds, onClose, onDone,
-}: { deviceIds: number[]; onClose: () => void; onDone: () => void }) {
+  target, onClose, onDone,
+}: { target: Target; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
-  const n = deviceIds.length;
+  const who = targetLabel(target);
   const [apps, setApps] = useState<Application[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -49,10 +49,10 @@ export function BulkKioskModal({
       const payload = buildKioskPayload({
         mode, packages: Array.from(selected), exitMode, password,
       } as KioskChoice);
-      const res = await bulkQueueCommand(deviceIds, {
+      const res = await queueForTarget(target, {
         type: 'kiosk.enter', payload: JSON.stringify(payload),
       });
-      const skipped = res.skipped?.length ?? 0;
+      const skipped = res.skipped;
       toast.push('ok', 'Kiosk queued',
         `Enter kiosk → ${res.queued} device${res.queued === 1 ? '' : 's'}` +
         (skipped ? ` (${skipped} skipped)` : '') + '.');
@@ -68,7 +68,7 @@ export function BulkKioskModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Enter kiosk on {n} device{n === 1 ? '' : 's'}</h3>
+        <h3>Enter kiosk on {who}</h3>
         <div className="kiosk-mode">
           <label><input type="radio" checked={mode === 'launcher'}
             onChange={() => switchMode('launcher')} /> Allowed apps (launcher grid)</label>
@@ -108,7 +108,7 @@ export function BulkKioskModal({
           <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy || !canApply}
                   onClick={() => { void apply(); }}>
-            {busy ? 'Queueing…' : `Enter kiosk on ${n}`}
+            {busy ? 'Queueing…' : 'Enter kiosk'}
           </button>
         </div>
       </div>

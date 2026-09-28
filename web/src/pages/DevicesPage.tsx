@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceGlyph } from '../ui/DeviceGlyph';
 import { useDevices } from '../data/useDevices';
@@ -7,13 +7,13 @@ import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtRelative, orDash } from '../ui/format';
 import {
-  bulkSetConfiguration,
   deleteDevicesBulk,
   type DeviceView,
   type ConfigurationLookup,
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
+import { listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -25,6 +25,9 @@ function configName(
   if (d.configurationId == null) return '—';
   return configs[String(d.configurationId)]?.name ?? '—';
 }
+
+/** A device's group (company): DallyControl keeps one per device. */
+const groupOf = (d: DeviceView) => d.groups?.[0] ?? null;
 
 // Online = checked in recently. statusCode is config-compliance colour (green even for a device
 // that was factory-reset and stopped reporting), so it must NOT drive the online/offline dot.
@@ -65,6 +68,12 @@ export function DevicesPage() {
   const [view, setView] = useState<View>('grid');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [config, setConfig] = useState('all');
+  const [params, setParams] = useSearchParams();
+  const group = params.get('group') ?? 'all';
+  const setGroup = (v: string) => setParams((p) => { if (v === 'all') p.delete('group'); else p.set('group', v); return p; }, { replace: true });
+  const [groups, setGroups] = useState<FleetGroup[]>([]);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupTarget, setGroupTarget] = useState('');
   const [android, setAndroid] = useState('all');
   const [q, setQ] = useState('');
   const [dupOnly, setDupOnly] = useState(false);
@@ -76,6 +85,9 @@ export function DevicesPage() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const loadGroups = () => listGroups().then((o) => setGroups(o.groups)).catch(() => undefined);
+  useEffect(() => { void loadGroups(); }, []);
 
   useEffect(() => {
     listConfigurations()
@@ -137,6 +149,8 @@ export function DevicesPage() {
       if (status === 'online' && !isOnline(d, now)) return false;
       if (status === 'offline' && isOnline(d, now)) return false;
       if (config !== 'all' && configName(d, configurations) !== config) return false;
+      if (group === 'none' && groupOf(d)) return false;
+      if (group !== 'all' && group !== 'none' && String(groupOf(d)?.id ?? '') !== group) return false;
       if (android !== 'all' && d.androidVersion !== android) return false;
       if (dupOnly && (d.hardwareId ? (dupCount.get(d.hardwareId) ?? 0) : 0) <= 1) return false;
       if (needle) {
@@ -145,7 +159,7 @@ export function DevicesPage() {
       }
       return true;
     });
-  }, [devices, status, config, android, q, dupOnly, dupCount, configurations, now]);
+  }, [devices, status, config, group, android, q, dupOnly, dupCount, configurations, now]);
 
   // Route by number (not id) so the detail page can fetch the device with a narrow search.
   const go = (d: DeviceView) => navigate(`/devices/${encodeURIComponent(d.number)}`);
@@ -164,12 +178,15 @@ export function DevicesPage() {
     filtered.length > 0 && filtered.every((d) => selected.has(d.id));
   const toggleAll = () => (allFilteredSelected ? clearSel() : selectAllFiltered());
 
+  // Device-level configuration: pin one on the selected devices, or let them inherit (group, then global).
   async function applyMove() {
     if (!target) return;
     setBusy(true);
     try {
-      await bulkSetConfiguration([...selected], Number(target));
-      const name = allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuration';
+      const inherit = target === 'inherit';
+      await setDevicesConfiguration([...selected], inherit ? null : Number(target));
+      const name = inherit ? 'inherited from group / global'
+        : allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuration';
       toast.push('ok', 'Configuration changed', `${selected.size} device(s) → ${name}.`);
       setMoveOpen(false);
       setTarget('');
@@ -177,6 +194,26 @@ export function DevicesPage() {
       await reload();
     } catch (e) {
       toast.push('err', 'Change failed', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyGroup() {
+    if (!groupTarget) return;
+    setBusy(true);
+    try {
+      const gid = groupTarget === 'none' ? null : Number(groupTarget);
+      const r = await moveDevicesToGroup([...selected], gid);
+      const name = gid == null ? 'no group' : groups.find((g) => g.id === gid)?.name ?? 'group';
+      toast.push('ok', 'Group changed',
+        `${r.moved} device(s) → ${name}` + (r.devicesReconfigured ? ` · ${r.devicesReconfigured} reconfigured` : '') + '.');
+      setGroupOpen(false);
+      setGroupTarget('');
+      clearSel();
+      await Promise.all([reload(), loadGroups()]);
+    } catch (e) {
+      toast.push('err', 'Move failed', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -247,6 +284,13 @@ export function DevicesPage() {
           </button>
         )}
         <span className="filter-div" />
+        <select className="sel" value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Filter by group">
+          <option value="all">Group: All</option>
+          {groups.map((g) => (
+            <option key={g.id} value={String(g.id)}>{g.name}</option>
+          ))}
+          <option value="none">No group</option>
+        </select>
         <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filter by configuration">
           <option value="all">Config: All</option>
           {configOptions.map((c) => (
@@ -266,6 +310,9 @@ export function DevicesPage() {
           <span className="bulk-count">{selected.size} selected</span>
           <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
             Actions
+          </button>
+          <button className="btn btn-sm" onClick={() => setGroupOpen(true)}>
+            Move to group
           </button>
           <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
             Change configuration
@@ -326,6 +373,7 @@ export function DevicesPage() {
                   d={d}
                   now={now}
                   config={configName(d, configurations)}
+                  group={groupOf(d)?.name ?? '—'}
                   dup={dupOf(d)}
                   selected={selected.has(d.id)}
                   selectionActive={selectionActive}
@@ -342,6 +390,7 @@ export function DevicesPage() {
                   d={d}
                   now={now}
                   config={configName(d, configurations)}
+                  group={groupOf(d)?.name ?? '—'}
                   dup={dupOf(d)}
                   selected={selected.has(d.id)}
                   selectionActive={selectionActive}
@@ -356,7 +405,7 @@ export function DevicesPage() {
 
       {actionsOpen && (
         <BulkActionModal
-          deviceIds={[...selected]}
+          target={{ kind: 'devices', ids: [...selected] }}
           onClose={() => setActionsOpen(false)}
           onDone={() => clearSel()}
         />
@@ -367,12 +416,15 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Change configuration</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Move {selected.size} device{selected.size === 1 ? '' : 's'} to a configuration.
+              Device-level configuration for {selected.size} device{selected.size === 1 ? '' : 's'}: a configuration
+              chosen here wins over the group&rsquo;s and the global one. &ldquo;Inherit&rdquo; hands them back to their group
+              (or the global configuration).
             </p>
             <label className="field">
               <span>Configuration</span>
               <select className="sel" value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: '100%' }}>
                 <option value="">Select a configuration…</option>
+                <option value="inherit">Inherit from group / global</option>
                 {allConfigs.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.name}</option>
                 ))}
@@ -381,6 +433,35 @@ export function DevicesPage() {
             <div className="modal-actions">
               <button className="btn" onClick={() => setMoveOpen(false)} disabled={busy}>Cancel</button>
               <button className="btn btn-primary" disabled={busy || !target} onClick={() => void applyMove()}>
+                {busy ? 'Moving…' : 'Move'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {groupOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setGroupOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Move to group</h3>
+            <p className="muted" style={{ marginTop: 2 }}>
+              Put {selected.size} device{selected.size === 1 ? '' : 's'} in a group (company). They take the group&rsquo;s
+              configuration unless they have their own.
+            </p>
+            <label className="field">
+              <span>Group</span>
+              <select className="sel" value={groupTarget} onChange={(e) => setGroupTarget(e.target.value)} style={{ width: '100%' }}>
+                <option value="">Select a group…</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={String(g.id)}>{g.name}</option>
+                ))}
+                <option value="none">No group</option>
+              </select>
+            </label>
+            {groups.length === 0 && <p className="muted">No groups yet — create one in Groups.</p>}
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setGroupOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn btn-primary" disabled={busy || !groupTarget} onClick={() => void applyGroup()}>
                 {busy ? 'Moving…' : 'Move'}
               </button>
             </div>
@@ -437,6 +518,7 @@ function DeviceCard({
   d,
   now,
   config,
+  group,
   dup,
   selected,
   selectionActive,
@@ -446,6 +528,7 @@ function DeviceCard({
   d: DeviceView;
   now: number;
   config: string;
+  group: string;
   dup: number;
   selected: boolean;
   selectionActive: boolean;
@@ -481,6 +564,10 @@ function DeviceCard({
           <div className="v">{config}</div>
         </div>
         <div>
+          <div className="k">Group</div>
+          <div className="v">{group}</div>
+        </div>
+        <div>
           <div className="k">Seen</div>
           <div className="v">{fmtRelative(d.lastUpdate)}</div>
         </div>
@@ -493,6 +580,7 @@ function DeviceRow({
   d,
   now,
   config,
+  group,
   dup,
   selected,
   selectionActive,
@@ -502,6 +590,7 @@ function DeviceRow({
   d: DeviceView;
   now: number;
   config: string;
+  group: string;
   dup: number;
   selected: boolean;
   selectionActive: boolean;
@@ -535,6 +624,10 @@ function DeviceRow({
       <div className="lc">
         <span className="lk">Config</span>
         <span className="lv">{config}</span>
+      </div>
+      <div className="lc">
+        <span className="lk">Group</span>
+        <span className="lv">{group}</span>
       </div>
       <div className="lc">
         <span className="lk">Seen</span>

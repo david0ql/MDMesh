@@ -26,6 +26,7 @@ import com.hmdm.persistence.domain.DeviceSyncRow;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.SelectKey;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
@@ -91,6 +92,65 @@ public interface AgentDeviceMapper {
             "ORDER BY l.deviceNumber, l.capturedAt LIMIT #{limit}"})
     List<DeviceLocation> listFleetLocations(@Param("customerId") int customerId, @Param("from") long from,
                                             @Param("to") long to, @Param("limit") int limit);
+
+    // --- Groups (companies) and configuration scopes: device > group > global ---
+
+    /** A device's group is its first deviceGroups row (DallyControl keeps exactly one per device). */
+    String DEVICE_SCOPE_SELECT = "SELECT d.id, d.number, d.configurationId, d.configurationPinned, " +
+            "g.id AS groupId, g.name AS groupName, g.configurationId AS groupConfigurationId " +
+            "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
+            "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
+
+    @Select({"SELECT g.id, g.name, g.configurationId, c.name AS configurationName, " +
+            "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
+            "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +
+            "WHERE g.customerId = #{customerId} ORDER BY lower(g.name)"})
+    List<com.hmdm.persistence.domain.DeviceGroupView> listGroups(@Param("customerId") int customerId);
+
+    @Select({"SELECT g.id, g.name, g.configurationId, c.name AS configurationName, " +
+            "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
+            "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +
+            "WHERE g.customerId = #{customerId} AND g.id = #{groupId}"})
+    com.hmdm.persistence.domain.DeviceGroupView findGroup(@Param("customerId") int customerId, @Param("groupId") int groupId);
+
+    @Select({"SELECT count(*) FROM groups WHERE customerId = #{customerId} AND lower(name) = lower(#{name}) " +
+            "AND (#{exceptId}::int IS NULL OR id <> #{exceptId}::int)"})
+    int countGroupsNamed(@Param("customerId") int customerId, @Param("name") String name, @Param("exceptId") Integer exceptId);
+
+    @Insert({"INSERT INTO groups (name, customerId, configurationId) VALUES (#{name}, #{customerId}, #{configurationId})"})
+    @SelectKey(statement = "SELECT currval('groups_id_seq')", keyColumn = "id", keyProperty = "id", before = false, resultType = int.class)
+    void insertGroup(com.hmdm.persistence.domain.DeviceGroupInsert group);
+
+    @Update({"UPDATE groups SET name = #{name}, configurationId = #{configurationId} WHERE id = #{id} AND customerId = #{customerId}"})
+    int updateGroup(@Param("customerId") int customerId, @Param("id") int id, @Param("name") String name,
+                    @Param("configurationId") Integer configurationId);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM groups WHERE id = #{id} AND customerId = #{customerId}"})
+    int deleteGroup(@Param("customerId") int customerId, @Param("id") int id);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM deviceGroups WHERE deviceId = #{deviceId}"})
+    void clearDeviceGroups(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO deviceGroups (deviceId, groupId) VALUES (#{deviceId}, #{groupId})"})
+    void addDeviceGroup(@Param("deviceId") int deviceId, @Param("groupId") int groupId);
+
+    @Select({DEVICE_SCOPE_SELECT + "WHERE d.customerId = #{customerId} ORDER BY d.id"})
+    List<com.hmdm.persistence.domain.DeviceScopeRow> listDeviceScopes(@Param("customerId") int customerId);
+
+    @Select({DEVICE_SCOPE_SELECT + "WHERE d.customerId = #{customerId} AND d.id = #{deviceId}"})
+    com.hmdm.persistence.domain.DeviceScopeRow findDeviceScope(@Param("customerId") int customerId, @Param("deviceId") int deviceId);
+
+    @Update({"UPDATE devices SET configurationId = #{configurationId} WHERE id = #{deviceId}"})
+    void updateDeviceConfiguration(@Param("deviceId") int deviceId, @Param("configurationId") int configurationId);
+
+    @Update({"UPDATE devices SET configurationPinned = #{pinned} WHERE id = #{deviceId}"})
+    void updateDevicePinned(@Param("deviceId") int deviceId, @Param("pinned") boolean pinned);
+
+    @Select({"SELECT newDeviceConfigurationId FROM settings WHERE customerId = #{customerId}"})
+    Integer getGlobalConfigurationId(@Param("customerId") int customerId);
+
+    @Update({"UPDATE settings SET newDeviceConfigurationId = #{configurationId} WHERE customerId = #{customerId}"})
+    void updateGlobalConfigurationId(@Param("customerId") int customerId, @Param("configurationId") int configurationId);
 
     @Select({"SELECT number FROM devices WHERE configurationId = #{configurationId}"})
     List<String> listDeviceNumbersByConfigurationId(@Param("configurationId") int configurationId);
