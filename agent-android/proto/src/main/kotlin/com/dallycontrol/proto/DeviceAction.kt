@@ -24,6 +24,9 @@ object DeviceAction {
     /** Open an app's Play Store page so the person taps Install. Payload: `{ "packageName": "…" }`. */
     const val OPEN_STORE = "device.openStore"
 
+    /** Show an announcement in the app (text, image or video; mandatory or optional), or withdraw one. */
+    const val ANNOUNCE = "device.announce"
+
     /** Storage: scan (what takes the space), clean (`{clearData:[pkg], deleteFiles:[id]}`), access (`{kind}`). */
     const val STORAGE_SCAN = "device.storageScan"
     const val STORAGE_CLEAN = "device.storageClean"
@@ -51,6 +54,6 @@ object DeviceAction {
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
-        "storageScan", "storageClean", "storageAccess",
+        "storageScan", "storageClean", "storageAccess", "announce",
     )
 }

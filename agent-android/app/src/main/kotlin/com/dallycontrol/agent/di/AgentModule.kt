@@ -427,6 +427,11 @@ object AgentModule {
     ): CommandHandler = RemoteVncStartHandler(vnc, serverConfig, tunnel, identity)
 
     @Provides
+    @IntoSet
+    fun provideAnnounceHandler(@ApplicationContext context: Context): CommandHandler =
+        com.dallycontrol.agent.announce.AnnounceHandler(context)
+
+    @Provides
     @Singleton
     fun provideStorageTools(@ApplicationContext context: Context, handle: DpmHandle): com.dallycontrol.agent.storage.StorageTools =
         com.dallycontrol.agent.storage.StorageTools(context, handle)

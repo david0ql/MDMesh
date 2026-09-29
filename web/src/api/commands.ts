@@ -130,6 +130,8 @@ export interface CommandTemplateExt extends CommandTemplate {
   group?: 'safe' | 'disruptive' | 'destructive';
   /** Builds the request from gathered params (overrides static `request` when present). */
   build?: (values: Record<string, string>) => QueueCommandRequest;
+  /** A message when the gathered params are not valid yet (sending stays disabled). */
+  validate?: (values: Record<string, string>) => string | null;
 }
 
 export const ACTION_TEMPLATES: CommandTemplateExt[] = [
@@ -190,9 +192,15 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     request: { type: 'device.reboot', requiresCapability: 'device.reboot' },
   },
   {
-    key: 'passcode-reset', label: 'Cambiar PIN de bloqueo', group: 'destructive', danger: true,
-    description: 'Define o quita el PIN de bloqueo del dispositivo (vacío lo quita).', confirm: 'simple',
-    params: [{ key: 'newPassword', label: 'Nuevo PIN (vacío para quitarlo)', kind: 'password' }],
+    key: 'passcode-reset', label: 'Cambiar clave del dispositivo', group: 'disruptive', danger: true,
+    description: 'Pone una clave nueva (PIN o contraseña) para desbloquear el teléfono. Déjala vacía para quitarla. Si el teléfono ya tenía clave antes de inscribirse, hay que desbloquearlo una vez con la clave actual para que el cambio remoto funcione.',
+    confirm: 'simple',
+    params: [
+      { key: 'newPassword', label: 'Clave nueva (vacía para quitarla)', kind: 'password' },
+      { key: 'repeat', label: 'Repite la clave', kind: 'password' },
+    ],
+    validate: (v) => (v.newPassword ?? '') !== (v.repeat ?? '') ? 'Las claves no coinciden.'
+      : (v.newPassword ?? '').length > 0 && (v.newPassword ?? '').length < 4 ? 'Mínimo 4 caracteres.' : null,
     request: { type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset' },
     build: (v) => ({
       type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset',
@@ -337,6 +345,11 @@ export async function installApp(
 /** Send the device its configuration again (e.g. back into the configuration's kiosk after a manual exit). */
 export async function reapplyConfiguration(deviceId: number | string): Promise<void> {
   await apiClient.post(`/private/agent/v1/devices/${deviceId}/config/reapply`, {});
+}
+
+/** The remote-support app (droidVNC-NG) the server hosts, as an install spec (for installing it on many devices). */
+export async function remoteSupportPackage(): Promise<AppInstallSpec> {
+  return apiClient.get<AppInstallSpec>('/private/agent/v1/remote/package');
 }
 
 /** Install remote support (droidVNC-NG, hosted by the server) on a device enrolled without USB remote support. */

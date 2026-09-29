@@ -37,4 +37,16 @@
     <string name="qs_close">Cerrar</string>
     <string name="qs_tile">Ajustes</string>
     <string name="qs_notification">Toca para ajustes rápidos (Wi‑Fi, brillo, volumen, Bluetooth)</string>
+    <string name="ann_channel">Anuncios</string>
+    <string name="ann_new">Nuevo anuncio</string>
+    <string name="ann_label">Anuncio</string>
+    <string name="ann_mandatory">Lectura obligatoria</string>
+    <string name="ann_ok">Entendido</string>
+    <string name="ann_close">Cerrar</string>
+    <string name="ann_watch_video">Mira el video hasta el final para continuar</string>
+    <string name="ann_inbox">Anuncios</string>
+    <string name="ann_empty">Aún no hay anuncios.</string>
+    <string name="ann_has_video">video</string>
+    <string name="ann_has_image">imagen</string>
+    <string name="ann_tile">Anuncios</string>
 </resources>

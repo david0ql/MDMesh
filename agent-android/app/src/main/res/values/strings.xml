@@ -39,4 +39,16 @@
     <string name="qs_close">Close</string>
     <string name="qs_tile">Settings</string>
     <string name="qs_notification">Tap for quick settings (Wi-Fi, brightness, volume, Bluetooth)</string>
+    <string name="ann_channel">Announcements</string>
+    <string name="ann_new">New announcement</string>
+    <string name="ann_label">Announcement</string>
+    <string name="ann_mandatory">Required reading</string>
+    <string name="ann_ok">Got it</string>
+    <string name="ann_close">Close</string>
+    <string name="ann_watch_video">Watch the video to the end to continue</string>
+    <string name="ann_inbox">Announcements</string>
+    <string name="ann_empty">No announcements yet.</string>
+    <string name="ann_has_video">video</string>
+    <string name="ann_has_image">image</string>
+    <string name="ann_tile">Announcements</string>
 </resources>

@@ -3034,4 +3034,56 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.29-announcements" author="dallycontrol" context="common">
+        <comment>Announcements shown in the agent app (text, image or video; mandatory or optional) and, per device,
+            when it was received, seen and confirmed. Receipts go with the device.</comment>
+        <sql>
+            CREATE TABLE announcement (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                body TEXT,
+                mediaUrl TEXT,
+                mediaType VARCHAR(10),
+                mandatory BOOLEAN NOT NULL DEFAULT FALSE,
+                targetLabel VARCHAR(300),
+                createdBy VARCHAR(100),
+                createdAt BIGINT NOT NULL,
+                expiresAt BIGINT,
+                withdrawnAt BIGINT
+            );
+            CREATE INDEX announcement_customer_idx ON announcement (customerId, createdAt DESC);
+            CREATE TABLE announcement_receipt (
+                announcementId INT NOT NULL REFERENCES announcement (id) ON DELETE CASCADE,
+                deviceNumber VARCHAR(100) NOT NULL,
+                commandId INT,
+                sentAt BIGINT,
+                receivedAt BIGINT,
+                seenAt BIGINT,
+                ackAt BIGINT,
+                PRIMARY KEY (announcementId, deviceNumber)
+            );
+            CREATE INDEX announcement_receipt_dev_idx ON announcement_receipt (deviceNumber) WHERE receivedAt IS NULL;
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_agent_data() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM agentCommand         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_event         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_state         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_location      WHERE deviceNumber = OLD.number;
+                DELETE FROM agentRolloutCanary   WHERE deviceNumber = OLD.number;
+                DELETE FROM device_connection    WHERE deviceNumber = OLD.number;
+                DELETE FROM device_metric        WHERE deviceNumber = OLD.number;
+                DELETE FROM announcement_receipt WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS announcement_receipt;
+            DROP TABLE IF EXISTS announcement;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

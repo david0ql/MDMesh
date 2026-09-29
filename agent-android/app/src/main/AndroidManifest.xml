@@ -106,6 +106,26 @@
             android:excludeFromRecents="true"
             android:lockTaskMode="if_whitelisted" />
 
+        <!-- Announcements from the console: one (full screen when mandatory) and the inbox (also in the app drawer). -->
+        <activity
+            android:name=".announce.AnnouncementActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.dallycontrol.agent.announcements"
+            android:lockTaskMode="if_whitelisted" />
+        <activity
+            android:name=".announce.AnnouncementsActivity"
+            android:exported="true"
+            android:label="@string/ann_inbox"
+            android:taskAffinity="com.dallycontrol.agent.announcements"
+            android:lockTaskMode="if_whitelisted">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".KioskLauncherActivity"
             android:exported="true"

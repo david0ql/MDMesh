@@ -46,6 +46,13 @@ export const IconEnroll = (p: P) => (
   </Svg>
 );
 
+export const IconAnnounce = (p: P) => (
+  <Svg {...p}>
+    <path d="M2.5 6.5v3h2l5 3v-9l-5 3z" />
+    <path d="M12 5.5a3.5 3.5 0 0 1 0 5" />
+  </Svg>
+);
+
 export const IconSettings = (p: P) => (
   <Svg {...p}>
     <circle cx="8" cy="8" r="2.2" />

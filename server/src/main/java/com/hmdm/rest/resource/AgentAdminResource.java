@@ -803,6 +803,24 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "Remote-support package", notes = "The pinned droidVNC-NG this server hosts, as an app.install "
+            + "spec (url, packageName, versionCode, sha256) — so the console can install it on many devices at once.")
+    @GET
+    @Path("/remote/package")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response remotePackage() {
+        if (!SecurityContext.get().getCurrentCustomerId().isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("url", baseUrl + com.hmdm.util.RemoteSupport.APK_PATH);
+        p.put("packageName", com.hmdm.util.RemoteSupport.PACKAGE);
+        p.put("versionCode", com.hmdm.util.RemoteSupport.VERSION_CODE);
+        p.put("sha256", com.hmdm.util.RemoteSupport.SHA256);
+        return Response.OK(p);
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Re-apply the configuration", notes = "Sends the device its configuration again (kiosk, policies) "
             + "even when it already applied it — e.g. back into the configuration's kiosk after a manual exit.")
     @POST

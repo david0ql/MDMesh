@@ -87,7 +87,9 @@ export function ActionConsole({ device }: { device: Device }) {
     !active ? false
     : active.confirm === 'type-to-confirm' ? confirmText === 'BORRAR'
     : active.params?.some((p) => p.required && !values[p.key]) ? false
+    : active.validate?.(values) ? false
     : true;
+  const invalid = active?.validate?.(values) ?? null;
 
   return (
     <div className="panel">
@@ -145,6 +147,7 @@ export function ActionConsole({ device }: { device: Device }) {
                 />
               </label>
             ))}
+            {invalid && Object.values(values).some(Boolean) && <p className="field-error">{invalid}</p>}
             {active.confirm === 'type-to-confirm' && (
               <label className="field">
                 <span>Escribe <strong>BORRAR</strong> para confirmar</span>
@@ -224,7 +227,7 @@ const COMMAND_LABELS: Record<string, string> = {
   'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación',
   'device.appLaunch': 'Abrir app', 'device.openStore': 'Abrir en Play Store', 'apps.scan': 'Escanear apps', 'apps.icons': 'Leer íconos', 'policy.apply': 'Aplicar restricción',
   'device.storageScan': 'Analizar almacenamiento', 'device.storageClean': 'Liberar espacio', 'device.storageAccess': 'Pedir acceso',
-  'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
+  'device.announce': 'Anuncio', 'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
   'config.sync': 'Sincronizar política',
 };
 

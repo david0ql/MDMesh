@@ -259,6 +259,20 @@ class KioskLauncherActivity : ComponentActivity() {
                 ).apply { setPadding(0, dp(10), 0, 0) },
             )
         }
+        // Announcements from the console (the inbox), when there are any.
+        val anns = com.dallycontrol.agent.announce.Announcements.all(this)
+        if (anns.isNotEmpty()) {
+            val unseen = anns.count { !it.seen }
+            grid.addView(
+                appCell(
+                    ANNOUNCEMENTS_TILE,
+                    getString(R.string.ann_tile) + if (unseen > 0) " ($unseen)" else "",
+                    ContextCompat.getDrawable(this, android.R.drawable.ic_dialog_email)!!,
+                    cell,
+                    fg,
+                ),
+            )
+        }
         if (p.quickSettings) {
             grid.addView(
                 appCell(
@@ -310,7 +324,9 @@ class KioskLauncherActivity : ComponentActivity() {
         contentDescription = "kiosk-app-$pkg"
         setOnClickListener {
             runCatching {
-                if (pkg == QUICK_SETTINGS_TILE) {
+                if (pkg == ANNOUNCEMENTS_TILE) {
+                    startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.announce.AnnouncementsActivity::class.java))
+                } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
                 } else {
                     packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
@@ -424,6 +440,7 @@ class KioskLauncherActivity : ComponentActivity() {
         const val BOUNCE_DEDUPE_MS = 1_500L
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
+        const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"
         @Volatile var lastAutoLaunch = 0L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7

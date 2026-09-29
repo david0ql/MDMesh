@@ -14,6 +14,7 @@ import { EnrollPage } from './pages/EnrollPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { FleetMapPage } from './pages/FleetMapPage';
 import { GroupsPage } from './pages/GroupsPage';
+import { AnnouncementsPage } from './pages/AnnouncementsPage';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/groups" element={<GroupsPage />} />
               <Route path="/apps" element={<AppsPage />} />
               <Route path="/configs" element={<ConfigurationsPage />} />
+              <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/enroll" element={<EnrollPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

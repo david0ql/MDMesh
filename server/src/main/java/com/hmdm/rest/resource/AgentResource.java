@@ -21,6 +21,7 @@
 
 package com.hmdm.rest.resource;
 
+import com.hmdm.rest.resource.support.AnnouncementSender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hmdm.persistence.AgentCommandDAO;
@@ -95,6 +96,7 @@ public class AgentResource {
     private AgentCommandDAO commandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.ConfigReconciler configReconciler;
+    private AnnouncementSender announcements;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -107,7 +109,9 @@ public class AgentResource {
                          AgentEnrollmentTokenDAO tokenDAO,
                          AgentCommandDAO commandDAO,
                          com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
-                         com.hmdm.rest.resource.support.ConfigReconciler configReconciler) {
+                         com.hmdm.rest.resource.support.ConfigReconciler configReconciler,
+                         AnnouncementSender announcements) {
+        this.announcements = announcements;
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
@@ -362,6 +366,13 @@ public class AgentResource {
                     detail = detail.substring(0, MAX_EVENT_DETAIL_CHARS);
                 }
                 commandDAO.insertEvent(deviceNumber, e.getType(), ts, detail);
+                if (announcements != null) {
+                    try {
+                        announcements.record(deviceNumber, e.getType(), detail, ts);
+                    } catch (Exception ex) {
+                        logger.warn("Could not record announcement receipt of {}: {}", deviceNumber, ex.getMessage());
+                    }
+                }
             }
         }
 
@@ -398,6 +409,10 @@ public class AgentResource {
         Set<String> deviceTokens = AgentCapabilityTokens.flatten(
                 capsJson != null ? capsJson : commandDAO.getDeviceCapabilities(deviceNumber));
         long now = System.currentTimeMillis();
+        // Announcements the phone still misses go out with this check-in (commands expire; announcements must not).
+        if (announcements != null && AgentCapabilityTokens.isAllowed(AnnouncementSender.TYPE, deviceTokens)) {
+            announcements.resendPending(deviceNumber);
+        }
 
         if (appliedRevision == null && AgentCapabilityTokens.isAllowed(DesiredConfigBuilder.CAPABILITY, deviceTokens)) {
             // The check-in omitted it (state block absent, or invalid value) — fall back to the last

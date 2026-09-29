@@ -81,6 +81,12 @@ class DeviceWatch @Inject constructor(
         }
     }
 
+    private val unlocked = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            runCatching { com.dallycontrol.agent.announce.Announcements.showNextMandatory(context) }
+        }
+    }
+
     /** Versions seen just before a replacement (PACKAGE_REMOVED with REPLACING arrives first). */
     private val lastVersions = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -140,7 +146,10 @@ class DeviceWatch @Inject constructor(
                 context, calls, IntentFilter(android.telephony.TelephonyManager.ACTION_PHONE_STATE_CHANGED),
                 ContextCompat.RECEIVER_EXPORTED,
             )
+            // A mandatory announcement not confirmed yet comes back each time the phone is unlocked.
+            ContextCompat.registerReceiver(context, unlocked, IntentFilter(Intent.ACTION_USER_PRESENT), ContextCompat.RECEIVER_EXPORTED)
             registered = context
+            runCatching { com.dallycontrol.agent.announce.Announcements.showNextMandatory(context) }
             scope.launch(Dispatchers.IO) {
                 runCatching { appPolicy.reenforce() }
                 runCatching { sim.check() }
@@ -155,6 +164,7 @@ class DeviceWatch @Inject constructor(
             runCatching { c.unregisterReceiver(packages) }
             runCatching { c.unregisterReceiver(simReceiver) }
             runCatching { c.unregisterReceiver(calls) }
+            runCatching { c.unregisterReceiver(unlocked) }
         }
         registered = null
         trailJob?.cancel()

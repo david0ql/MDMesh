@@ -33,12 +33,22 @@ class DevicePasscodeResetHandler(
             return if (legacyOk) {
                 CommandResults.done(command)
             } else {
-                CommandResults.failed(command, "resetPassword rejected")
+                CommandResults.failed(command, "Android rechazó la clave")
             }
         }
-        val token = tokenStore.token()
-            ?: return CommandResults.failed(command, "no reset-password token provisioned")
+        if (pwd.isNotEmpty() && pwd.length < 4) return CommandResults.failed(command, "la clave debe tener al menos 4 caracteres")
+        // Devices enrolled by an older agent (or without a reset) may have no token yet: register it now.
+        val token = tokenStore.token() ?: tokenStore.ensureToken().takeIf { it.isNotEmpty() }
+            ?: return CommandResults.failed(command, "Android no aceptó registrar el permiso para cambiar la clave")
+        // A token registered while the phone already had a PIN only becomes active once the phone is unlocked with it.
+        if (!handle.dpm.isResetPasswordTokenActive(handle.admin)) {
+            return CommandResults.failed(
+                command,
+                "falta activar el cambio remoto: desbloquea el teléfono una vez con su clave actual y vuelve a intentarlo",
+            )
+        }
         val ok = handle.dpm.resetPasswordWithToken(handle.admin, pwd, token, 0)
-        if (ok) CommandResults.done(command) else CommandResults.failed(command, "resetPasswordWithToken rejected")
+        if (ok) CommandResults.done(command, if (pwd.isEmpty()) "clave quitada" else "clave cambiada")
+        else CommandResults.failed(command, "Android rechazó la clave (no cumple la política de contraseñas del equipo: largo o tipo)")
     }.getOrElse { CommandResults.failed(command, it.message ?: "passcode reset failed") }
 }

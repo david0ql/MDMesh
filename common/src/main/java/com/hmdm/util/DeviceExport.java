@@ -39,7 +39,7 @@ import java.util.Set;
  */
 public final class DeviceExport {
     /** Same as the console's "online" (ui/status.ts ONLINE_WINDOW_MS). */
-    public static final long ONLINE_WINDOW_MS = 10 * 60_000L;
+    public static final long ONLINE_WINDOW_MS = 20 * 60_000L;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 

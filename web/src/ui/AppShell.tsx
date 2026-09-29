@@ -12,6 +12,7 @@ import {
   IconConfig,
   IconApps,
   IconEnroll,
+  IconAnnounce,
   IconSettings,
   IconSignOut,
   IconMenu,
@@ -32,6 +33,7 @@ const NAV: NavEntry[] = [
   { to: '/map', label: 'Mapa', Icon: IconMap },
   { to: '/configs', label: 'Políticas', Icon: IconConfig },
   { to: '/apps', label: 'Aplicaciones', Icon: IconApps },
+  { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce },
   { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings },
 ];

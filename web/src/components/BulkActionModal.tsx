@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt,
-  buildInstallCommand, type AppInstallSpec,
+  buildInstallCommand, remoteSupportPackage, type AppInstallSpec,
 } from '../api/commands';
 import { listApplications, type Application } from '../api/applications';
 import { BulkKioskModal } from './BulkKioskModal';
@@ -63,6 +63,23 @@ export function BulkActionModal({
       .catch((e) => { if (!cancelled) setAppErr(e instanceof Error ? e.message : 'No se pudieron cargar las aplicaciones'); });
     return () => { cancelled = true; };
   }, [appPicker]);
+
+  async function installRemote() {
+    setBusy(true);
+    try {
+      const spec = await remoteSupportPackage();
+      const res = await queueForTarget(target, buildInstallCommand(spec));
+      toast.push('ok', 'Soporte remoto: en cola',
+        `Se instala en ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` + (res.skipped ? ` (${res.skipped} omitidos)` : '') +
+        '. Los apagados lo toman si se conectan en la próxima hora; si no, vuelve a enviarlo.');
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.push('err', 'Soporte remoto: falló', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function run(t: CommandTemplateExt, vals: Record<string, string>) {
     setBusy(true);
@@ -153,6 +170,19 @@ export function BulkActionModal({
               <div className="action-grid">
                 <button className="btn" disabled={busy} onClick={() => setAppPicker(true)}>Instalar aplicación…</button>
               </div>
+            </section>
+            <section className="action-group">
+              <h4 className="action-group-title">Control remoto</h4>
+              <div className="action-grid">
+                <button className="btn" disabled={busy} onClick={() => void installRemote()} data-testid="bulk-remote-setup"
+                        title="Instala droidVNC-NG (alojado en este servidor) en todos a la vez, sin cable">
+                  Instalar soporte remoto
+                </button>
+              </div>
+              <p className="muted small">
+                Los que ya lo tienen no cambian. La primera vez que se vea cada pantalla, el teléfono pide permiso para
+                compartirla (Iniciar ahora); para controlar, además se activa una vez en Accesibilidad.
+              </p>
             </section>
             <section className="action-group">
               <h4 className="action-group-title">Kiosco</h4>
