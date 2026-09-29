@@ -5,7 +5,7 @@ import {
   listCommandHistory, forceSync, type DeviceState, type CommandHistoryItem,
 } from '../api/commands';
 import { useToast } from '../ui/toast';
-import { KioskEnterModal } from './KioskEnterModal';
+import { KioskToggle } from './KioskToggle';
 
 type Device = { number: string };
 
@@ -23,7 +23,6 @@ export function ActionConsole({ device }: { device: Device }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [confirmText, setConfirmText] = useState('');
   const [busy, setBusy] = useState(false);
-  const [kioskOpen, setKioskOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     const [st, hist] = await Promise.all([
@@ -73,7 +72,6 @@ export function ActionConsole({ device }: { device: Device }) {
     (t.params && t.params.length > 0) || !!t.confirm;
 
   async function onClick(t: CommandTemplateExt) {
-    if (t.key === 'kiosk-enter') { setKioskOpen(true); return; }
     if (needsModal(t)) { start(t); return; }
     await send(t, {});
   }
@@ -105,12 +103,13 @@ export function ActionConsole({ device }: { device: Device }) {
       </div>
 
       <DeviceStatePanel state={state} />
+      <KioskToggle device={device} />
 
       {GROUPS.map((g) => (
         <section key={g.id} className="action-group">
           <h3 className="action-group-title">{g.title}</h3>
           <div className="action-grid">
-            {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id).map((t) => (
+            {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id && !t.key.startsWith('kiosk-')).map((t) => (
               <button
                 key={t.key}
                 className={`btn ${t.danger ? 'btn-danger' : ''}`}
@@ -129,13 +128,6 @@ export function ActionConsole({ device }: { device: Device }) {
 
       <CommandTimeline items={history} />
 
-      {kioskOpen && (
-        <KioskEnterModal
-          device={device}
-          onClose={() => setKioskOpen(false)}
-          onQueued={() => { void refresh(); }}
-        />
-      )}
 
       {active && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -206,8 +198,11 @@ function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
       <ul>
         {items.map((c) => (
           <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
-            <span className="t-type">{c.type}</span>
-            <span className={`t-status status-${c.status}`}>{c.status}</span>
+            <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
+            <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
+            {(c.completedAt ?? c.createdAt) && (
+              <span className="t-when muted small">{new Date((c.completedAt ?? c.createdAt) as number).toLocaleString('es-CO')}</span>
+            )}
             {c.detail && <CommandDetail text={c.detail} />}
           </li>
         ))}
@@ -215,6 +210,23 @@ function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
     </section>
   );
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'En cola', delivered: 'Entregada', accepted: 'Recibida', done: 'Hecha',
+  failed: 'Falló', unsupported: 'No soportada', expired: 'Venció',
+};
+
+const COMMAND_LABELS: Record<string, string> = {
+  'kiosk.enter': 'Entrar en quiosco', 'kiosk.exit': 'Salir del quiosco', 'config.apply': 'Aplicar política',
+  'app.install': 'Instalar app', 'app.uninstall': 'Desinstalar app', 'agent.update': 'Actualizar agente',
+  'device.lock': 'Bloquear', 'device.reboot': 'Reiniciar', 'device.ring': 'Hacer sonar', 'device.ringStop': 'Dejar de sonar',
+  'device.alert': 'Mensaje', 'device.lockscreenMessage': 'Mensaje en pantalla de bloqueo', 'device.passcodeReset': 'Cambiar código',
+  'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación',
+  'device.appLaunch': 'Abrir app', 'device.openStore': 'Abrir en Play Store', 'apps.scan': 'Escanear apps', 'apps.icons': 'Leer íconos', 'policy.apply': 'Aplicar restricción',
+  'device.storageScan': 'Analizar almacenamiento', 'device.storageClean': 'Liberar espacio', 'device.storageAccess': 'Pedir acceso',
+  'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
+  'config.sync': 'Sincronizar política',
+};
 
 const DETAIL_LIMIT = 160;
 

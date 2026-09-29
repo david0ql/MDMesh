@@ -7,6 +7,9 @@ import {
 } from '../api/devices';
 import { ActionConsole } from '../components/ActionConsole';
 import { TelemetryCard } from '../components/TelemetryCard';
+import { DeviceHistory } from '../components/DeviceHistory';
+import { StoragePanel } from '../components/StoragePanel';
+import { UpdateTrail } from '../components/UpdateTrail';
 import { EventTimeline } from '../components/EventTimeline';
 import { LocationPanel } from '../components/LocationPanel';
 import { AppsPanel } from '../components/AppsPanel';
@@ -23,7 +26,7 @@ import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 
-type Tab = 'control' | 'remote' | 'apps' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'apps' | 'updates' | 'history' | 'storage' | 'telemetry' | 'events' | 'location';
 
 interface Row {
   k: string;
@@ -287,6 +290,8 @@ export function DeviceDetailPage() {
   ];
   const hardwareRows: Row[] = [
     { k: 'Android', v: orDash(teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion) },
+    { k: 'Parche de seguridad', v: orDash(teleStr(hw.securityPatch)) },
+    { k: 'Actualización del sistema', v: typeof dyn.systemUpdatePendingSince === 'number' ? 'Pendiente de instalar' : 'Al día' },
     { k: 'Almacenamiento', v: freeOf(dyn.freeStorageBytes, hw.totalStorageBytes) },
     { k: 'RAM', v: freeOf(dyn.freeRamBytes, hw.totalRamBytes) },
     { k: 'Serie', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
@@ -431,6 +436,15 @@ export function DeviceDetailPage() {
             <button className={tab === 'apps' ? 'on' : ''} onClick={() => setTab('apps')}>
               Aplicaciones
             </button>
+            <button className={tab === 'updates' ? 'on' : ''} onClick={() => setTab('updates')}>
+              Actualizaciones
+            </button>
+            <button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>
+              Historial
+            </button>
+            <button className={tab === 'storage' ? 'on' : ''} onClick={() => setTab('storage')}>
+              Almacenamiento
+            </button>
             <button className={tab === 'telemetry' ? 'on' : ''} onClick={() => setTab('telemetry')}>
               Telemetría
             </button>
@@ -446,6 +460,16 @@ export function DeviceDetailPage() {
             {tab === 'control' && <ActionConsole device={device} />}
             {tab === 'remote' && <RemotePanel device={device} />}
             {tab === 'apps' && <AppsPanel device={device} />}
+            {tab === 'updates' && (
+              <UpdateTrail
+                device={device}
+                android={teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion ?? undefined}
+                patch={teleStr(hw.securityPatch)}
+                pendingSince={typeof dyn.systemUpdatePendingSince === 'number' ? dyn.systemUpdatePendingSince : null}
+              />
+            )}
+            {tab === 'history' && <DeviceHistory device={device} />}
+            {tab === 'storage' && <StoragePanel device={device} />}
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}
             {tab === 'location' && <LocationPanel device={device} />}

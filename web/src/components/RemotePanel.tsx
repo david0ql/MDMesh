@@ -6,6 +6,7 @@ import {
 import { listCommandHistory, queueCommand, setupRemoteSupport } from '../api/commands';
 import { useToast } from '../ui/toast';
 import { NavBar } from './NavBar';
+import { KioskToggle } from './KioskToggle';
 
 type Device = { number: string };
 
@@ -200,6 +201,9 @@ export function RemotePanel({ device }: { device: Device }) {
 
       {statusErr && <div className="banner banner-alert">{statusErr}</div>}
 
+      {/* Kiosk on/off from here: with the screen live, the change is seen right away. */}
+      {phase.kind !== 'live' && <KioskToggle device={device} />}
+
       {status && !available && (
         <div className="rp-setup" data-testid="remote-setup">
           <p className="muted">
@@ -284,6 +288,7 @@ export function RemotePanel({ device }: { device: Device }) {
         <>
           <div className="rp-bar">
             <span className="chip tone-ok">{phase.session.viewOnly ? 'Viendo' : 'Controlando'}</span>
+            <KioskToggle device={device} compact />
             <div style={{ flex: 1 }} />
             <button className="btn btn-sm" onClick={fullscreen}>Pantalla completa</button>
             {/* The repeater pairs one viewer per session: hand it to the new tab and drop the inline one. */}
