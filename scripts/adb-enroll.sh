@@ -18,7 +18,12 @@
 # Usage:
 #   scripts/adb-enroll.sh --server https://mdm.example.com --apk agent.apk [--token T | --admin-user admin]
 #                         [--serial SERIAL] [--group-id N] [--configuration-id N] [--remote --vnc-apk FILE]
-#                         [--debug-build]
+#                         [--debug-build] [--pair HOST:PORT --pair-code CODE] [--connect HOST:PORT]
+#
+#   Without factory reset: the phone keeps its data; it only needs no accounts while enrolling (removing an account
+#   in Settings > Accounts erases nothing; add it back afterwards). Over USB, or WITHOUT a cable on Android 11+ via
+#   Wireless debugging (Developer options): --pair/--pair-code from "Pair device with pairing code", --connect with
+#   the address shown on the Wireless debugging screen. Without --apk the agent is downloaded from --server.
 #
 #   --group-id      put the device in that group (company); it runs the group's configuration (else the global one).
 #   --configuration-id  pin a configuration on the device instead (wins over the group's and the global one).
@@ -31,6 +36,7 @@ set -euo pipefail
 
 SERVER=""; API_URL=""; APK=""; TOKEN=""; SERIAL="${ANDROID_SERIAL:-}"; ADMIN_USER=""; CONFIG_ID=""; GROUP_ID=""
 REMOTE=0; VNC_APK=""; PKG="com.dallycontrol.agent"; ADB="${ADB:-adb}"
+PAIR=""; PAIR_CODE=""; CONNECT=""
 VNC_PKG="net.christianbeier.droidvnc_ng"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -46,12 +52,29 @@ while [ $# -gt 0 ]; do
     --remote) REMOTE=1; shift ;;
     --vnc-apk) VNC_APK="$2"; shift 2 ;;
     --debug-build) PKG="com.dallycontrol.agent.debug"; shift ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    --pair) PAIR="$2"; shift 2 ;;
+    --pair-code) PAIR_CODE="$2"; shift 2 ;;
+    --connect) CONNECT="$2"; shift 2 ;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 [ -n "$SERVER" ] || { echo "--server is required" >&2; exit 2; }
 API_URL="${API_URL:-$SERVER}"
+
+# Without a cable (Android 11+): Settings > Developer options > Wireless debugging. "Pair device with pairing code"
+# shows HOST:PORT + a 6-digit code (--pair/--pair-code); the Wireless debugging screen shows the HOST:PORT to connect
+# to (--connect). The phone and this computer must be on the same Wi-Fi.
+if [ -n "$PAIR" ]; then
+  [ -n "$PAIR_CODE" ] || { echo "--pair needs --pair-code" >&2; exit 2; }
+  printf '\033[1m==> pairing with %s\033[0m\n' "$PAIR"
+  "$ADB" pair "$PAIR" "$PAIR_CODE" | tr -d '\r' | grep -qi "success" || { echo "ERROR: pairing failed (check the code, it changes every time)" >&2; exit 1; }
+fi
+if [ -n "$CONNECT" ]; then
+  printf '\033[1m==> connecting to %s\033[0m\n' "$CONNECT"
+  "$ADB" connect "$CONNECT" | tr -d '\r' | grep -qiE "connected to|already connected" || { echo "ERROR: adb connect $CONNECT failed" >&2; exit 1; }
+  SERIAL="$CONNECT"
+fi
 A=("$ADB"); [ -z "$SERIAL" ] || A+=(-s "$SERIAL")
 ADMIN_COMPONENT="$PKG/com.dallycontrol.agent.admin.AdminReceiver"
 say(){ printf '\033[1m==> %s\033[0m\n' "$*"; }
@@ -80,6 +103,12 @@ if [ -z "$TOKEN" ]; then
 fi
 
 # --- 2. install + Device Owner ----------------------------------------------------------------------
+if [ -z "$APK" ] && ! "${A[@]}" shell pm path "$PKG" >/dev/null 2>&1; then
+  # No APK given: take the agent this server hosts (the same one its QR installs).
+  APK=$(mktemp -t dallycontrol-agent).apk
+  say "downloading the agent from $SERVER/files/dallycontrol-agent.apk"
+  curl -fsSL -o "$APK" "$SERVER/files/dallycontrol-agent.apk" || die "could not download the agent APK (pass --apk)"
+fi
 if [ -n "$APK" ]; then
   say "installing $APK"
   "${A[@]}" install -r -g "$APK" >/dev/null || die "adb install failed"
@@ -88,6 +117,14 @@ fi
 if "${A[@]}" shell dumpsys device_policy 2>/dev/null | grep -A4 -i "Device Owner" | grep -q "$PKG/"; then
   say "already Device Owner"
 else
+  # Android lets an app become Device Owner only on a phone with no accounts. Removing an account (Settings > Accounts)
+  # does not erase the phone's data; add it back once enrollment finishes.
+  ACCOUNTS=$("${A[@]}" shell dumpsys account 2>/dev/null | tr -d '\r' | sed -n 's/^ *Account {name=\(.*\), type=\(.*\)}$/\2  \1/p' | sort -u)
+  if [ -n "$ACCOUNTS" ]; then
+    printf '\033[31mThe phone has accounts; Android refuses a Device Owner until they are removed:\033[0m\n%s\n' "$ACCOUNTS" >&2
+    echo "Remove them in Settings > Accounts (no data is erased), run this again, then add them back." >&2
+    exit 1
+  fi
   say "setting Device Owner"
   # Retried: right after boot the device-policy service can refuse transiently. `|| true` keeps set -e from
   # aborting silently on a non-zero adb exit, so the real error is reported below.
@@ -105,6 +142,10 @@ if [ "$REMOTE" = 1 ]; then
   [ "$SDK" -ge 24 ] || die "remote control needs Android 7 (API 24) or newer; this device is API $SDK"
   if [ -n "$VNC_APK" ]; then
     "${A[@]}" install -r -g "$VNC_APK" >/dev/null || die "installing droidVNC-NG failed"
+  fi
+  if ! "${A[@]}" shell pm path "$VNC_PKG" >/dev/null 2>&1 && [ -z "$VNC_APK" ]; then
+    VNC_APK=$(mktemp -t droidvnc-ng).apk
+    curl -fsSL -o "$VNC_APK" "$SERVER/files/droidvnc-ng.apk" && "${A[@]}" install -r -g "$VNC_APK" >/dev/null || true
   fi
   "${A[@]}" shell pm path "$VNC_PKG" >/dev/null 2>&1 || die "droidVNC-NG is not installed (pass --vnc-apk)"
   "${A[@]}" shell appops set "$VNC_PKG" PROJECT_MEDIA allow || echo "  warn: appops PROJECT_MEDIA failed"

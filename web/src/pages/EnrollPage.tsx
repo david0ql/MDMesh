@@ -8,6 +8,7 @@ import { ApiError } from '../api/client';
 import { fmtDateTime } from '../ui/format';
 import { QrCanvas } from '../components/QrCanvas';
 import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
+import { NoResetEnrollPanel } from '../components/NoResetEnrollPanel';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
@@ -22,7 +23,7 @@ const STEPS = [
   { title: 'Wait for enrollment', sub: 'The device appears in Devices after its first check-in.' },
 ];
 
-type Mode = 'qr' | 'token' | 'codes';
+type Mode = 'qr' | 'token' | 'codes' | 'noreset';
 
 export function EnrollPage() {
   const toast = useToast();
@@ -117,6 +118,7 @@ export function EnrollPage() {
             <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Scan QR</button>
             <button className={mode === 'token' ? 'on' : ''} onClick={() => setMode('token')}>Token</button>
             <button className={mode === 'codes' ? 'on' : ''} onClick={() => setMode('codes')}>Folder codes</button>
+            <button className={mode === 'noreset' ? 'on' : ''} onClick={() => setMode('noreset')}>Sin formatear</button>
           </span>
         </div>
 
@@ -204,6 +206,7 @@ export function EnrollPage() {
         )}
 
         {mode === 'codes' && <EnrollmentCodesPanel groups={groups} />}
+        {mode === 'noreset' && <NoResetEnrollPanel token={token ?? undefined} />}
 
         {mode === 'token' && (
           <section className="panel enroll-wrap">
