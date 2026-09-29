@@ -2877,3 +2877,26 @@ a {
 .steps-list { margin: 8px 0 12px 18px; padding: 0; font-size: 13.5px; line-height: 1.55; }
 .steps-list li { margin: 4px 0; }
 .cmd-block { background: var(--surface-2, #f1f2f5); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
+
+/* Device list: power and network cells (data/deviceColumns.tsx) */
+.pwr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+.pwr.on { color: var(--ok, #1aa766); }
+.pwr.off { color: var(--faint, #9aa3b0); }
+.net { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.net-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
+.net-bars i { display: inline-block; width: 3px; border-radius: 1px; background: var(--border, #e7e9ee); }
+.net.q4 .net-bars i.on, .net.q3 .net-bars i.on { background: var(--ok, #1aa766); }
+.net.q2 .net-bars i.on { background: var(--warn, #d98a2b); }
+.net.q1 .net-bars i.on, .net.q0 .net-bars i.on { background: var(--danger, #c2403f); }
+.net-kind { font-weight: 600; color: var(--text-2); }
+.net-q { color: var(--muted); }
+.net-none { color: var(--faint); }
+@media (max-width: 720px) {
+  .dev-row { grid-template-columns: 1fr 104px !important; }
+  .dev-row .lc:nth-child(n + 3) { display: none; }
+}
+.colset { display: flex; flex-direction: column; gap: 2px; max-width: 520px; }
+.colset-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13.5px; }
+.colset-row label { display: inline-flex; gap: 8px; align-items: center; min-width: 180px; }
+.colset-row.over label { color: var(--faint); text-decoration: line-through; }
+.colset-ord { display: inline-flex; gap: 2px; }

@@ -109,6 +109,25 @@ public class FleetResource {
         public AgentCommand command;
     }
 
+    // --- device summaries (the device list's extra columns) ---------------------------------------------------
+
+    @ApiOperation(value = "Device summaries", notes = "Per device, from its last report: model, Android, agent, battery, "
+            + "network type and signal quality, carrier, free storage, kiosk, connection mode.")
+    @GET
+    @Path("/devices/summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response deviceSummaries() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> d : commandDAO.listDeviceExportRows(customerId.get())) {
+            out.add(com.hmdm.util.DeviceSummary.of(d));
+        }
+        return Response.OK(out);
+    }
+
     // --- export -------------------------------------------------------------------------------------------------
 
     @ApiOperation(value = "Export devices (Excel)", notes = "Workbook with Resumen, Dispositivos, Carpetas and Conexiones "

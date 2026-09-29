@@ -13,7 +13,8 @@ import {
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
-import { downloadDevicesExcel, groupTree, listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
+import { downloadDevicesExcel, groupTree, listDeviceSummaries, listGroups, moveDevicesToGroup, setDevicesConfiguration, type DeviceSummary, type FleetGroup } from '../api/fleet';
+import { DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -65,6 +66,28 @@ export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
+  // Extra list columns: chosen in Ajustes (per browser), capped by what fits at this width.
+  const [colKeys, setColKeys] = useState<string[]>(loadDeviceColumns);
+  const [maxCols, setMaxCols] = useState(maxDeviceColumns);
+  useEffect(() => {
+    const onCols = () => setColKeys(loadDeviceColumns());
+    const onResize = () => setMaxCols(maxDeviceColumns());
+    window.addEventListener('dc-columns', onCols);
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('dc-columns', onCols); window.removeEventListener('resize', onResize); };
+  }, []);
+  const columns: DeviceColumn[] = useMemo(
+    () => colKeys.map((k) => DEVICE_COLUMNS.find((c) => c.key === k)).filter((c): c is DeviceColumn => !!c).slice(0, maxCols),
+    [colKeys, maxCols],
+  );
+  const [summaries, setSummaries] = useState<Record<string, DeviceSummary>>({});
+  useEffect(() => {
+    let on = true;
+    const load = () => listDeviceSummaries().then((l) => { if (on) setSummaries(Object.fromEntries(l.map((x) => [x.number, x]))); }).catch(() => undefined);
+    void load();
+    const t = setInterval(load, 30_000);
+    return () => { on = false; clearInterval(t); };
+  }, []);
   const { devices, total, configurations, loading, error, reload } = useDevices();
   const [view, setView] = useState<View>('grid');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -408,6 +431,8 @@ export function DevicesPage() {
                   config={configName(d, configurations)}
                   group={groupOf(d)?.name ?? '—'}
                   dup={dupOf(d)}
+                  columns={columns}
+                  summary={summaries[d.number]}
                   selected={selected.has(d.id)}
                   selectionActive={selectionActive}
                   onToggle={() => toggle(d.id)}
@@ -598,6 +623,8 @@ function DeviceRow({
   config,
   group,
   dup,
+  columns,
+  summary,
   selected,
   selectionActive,
   onToggle,
@@ -608,6 +635,8 @@ function DeviceRow({
   config: string;
   group: string;
   dup: number;
+  columns: DeviceColumn[];
+  summary?: DeviceSummary;
   selected: boolean;
   selectionActive: boolean;
   onToggle: () => void;
@@ -618,6 +647,7 @@ function DeviceRow({
   return (
     <div
       className={`dev-row ${selected ? 'sel' : ''}`}
+      style={{ gridTemplateColumns: `minmax(200px, 1fr) ${columns.map((c) => c.width).join(' ')}` }}
       role="button"
       tabIndex={0}
       onClick={act}
@@ -628,27 +658,17 @@ function DeviceRow({
         <span className={`dot ${online ? 'on' : 'off'}`} />
         <DeviceGlyph className="ico" name={d.description || d.number} size={15} />
         <div style={{ minWidth: 0 }}>
-          <div className="nm">{orDash(d.number)}</div>
-          {d.description && <div className="sub">{d.description}</div>}
+          <div className="nm">{d.description || orDash(d.number)}</div>
+          <div className="sub mono">{d.description ? d.number : summary?.model ?? ''}</div>
         </div>
         {dup > 1 && <DupBadge n={dup} />}
       </div>
-      <div className="lc">
-        <span className="lk">Android</span>
-        <span className="lv">{orDash(d.androidVersion)}</span>
-      </div>
-      <div className="lc">
-        <span className="lk">Política</span>
-        <span className="lv">{config}</span>
-      </div>
-      <div className="lc">
-        <span className="lk">Carpeta</span>
-        <span className="lv">{group}</span>
-      </div>
-      <div className="lc">
-        <span className="lk">Última conexión</span>
-        <span className="lv">{fmtRelative(d.lastUpdate)}</span>
-      </div>
+      {columns.map((c) => (
+        <div className="lc" key={c.key}>
+          <span className="lk">{c.label}</span>
+          <span className="lv">{c.render(d, summary, { online, policy: config, group })}</span>
+        </div>
+      ))}
     </div>
   );
 }

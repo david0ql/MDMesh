@@ -8,6 +8,7 @@ import { API_BASE } from '../api/client';
 import { fetchAuthOptions } from '../api/auth';
 import { getUpdateStatus, setAutoUpdate, checkForUpdates, applyUpdate, type UpdateStatus } from '../api/updates';
 import { RolloutPanel } from '../components/RolloutPanel';
+import { DeviceColumnsSettings } from '../components/DeviceColumnsSettings';
 import { orDash, fmtRelative } from '../ui/format';
 import { useToast } from '../ui/toast';
 import { listGroups, setGlobalConfiguration } from '../api/fleet';
@@ -148,6 +149,8 @@ export function SettingsPage() {
             <span className="v">{user?.superAdmin ? 'Superadministrador' : 'Administrador'}</span>
           </div>
         </section>
+
+        <DeviceColumnsSettings />
 
         {/* Server & connection */}
         <section className="panel">

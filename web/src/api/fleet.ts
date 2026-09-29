@@ -161,3 +161,27 @@ export async function downloadDevicesExcel(groupId?: number, days = 30): Promise
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** A device's list summary from its last report (FleetResource /devices/summary). */
+export interface DeviceSummary {
+  number: string;
+  manufacturer?: string | null;
+  model?: string | null;
+  androidVersion?: string | null;
+  agentVersion?: string | null;
+  battery?: number | null;
+  charging?: boolean | null;
+  kioskActive?: boolean | null;
+  powerMode?: string | null;
+  networkType?: 'wifi' | 'cellular' | 'none' | null;
+  /** 0 (no signal) … 4 (excellent). */
+  signalLevel?: number | null;
+  signalLabel?: string | null;
+  wifiSsid?: string | null;
+  operator?: string | null;
+  freeStorageBytes?: number | null;
+  totalStorageBytes?: number | null;
+  stateAt?: number | null;
+}
+
+export const listDeviceSummaries = () => apiClient.get<DeviceSummary[]>(`${BASE}/devices/summary`);
