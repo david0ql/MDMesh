@@ -148,6 +148,10 @@ public class AgentCommandDAO {
     }
 
     /** Persist the reported Android version into infojson so the device list can show it. */
+    public void updateIdentity(String deviceNumber, String serial, String imei) {
+        deviceMapper.updateIdentity(deviceNumber, serial, imei);
+    }
+
     public void updateAndroidVersion(String deviceNumber, String androidVersion) {
         deviceMapper.updateAndroidVersion(deviceNumber, androidVersion);
     }
@@ -217,6 +221,10 @@ public class AgentCommandDAO {
     /** Move a group's direct children under {@code parentId} (null = top level). */
     public void reparentChildren(int customerId, int id, Integer parentId) {
         deviceMapper.reparentChildren(customerId, id, parentId);
+    }
+
+    public boolean nameIfUnnamed(String deviceNumber, String name) {
+        return deviceMapper.nameIfUnnamed(deviceNumber, name) > 0;
     }
 
     /** The group and all its descendants. */

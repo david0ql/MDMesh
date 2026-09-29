@@ -283,6 +283,7 @@ export function DeviceDetailPage() {
     { k: 'Storage', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
     { k: 'Serial', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
+    { k: 'Wi-Fi MAC', v: orDash(teleStr(idn.wifiMac)), mono: true },
   ];
   // SIM (agent SimMonitor): state + carrier + number per slot; the number only when the carrier stores it on the SIM.
   const sim = dyn.sim as { state?: string; slots?: { slot: number; carrier?: string; number?: string }[] } | undefined;

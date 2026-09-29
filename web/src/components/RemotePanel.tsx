@@ -3,7 +3,7 @@ import {
   getRemoteStatus, startRemoteSession, stopRemoteSession, viewerUrl,
   type RemoteSession, type RemoteStatus,
 } from '../api/remote';
-import { listCommandHistory, queueCommand } from '../api/commands';
+import { listCommandHistory, queueCommand, setupRemoteSupport } from '../api/commands';
 import { useToast } from '../ui/toast';
 import { NavBar } from './NavBar';
 
@@ -160,6 +160,25 @@ export function RemotePanel({ device }: { device: Device }) {
     void frame.current?.requestFullscreen?.();
   }
 
+  const [setupSent, setSetupSent] = useState(false);
+  async function setupRemote() {
+    try {
+      await setupRemoteSupport(device.number);
+      setSetupSent(true);
+      toast.push('ok', 'Instalando el soporte remoto', 'El teléfono lo descarga y lo prepara solo.');
+    } catch (e) {
+      toast.push('err', 'No se pudo enviar', e instanceof Error ? e.message : '');
+    }
+  }
+  async function enableControl() {
+    try {
+      await queueCommand(device.number, { type: 'remote.inputSetup' });
+      toast.push('ok', 'Ajuste abierto en el teléfono', 'Quien tenga el teléfono debe activar droidVNC-NG en Accesibilidad.');
+    } catch (e) {
+      toast.push('err', 'No se pudo enviar', e instanceof Error ? e.message : '');
+    }
+  }
+
   const tier = status?.tier ?? 'none';
   const available = tier === 'view' || tier === 'control';
   const sessionOpen = phase.kind === 'waiting' || phase.kind === 'live' || phase.kind === 'popped';
@@ -182,10 +201,29 @@ export function RemotePanel({ device }: { device: Device }) {
       {statusErr && <div className="banner banner-alert">{statusErr}</div>}
 
       {status && !available && (
-        <p className="muted">
-          This device does not offer remote view. It needs Android 7 or later and droidVNC-NG, enrolled with
-          remote support (<span className="mono">scripts/adb-enroll.sh … --remote --vnc-apk …</span>).
-        </p>
+        <div className="rp-setup" data-testid="remote-setup">
+          <p className="muted">
+            Este dispositivo aún no tiene el soporte remoto (droidVNC‑NG). Se instala desde aquí, sin cable: el agente lo
+            descarga de este servidor y lo deja listo. Necesita Android 7 o superior.
+          </p>
+          <button className="btn btn-primary" disabled={busy || setupSent} onClick={() => void setupRemote()}>
+            {setupSent ? <span key="s">Instalando… (aparece aquí en cuanto termine)</span> : <span key="i">Instalar soporte remoto</span>}
+          </button>
+          <p className="muted rp-note">
+            La primera vez que veas la pantalla, el teléfono pedirá permiso para compartirla: quien lo tenga debe tocar
+            <b> Iniciar ahora</b> (en Android 10 a 13 puede marcar <b>No volver a mostrar</b> para que no se pida más).
+          </p>
+        </div>
+      )}
+
+      {status && tier === 'view' && (
+        <div className="banner banner-warn rp-power" data-testid="remote-enable-control">
+          <span>
+            <strong>Solo ver.</strong> Para controlar (tocar y escribir) hay que activar una vez el servicio de accesibilidad de
+            droidVNC‑NG en el teléfono. Este botón abre ese ajuste en el teléfono; quien lo tenga activa <b>droidVNC‑NG</b>.
+          </span>
+          <button className="btn btn-sm" disabled={busy} onClick={() => void enableControl()}>Abrir el ajuste en el teléfono</button>
+        </div>
       )}
 
       {status && available && !status.encrypted && (

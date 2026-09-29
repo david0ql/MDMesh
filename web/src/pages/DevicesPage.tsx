@@ -160,7 +160,7 @@ export function DevicesPage() {
       if (android !== 'all' && d.androidVersion !== android) return false;
       if (dupOnly && (d.hardwareId ? (dupCount.get(d.hardwareId) ?? 0) : 0) <= 1) return false;
       if (needle) {
-        const hay = `${d.number ?? ''} ${d.description ?? ''}`.toLowerCase();
+        const hay = `${d.number ?? ''} ${d.description ?? ''} ${d.imei ?? ''} ${d.serial ?? ''}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;

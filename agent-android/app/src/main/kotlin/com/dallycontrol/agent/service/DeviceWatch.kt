@@ -43,14 +43,21 @@ class DeviceWatch @Inject constructor(
     private val appPolicy: AppPolicyEnforcer,
     private val eventLog: EventLog,
     private val dpm: DpmHandle,
+    private val vnc: com.dallycontrol.agent.remote.DroidVncController,
 ) {
     private var trailJob: Job? = null
     private var registered: Context? = null
 
     private val packages = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
             val pkg = intent.data?.schemeSpecificPart ?: return
+            // Remote support installed or updated from the console (no USB): prepare it at once, and report the new
+            // remote capability right away.
+            if (pkg == com.dallycontrol.agent.remote.DroidVncController.PACKAGE && intent.action == Intent.ACTION_PACKAGE_ADDED) {
+                runCatching { vnc.prepare() }.onFailure { Log.w(TAG, "droidVNC-NG prepare", it) }
+                CheckInWorker.scheduleNow(context)
+            }
+            if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
             when (intent.action) {
                 Intent.ACTION_PACKAGE_ADDED -> {
                     runCatching { eventLog.record(EventType.APP_INSTALLED, pkg) }

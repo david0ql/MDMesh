@@ -68,6 +68,12 @@ public interface AgentDeviceMapper {
     void updateAndroidVersion(@Param("deviceNumber") String deviceNumber,
                               @Param("androidVersion") String androidVersion);
 
+    /** Mirror the agent-reported serial / IMEI into the device row (the list shows and searches them there). */
+    @Update({"UPDATE devices SET imei = COALESCE(#{imei}, imei), infojson = CASE WHEN #{serial}::text IS NULL THEN infojson " +
+            "ELSE jsonb_set(COALESCE(infojson, '{}'::jsonb), '{serial}', to_jsonb(#{serial}::text), true) END " +
+            "WHERE number = #{deviceNumber}"})
+    void updateIdentity(@Param("deviceNumber") String deviceNumber, @Param("serial") String serial, @Param("imei") String imei);
+
     // --- Location breadcrumb trail (device_location) ---
 
     /**
@@ -92,6 +98,10 @@ public interface AgentDeviceMapper {
             "ORDER BY l.deviceNumber, l.capturedAt LIMIT #{limit}"})
     List<DeviceLocation> listFleetLocations(@Param("customerId") int customerId, @Param("from") long from,
                                             @Param("to") long to, @Param("limit") int limit);
+
+    /** Name a device only while it has none (an operator's name is never overwritten). */
+    @Update({"UPDATE devices SET description = #{name} WHERE number = #{number} AND (description IS NULL OR trim(description) = '')"})
+    int nameIfUnnamed(@Param("number") String number, @Param("name") String name);
 
     // --- Groups (companies) and configuration scopes: device > group > global ---
 

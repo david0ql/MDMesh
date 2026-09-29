@@ -338,3 +338,8 @@ export async function installApp(
 export async function reapplyConfiguration(deviceId: number | string): Promise<void> {
   await apiClient.post(`/private/agent/v1/devices/${deviceId}/config/reapply`, {});
 }
+
+/** Install remote support (droidVNC-NG, hosted by the server) on a device enrolled without USB remote support. */
+export async function setupRemoteSupport(deviceId: number | string): Promise<void> {
+  await apiClient.post(`/private/agent/v1/devices/${deviceId}/remote/setup`, {});
+}

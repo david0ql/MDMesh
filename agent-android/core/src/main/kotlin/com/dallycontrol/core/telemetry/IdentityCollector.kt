@@ -14,6 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class IdentityCollector @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val dpm: com.dallycontrol.policy.wifi.DpmHandle,
 ) {
     @SuppressLint("HardwareIds", "MissingPermission")
     fun collect(): IdentityInfo {
@@ -43,6 +44,9 @@ class IdentityCollector @Inject constructor(
             imsi = emptyList(), // IMSI/subscriberId restricted; left empty unless a privileged path is added
             iccid = emptyList(),
             phoneNumber = phones.distinct(),
+            wifiMac = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                runCatching { dpm.dpm.getWifiMacAddress(dpm.admin) }.getOrNull()?.takeIf { it.isNotBlank() }?.uppercase()
+            } else null,
         )
     }
 }

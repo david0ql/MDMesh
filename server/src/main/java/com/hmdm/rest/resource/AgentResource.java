@@ -325,6 +325,8 @@ public class AgentResource {
             // device's breadcrumb trail. Inserts only keep fixes newer than what is stored, so a resent trail is a no-op.
             recordTrail(deviceNumber, trail);
             recordLocation(deviceNumber, tel);
+            autoName(device, tel);
+            mirrorIdentity(deviceNumber, tel);
         }
 
         // Ingest buffered lifecycle events into the timeline — capped, so one check-in can't
@@ -499,6 +501,48 @@ public class AgentResource {
     }
 
     /** Pull dynamic.location out of the telemetry JSON and append it to the device's trail. */
+    /**
+     * A device without a name gets one from its identifiers (serial by default; the configuration's dcPolicy.deviceName
+     * picks imei / model-serial / none). Only while unnamed: an operator's name is never replaced.
+     */
+    private void autoName(Device device, JsonNode tel) {
+        if (tel == null || device.getDescription() != null && !device.getDescription().trim().isEmpty()) {
+            return;
+        }
+        try {
+            String rule = null;
+            if (device.getConfigurationId() != null) {
+                Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                if (cfg != null) {
+                    rule = com.hmdm.util.DcPolicy.parse(cfg.getDcPolicy()).getDeviceName();
+                }
+            }
+            JsonNode idn = tel.path("identity");
+            String imei = idn.path("imei").isArray() && idn.path("imei").size() > 0 ? idn.path("imei").get(0).asText(null) : null;
+            String name = com.hmdm.util.DeviceNaming.name(rule, idn.path("serial").asText(null), imei,
+                    tel.path("hardware").path("model").asText(null));
+            if (name != null && commandDAO.nameIfUnnamed(device.getNumber(), name)) {
+                logger.info("Device {} named '{}' ({})", device.getNumber(), name, rule == null ? "serial" : rule);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not name device {}: {}", device.getNumber(), e.getMessage());
+        }
+    }
+
+    private void mirrorIdentity(String deviceNumber, JsonNode tel) {
+        if (tel == null) return;
+        JsonNode idn = tel.path("identity");
+        String serial = idn.path("serial").asText(null);
+        String imei = idn.path("imei").isArray() && idn.path("imei").size() > 0 ? idn.path("imei").get(0).asText(null) : null;
+        if (serial == null && imei == null) return;
+        try {
+            commandDAO.updateIdentity(deviceNumber, serial == null || serial.length() > 100 ? null : serial,
+                    imei == null || imei.length() > 50 ? null : imei);
+        } catch (Exception e) {
+            logger.warn("Could not store identity of {}: {}", deviceNumber, e.getMessage());
+        }
+    }
+
     /** At most this many trail fixes per check-in (a day at one every 5 minutes). */
     private static final int MAX_TRAIL_FIXES = 288;
 

@@ -38,6 +38,8 @@ data class IdentityInfo(
     val imsi: List<String> = emptyList(),
     val iccid: List<String> = emptyList(),
     val phoneNumber: List<String> = emptyList(),
+    /** Hardware Wi-Fi MAC (Device Owner only; the per-network random MAC is not it). */
+    val wifiMac: String? = null,
 )
 
 @Serializable

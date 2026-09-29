@@ -86,6 +86,7 @@ public class AgentAdminResource {
     private AgentWakeHub wakeHub;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private ConfigReconciler configReconciler;
+    private String baseUrl;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -99,7 +100,9 @@ public class AgentAdminResource {
                               UnsecureDAO unsecureDAO,
                               AgentWakeHub wakeHub,
                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
-                              ConfigReconciler configReconciler) {
+                              ConfigReconciler configReconciler,
+                              @com.google.inject.name.Named("base.url") String baseUrl) {
+        this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.unsecureDAO = unsecureDAO;
@@ -712,6 +715,47 @@ public class AgentAdminResource {
         out.put("viewOnly", viewOnly);
         out.put("encrypted", encrypted);
         return Response.OK(out);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Set up remote support", notes = "Installs droidVNC-NG (hosted by this server, sha256-pinned) on a "
+            + "device that was enrolled without USB remote support; the agent prepares it on install.")
+    @POST
+    @Path("/devices/{deviceId}/remote/setup")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupRemote(@PathParam("deviceId") String deviceId) {
+        if (!canEditDevices("set up remote support")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        com.fasterxml.jackson.databind.node.ObjectNode p = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        p.put("url", baseUrl + com.hmdm.util.RemoteSupport.APK_PATH);
+        p.put("packageName", com.hmdm.util.RemoteSupport.PACKAGE);
+        p.put("versionCode", com.hmdm.util.RemoteSupport.VERSION_CODE);
+        p.put("sha256", com.hmdm.util.RemoteSupport.SHA256);
+        if (!commandDAO.hasOpenIdentical(deviceId, "app.install", p.toString())) {
+            AgentCommand cmd = new AgentCommand();
+            cmd.setDeviceNumber(deviceId);
+            cmd.setType("app.install");
+            cmd.setPayload(p.toString());
+            cmd.setRequiresCapability(com.hmdm.util.RolloutProgress.INSTALL_CAPABILITY);
+            cmd.setStatus("pending");
+            cmd.setCreatedAt(System.currentTimeMillis());
+            commandDAO.insert(cmd);
+        }
+        wakeHub.wake(deviceId, "commands");
+        logger.info("Remote support (droidVNC-NG {}) queued for {}", com.hmdm.util.RemoteSupport.VERSION_NAME, deviceId);
+        return Response.OK();
     }
 
     // =================================================================================================================

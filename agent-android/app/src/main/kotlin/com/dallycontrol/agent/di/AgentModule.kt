@@ -405,6 +405,14 @@ object AgentModule {
 
     @Provides
     @IntoSet
+    fun provideRemoteInputSetupHandler(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        vnc: DroidVncController,
+    ): CommandHandler = com.dallycontrol.agent.remote.RemoteInputSetupHandler(context, handle, vnc)
+
+    @Provides
+    @IntoSet
     fun provideRemoteVncStopHandler(vnc: DroidVncController, tunnel: RepeaterTunnel): CommandHandler =
         RemoteVncStopHandler(vnc, tunnel)
 

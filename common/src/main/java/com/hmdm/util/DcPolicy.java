@@ -47,6 +47,8 @@ public class DcPolicy {
     private Integer trackingMinutes;
     /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth). */
     private Boolean kioskQuickSettings;
+    /** Automatic device name: serial (default) / imei / model-serial / none. */
+    private String deviceName;
 
     @Getter
     @Setter
@@ -105,7 +107,7 @@ public class DcPolicy {
 
     @JsonIgnore
     public boolean isEmpty() {
-        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null;
+        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null && deviceName == null;
     }
 
     private DcPolicy cleaned() {
@@ -134,6 +136,7 @@ public class DcPolicy {
         }
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
         c.kioskQuickSettings = Boolean.TRUE.equals(kioskQuickSettings) ? Boolean.TRUE : null;
+        c.deviceName = DeviceNaming.normalizeRule(deviceName);
         return c;
     }
 

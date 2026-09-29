@@ -17,6 +17,7 @@ export interface DcPolicy {
   apps?: { mode: 'open' | 'allowlist'; allowed?: string[]; roles?: string[]; hidePlayStore?: boolean };
   trackingMinutes?: number;
   kioskQuickSettings?: boolean;
+  deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -37,6 +38,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.apps) out.apps = p.apps;
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
   if (p.kioskQuickSettings) out.kioskQuickSettings = true;
+  if (p.deviceName) out.deviceName = p.deviceName;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -215,6 +217,25 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           </div>
         </>
       ) : null}
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Device name</label>
+          <span className="cfg-field-help">
+            How a new device is named from its first report (only while it has no name — a name you set is never replaced).
+            Default: its serial number.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Device name" value={p.deviceName ?? 'serial'} disabled={disabled}
+            onChange={(e) => update({ ...p, deviceName: e.target.value === 'serial' ? undefined : (e.target.value as DcPolicy['deviceName']) })}>
+            <option value="serial">Serial number</option>
+            <option value="imei">IMEI</option>
+            <option value="model-serial">Model + serial</option>
+            <option value="none">Do not name</option>
+          </select>
+        </div>
+      </div>
 
       <div className="cfg-field">
         <div className="cfg-field-label">
