@@ -549,6 +549,34 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "Device history", notes = "Traceability: battery, network, signal (RSSI) and free space "
+            + "samples (one every 5 min, kept 30 days) plus the connection sessions, oldest first.")
+    @GET
+    @Path("/devices/{deviceId}/history")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response history(@PathParam("deviceId") String deviceId, @QueryParam("days") Integer days) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int d = days == null ? 7 : Math.max(1, Math.min(30, days));
+        long from = System.currentTimeMillis() - d * 24L * 3600_000L;
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("from", from);
+        out.put("gapMs", AgentResource.CONNECTION_GAP_MS);
+        out.put("metrics", commandDAO.listMetrics(deviceId, from));
+        out.put("connections", commandDAO.listDeviceConnections(deviceId, from));
+        return Response.OK(out);
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Command history", notes = "Command lifecycle history for a device, newest first. "
             + "Payloads are never returned (they can embed secrets); app commands carry the package as 'subject'.")
     @GET

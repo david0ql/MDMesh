@@ -334,6 +334,13 @@ public class AgentResource {
             recordLocation(deviceNumber, tel);
             autoName(device, tel);
             mirrorIdentity(deviceNumber, tel);
+            // Device history (traceability): one sample every few minutes.
+            try {
+                commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
+                        com.hmdm.util.DeviceSummary.metric(tel, s.getBattery(), s.getCharging(), s.getKioskActive(), s.getLocked()));
+            } catch (Exception e) {
+                logger.warn("Could not record history of {}: {}", deviceNumber, e.getMessage());
+            }
         }
 
         // Ingest buffered lifecycle events into the timeline — capped, so one check-in can't

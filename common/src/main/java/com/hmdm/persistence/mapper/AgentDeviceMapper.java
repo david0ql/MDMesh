@@ -113,6 +113,27 @@ public interface AgentDeviceMapper {
             "ORDER BY c.deviceNumber, c.connectedAt"})
     List<java.util.Map<String, Object>> listConnections(@Param("customerId") int customerId, @Param("from") long from, @Param("to") long to);
 
+    // --- Device history (device_metric): one sample at most every few minutes, kept a month ---
+
+    @Insert({"INSERT INTO device_metric (deviceNumber, ts, battery, charging, networkType, wifiRssi, signalLevel, " +
+            "freeStorageBytes, freeRamBytes, kioskActive, locked) " +
+            "SELECT #{number}, #{ts}, #{m.battery}, #{m.charging}, #{m.networkType}, #{m.wifiRssi}, #{m.signalLevel}, " +
+            "#{m.freeStorageBytes}, #{m.freeRamBytes}, #{m.kioskActive}, #{m.locked} " +
+            "WHERE NOT EXISTS (SELECT 1 FROM device_metric WHERE deviceNumber = #{number} AND ts > #{since})"})
+    int insertMetric(@Param("number") String number, @Param("ts") long ts, @Param("since") long since,
+                     @Param("m") java.util.Map<String, Object> m);
+
+    @Select({"SELECT ts, battery, charging, networkType, wifiRssi, signalLevel, freeStorageBytes, freeRamBytes, kioskActive, locked " +
+            "FROM device_metric WHERE deviceNumber = #{number} AND ts >= #{from} ORDER BY ts"})
+    List<java.util.Map<String, Object>> listMetrics(@Param("number") String number, @Param("from") long from);
+
+    @Select({"SELECT connectedAt, lastSeenAt FROM device_connection WHERE deviceNumber = #{number} AND lastSeenAt >= #{from} " +
+            "ORDER BY connectedAt"})
+    List<java.util.Map<String, Object>> listDeviceConnections(@Param("number") String number, @Param("from") long from);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM device_metric WHERE ts < #{before}"})
+    int purgeMetrics(@Param("before") long before);
+
     /** Everything the device export needs, one row per device (telemetry is the agent's last census JSON). */
     @Select({"SELECT d.id, d.number, d.description, d.enrollTime, d.lastUpdate, d.configurationId, c.name AS configurationName, " +
             "m.groupId, s.battery, s.charging, s.kioskActive, s.agentVersion, s.powerMode, s.androidRelease, s.telemetry, " +

@@ -10,3 +10,28 @@ export interface DeviceEvent {
 export async function getEvents(deviceId: number | string, since = 0): Promise<DeviceEvent[]> {
   return apiClient.get<DeviceEvent[]>(`/private/agent/v1/devices/${deviceId}/events?since=${since}`);
 }
+
+/** One history sample (every ~5 min while the device checks in). */
+export interface MetricSample {
+  ts: number;
+  battery?: number | null;
+  charging?: boolean | null;
+  networktype?: string | null;
+  wifirssi?: number | null;
+  signallevel?: number | null;
+  freestoragebytes?: number | null;
+  freerambytes?: number | null;
+  kioskactive?: boolean | null;
+  locked?: boolean | null;
+}
+
+export interface DeviceHistory {
+  from: number;
+  gapMs: number;
+  metrics: MetricSample[];
+  connections: { connectedat: number; lastseenat: number }[];
+}
+
+export async function getHistory(deviceId: number | string, days: number): Promise<DeviceHistory> {
+  return apiClient.get<DeviceHistory>(`/private/agent/v1/devices/${deviceId}/history?days=${days}`);
+}

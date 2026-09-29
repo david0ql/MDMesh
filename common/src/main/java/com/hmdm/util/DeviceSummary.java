@@ -44,8 +44,34 @@ public final class DeviceSummary {
         s.put("operator", text(dyn, "cellularOperator"));
         s.put("freeStorageBytes", dyn.hasNonNull("freeStorageBytes") ? dyn.get("freeStorageBytes").asLong() : null);
         s.put("totalStorageBytes", hw.hasNonNull("totalStorageBytes") ? hw.get("totalStorageBytes").asLong() : null);
+        s.put("securityPatch", text(hw, "securityPatch"));
+        s.put("systemUpdatePending", dyn.hasNonNull("systemUpdatePendingSince"));
         s.put("stateAt", row.get("stateat"));
         return s;
+    }
+
+    /**
+     * One history sample (device_metric) from a check-in: the state flags plus network, signal (0-4) and free
+     * space from the census. Null telemetry fields stay null.
+     */
+    public static Map<String, Object> metric(JsonNode tel, Integer battery, Boolean charging, Boolean kioskActive, Boolean locked) {
+        JsonNode dyn = tel == null ? JSON.createObjectNode() : tel.path("dynamic");
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("battery", battery == null || battery < 0 ? null : battery);
+        m.put("charging", charging);
+        String type = text(dyn, "networkType");
+        m.put("networkType", type == null ? null : type.length() > 16 ? type.substring(0, 16) : type);
+        Integer rssi = "wifi".equals(type) && dyn.hasNonNull("wifiRssi") ? dyn.get("wifiRssi").asInt() : null;
+        m.put("wifiRssi", rssi == null ? null : Math.max(-127, Math.min(0, rssi)));
+        Integer level = null;
+        if (rssi != null) level = wifiLevel(rssi);
+        else if ("cellular".equals(type) && dyn.hasNonNull("cellularSignalLevel")) level = Math.max(0, Math.min(4, dyn.get("cellularSignalLevel").asInt()));
+        m.put("signalLevel", level);
+        m.put("freeStorageBytes", dyn.hasNonNull("freeStorageBytes") ? dyn.get("freeStorageBytes").asLong() : null);
+        m.put("freeRamBytes", dyn.hasNonNull("freeRamBytes") ? dyn.get("freeRamBytes").asLong() : null);
+        m.put("kioskActive", kioskActive);
+        m.put("locked", locked);
+        return m;
     }
 
     /** Android's own 5-step scale (WifiManager.calculateSignalLevel with 5 levels). */

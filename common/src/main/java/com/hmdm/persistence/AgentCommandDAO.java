@@ -233,6 +233,28 @@ public class AgentCommandDAO {
         }
     }
 
+    /** Samples kept per device: at most one every {@link #METRIC_EVERY_MS}, for {@link #METRIC_KEEP_MS}. */
+    public static final long METRIC_EVERY_MS = 5 * 60_000L;
+    public static final long METRIC_KEEP_MS = 30L * 24 * 3600_000L;
+    private static final java.util.concurrent.atomic.AtomicLong lastPurge = new java.util.concurrent.atomic.AtomicLong();
+
+    /** Store a history sample (skipped when the last one is recent); purges month-old samples about once an hour. */
+    public void recordMetric(String deviceNumber, long now, java.util.Map<String, Object> m) {
+        deviceMapper.insertMetric(deviceNumber, now, now - METRIC_EVERY_MS, m);
+        long prev = lastPurge.get();
+        if (now - prev > 3600_000L && lastPurge.compareAndSet(prev, now)) {
+            deviceMapper.purgeMetrics(now - METRIC_KEEP_MS);
+        }
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listMetrics(String deviceNumber, long from) {
+        return deviceMapper.listMetrics(deviceNumber, from);
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listDeviceConnections(String deviceNumber, long from) {
+        return deviceMapper.listDeviceConnections(deviceNumber, from);
+    }
+
     public java.util.List<java.util.Map<String, Object>> listConnections(int customerId, long from, long to) {
         return deviceMapper.listConnections(customerId, from, to);
     }

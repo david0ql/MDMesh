@@ -26,4 +26,20 @@ public class DeviceSummaryTest {
         row.put("telemetry", "not json");
         assertNull(DeviceSummary.of(row).get("signalLevel"));
     }
+
+    @Test
+    public void history_sample_from_checkin() throws Exception {
+        com.fasterxml.jackson.databind.JsonNode tel = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                "{\"dynamic\":{\"networkType\":\"wifi\",\"wifiRssi\":-60,\"freeStorageBytes\":5,\"freeRamBytes\":7}}");
+        Map<String, Object> m = DeviceSummary.metric(tel, 80, true, false, true);
+        assertEquals(80, m.get("battery"));
+        assertEquals(-60, m.get("wifiRssi"));
+        assertEquals(3, m.get("signalLevel"));
+        assertEquals(5L, m.get("freeStorageBytes"));
+        assertEquals(true, m.get("locked"));
+        Map<String, Object> none = DeviceSummary.metric(null, -1, null, null, null);
+        assertNull(none.get("battery"));
+        assertNull(none.get("networkType"));
+        assertNull(none.get("signalLevel"));
+    }
 }

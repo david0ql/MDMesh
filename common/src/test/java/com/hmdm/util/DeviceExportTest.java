@@ -65,11 +65,11 @@ public class DeviceExportTest {
             assertEquals("https://mdm.example.com/devices/dev-1", r.getCell(0).getHyperlink().getAddress());
             assertEquals("Colombia / Bogotá", r.getCell(2).getStringCellValue());
             assertEquals("En línea", r.getCell(4).getStringCellValue());
-            assertEquals("356938035643809", r.getCell(12).getStringCellValue());
-            assertEquals("AA:BB:CC:DD:EE:FF", r.getCell(13).getStringCellValue());
-            assertEquals("+573001112233", r.getCell(14).getStringCellValue());
-            assertEquals("Claro", r.getCell(15).getStringCellValue());
-            assertTrue(r.getCell(20).getHyperlink().getAddress().startsWith("https://www.google.com/maps?q=4.600000,-74.080000"));
+            assertEquals("356938035643809", r.getCell(14).getStringCellValue());
+            assertEquals("AA:BB:CC:DD:EE:FF", r.getCell(15).getStringCellValue());
+            assertEquals("+573001112233", r.getCell(16).getStringCellValue());
+            assertEquals("Claro", r.getCell(17).getStringCellValue());
+            assertTrue(r.getCell(22).getHyperlink().getAddress().startsWith("https://www.google.com/maps?q=4.600000,-74.080000"));
             Sheet f = wb.getSheet("Carpetas");
             assertEquals("Colombia", f.getRow(1).getCell(0).getStringCellValue());
             assertEquals("device counted with sub-folders", 1.0, f.getRow(1).getCell(4).getNumericCellValue(), 0);

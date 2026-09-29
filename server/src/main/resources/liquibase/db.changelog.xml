@@ -2994,4 +2994,44 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.29-device-metric" author="dallycontrol" context="common">
+        <comment>Device history (traceability): one sample of battery, network, signal and free space at most every
+            5 minutes per device, kept 30 days. Deleted with the device.</comment>
+        <sql>
+            CREATE TABLE device_metric (
+                id BIGSERIAL PRIMARY KEY,
+                deviceNumber VARCHAR(100) NOT NULL,
+                ts BIGINT NOT NULL,
+                battery SMALLINT,
+                charging BOOLEAN,
+                networkType VARCHAR(16),
+                wifiRssi SMALLINT,
+                signalLevel SMALLINT,
+                freeStorageBytes BIGINT,
+                freeRamBytes BIGINT,
+                kioskActive BOOLEAN,
+                locked BOOLEAN
+            );
+            CREATE INDEX device_metric_dev_idx ON device_metric (deviceNumber, ts DESC);
+            CREATE INDEX device_metric_ts_idx ON device_metric (ts);
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_agent_data() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM agentCommand       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_event       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_state       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_location    WHERE deviceNumber = OLD.number;
+                DELETE FROM agentRolloutCanary WHERE deviceNumber = OLD.number;
+                DELETE FROM device_connection  WHERE deviceNumber = OLD.number;
+                DELETE FROM device_metric      WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_metric;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

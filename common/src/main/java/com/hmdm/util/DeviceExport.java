@@ -84,7 +84,7 @@ public final class DeviceExport {
 
             // --- Dispositivos -------------------------------------------------------------------------------------
             String[] dh = {"Nombre", "Número", "Carpeta", "Política", "Estado", "Última conexión", "Conectado desde",
-                    "Modelo", "Fabricante", "Android", "Agente", "Serie", "IMEI", "MAC Wi-Fi", "Teléfono", "SIM",
+                    "Modelo", "Fabricante", "Android", "Parche de seguridad", "Actualización de Android", "Agente", "Serie", "IMEI", "MAC Wi-Fi", "Teléfono", "SIM",
                     "Batería %", "Cargando", "Quiosco", "Modo de conexión", "Ubicación", "Hora de la ubicación", "Inscrito"};
             header(sd, dh, st);
             Map<String, Long> openSince = new HashMap<>();
@@ -115,6 +115,9 @@ public final class DeviceExport {
                 text(row.createCell(c++), hw.path("model").asText(""), st);
                 text(row.createCell(c++), hw.path("manufacturer").asText(""), st);
                 text(row.createCell(c++), nonBlank(hw.path("osRelease").asText(""), str(d.get("androidrelease"))), st);
+                text(row.createCell(c++), hw.path("securityPatch").asText(""), st);
+                boolean pending = dyn.hasNonNull("systemUpdatePendingSince");
+                text(row.createCell(c++), pending ? "Pendiente" : "Al día", pending ? st.warn : st.plain);
                 text(row.createCell(c++), str(d.get("agentversion")), st);
                 text(row.createCell(c++), idn.path("serial").asText(""), st);
                 text(row.createCell(c++), join(idn.path("imei")), st);
