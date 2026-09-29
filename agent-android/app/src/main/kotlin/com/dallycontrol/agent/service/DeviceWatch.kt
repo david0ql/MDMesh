@@ -79,8 +79,18 @@ class DeviceWatch @Inject constructor(
             val telecom = context.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager ?: return
             val dialer = runCatching { telecom.defaultDialerPackage }.getOrNull() ?: return
             if (Build.VERSION.SDK_INT >= 23 && !dpm.dpm.isLockTaskPermitted(dialer)) return // the kiosk does not allow calls
-            runCatching { telecom.showInCallScreen(false) }.onFailure { Log.w(TAG, "showInCallScreen", it) }
+            showInCall(telecom)
+            // The broadcast can beat the dialer's call UI: while the call still rings, ask again shortly after.
+            val main = android.os.Handler(android.os.Looper.getMainLooper())
+            for (delayMs in IN_CALL_RETRIES_MS) {
+                main.postDelayed({ if (runCatching { telecom.isInCall }.getOrDefault(false)) showInCall(telecom) }, delayMs)
+            }
         }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission") // READ_PHONE_STATE is granted by the provisioning baseline
+    private fun showInCall(telecom: android.telecom.TelecomManager) {
+        runCatching { telecom.showInCallScreen(false) }.onFailure { Log.w(TAG, "showInCallScreen", it) }
     }
 
     @Synchronized
@@ -142,5 +152,6 @@ class DeviceWatch @Inject constructor(
         /** Hidden framework action (TelephonyIntents.ACTION_SIM_STATE_CHANGED), still broadcast to receivers. */
         const val SIM_STATE_CHANGED = "android.intent.action.SIM_STATE_CHANGED"
         const val IDLE_RECHECK_MS = 60_000L
+        val IN_CALL_RETRIES_MS = longArrayOf(1_500L, 4_000L)
     }
 }

@@ -133,3 +133,38 @@ against a running install: security headers and CSP, the closed legacy endpoints
 directly on Tomcat, including encoded-path tricks), cookie flags and session renewal, a read-only user unable to
 escalate, unsafe file names refused, the login lockout, and the update status hidden from anonymous callers. It
 creates and deletes one temporary Observer user. Dev stack: 43/43.
+
+## Operations parity: folders, codes, policies (FLEET-POLICIES.md)
+
+Against a running install and a Device-Owner phone or emulator enrolled in it (adb reachable):
+
+```bash
+ADMIN_PW=... /opt/homebrew/bin/bash scripts/parity-e2e.sh --base https://mdm.example.com \
+    --device <device number> --serial emulator-5554 --config <kiosk configuration id>   # [--only folders,codes,...]
+DALLYCONTROL_ADMIN_PASSWORD=... node scripts/parity-console-e2e.mjs --api https://mdm.example.com \
+    --device <device number> --config <kiosk configuration id>
+```
+
+`parity-e2e.sh` sections: `folders` (nesting, inheritance, loops refused, branch commands), `codes` (one code enrolls
+several phones into its folder, typed however, revocable), `roles` (kiosk functions resolved per device, incoming call
+visible in kiosk, remote open app), `browser` (Chrome allowlist/blocklist, blocked vs loaded pages), `apps` (installed
+outside the list = suspended at once, allowed later = lifted, Play Store hidden), `trail` (a fix per minute online, and
+fixes captured offline uploaded on reconnection), `sim` (number, SIM change event, modem restart ≠ removal), `passcode`
+(set / wrong refused / cleared, verified with `locksettings`), `launch` (ring plays, open app), `crashloop` (6× Back
+keeps the kiosk and shows *Open <app>*), and the opt-in `typedcode` (re-enrolls the phone by typing a folder code on
+the agent screen). They create `e2e-*` folders/codes/devices and restore the configuration's policy on exit.
+
+### Results (2026-09-28, https://mdm.felapp.co + emulator DallyControl_Pixel8: Android 14 with Google Play, agent 0.2.1)
+
+| Suite | Result |
+|---|---|
+| `parity-e2e.sh` (all sections) | see the run log in the commit that records it |
+| `parity-e2e.sh --only typedcode` | 6/6 |
+| `parity-console-e2e.mjs` | 14/14 |
+| `agent-v1-e2e.sh` (dev stack, regression) | 82/82 |
+| `security-check.sh` (dev: edge + Tomcat) | 44/44 |
+| server/common unit tests · agent unit tests | all green |
+
+Findings fixed along the way: the enroll half of reusable codes was missing; lock task hid incoming calls; the kiosk
+crash-loop guard released the kiosk (4× Back was a way out) and, once fixed, missed bounces when Android recreated the
+kiosk home; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.

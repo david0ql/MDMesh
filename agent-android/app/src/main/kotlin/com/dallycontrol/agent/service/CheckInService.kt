@@ -138,8 +138,20 @@ class CheckInService : LifecycleService() {
         }
     }
 
-    /** Hold the socket when always-on, screen-on, or charging; otherwise drop it (heartbeat covers idle). */
+    /**
+     * Hold the socket when always-on, screen-on, or charging; otherwise drop it (heartbeat covers idle). The identity
+     * is re-read every time: the device may have been re-enrolled while this service ran (a typed enrollment code),
+     * and a socket kept under the old id is never woken.
+     */
     private fun reevaluateSocket() {
+        lifecycleScope.launch {
+            runCatching { identity.current() }.getOrNull()?.let { deviceId = it }
+            runCatching { identity.secret() }.getOrNull()?.let { secret = it }
+            applySocket()
+        }
+    }
+
+    private fun applySocket() {
         val id = deviceId
         val sec = secret
         if (id.isNullOrBlank() || sec.isNullOrBlank()) {

@@ -26,10 +26,13 @@ import java.util.concurrent.TimeUnit
  * backstop when the socket is down.
  */
 @Singleton
-class TransportManager @Inject constructor(
+class TransportManager internal constructor(
     okHttpClient: OkHttpClient,
-    private val serverConfig: ServerConfigStore,
+    private val baseUrl: () -> String,
 ) {
+    @Inject constructor(okHttpClient: OkHttpClient, serverConfig: ServerConfigStore) :
+        this(okHttpClient, serverConfig::baseUrl)
+
     // Keepalive ping kept just under typical proxy idle timeouts (~100s) to hold the socket open
     // with the fewest radio wakeups. (When idle on battery in adaptive mode the socket is dropped
     // entirely, so this cost only applies while the socket is intentionally held hot.)
@@ -51,9 +54,18 @@ class TransportManager @Inject constructor(
     /** Start (or restart) the wake channel for this device. Idempotent. */
     @Synchronized
     fun start(deviceId: String, secret: String, onWake: suspend (WakeSignal) -> Unit) {
+        // Re-enrolled (a code typed on the phone, a forced ADB re-provision): the open socket belongs to the old
+        // device id, which the server no longer wakes — reconnect with the new credentials.
+        val changed = running && (deviceId != this.deviceId || secret != this.secret)
         this.deviceId = deviceId
         this.secret = secret
         this.onWake = onWake
+        if (changed) {
+            ws?.cancel()
+            ws = null
+            connect()
+            return
+        }
         if (running) return
         running = true
         connect()
@@ -68,7 +80,7 @@ class TransportManager @Inject constructor(
 
     private fun connect() {
         if (!running) return
-        val base = serverConfig.baseUrl()
+        val base = baseUrl()
         val url = "$base/agent/ws/$deviceId"
         ws = client.newWebSocket(
             // Secret goes in the handshake header, never the URL (query strings leak into logs).
@@ -95,14 +107,16 @@ class TransportManager @Inject constructor(
                     }
                 }
 
+                // Only the current socket reconnects: a socket replaced by start() (new credentials) reports its
+                // cancellation here, and reconnecting for it would drop the new socket and open a second one.
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    scheduleReconnect()
+                    if (webSocket === ws) scheduleReconnect()
                 }
 
                 // A server-initiated clean close is a failure for backoff purposes too — otherwise
                 // an accept-then-close server drives a reconnect every second, forever.
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    scheduleReconnect()
+                    if (webSocket === ws) scheduleReconnect()
                 }
             },
         )
