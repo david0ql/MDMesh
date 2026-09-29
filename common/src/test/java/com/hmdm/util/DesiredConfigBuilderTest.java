@@ -155,4 +155,19 @@ public class DesiredConfigBuilderTest {
         assertNull("0 minutes is not a trail", d.getTracking());
         assertNull("unknown browser mode = not managed", d.getBrowser());
     }
+
+    @Test
+    public void system_update_policy() {
+        Configuration c = kioskConfig();
+        assertNull("default: not sent (revision unchanged)", DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getSystemUpdate());
+        c.setSystemUpdateType(1);
+        assertEquals("automatic", DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getSystemUpdate().getType());
+        c.setSystemUpdateType(2); c.setSystemUpdateFrom("22:00"); c.setSystemUpdateTo("04:30");
+        com.hmdm.rest.json.agent.DesiredSystemUpdate u = DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getSystemUpdate();
+        assertEquals("windowed", u.getType());
+        assertEquals(Integer.valueOf(1320), u.getFromMinutes());
+        assertEquals(Integer.valueOf(270), u.getToMinutes());
+        c.setSystemUpdateTo("bad");
+        assertNull("a broken window is not sent", DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getSystemUpdate());
+    }
 }

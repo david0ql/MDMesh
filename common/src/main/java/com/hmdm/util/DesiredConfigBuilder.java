@@ -63,6 +63,7 @@ public final class DesiredConfigBuilder {
             t.setIntervalMinutes(dc.getTrackingMinutes());
             d.setTracking(t);
         }
+        d.setSystemUpdate(systemUpdate(cfg));
         if (dc.getWifi() != null) {
             List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
             for (DcPolicy.Wifi w : dc.getWifi()) {
@@ -74,6 +75,37 @@ public final class DesiredConfigBuilder {
         }
         d.setRevision(revision(d));
         return d;
+    }
+
+    /** systemUpdateType: 0 device default (absent), 1 immediately, 2 in the from/to window (HH:MM), 3 postpone. */
+    static com.hmdm.rest.json.agent.DesiredSystemUpdate systemUpdate(Configuration cfg) {
+        com.hmdm.rest.json.agent.DesiredSystemUpdate u = new com.hmdm.rest.json.agent.DesiredSystemUpdate();
+        switch (cfg.getSystemUpdateType()) {
+            case 1:
+                u.setType("automatic");
+                return u;
+            case 2: {
+                Integer from = minutes(cfg.getSystemUpdateFrom()), to = minutes(cfg.getSystemUpdateTo());
+                if (from == null || to == null || from.equals(to)) return null;
+                u.setType("windowed");
+                u.setFromMinutes(from);
+                u.setToMinutes(to);
+                return u;
+            }
+            case 3:
+                u.setType("postpone");
+                return u;
+            default:
+                return null;
+        }
+    }
+
+    private static Integer minutes(String hhmm) {
+        if (hhmm == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*(\\d{1,2}):(\\d{2})\\s*$").matcher(hhmm);
+        if (!m.matches()) return null;
+        int h = Integer.parseInt(m.group(1)), min = Integer.parseInt(m.group(2));
+        return h < 24 && min < 60 ? h * 60 + min : null;
     }
 
     private static DesiredBrowser browser(DcPolicy dc) {

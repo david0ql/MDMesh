@@ -27,6 +27,16 @@ data class ConfigApplyPayload(
     val tracking: ConfigTracking? = null,
     /** Wi-Fi networks to keep saved (absent = not managed; empty = remove the ones added before). */
     val wifi: List<ConfigWifi>? = null,
+    /** Android system-update policy (absent = device default). */
+    val systemUpdate: ConfigSystemUpdate? = null,
+)
+
+/** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */
+@Serializable
+data class ConfigSystemUpdate(
+    val type: String,
+    val fromMinutes: Int? = null,
+    val toMinutes: Int? = null,
 )
 
 /** A Wi-Fi network the configuration saves on the device. [security]: `WPA`, `WEP` or `NONE`. */

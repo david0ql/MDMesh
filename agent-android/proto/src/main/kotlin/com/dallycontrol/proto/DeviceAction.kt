@@ -24,6 +24,11 @@ object DeviceAction {
     /** Open an app's Play Store page so the person taps Install. Payload: `{ "packageName": "…" }`. */
     const val OPEN_STORE = "device.openStore"
 
+    /** Storage: scan (what takes the space), clean (`{clearData:[pkg], deleteFiles:[id]}`), access (`{kind}`). */
+    const val STORAGE_SCAN = "device.storageScan"
+    const val STORAGE_CLEAN = "device.storageClean"
+    const val STORAGE_ACCESS = "device.storageAccess"
+
     /** Set the agent's connectivity power mode. Payload: `{ "mode": "adaptive" | "alwaysOn" }`. */
     const val POWER_MODE = "device.powerMode"
 
@@ -46,5 +51,6 @@ object DeviceAction {
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
+        "storageScan", "storageClean", "storageAccess",
     )
 }

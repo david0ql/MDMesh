@@ -72,6 +72,8 @@ data class DynamicState(
     val sim: SimStateDto? = null,
     /** Fixes captured between check-ins by the periodic trail (ConfigTracking), oldest first. */
     val trail: List<LocationDto> = emptyList(),
+    /** A system (OTA) update is waiting to be installed since this time (Device Owner; null = none known). */
+    val systemUpdatePendingSince: Long? = null,
 )
 
 /**

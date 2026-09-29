@@ -128,11 +128,11 @@ export const CONFIG_FIELDS: FieldDef[] = [
   { key: 'displayStatus', label: 'Mostrar barra de estado', type: 'switch', group: 'Pantalla', help: 'Muestra el estado del dispositivo (batería, hora) en el launcher.' },
 
   // ── Updates ───────────────────────────────────────────────────────────-──
-  { key: 'systemUpdateType', label: 'Actualizaciones del sistema', type: 'enum', group: 'Actualizaciones', help: 'Cuándo se instalan las actualizaciones de Android.', options: [
+  { key: 'systemUpdateType', label: 'Actualizaciones del sistema', type: 'enum', group: 'Actualizaciones', enforced: true, help: 'Cuándo se instalan las actualizaciones de Android: «De inmediato» obliga a instalarlas en cuanto el fabricante las publica; «Programadas», solo dentro de la franja; «Aplazadas», las retiene 30 días.', options: [
     { value: 0, label: 'Predeterminado' }, { value: 1, label: 'De inmediato' }, { value: 2, label: 'Programadas' }, { value: 3, label: 'Aplazadas' },
   ] },
-  { key: 'systemUpdateFrom', label: 'Actualización del sistema desde', type: 'time', group: 'Actualizaciones', help: 'Inicio de la ventana de actualización del sistema (HH:MM, si es Programadas).' },
-  { key: 'systemUpdateTo', label: 'Actualización del sistema hasta', type: 'time', group: 'Actualizaciones', help: 'Fin de la ventana de actualización del sistema (HH:MM, si es Programadas).' },
+  { key: 'systemUpdateFrom', label: 'Actualización del sistema desde', type: 'time', group: 'Actualizaciones', enforced: true, help: 'Inicio de la ventana de actualización del sistema (HH:MM, si es Programadas).' },
+  { key: 'systemUpdateTo', label: 'Actualización del sistema hasta', type: 'time', group: 'Actualizaciones', enforced: true, help: 'Fin de la ventana de actualización del sistema (HH:MM, si es Programadas).' },
   { key: 'scheduleAppUpdate', label: 'Programar actualizaciones de apps', type: 'switch', group: 'Actualizaciones', help: 'Solo instala actualizaciones de apps dentro de una franja horaria.' },
   { key: 'appUpdateFrom', label: 'Actualización de apps desde', type: 'time', group: 'Actualizaciones', help: 'Inicio de la ventana de actualización de apps (HH:MM).' },
   { key: 'appUpdateTo', label: 'Actualización de apps hasta', type: 'time', group: 'Actualizaciones', help: 'Fin de la ventana de actualización de apps (HH:MM).' },

@@ -57,10 +57,22 @@ class DeviceWatch @Inject constructor(
                 runCatching { vnc.prepare() }.onFailure { Log.w(TAG, "droidVNC-NG prepare", it) }
                 CheckInWorker.scheduleNow(context)
             }
-            if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
+            // The update trail: an app replaced by a newer version is an update (with the version it went to).
+            if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
+                if (intent.action == Intent.ACTION_PACKAGE_ADDED) {
+                    val before = lastVersions[pkg]
+                    val now = versionOf(context, pkg)
+                    runCatching { eventLog.record(EventType.APP_UPDATED, "$pkg ${before?.let { "$it -> " } ?: ""}$now") }
+                    lastVersions[pkg] = now
+                    CheckInWorker.scheduleNow(context)
+                } else if (intent.action == Intent.ACTION_PACKAGE_REMOVED) {
+                    lastVersions[pkg] = versionOf(context, pkg) // about to be replaced: remember the old version
+                }
+                return
+            }
             when (intent.action) {
                 Intent.ACTION_PACKAGE_ADDED -> {
-                    runCatching { eventLog.record(EventType.APP_INSTALLED, pkg) }
+                    runCatching { eventLog.record(EventType.APP_INSTALLED, "$pkg ${versionOf(context, pkg)}") }
                     runCatching { appPolicy.reenforce() }.onFailure { Log.w(TAG, "app policy", it) }
                 }
                 Intent.ACTION_PACKAGE_REMOVED -> runCatching { eventLog.record(EventType.APP_UNINSTALLED, pkg) }
@@ -68,6 +80,16 @@ class DeviceWatch @Inject constructor(
             CheckInWorker.scheduleNow(context)
         }
     }
+
+    /** Versions seen just before a replacement (PACKAGE_REMOVED with REPLACING arrives first). */
+    private val lastVersions = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    @Suppress("DEPRECATION")
+    private fun versionOf(context: Context, pkg: String): String = runCatching {
+        val i = context.packageManager.getPackageInfo(pkg, 0)
+        val code = if (Build.VERSION.SDK_INT >= 28) i.longVersionCode else i.versionCode.toLong()
+        "${i.versionName ?: "?"} ($code)"
+    }.getOrDefault("?")
 
     private val simReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {

@@ -32,6 +32,8 @@ class ConfigApplier(
     private val browser: ManagedBrowser? = null,
     private val apps: AppPolicyEnforcer? = null,
     private val wifi: ManagedWifi? = null,
+    /** Apply (or clear, with null) the Android system-update policy; returns a ConfigOutcome. */
+    private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -72,6 +74,11 @@ class ConfigApplier(
             val o = wifi?.let { runCatching { it.apply(nets) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.wifi != null) outcomes["wifi"] = o
+        }
+        if (doc.systemUpdate != null || previous?.systemUpdate != null) {
+            val o = systemUpdates?.let { runCatching { it(doc.systemUpdate) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "system update") } }
+                ?: ConfigOutcome.UNSUPPORTED
+            if (doc.systemUpdate != null) outcomes["systemUpdate"] = o
         }
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }

@@ -54,4 +54,6 @@ public class DesiredConfig {
     private DesiredTracking tracking;
     /** Present = the configuration manages Wi-Fi networks (an empty list removes the ones it added). */
     private java.util.List<DesiredWifi> wifi;
+    /** Present = the configuration sets the Android system-update policy (absent = device default). */
+    private DesiredSystemUpdate systemUpdate;
 }

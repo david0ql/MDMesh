@@ -23,5 +23,8 @@ object EventType {
     const val SIM_INSERTED = "simInserted"
     const val SIM_CHANGED = "simChanged"
     const val APP_BLOCKED = "appBlocked"
+    const val APP_UPDATED = "appUpdated"
+    const val SYSTEM_UPDATED = "systemUpdated"
+    const val SYSTEM_UPDATE_PENDING = "systemUpdatePending"
     const val KIOSK_CRASH_LOOP = "kioskCrashLoop"
 }
