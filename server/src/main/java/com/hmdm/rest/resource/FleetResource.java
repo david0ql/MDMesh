@@ -271,8 +271,8 @@ public class FleetResource {
         return Response.OK(out);
     }
 
-    @ApiOperation(value = "Delete group", notes = "Its devices stay, without a group (they fall back to the global "
-            + "configuration unless they pin their own).")
+    @ApiOperation(value = "Delete group", notes = "Refused while the folder itself holds devices (move them first); "
+            + "its sub-folders move up to its parent.")
     @DELETE
     @Path("/groups/{id}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -285,6 +285,11 @@ public class FleetResource {
         DeviceGroupView group = commandDAO.findGroup(c, id);
         if (group == null) {
             return Response.ERROR("error.group.not.found");
+        }
+        // A folder with devices of its own is not deleted: they would silently lose their folder and policy.
+        if (group.getDeviceCount() > 0) {
+            return Response.ERROR("La carpeta tiene " + group.getDeviceCount() + " dispositivo"
+                    + (group.getDeviceCount() == 1 ? "" : "s") + ": muévelos a otra carpeta antes de eliminarla.");
         }
         // Its sub-folders move up to its parent; they and their devices may now inherit something else.
         Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));

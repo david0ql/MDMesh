@@ -96,6 +96,15 @@ class AnnouncementActivity : ComponentActivity() {
             isAllCaps = false
             setOnClickListener { confirm() }
             isEnabled = !waitForVideo
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.content.res.ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf()),
+                    intArrayOf(ACCENT, Color.parseColor("#3A4252")),
+                ))
+            }
         }
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -174,6 +183,7 @@ class AnnouncementActivity : ComponentActivity() {
         val TEXT = Color.parseColor("#E8EEF4")
         val MUTED = Color.parseColor("#8693A4")
         val SIGNAL = Color.parseColor("#F4B942")
+        val ACCENT = Color.parseColor("#2F6FDF")
 
         fun intent(context: Context, id: Int): Intent =
             Intent(context, AnnouncementActivity::class.java).putExtra(EXTRA_ID, id)

@@ -4,6 +4,7 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { searchDevices, type DeviceView } from '../api/devices';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
+import { agentPackage, buildInstallCommand, bulkQueueCommand } from '../api/commands';
 import {
   getAnnouncement, listAnnouncements, sendAnnouncement, uploadMedia, withdrawAnnouncement,
   type Announcement, type Receipt,
@@ -268,7 +269,18 @@ function Detail({ id, onClose }: { id: number; onClose: () => void }) {
   };
 
   const a = data?.announcement;
-  const state = (r: Receipt) => (r.ackat ? ['ok', 'Confirmado'] : r.seenat ? ['seen', 'Visto'] : r.receivedat ? ['got', 'Recibido'] : ['wait', 'Pendiente']);
+  const state = (r: Receipt) => (r.ackat ? ['ok', 'Confirmado'] : r.seenat ? ['seen', 'Visto'] : r.receivedat ? ['got', 'Recibido']
+    : r.supported === false ? ['old', 'Requiere actualizar el agente'] : ['wait', 'Pendiente (se entrega al conectarse)']);
+  const old = data?.receipts.filter((r) => r.supported === false && !r.receivedat && r.deviceid != null) ?? [];
+  const updateAgents = async () => {
+    try {
+      const spec = await agentPackage();
+      const r = await bulkQueueCommand(old.map((x) => x.deviceid as number), buildInstallCommand(spec));
+      toast.push('ok', 'Actualizando el agente', `En ${r.queued} teléfono${r.queued === 1 ? '' : 's'}; reciben el anuncio al terminar.`);
+    } catch (e) {
+      toast.push('err', 'No se pudo actualizar', e instanceof Error ? e.message : '');
+    }
+  };
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal ann-modal" onClick={(e) => e.stopPropagation()}>
@@ -290,13 +302,20 @@ function Detail({ id, onClose }: { id: number; onClose: () => void }) {
                   return (
                     <tr key={r.devicenumber}>
                       <td>{r.deviceid != null ? <Link to={`/devices/${r.devicenumber}`}>{r.description || r.devicenumber}</Link> : r.devicenumber}</td>
-                      <td><span className={`upd-st ${cls === 'ok' ? 'ok' : cls === 'wait' ? 'wait' : ''}`}>{txt}</span></td>
+                      <td><span className={`upd-st ${cls === 'ok' ? 'ok' : cls === 'wait' ? 'wait' : cls === 'old' ? 'fail' : ''}`}>{txt}</span></td>
                       <td>{when(r.receivedat)}</td><td>{when(r.seenat)}</td><td>{when(r.ackat)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            {old.length > 0 && (
+              <div className="banner banner-warn">
+                {old.length} teléfono{old.length === 1 ? ' tiene' : 's tienen'} un agente anterior a los anuncios: lo reciben en cuanto
+                se actualice.{' '}
+                <button className="btn btn-sm" onClick={() => void updateAgents()}>Actualizar agente en {old.length === 1 ? 'ese teléfono' : 'esos teléfonos'}</button>
+              </div>
+            )}
             <p className="muted small">Los teléfonos apagados o sin conexión lo reciben en cuanto se conectan.</p>
           </>
         )}

@@ -27,6 +27,8 @@ export interface Receipt {
   receivedat?: number | null;
   seenat?: number | null;
   ackat?: number | null;
+  /** False when the phone's agent is too old for announcements (it gets them once updated). */
+  supported?: boolean;
 }
 
 export interface NewAnnouncement {

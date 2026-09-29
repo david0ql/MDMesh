@@ -75,7 +75,8 @@ object Announcements {
     @Synchronized
     fun put(context: Context, a: Announcement) {
         val old = all(context).firstOrNull { it.id == a.id }
-        val merged = if (old == null) a else a.copy(seen = old.seen, acked = old.acked, localMedia = a.localMedia ?: old.localMedia)
+        // Seen / confirmed never go back to false (a re-delivery of the same announcement keeps them).
+        val merged = if (old == null) a else a.copy(seen = a.seen || old.seen, acked = a.acked || old.acked, localMedia = a.localMedia ?: old.localMedia)
         save(context, listOf(merged) + all(context).filter { it.id != a.id })
     }
 

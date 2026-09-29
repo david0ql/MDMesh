@@ -222,7 +222,9 @@ export function GroupsPage() {
                     </button>
                     <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>
                     <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>
-                    <button className="btn btn-sm btn-ghost gr-del" onClick={() => setDialog({ kind: 'delete', group: g })}>
+                    <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
+                            title={g.deviceCount > 0 ? 'Tiene dispositivos: muévelos a otra carpeta antes de eliminarla' : undefined}
+                            onClick={() => setDialog({ kind: 'delete', group: g })}>
                       Eliminar
                     </button>
                     </div>
@@ -252,7 +254,7 @@ export function GroupsPage() {
                 <h3>Eliminar {dialog.group.name}</h3>
                 <p className="muted">
                   {dialog.group.deviceCount
-                    ? `${dialog.group.deviceCount === 1 ? 'Su' : 'Sus'} ${plural(dialog.group.deviceCount, 'dispositivo')} siguen inscritos, sin carpeta, y vuelven a la política global salvo que tengan una propia.`
+                    ? `Tiene ${plural(dialog.group.deviceCount, 'dispositivo')}: muévelos a otra carpeta antes de eliminarla.`
                     : 'La carpeta no tiene dispositivos propios.'}
                   {tree.some((n) => n.group.parentId === dialog.group.id)
                     ? ' Sus subcarpetas suben un nivel.'

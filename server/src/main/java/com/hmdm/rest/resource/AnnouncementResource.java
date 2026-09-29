@@ -93,7 +93,14 @@ public class AnnouncementResource {
         if (a == null) return Response.ERROR("error.announcement.notFound");
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("announcement", a);
-        out.put("receipts", mapper.receipts(id));
+        List<Map<String, Object>> receipts = mapper.receipts(id);
+        // Phones whose agent predates announcements hold them until the agent is updated: say so.
+        for (Map<String, Object> r : receipts) {
+            String n = String.valueOf(r.get("devicenumber"));
+            r.put("supported", com.hmdm.util.AgentCapabilityTokens.isAllowed(AnnouncementSender.TYPE,
+                    com.hmdm.util.AgentCapabilityTokens.flatten(commandDAO.getDeviceCapabilities(n))));
+        }
+        out.put("receipts", receipts);
         return Response.OK(out);
     }
 
