@@ -437,9 +437,10 @@ a {
   display: none;
 }
 
-/* route fade-in */
+/* route fade-in. Fill 'backwards' only: a transform animation still in effect afterwards (fill 'both') makes <main>
+   the containing block of position:fixed children, so modals were clipped to the page area instead of the window. */
 .route-enter {
-  animation: routeIn 0.2s ease both;
+  animation: routeIn 0.2s ease backwards;
 }
 @keyframes routeIn {
   from {

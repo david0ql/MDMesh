@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getEvents, type DeviceEvent } from '../api/events';
-import { listCommandHistory, syncConfigApps, type CommandHistoryItem } from '../api/commands';
+import { listCommandHistory, queueCommand, syncConfigApps, type CommandHistoryItem } from '../api/commands';
+import { systemUpdateCommand } from '../api/fleet';
 
 type Device = { number: string };
 
@@ -14,7 +15,7 @@ const EVENT_KINDS: Record<string, string> = {
   systemUpdatePending: 'Actualización de Android disponible',
 };
 
-const COMMAND_TYPES = new Set(['app.install', 'agent.update', 'device.openStore']);
+const COMMAND_TYPES = new Set(['app.install', 'agent.update', 'device.openStore', 'device.systemUpdate']);
 
 const STATUS: Record<string, Trace['status']> = {
   SUCCEEDED: 'ok', OK: 'ok', DONE: 'ok', COMPLETED: 'ok',
@@ -25,7 +26,8 @@ const LABEL: Record<Trace['status'], string> = { ok: 'Hecho', fail: 'Falló', wa
 
 function fromCommand(c: CommandHistoryItem): Trace {
   const st = STATUS[String(c.status).toUpperCase()] ?? 'wait';
-  const kind = c.type === 'agent.update' ? 'Actualizar agente' : c.type === 'device.openStore' ? 'Abrir en Play Store' : 'Instalar / actualizar app';
+  const kind = c.type === 'agent.update' ? 'Actualizar agente' : c.type === 'device.openStore' ? 'Abrir en Play Store'
+    : c.type === 'device.systemUpdate' ? 'Política de actualización de Android' : 'Instalar / actualizar app';
   return {
     key: `c${c.id}`,
     ts: c.completedAt ?? c.deliveredAt ?? c.createdAt ?? 0,
@@ -79,6 +81,16 @@ export function UpdateTrail({ device, android, patch, pendingSince }: {
     }
   };
 
+  const forceOs = async () => {
+    setMsg(null);
+    try {
+      await queueCommand(device.number, systemUpdateCommand('automatic'));
+      setMsg('Enviado: Android instalará la actualización en cuanto esté disponible (requiere agente 0.4.0 o superior).');
+    } catch (e) {
+      setMsg(`No se pudo enviar: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <div className="panel">
       <h2 className="panel-title">Actualizaciones</h2>
@@ -95,7 +107,12 @@ export function UpdateTrail({ device, android, patch, pendingSince }: {
         horario o posponer. Para las apps, cada versión nueva que subas a la política se instala sola; este botón la
         exige ya en este equipo.
       </p>
-      <button className="btn" type="button" onClick={() => void forceApps()}>Actualizar ya las apps de la política</button>
+      <div className="action-grid">
+        <button className="btn" type="button" onClick={() => void forceApps()}>Actualizar ya las apps de la política</button>
+        <button className="btn" type="button" onClick={() => void forceOs()} title="Android instala su actualización en cuanto esté disponible">
+          Android: instalar actualizaciones ya
+        </button>
+      </div>
       {msg && <p className="small">{msg}</p>}
 
       {traces == null ? (

@@ -227,7 +227,7 @@ const COMMAND_LABELS: Record<string, string> = {
   'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación',
   'device.appLaunch': 'Abrir app', 'device.openStore': 'Abrir en Play Store', 'apps.scan': 'Escanear apps', 'apps.icons': 'Leer íconos', 'policy.apply': 'Aplicar restricción',
   'device.storageScan': 'Analizar almacenamiento', 'device.storageClean': 'Liberar espacio', 'device.storageAccess': 'Pedir acceso',
-  'device.announce': 'Anuncio', 'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
+  'device.announce': 'Anuncio', 'device.systemUpdate': 'Actualización de Android', 'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
   'config.sync': 'Sincronizar política',
 };
 

@@ -62,3 +62,28 @@ class SystemUpdates(private val context: Context, private val dpm: DpmHandle, pr
         const val KEY_VERSION = "version"
     }
 }
+
+/**
+ * `device.systemUpdate` — set the Android update policy right away (from the console, for one device or a whole
+ * folder): `automatic` installs an available update as soon as it is there. `default` clears it. A policy that
+ * defines its own system-update setting takes over again on its next apply.
+ */
+class SystemUpdateHandler(private val updates: SystemUpdates) : com.dallycontrol.core.command.CommandHandler {
+    override val type: String = com.dallycontrol.proto.DeviceAction.SYSTEM_UPDATE
+
+    @kotlinx.serialization.Serializable
+    private data class Payload(val type: String = "automatic", val fromMinutes: Int? = null, val toMinutes: Int? = null)
+
+    override suspend fun handle(command: com.dallycontrol.proto.CommandEnvelope): com.dallycontrol.proto.CommandResult {
+        val p = command.payload?.let { runCatching { com.dallycontrol.proto.ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), it) }.getOrNull() }
+            ?: Payload()
+        val policy = if (p.type == "default") null else ConfigSystemUpdate(p.type, p.fromMinutes, p.toMinutes)
+        val outcome = runCatching { updates.apply(policy) }.getOrElse { return com.dallycontrol.core.command.CommandResults.failed(command, it.message ?: "failed") }
+        val pending = runCatching { updates.pendingSince() }.getOrNull()
+        return if (outcome == ConfigOutcome.APPLIED) {
+            com.dallycontrol.core.command.CommandResults.done(command, if (pending != null) "policy set; an update is waiting and will install" else "policy set; no update pending right now")
+        } else {
+            com.dallycontrol.core.command.CommandResults.failed(command, outcome)
+        }
+    }
+}

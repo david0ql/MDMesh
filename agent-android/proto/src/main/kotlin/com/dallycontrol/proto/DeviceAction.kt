@@ -24,6 +24,9 @@ object DeviceAction {
     /** Open an app's Play Store page so the person taps Install. Payload: `{ "packageName": "…" }`. */
     const val OPEN_STORE = "device.openStore"
 
+    /** Android update policy now: `{ "type": "automatic" | "windowed" | "postpone" | "default", fromMinutes?, toMinutes? }`. */
+    const val SYSTEM_UPDATE = "device.systemUpdate"
+
     /** Show an announcement in the app (text, image or video; mandatory or optional), or withdraw one. */
     const val ANNOUNCE = "device.announce"
 
@@ -54,6 +57,6 @@ object DeviceAction {
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
-        "storageScan", "storageClean", "storageAccess", "announce",
+        "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate",
     )
 }

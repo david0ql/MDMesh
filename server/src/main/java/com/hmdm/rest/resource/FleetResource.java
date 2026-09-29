@@ -64,6 +64,7 @@ public class FleetResource {
     private AgentWakeHub wakeHub;
     private ConfigurationScopeApplier scopes;
     private String baseUrl = "";
+    private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
 
     /** A constructor required by Swagger. */
     public FleetResource() {
@@ -72,7 +73,9 @@ public class FleetResource {
     @Inject
     public FleetResource(AgentCommandDAO commandDAO, UnsecureDAO unsecureDAO, AgentWakeHub wakeHub,
                          ConfigurationScopeApplier scopes,
-                         @com.google.inject.name.Named("base.url") String baseUrl) {
+                         @com.google.inject.name.Named("base.url") String baseUrl,
+                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+        this.configAppInstaller = configAppInstaller;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.commandDAO = commandDAO;
         this.unsecureDAO = unsecureDAO;
@@ -298,6 +301,47 @@ public class FleetResource {
         int changed = scopes.apply(c, r -> members.contains(r.getId()));
         logger.info("Group {} deleted (customer {}); {} device(s) reconfigured", id, c, changed);
         return Response.OK();
+    }
+
+    public static class SyncAppsBody {
+        /** Folders (with their sub-folders). */
+        public List<Integer> groupIds;
+        public List<Integer> deviceIds;
+        public boolean all;
+    }
+
+    @ApiOperation(value = "Update policy apps now", notes = "For every device of the folders (and sub-folders), the listed "
+            + "devices or all: queues app.install for each policy app the phone lacks or has in an older version.")
+    @POST
+    @Path("/syncApps")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response syncApps(SyncAppsBody body) {
+        Optional<Integer> customerId = editor("update policy apps");
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        Set<Integer> groups = new HashSet<>();
+        if (body != null && body.groupIds != null) {
+            for (Integer g : body.groupIds) if (g != null) groups.addAll(commandDAO.groupSubtree(c, g));
+        }
+        Set<Integer> ids = body == null || body.deviceIds == null ? Set.of() : new HashSet<>(body.deviceIds);
+        boolean all = body != null && body.all;
+        int devices = 0, queued = 0;
+        for (DeviceScopeRow r : commandDAO.listDeviceScopes(c)) {
+            if (!(all || ids.contains(r.getId()) || (r.getGroupId() != null && groups.contains(r.getGroupId())))) continue;
+            com.hmdm.persistence.domain.Device d = unsecureDAO.getDeviceByNumber(r.getNumber());
+            if (d == null) continue;
+            devices++;
+            queued += configAppInstaller.enqueueConfigApps(d);
+            wakeHub.wake(r.getNumber(), "commands");
+        }
+        logger.info("Update policy apps: {} install(s) queued on {} device(s) (customer {})", queued, devices, c);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("devices", devices);
+        out.put("queued", queued);
+        return Response.OK(out);
     }
 
     @ApiOperation(value = "Queue a command for a group", notes = "Body: { command: { type, payload?, requiresCapability? } }")

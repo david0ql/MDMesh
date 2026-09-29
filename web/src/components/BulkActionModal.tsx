@@ -6,7 +6,7 @@ import {
 import { listApplications, type Application } from '../api/applications';
 import { BulkKioskModal } from './BulkKioskModal';
 import { useToast } from '../ui/toast';
-import { queueForTarget, targetLabel, type Target } from '../api/fleet';
+import { queueForTarget, syncAppsFor, systemUpdateCommand, targetLabel, type Target } from '../api/fleet';
 
 // Only safe + disruptive actions run in bulk; the destructive group (passcode-reset, wipe) is excluded.
 // kiosk-enter is handled by a dedicated Phase-3 flow, so it is filtered out here too.
@@ -63,6 +63,37 @@ export function BulkActionModal({
       .catch((e) => { if (!cancelled) setAppErr(e instanceof Error ? e.message : 'No se pudieron cargar las aplicaciones'); });
     return () => { cancelled = true; };
   }, [appPicker]);
+
+  async function updateApps() {
+    setBusy(true);
+    try {
+      const r = await syncAppsFor(target);
+      toast.push('ok', 'Apps de la política',
+        r.queued > 0 ? `${r.queued} instalación${r.queued === 1 ? '' : 'es'} en cola en ${r.devices} dispositivo${r.devices === 1 ? '' : 's'}.`
+          : `Los ${r.devices} dispositivos ya tienen las apps de su política al día.`);
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.push('err', 'Apps de la política: falló', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function osUpdates(type: 'automatic' | 'default') {
+    setBusy(true);
+    try {
+      const res = await queueForTarget(target, systemUpdateCommand(type));
+      toast.push('ok', type === 'automatic' ? 'Android: actualizar ya' : 'Android: predeterminado',
+        `En cola para ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}. Requiere agente 0.4.0 o superior.`);
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.push('err', 'Actualización de Android: falló', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function installRemote() {
     setBusy(true);
@@ -170,6 +201,26 @@ export function BulkActionModal({
               <div className="action-grid">
                 <button className="btn" disabled={busy} onClick={() => setAppPicker(true)}>Instalar aplicación…</button>
               </div>
+            </section>
+            <section className="action-group">
+              <h4 className="action-group-title">Actualizaciones</h4>
+              <div className="action-grid">
+                <button className="btn" disabled={busy} onClick={() => void updateApps()} data-testid="bulk-sync-apps"
+                        title="Cada teléfono instala ya las apps de su política que le falten o tenga en versión vieja">
+                  Actualizar apps de la política ya
+                </button>
+                <button className="btn" disabled={busy} onClick={() => void osUpdates('automatic')} data-testid="bulk-os-auto"
+                        title="Android instala sus actualizaciones en cuanto estén disponibles, sin preguntar">
+                  Android: instalar actualizaciones ya
+                </button>
+                <button className="btn btn-ghost" disabled={busy} onClick={() => void osUpdates('default')}>
+                  Android: como venga de fábrica
+                </button>
+              </div>
+              <p className="muted small">
+                Para que quede siempre (también en los que entren después), ponlo en la política: «Actualizaciones del sistema».
+                Las apps nuevas que subas a una política se instalan solas.
+              </p>
             </section>
             <section className="action-group">
               <h4 className="action-group-title">Control remoto</h4>

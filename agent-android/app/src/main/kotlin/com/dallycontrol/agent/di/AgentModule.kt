@@ -428,6 +428,11 @@ object AgentModule {
 
     @Provides
     @IntoSet
+    fun provideSystemUpdateHandler(updates: com.dallycontrol.agent.policy.SystemUpdates): CommandHandler =
+        com.dallycontrol.agent.policy.SystemUpdateHandler(updates)
+
+    @Provides
+    @IntoSet
     fun provideAnnounceHandler(@ApplicationContext context: Context): CommandHandler =
         com.dallycontrol.agent.announce.AnnounceHandler(context)
 

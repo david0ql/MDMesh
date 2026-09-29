@@ -141,6 +141,17 @@ export async function queueForTarget(t: Target, req: QueueCommandRequest): Promi
   return { queued: r.queued, skipped: 0 };
 }
 
+/** Install/update now, on every device of the target, the policy apps it lacks or has in an older version. */
+export async function syncAppsFor(t: Target): Promise<{ devices: number; queued: number }> {
+  const body = t.kind === 'devices' ? { deviceIds: t.ids } : t.kind === 'group' ? { groupIds: [t.id] } : { all: true };
+  return apiClient.post<{ devices: number; queued: number }>(`${BASE}/syncApps`, body);
+}
+
+/** The Android update policy as a command (applies at once; a policy with its own setting takes over on its next apply). */
+export function systemUpdateCommand(type: 'automatic' | 'postpone' | 'default') {
+  return { type: 'device.systemUpdate', requiresCapability: 'device.systemUpdate', payload: JSON.stringify({ type }) };
+}
+
 /**
  * Download the devices workbook (Resumen, Dispositivos, Carpetas, Conexiones). groupId limits it to a folder and its
  * sub-folders; days is the connection history window.
