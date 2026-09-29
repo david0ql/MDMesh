@@ -136,6 +136,13 @@ else
   echo "$OUT" | grep -qi "success" || die "dpm set-device-owner failed: $OUT (the device must have no accounts; factory reset it)"
 fi
 
+# --- 2b. storage tools: per-app sizes (usage access) and deleting large files (all-files access, Android 11+) ---------
+# Only adb (or the person, in Settings) can turn these on; the console's Almacenamiento panel works without them but sees less.
+"${A[@]}" shell appops set "$PKG" GET_USAGE_STATS allow >/dev/null 2>&1 || echo "  warn: usage access not granted"
+if [ "$SDK" -ge 30 ]; then
+  "${A[@]}" shell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE allow >/dev/null 2>&1 || echo "  warn: all-files access not granted"
+fi
+
 # --- 3. optional: unattended remote control ----------------------------------------------------------
 if [ "$REMOTE" = 1 ]; then
   say "setting up unattended remote view/control (droidVNC-NG)"

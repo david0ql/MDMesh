@@ -181,10 +181,11 @@ object AgentModule {
         dynamic: DynamicStateCollector,
         security: SecurityCollector,
         trail: TrailStore,
+        systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
-        dynamic = { dynamic.collect() },
+        dynamic = { dynamic.collect().copy(systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull()) },
         security = { security.collect() },
         // The trail fixes a successful check-in carried are on the server now.
         onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
@@ -426,6 +427,29 @@ object AgentModule {
     ): CommandHandler = RemoteVncStartHandler(vnc, serverConfig, tunnel, identity)
 
     @Provides
+    @Singleton
+    fun provideStorageTools(@ApplicationContext context: Context, handle: DpmHandle): com.dallycontrol.agent.storage.StorageTools =
+        com.dallycontrol.agent.storage.StorageTools(context, handle)
+
+    @Provides
+    @IntoSet
+    fun provideStorageScanHandler(tools: com.dallycontrol.agent.storage.StorageTools): CommandHandler =
+        com.dallycontrol.agent.storage.StorageScanHandler(tools)
+
+    @Provides
+    @IntoSet
+    fun provideStorageCleanHandler(tools: com.dallycontrol.agent.storage.StorageTools): CommandHandler =
+        com.dallycontrol.agent.storage.StorageCleanHandler(tools)
+
+    @Provides
+    @IntoSet
+    fun provideStorageAccessHandler(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        tools: com.dallycontrol.agent.storage.StorageTools,
+    ): CommandHandler = com.dallycontrol.agent.storage.StorageAccessHandler(context, handle, tools)
+
+    @Provides
     @IntoSet
     fun provideRemoteInputSetupHandler(
         @ApplicationContext context: Context,
@@ -456,11 +480,18 @@ object AgentModule {
         apps: AppPolicyEnforcer,
         trail: TrailStore,
         @ApplicationContext context: Context,
+        systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
     ): ConfigApplier = ConfigApplier(
         toggles, kiosk, location::set, store, browser, apps,
         wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
+        systemUpdates = systemUpdates::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
     )
+
+    @Provides
+    @Singleton
+    fun provideSystemUpdates(@ApplicationContext context: Context, handle: DpmHandle, events: EventSink): com.dallycontrol.agent.policy.SystemUpdates =
+        com.dallycontrol.agent.policy.SystemUpdates(context, handle, events)
 
     @Provides
     @IntoSet
