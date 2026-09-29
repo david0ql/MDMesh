@@ -101,7 +101,7 @@ public class AgentAdminResource {
                               AgentWakeHub wakeHub,
                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
                               ConfigReconciler configReconciler,
-                              @com.google.inject.name.Named("base.url") String baseUrl) {
+                              @javax.inject.Named("base.url") String baseUrl) {
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;

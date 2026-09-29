@@ -73,7 +73,7 @@ public class FleetResource {
     @Inject
     public FleetResource(AgentCommandDAO commandDAO, UnsecureDAO unsecureDAO, AgentWakeHub wakeHub,
                          ConfigurationScopeApplier scopes,
-                         @com.google.inject.name.Named("base.url") String baseUrl,
+                         @javax.inject.Named("base.url") String baseUrl,
                          com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
         this.configAppInstaller = configAppInstaller;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
