@@ -187,6 +187,7 @@ class DroidVncController @Inject constructor(
      * that (or by an older agent) without re-applying the configuration. No-op when not in kiosk.
      */
     private fun allowInKiosk() {
+        if (android.os.Build.VERSION.SDK_INT < 26) return // getLockTaskPackages is API 26; older kiosks listed it at entry
         runCatching {
             val current = handle.dpm.getLockTaskPackages(handle.admin)
             if (current.isNotEmpty() && PACKAGE !in current) {

@@ -25,6 +25,12 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Kiosk quick settings and the configuration's Wi-Fi networks (Device-Owner Wi-Fi / Bluetooth / volume). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Report location while parked/backgrounded (Android 10+); DO auto-grants it at provisioning. -->
@@ -78,6 +84,13 @@
         <!-- Custom kiosk launcher. NOT a permanent HOME — the HOME claim lives on the alias below,
              which is toggled on only while in kiosk, so the device uses its normal OEM launcher the
              rest of the time. -->
+        <!-- Kiosk quick settings (brightness, volume, Wi-Fi, Bluetooth) - allowed in lock task with the agent. -->
+        <activity
+            android:name=".kiosk.QuickSettingsActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:lockTaskMode="if_whitelisted" />
+
         <activity
             android:name=".KioskLauncherActivity"
             android:exported="true"

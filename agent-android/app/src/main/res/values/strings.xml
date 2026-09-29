@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DallyControl</string>
+    <string name="app_name" translatable="false">DallyControl</string>
     <string name="device_admin_description">Lets this organisation manage the device: apply policies, manage apps, and run remote support.</string>
     <string name="checkin_notification_channel">Device management</string>
     <string name="checkin_notification_title">Device management active</string>
@@ -19,4 +19,24 @@
     <string name="enroll_submit">Enroll</string>
     <string name="enroll_invalid">Enter the server address (https://…) and the code.</string>
     <string name="enroll_sent">Enrolling… this takes a few seconds.</string>
+
+    <!-- Kiosk quick settings (QuickSettingsActivity). -->
+    <string name="qs_title">Quick settings</string>
+    <string name="qs_brightness">Brightness</string>
+    <string name="qs_volume_media">Media volume</string>
+    <string name="qs_volume_ring">Ring volume</string>
+    <string name="qs_wifi">Wi-Fi</string>
+    <string name="qs_wifi_pick">Choose a Wi-Fi network</string>
+    <string name="qs_wifi_off">Wi-Fi is off</string>
+    <string name="qs_wifi_connected">Connected to %1$s</string>
+    <string name="qs_wifi_none">Not connected</string>
+    <string name="qs_wifi_empty">No networks found. Try again in a few seconds.</string>
+    <string name="qs_wifi_password">Password</string>
+    <string name="qs_wifi_connect">Connect</string>
+    <string name="qs_wifi_joining">Connecting to %1$s…</string>
+    <string name="qs_bluetooth">Bluetooth</string>
+    <string name="qs_no_bluetooth">This device has no Bluetooth.</string>
+    <string name="qs_close">Close</string>
+    <string name="qs_tile">Settings</string>
+    <string name="qs_notification">Tap for quick settings (Wi-Fi, brightness, volume, Bluetooth)</string>
 </resources>

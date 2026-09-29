@@ -44,4 +44,6 @@ public class DesiredKiosk {
     private DesiredKioskTheme theme;
     /** Device functions (phone, contacts, messages, browser, camera, maps) the agent resolves to packages. */
     private List<String> roles;
+    /** The agent's quick settings in kiosk; null = off (keeps older revisions unchanged). */
+    private Boolean quickSettings;
 }

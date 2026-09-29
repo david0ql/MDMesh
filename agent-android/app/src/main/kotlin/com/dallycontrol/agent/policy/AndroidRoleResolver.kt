@@ -31,7 +31,7 @@ class AndroidRoleResolver(private val context: Context) : RoleResolver {
                 KioskRoles.PHONE -> {
                     val tm = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
                     runCatching { tm?.defaultDialerPackage }.getOrNull()?.let(found::add)
-                    runCatching { tm?.systemDialerPackage }.getOrNull()?.let(found::add)
+                    if (Build.VERSION.SDK_INT >= 29) runCatching { tm?.systemDialerPackage }.getOrNull()?.let(found::add)
                     activities(Intent(Intent.ACTION_DIAL)).forEach(found::add)
                     services(Intent("android.telecom.InCallService")).filter(::isSystem).forEach(support::add)
                     listOf("com.android.server.telecom", "com.android.phone").filter(::installed).forEach(support::add)

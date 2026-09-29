@@ -1,29 +1,49 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { scanApps, fetchIcons, getLatestScan, type AppInfo } from '../api/deviceApps';
 import { listApplications, appCategory, type Application } from '../api/applications';
-import { queueCommand } from '../api/commands';
+import { queueCommand, reapplyConfiguration } from '../api/commands';
+import { getConfigStatus } from '../api/configSync';
+import { getConfigurations, type Configuration } from '../api/configurations';
 import { useToast } from '../ui/toast';
 
 type Device = { number: string };
 type Mode = 'launcher' | 'single';
 type Source = 'library' | 'device';
 
+/** System bars shown in kiosk (lock-task features). Recents needs Home. */
+export type KioskFeatures = { home?: boolean; recents?: boolean; notifications?: boolean; systemInfo?: boolean; quickSettings?: boolean };
+
 export type KioskChoice = {
   mode: Mode;                 // 'launcher' | 'single'
   packages: string[];         // pinned/allowed package names
   exitMode: 'gesture' | 'visible' | 'remote';
   password?: string;
+  features?: KioskFeatures;
+  /** Colours / icon size, taken from the device's configuration so a custom kiosk looks the same. */
+  theme?: { backgroundColor?: string; textColor?: string; iconSize?: string };
 };
+
+const DEFAULT_FEATURES: KioskFeatures = { home: true, recents: false, notifications: true, systemInfo: true, quickSettings: true };
 
 /** Build the `kiosk.enter` payload (device-independent). Mirrors the single-device apply() exactly. */
 export function buildKioskPayload(c: KioskChoice): object {
+  const f = { ...DEFAULT_FEATURES, ...(c.features ?? {}) };
+  const { quickSettings, ...bars } = f;
+  const features = { ...bars, recents: bars.home ? bars.recents : false };
+  const base = { exitMode: c.exitMode, password: c.password || undefined, features, theme: c.theme ?? {}, quickSettings: !!quickSettings };
   return c.mode === 'single'
-    ? { mode: 'single', pinPackage: c.packages[0], allowedPackages: c.packages,
-        exitMode: c.exitMode, password: c.password || undefined,
-        features: { home: true, notifications: true } }
-    : { mode: 'launcher', allowedPackages: c.packages,
-        exitMode: c.exitMode, password: c.password || undefined,
-        features: { home: true, notifications: true } };
+    ? { ...base, mode: 'single', pinPackage: c.packages[0], allowedPackages: c.packages }
+    : { ...base, mode: 'launcher', allowedPackages: c.packages };
+}
+
+/** The last custom kiosk sent to a device, so the next one starts from it. */
+const lastKey = (n: string) => `dc.kiosk.last.${n}`;
+type LastChoice = { mode: Mode; packages: string[]; exitMode: KioskChoice['exitMode']; features: KioskFeatures };
+function loadLast(n: string): LastChoice | null {
+  try { const v = localStorage.getItem(lastKey(n)); return v ? (JSON.parse(v) as LastChoice) : null; } catch { return null; }
+}
+function saveLast(n: string, c: LastChoice) {
+  try { localStorage.setItem(lastKey(n), JSON.stringify(c)); } catch { /* storage full or blocked */ }
 }
 
 /** A row in either source, normalised so the list renders the same way. */
@@ -65,12 +85,27 @@ export function KioskEnterModal({
   device, onClose, onQueued,
 }: { device: Device; onClose: () => void; onQueued: () => void }) {
   const toast = useToast();
+  const last = useMemo(() => loadLast(device.number), [device.number]);
   const [source, setSource] = useState<Source>('library');
   const [query, setQuery] = useState('');
   const [showAll, setShowAll] = useState(false);
-  const [mode, setMode] = useState<Mode>('launcher');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [exitMode, setExitMode] = useState<'gesture' | 'visible' | 'remote'>('gesture');
+  const [mode, setMode] = useState<Mode>(last?.mode ?? 'launcher');
+  const [selected, setSelected] = useState<Set<string>>(new Set(last?.packages ?? []));
+  const [exitMode, setExitMode] = useState<'gesture' | 'visible' | 'remote'>(last?.exitMode ?? 'gesture');
+  const [features, setFeatures] = useState<KioskFeatures>(last?.features ?? DEFAULT_FEATURES);
+  // The device's configuration: "use its kiosk" is the default when it has one.
+  const [config, setConfig] = useState<Configuration | null | undefined>(undefined);
+  const [kind, setKind] = useState<'config' | 'custom'>('config');
+  useEffect(() => {
+    getConfigStatus(device.number)
+      .then(async (st) => {
+        const id = st?.configurationId;
+        const c = id == null ? null : (await getConfigurations()).find((x) => x.id === id) ?? null;
+        setConfig(c);
+        if (!c?.kioskMode) setKind('custom');
+      })
+      .catch(() => { setConfig(null); setKind('custom'); });
+  }, [device.number]);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -192,11 +227,30 @@ export function KioskEnterModal({
   const canApply = selected.size > 0 && (mode === 'launcher' || selected.size === 1);
 
   async function apply() {
-    const pkgs = [...selected];
-    const payload = buildKioskPayload({ mode, packages: pkgs, exitMode, password });
     setBusy(true);
+    if (kind === 'config') {
+      try {
+        await reapplyConfiguration(device.number);
+        toast.push('ok', 'Quiosco de la configuración enviado', String(config?.name ?? ''));
+        onQueued();
+        onClose();
+      } catch (e) {
+        toast.push('err', 'No se pudo enviar', e instanceof Error ? e.message : '');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    const pkgs = [...selected];
+    const theme = config ? {
+      backgroundColor: (config.backgroundColor as string) || undefined,
+      textColor: (config.textColor as string) || undefined,
+      iconSize: (config.iconSize as string) || undefined,
+    } : undefined;
+    const payload = buildKioskPayload({ mode, packages: pkgs, exitMode, password, features, theme });
     try {
       await queueCommand(device.number, { type: 'kiosk.enter', payload: JSON.stringify(payload) });
+      saveLast(device.number, { mode, packages: pkgs, exitMode, features });
       toast.push('ok', 'Enter kiosk queued', `${pkgs.length} app${pkgs.length === 1 ? '' : 's'}`);
       onQueued();
       onClose();
@@ -210,8 +264,28 @@ export function KioskEnterModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal kiosk-modal">
-        <h3>Enter kiosk</h3>
-        <p className="muted">Pick the apps to lock the device to — from your library, or by scanning the device.</p>
+        <h3>Entrar en quiosco</h3>
+
+        <div className="kiosk-mode" role="radiogroup" aria-label="Tipo de quiosco">
+          <label>
+            <input type="radio" checked={kind === 'config'} disabled={!config?.kioskMode} onChange={() => setKind('config')} />{' '}
+            Usar el quiosco de la configuración{config?.name ? ` (${String(config.name)})` : ''}
+          </label>
+          <label>
+            <input type="radio" checked={kind === 'custom'} onChange={() => setKind('custom')} /> Personalizado
+          </label>
+        </div>
+        {kind === 'config' ? (
+          <p className="muted" data-testid="kiosk-use-config">
+            {config === undefined
+              ? 'Leyendo la configuración del dispositivo…'
+              : <>El dispositivo vuelve al quiosco de <b>{String(config?.name ?? '')}</b> tal como está configurado: sus apps,
+                funciones, colores, botones y barra. Para cambiarlo, edita la configuración.</>}
+          </p>
+        ) : (
+        <>
+        <p className="muted">Elige las apps a las que se limita el dispositivo — de tu biblioteca o escaneando el dispositivo.
+          {last ? ' Se parte de lo último que enviaste a este dispositivo.' : ''}</p>
 
         <div className="kiosk-source">
           <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Library</button>
@@ -284,6 +358,15 @@ export function KioskEnterModal({
           </div>
         )}
 
+        <div className="kiosk-features" role="group" aria-label="Botones y barra en el quiosco">
+          <span className="muted">Mostrar en el quiosco:</span>
+          <label><input type="checkbox" checked={!!features.home} onChange={(e) => setFeatures((f) => ({ ...f, home: e.target.checked, recents: e.target.checked ? f.recents : false }))} /> Botón Inicio</label>
+          <label><input type="checkbox" checked={!!features.recents} disabled={!features.home} onChange={(e) => setFeatures((f) => ({ ...f, recents: e.target.checked }))} /> Botón Recientes</label>
+          <label><input type="checkbox" checked={!!features.notifications} onChange={(e) => setFeatures((f) => ({ ...f, notifications: e.target.checked }))} /> Notificaciones (barra desplegable)</label>
+          <label><input type="checkbox" checked={!!features.systemInfo} onChange={(e) => setFeatures((f) => ({ ...f, systemInfo: e.target.checked }))} /> Hora, batería y señal</label>
+          <label><input type="checkbox" checked={!!features.quickSettings} onChange={(e) => setFeatures((f) => ({ ...f, quickSettings: e.target.checked }))} /> Ajustes rápidos (Wi‑Fi, brillo, volumen, Bluetooth)</label>
+        </div>
+
         <div className="kiosk-exit-row">
           <label className="field">
             <span>Exit mode</span>
@@ -299,10 +382,14 @@ export function KioskEnterModal({
           </label>
         </div>
 
+        </>
+        )}
+
         <div className="modal-actions">
-          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={busy || !canApply} onClick={() => { void apply(); }}>
-            {busy ? 'Sending…' : `Enter kiosk (${selected.size})`}
+          <button className="btn" disabled={busy} onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={busy || (kind === 'custom' && !canApply) || (kind === 'config' && !config?.kioskMode)}
+                  onClick={() => { void apply(); }}>
+            {busy ? <span key="b">Enviando…</span> : kind === 'config' ? <span key="c">Entrar en quiosco</span> : <span key="p">{`Entrar en quiosco (${selected.size})`}</span>}
           </button>
         </div>
       </div>

@@ -17,4 +17,24 @@
     <string name="enroll_submit">Inscribir</string>
     <string name="enroll_invalid">Escribe la dirección del servidor (https://…) y el código.</string>
     <string name="enroll_sent">Inscribiendo… tarda unos segundos.</string>
+
+    <!-- Kiosk quick settings (QuickSettingsActivity). -->
+    <string name="qs_title">Ajustes rápidos</string>
+    <string name="qs_brightness">Brillo</string>
+    <string name="qs_volume_media">Volumen multimedia</string>
+    <string name="qs_volume_ring">Volumen del timbre</string>
+    <string name="qs_wifi">Wi‑Fi</string>
+    <string name="qs_wifi_pick">Elegir una red Wi‑Fi</string>
+    <string name="qs_wifi_off">El Wi‑Fi está apagado</string>
+    <string name="qs_wifi_connected">Conectado a %1$s</string>
+    <string name="qs_wifi_none">Sin conexión</string>
+    <string name="qs_wifi_empty">No se encontraron redes. Intenta de nuevo en unos segundos.</string>
+    <string name="qs_wifi_password">Contraseña</string>
+    <string name="qs_wifi_connect">Conectar</string>
+    <string name="qs_wifi_joining">Conectando a %1$s…</string>
+    <string name="qs_bluetooth">Bluetooth</string>
+    <string name="qs_no_bluetooth">Este dispositivo no tiene Bluetooth.</string>
+    <string name="qs_close">Cerrar</string>
+    <string name="qs_tile">Ajustes</string>
+    <string name="qs_notification">Toca para ajustes rápidos (Wi‑Fi, brillo, volumen, Bluetooth)</string>
 </resources>

@@ -52,6 +52,27 @@ public class ConfigReconciler {
         return d == null ? null : d.getRevision();
     }
 
+    /**
+     * Queue the device's current configuration document even when it already applied that revision (e.g. to put it
+     * back in the configuration's kiosk after a manual exit). @return false when the device has no configuration or
+     * one is already on its way.
+     */
+    public boolean forceApply(Device device, long now) {
+        DesiredConfig doc = currentDocument(device);
+        if (doc == null) return false;
+        if (commandDAO.hasOpenOfType(device.getNumber(), DesiredConfigBuilder.COMMAND_TYPE)) return true;
+        AgentCommand cmd = new AgentCommand();
+        cmd.setDeviceNumber(device.getNumber());
+        cmd.setType(DesiredConfigBuilder.COMMAND_TYPE);
+        cmd.setPayload(DesiredConfigBuilder.toPayloadJson(doc));
+        cmd.setRequiresCapability(DesiredConfigBuilder.CAPABILITY);
+        cmd.setStatus("pending");
+        cmd.setCreatedAt(now);
+        commandDAO.insert(cmd);
+        logger.info("config.apply re-queued for {} on request (revision {})", device.getNumber(), doc.getRevision());
+        return true;
+    }
+
     /** @return true when a config.apply was enqueued. Never throws. */
     public boolean reconcile(Device device, Set<String> deviceTokens, String appliedRevision, long now) {
         try {

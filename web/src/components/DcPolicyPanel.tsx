@@ -16,6 +16,7 @@ export interface DcPolicy {
   browser?: { mode: 'open' | 'allowlist' | 'blocklist'; allow?: string[]; block?: string[] };
   apps?: { mode: 'open' | 'allowlist'; allowed?: string[]; roles?: string[]; hidePlayStore?: boolean };
   trackingMinutes?: number;
+  kioskQuickSettings?: boolean;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -35,6 +36,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.browser) out.browser = p.browser;
   if (p.apps) out.apps = p.apps;
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
+  if (p.kioskQuickSettings) out.kioskQuickSettings = true;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -80,6 +82,21 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
         </div>
         <div className="cfg-field-ctl">
           <RoleChecks name="Kiosk functions" value={p.kioskRoles ?? []} disabled={disabled} onChange={(v) => update({ ...p, kioskRoles: v })} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Kiosk quick settings</label>
+          <span className="chip chip-enforced">Enforced</span>
+          <span className="cfg-field-help">
+            A Settings tile on the kiosk home (and a notification, when the kiosk shows the status bar) with brightness, volume,
+            Wi-Fi and Bluetooth. Android keeps its own quick-settings panel closed in kiosk; this one never opens system Settings.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Kiosk quick settings" checked={p.kioskQuickSettings === true} disabled={disabled}
+            onChange={(e) => update({ ...p, kioskQuickSettings: e.target.checked || undefined })} />
         </div>
       </div>
 

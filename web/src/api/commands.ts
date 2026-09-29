@@ -333,3 +333,8 @@ export async function installApp(
 ): Promise<QueuedCommand> {
   return queueCommand(deviceId, buildInstallCommand(spec));
 }
+
+/** Send the device its configuration again (e.g. back into the configuration's kiosk after a manual exit). */
+export async function reapplyConfiguration(deviceId: number | string): Promise<void> {
+  await apiClient.post(`/private/agent/v1/devices/${deviceId}/config/reapply`, {});
+}

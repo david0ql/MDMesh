@@ -45,6 +45,8 @@ public class DcPolicy {
     private Browser browser;
     private Apps apps;
     private Integer trackingMinutes;
+    /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth). */
+    private Boolean kioskQuickSettings;
 
     @Getter
     @Setter
@@ -103,7 +105,7 @@ public class DcPolicy {
 
     @JsonIgnore
     public boolean isEmpty() {
-        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null;
+        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null;
     }
 
     private DcPolicy cleaned() {
@@ -131,6 +133,7 @@ public class DcPolicy {
             }
         }
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
+        c.kioskQuickSettings = Boolean.TRUE.equals(kioskQuickSettings) ? Boolean.TRUE : null;
         return c;
     }
 

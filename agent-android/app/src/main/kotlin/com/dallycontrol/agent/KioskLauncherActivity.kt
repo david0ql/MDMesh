@@ -109,6 +109,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun applyState(p: KioskApplyPayload?) {
         active = p
+        com.dallycontrol.agent.kiosk.QuickSettingsNotice.update(this, p?.quickSettings == true)
         if (p == null) {
             paused = false
             stopLockTaskSafely()
@@ -258,6 +259,17 @@ class KioskLauncherActivity : ComponentActivity() {
                 ).apply { setPadding(0, dp(10), 0, 0) },
             )
         }
+        if (p.quickSettings) {
+            grid.addView(
+                appCell(
+                    QUICK_SETTINGS_TILE,
+                    getString(R.string.qs_tile),
+                    ContextCompat.getDrawable(this, android.R.drawable.ic_menu_manage)!!,
+                    cell,
+                    fg,
+                ),
+            )
+        }
         column.addView(grid)
 
         val root = frame(bg)
@@ -295,9 +307,14 @@ class KioskLauncherActivity : ComponentActivity() {
                 setPadding(0, dp(6), 0, 0)
             },
         )
+        contentDescription = "kiosk-app-$pkg"
         setOnClickListener {
             runCatching {
-                packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+                if (pkg == QUICK_SETTINGS_TILE) {
+                    startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
+                } else {
+                    packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+                }
             }
         }
     }
@@ -405,6 +422,8 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private companion object {
         const val BOUNCE_DEDUPE_MS = 1_500L
+        /** Pseudo-package of the quick-settings tile on the kiosk home. */
+        const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         @Volatile var lastAutoLaunch = 0L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7

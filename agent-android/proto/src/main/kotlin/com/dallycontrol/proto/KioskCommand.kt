@@ -28,6 +28,8 @@ data class KioskApplyPayload(
     val password: String? = null,
     val theme: KioskThemeDto = KioskThemeDto(),
     val roles: List<String> = emptyList(),
+    /** Offer the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth) in kiosk. */
+    val quickSettings: Boolean = false,
 )
 
 /** Device functions a configuration can allow by name instead of by package (resolved on the device). */

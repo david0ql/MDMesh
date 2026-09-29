@@ -2871,3 +2871,5 @@ a {
 .codes-revoked { opacity: 0.55; }
 .codes-qr { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
 @media (max-width: 640px) { .codes-new { grid-template-columns: 1fr; } }
+.kiosk-features { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
+.kiosk-features label { display: inline-flex; gap: 6px; align-items: center; }

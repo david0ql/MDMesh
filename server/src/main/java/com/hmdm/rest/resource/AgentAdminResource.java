@@ -715,6 +715,34 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "Re-apply the configuration", notes = "Sends the device its configuration again (kiosk, policies) "
+            + "even when it already applied it — e.g. back into the configuration's kiosk after a manual exit.")
+    @POST
+    @Path("/devices/{deviceId}/config/reapply")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response reapplyConfiguration(@PathParam("deviceId") String deviceId) {
+        if (!canEditDevices("re-apply configuration")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (!configReconciler.forceApply(device, System.currentTimeMillis())) {
+            return Response.ERROR("error.agent.config.none");
+        }
+        wakeHub.wake(deviceId, "commands");
+        return Response.OK();
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Force sync", notes = "Wake the device now so it pulls pending commands + reports state.")
     @POST
     @Path("/devices/{deviceId}/sync")
