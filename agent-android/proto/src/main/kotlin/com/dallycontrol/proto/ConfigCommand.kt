@@ -25,6 +25,17 @@ data class ConfigApplyPayload(
     val browser: ConfigBrowser? = null,
     val apps: ConfigAppPolicy? = null,
     val tracking: ConfigTracking? = null,
+    /** Wi-Fi networks to keep saved (absent = not managed; empty = remove the ones added before). */
+    val wifi: List<ConfigWifi>? = null,
+)
+
+/** A Wi-Fi network the configuration saves on the device. [security]: `WPA`, `WEP` or `NONE`. */
+@Serializable
+data class ConfigWifi(
+    val ssid: String,
+    val password: String? = null,
+    val security: String = "WPA",
+    val hidden: Boolean? = null,
 )
 
 /**

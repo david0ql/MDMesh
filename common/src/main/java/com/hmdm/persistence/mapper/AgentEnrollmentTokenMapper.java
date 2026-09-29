@@ -34,8 +34,8 @@ import org.apache.ibatis.annotations.Update;
 public interface AgentEnrollmentTokenMapper {
 
     @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt, configurationId, groupId, " +
-            "reusable, label) VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, #{expiresAt}, #{configurationId}, " +
-            "#{groupId}, #{reusable}, #{label})"})
+            "reusable, label, wifiSsid, wifiPassword, wifiSecurity) VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, " +
+            "#{expiresAt}, #{configurationId}, #{groupId}, #{reusable}, #{label}, #{wifiSsid}, #{wifiPassword}, #{wifiSecurity})"})
     @SelectKey(statement = "SELECT currval('agentenrollmenttoken_id_seq')", keyColumn = "id", keyProperty = "id",
             before = false, resultType = int.class)
     void insert(AgentEnrollmentToken token);
@@ -68,7 +68,7 @@ public interface AgentEnrollmentTokenMapper {
     void releaseReusable(@Param("id") Integer id);
 
     @Select({"SELECT t.id, t.token AS code, t.label, t.groupId, g.name AS groupName, t.uses, t.revoked, t.createdAt, " +
-            "t.expiresAt FROM agentEnrollmentToken t LEFT JOIN groups g ON g.id = t.groupId " +
+            "t.expiresAt, t.wifiSsid, t.wifiPassword, t.wifiSecurity FROM agentEnrollmentToken t LEFT JOIN groups g ON g.id = t.groupId " +
             "WHERE t.customerId = #{customerId} AND t.reusable = true ORDER BY t.revoked, t.createdAt DESC"})
     java.util.List<com.hmdm.persistence.domain.EnrollmentCodeView> listCodes(@Param("customerId") int customerId);
 

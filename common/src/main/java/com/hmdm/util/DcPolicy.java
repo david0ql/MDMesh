@@ -49,6 +49,20 @@ public class DcPolicy {
     private Boolean kioskQuickSettings;
     /** Automatic device name: serial (default) / imei / model-serial / none. */
     private String deviceName;
+    /** Wi-Fi networks saved on the devices (the agent adds them; one removed here is removed from the phones). */
+    private List<Wifi> wifi;
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Wifi {
+        private String ssid;
+        private String password;
+        /** WPA (default), WEP or NONE. */
+        private String security;
+        private Boolean hidden;
+    }
 
     @Getter
     @Setter
@@ -107,7 +121,7 @@ public class DcPolicy {
 
     @JsonIgnore
     public boolean isEmpty() {
-        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null && deviceName == null;
+        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null && deviceName == null && wifi == null;
     }
 
     private DcPolicy cleaned() {
@@ -137,6 +151,25 @@ public class DcPolicy {
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
         c.kioskQuickSettings = Boolean.TRUE.equals(kioskQuickSettings) ? Boolean.TRUE : null;
         c.deviceName = DeviceNaming.normalizeRule(deviceName);
+        if (wifi != null) {
+            List<Wifi> out = new ArrayList<Wifi>();
+            Set<String> seen = new LinkedHashSet<String>();
+            for (Wifi w : wifi) {
+                if (w == null || w.ssid == null) continue;
+                String ssid = w.ssid.trim();
+                if (ssid.isEmpty() || ssid.length() > 32 || containsControl(ssid) || !seen.add(ssid)) continue;
+                String sec = w.security == null ? "WPA" : w.security.trim().toUpperCase(Locale.ROOT);
+                if (!sec.equals("WPA") && !sec.equals("WEP") && !sec.equals("NONE")) sec = "WPA";
+                Wifi n = new Wifi();
+                n.ssid = ssid;
+                n.security = sec;
+                n.password = sec.equals("NONE") || w.password == null || w.password.length() > 63 ? null : w.password;
+                n.hidden = Boolean.TRUE.equals(w.hidden) ? Boolean.TRUE : null;
+                out.add(n);
+                if (out.size() >= 20) break;
+            }
+            c.wifi = out.isEmpty() ? null : out;
+        }
         return c;
     }
 

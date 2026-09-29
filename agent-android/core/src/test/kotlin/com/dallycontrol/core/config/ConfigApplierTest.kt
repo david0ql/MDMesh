@@ -149,4 +149,14 @@ class ConfigApplierTest {
         assertEquals(ConfigOutcome.UNSUPPORTED, r.outcomes["browser"])
         assertEquals("r3", store.revision())
     }
+
+    @Test fun `wifi networks are applied and cleared when the section disappears`() = runTest {
+        val seen = mutableListOf<List<com.dallycontrol.proto.ConfigWifi>>(); val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, wifi = ManagedWifi { seen += it; ConfigOutcome.APPLIED })
+        val r = applier.apply(ConfigApplyPayload(revision = "w1", wifi = listOf(com.dallycontrol.proto.ConfigWifi("Amovil", "secret123"))))
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifi"])
+        applier.apply(ConfigApplyPayload(revision = "w2"))
+        assertEquals(listOf("Amovil"), seen[0].map { it.ssid })
+        assertEquals("removed section -> empty list (remove what was added)", emptyList<com.dallycontrol.proto.ConfigWifi>(), seen[1])
+    }
 }

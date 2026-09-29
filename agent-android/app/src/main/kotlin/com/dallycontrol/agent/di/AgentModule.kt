@@ -455,7 +455,12 @@ object AgentModule {
         browser: ManagedBrowser,
         apps: AppPolicyEnforcer,
         trail: TrailStore,
-    ): ConfigApplier = ConfigApplier(toggles, kiosk, location::set, store, browser, apps, trail::setIntervalMinutes)
+        @ApplicationContext context: Context,
+    ): ConfigApplier = ConfigApplier(
+        toggles, kiosk, location::set, store, browser, apps,
+        wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
+        setTrackingMinutes = trail::setIntervalMinutes,
+    )
 
     @Provides
     @IntoSet

@@ -52,4 +52,6 @@ public class DesiredConfig {
     private DesiredAppPolicy apps;
     /** Present = a location trail at a fixed interval. */
     private DesiredTracking tracking;
+    /** Present = the configuration manages Wi-Fi networks (an empty list removes the ones it added). */
+    private java.util.List<DesiredWifi> wifi;
 }

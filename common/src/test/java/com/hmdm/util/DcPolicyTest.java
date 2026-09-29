@@ -35,4 +35,17 @@ public class DcPolicyTest {
         assertEquals("blocklist", p.getBrowser().getMode());
         assertEquals(java.util.Collections.singletonList("b.com"), p.getBrowser().getBlock());
     }
+
+    @Test
+    public void wifi_networks_are_cleaned() {
+        DcPolicy p = DcPolicy.parse("{\"wifi\":[{\"ssid\":\" Amovil \",\"password\":\"secret123\"},"
+                + "{\"ssid\":\"Amovil\",\"password\":\"dup\"},{\"ssid\":\"Guest\",\"security\":\"none\",\"password\":\"x\"},"
+                + "{\"ssid\":\"\"},{\"security\":\"WPA\"}]}");
+        assertEquals(2, p.getWifi().size());
+        assertEquals("Amovil", p.getWifi().get(0).getSsid());
+        assertEquals("WPA", p.getWifi().get(0).getSecurity());
+        assertEquals("secret123", p.getWifi().get(0).getPassword());
+        assertEquals("NONE", p.getWifi().get(1).getSecurity());
+        assertNull("open network: no password kept", p.getWifi().get(1).getPassword());
+    }
 }

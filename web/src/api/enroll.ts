@@ -33,17 +33,24 @@ export interface EnrollmentCode {
   revoked: boolean;
   createdAt: number;
   expiresAt: number | null;
+  wifiSsid?: string | null;
+  wifiPassword?: string | null;
+  wifiSecurity?: 'WPA' | 'WEP' | 'NONE' | null;
 }
 
 export const displayCode = (c: string) => (c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c);
 
 export const listEnrollmentCodes = () => apiClient.get<EnrollmentCode[]>('/private/agent/v1/codes');
 
-export const createEnrollmentCode = (groupId: number, label?: string, expiresAt?: number) =>
+export const createEnrollmentCode = (
+  groupId: number, label?: string, expiresAt?: number,
+  wifi?: { ssid: string; password?: string; security: 'WPA' | 'WEP' | 'NONE' },
+) =>
   apiClient.post<EnrollmentCode>('/private/agent/v1/codes', {
     groupId,
     ...(label ? { label } : {}),
     ...(expiresAt ? { expiresAt } : {}),
+    ...(wifi?.ssid ? { wifiSsid: wifi.ssid, wifiPassword: wifi.password ?? '', wifiSecurity: wifi.security } : {}),
   });
 
 export const revokeEnrollmentCode = (id: number) => apiClient.del<void>(`/private/agent/v1/codes/${id}`);

@@ -179,6 +179,11 @@ public class AgentAdminResource {
         public String label;
         /** Optional expiry (epoch ms); null = until revoked. */
         public Long expiresAt;
+        /** Optional Wi-Fi the code's QR provisions the phone on. */
+        public String wifiSsid;
+        public String wifiPassword;
+        /** WPA (default), WEP or NONE. */
+        public String wifiSecurity;
     }
 
     // =================================================================================================================
@@ -215,6 +220,17 @@ public class AgentAdminResource {
         token.setUsed(false);
         token.setCreatedAt(now);
         token.setExpiresAt(body.expiresAt);
+        String ssid = body.wifiSsid == null ? null : body.wifiSsid.trim();
+        if (ssid != null && !ssid.isEmpty()) {
+            String sec = body.wifiSecurity == null ? "WPA" : body.wifiSecurity.trim().toUpperCase(java.util.Locale.ROOT);
+            if (ssid.length() > 32 || !(sec.equals("WPA") || sec.equals("WEP") || sec.equals("NONE"))
+                    || body.wifiPassword != null && body.wifiPassword.length() > 63) {
+                return Response.ERROR("error.agent.code.wifi.invalid");
+            }
+            token.setWifiSsid(ssid);
+            token.setWifiSecurity(sec);
+            token.setWifiPassword(sec.equals("NONE") ? null : body.wifiPassword);
+        }
         // The code space is large (31^8), but the column is unique: retry on the rare collision.
         for (int attempt = 0; ; attempt++) {
             token.setToken(com.hmdm.util.EnrollmentCodes.generate());

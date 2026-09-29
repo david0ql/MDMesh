@@ -18,6 +18,7 @@ export interface DcPolicy {
   trackingMinutes?: number;
   kioskQuickSettings?: boolean;
   deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
+  wifi?: { ssid: string; password?: string; security?: 'WPA' | 'WEP' | 'NONE'; hidden?: boolean }[];
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -39,6 +40,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
   if (p.kioskQuickSettings) out.kioskQuickSettings = true;
   if (p.deviceName) out.deviceName = p.deviceName;
+  if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -217,6 +219,36 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           </div>
         </>
       ) : null}
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Wi-Fi networks</label>
+          <span className="chip chip-enforced">Enforced</span>
+          <span className="cfg-field-help">
+            Saved on every device of this configuration (the first one is joined when the phone has no Wi-Fi). Removing one here
+            removes it from the phones; networks the user added are left alone.
+          </span>
+        </div>
+        <div className="cfg-field-ctl" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="policy-wifi">
+          {(p.wifi ?? []).map((w, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 6 }}>
+              <input className="input" placeholder="SSID" value={w.ssid} disabled={disabled} aria-label={`Wi-Fi ${i + 1} SSID`}
+                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, ssid: e.target.value } : x)) })} />
+              <input className="input" type="password" placeholder="Password" value={w.password ?? ''} disabled={disabled || w.security === 'NONE'}
+                aria-label={`Wi-Fi ${i + 1} password`}
+                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, password: e.target.value } : x)) })} />
+              <select className="sel" value={w.security ?? 'WPA'} disabled={disabled} aria-label={`Wi-Fi ${i + 1} security`}
+                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, security: e.target.value as 'WPA' | 'WEP' | 'NONE' } : x)) })}>
+                <option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="NONE">Open</option>
+              </select>
+              <button className="btn btn-sm btn-ghost" disabled={disabled} aria-label="Remove network"
+                onClick={() => update({ ...p, wifi: (p.wifi ?? []).filter((_, j) => j !== i) })}>✕</button>
+            </div>
+          ))}
+          <button className="btn btn-sm" disabled={disabled} style={{ alignSelf: 'flex-end' }}
+            onClick={() => update({ ...p, wifi: [...(p.wifi ?? []), { ssid: '', security: 'WPA' }] })}>+ Add network</button>
+        </div>
+      </div>
 
       <div className="cfg-field">
         <div className="cfg-field-label">

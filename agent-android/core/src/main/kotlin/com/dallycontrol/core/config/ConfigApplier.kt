@@ -31,6 +31,7 @@ class ConfigApplier(
     private val store: ConfigStateStore,
     private val browser: ManagedBrowser? = null,
     private val apps: AppPolicyEnforcer? = null,
+    private val wifi: ManagedWifi? = null,
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -65,6 +66,12 @@ class ConfigApplier(
             val o = apps?.let { runCatching { it.apply(a) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "apps") } }
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.apps != null) outcomes["apps"] = o
+        }
+        val desiredWifi = doc.wifi ?: previous?.wifi?.let { emptyList() }
+        desiredWifi?.let { nets ->
+            val o = wifi?.let { runCatching { it.apply(nets) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
+                ?: ConfigOutcome.UNSUPPORTED
+            if (doc.wifi != null) outcomes["wifi"] = o
         }
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }

@@ -2949,4 +2949,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.29-enrollment-code-wifi" author="dallycontrol" context="common">
+        <comment>A folder's enrollment code may carry the Wi-Fi network its QR provisions the phone on</comment>
+        <sql>
+            ALTER TABLE agentEnrollmentToken ADD COLUMN wifiSsid VARCHAR(64) NULL;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN wifiPassword VARCHAR(128) NULL;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN wifiSecurity VARCHAR(8) NULL;
+        </sql>
+        <rollback>
+            ALTER TABLE agentEnrollmentToken DROP COLUMN wifiSecurity;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN wifiPassword;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN wifiSsid;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

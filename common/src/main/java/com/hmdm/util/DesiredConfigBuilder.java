@@ -63,6 +63,15 @@ public final class DesiredConfigBuilder {
             t.setIntervalMinutes(dc.getTrackingMinutes());
             d.setTracking(t);
         }
+        if (dc.getWifi() != null) {
+            List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
+            for (DcPolicy.Wifi w : dc.getWifi()) {
+                com.hmdm.rest.json.agent.DesiredWifi n = new com.hmdm.rest.json.agent.DesiredWifi();
+                n.setSsid(w.getSsid()); n.setPassword(w.getPassword()); n.setSecurity(w.getSecurity()); n.setHidden(w.getHidden());
+                nets.add(n);
+            }
+            d.setWifi(nets);
+        }
         d.setRevision(revision(d));
         return d;
     }

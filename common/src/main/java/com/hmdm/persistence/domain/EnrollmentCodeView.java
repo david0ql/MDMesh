@@ -11,6 +11,16 @@ public class EnrollmentCodeView {
     private boolean revoked;
     private Long createdAt;
     private Long expiresAt;
+    private String wifiSsid;
+    private String wifiPassword;
+    private String wifiSecurity;
+
+    public String getWifiSsid() { return wifiSsid; }
+    public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }
+    public String getWifiPassword() { return wifiPassword; }
+    public void setWifiPassword(String wifiPassword) { this.wifiPassword = wifiPassword; }
+    public String getWifiSecurity() { return wifiSecurity; }
+    public void setWifiSecurity(String wifiSecurity) { this.wifiSecurity = wifiSecurity; }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }

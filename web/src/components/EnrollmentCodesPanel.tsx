@@ -19,6 +19,9 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
   const [codes, setCodes] = useState<EnrollmentCode[] | null>(null);
   const [folder, setFolder] = useState('');
   const [label, setLabel] = useState('');
+  const [ssid, setSsid] = useState('');
+  const [wifiPass, setWifiPass] = useState('');
+  const [wifiSec, setWifiSec] = useState<'WPA' | 'WEP' | 'NONE'>('WPA');
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState<EnrollmentCode | null>(null);
   const tree = useMemo(() => groupTree(groups), [groups]);
@@ -33,9 +36,10 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
     if (!folder) return;
     setBusy(true);
     try {
-      const c = await createEnrollmentCode(Number(folder), label.trim() || undefined);
+      const c = await createEnrollmentCode(Number(folder), label.trim() || undefined, undefined,
+        ssid.trim() ? { ssid: ssid.trim(), password: wifiPass, security: wifiSec } : undefined);
       toast.push('ok', 'Code created', `${displayCode(c.code)} → ${pathOf.get(c.groupId ?? -1) ?? c.groupName}`);
-      setLabel('');
+      setLabel(''); setSsid(''); setWifiPass('');
       setShown(c);
       await load();
     } catch (e) {
@@ -86,6 +90,19 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
                  onChange={(e) => setLabel(e.target.value)} aria-label="Code label" />
           <button className="btn btn-primary" disabled={busy || !folder} onClick={() => void create()}>Create code</button>
         </div>
+        <div className="codes-new" data-testid="code-wifi">
+          <input className="input" value={ssid} maxLength={32} placeholder="Wi‑Fi (opcional): nombre de la red"
+                 onChange={(e) => setSsid(e.target.value)} aria-label="Wi-Fi SSID" />
+          <input className="input" type="password" value={wifiPass} maxLength={63} placeholder="Contraseña del Wi‑Fi"
+                 disabled={wifiSec === 'NONE'} onChange={(e) => setWifiPass(e.target.value)} aria-label="Wi-Fi password" />
+          <select className="sel" value={wifiSec} onChange={(e) => setWifiSec(e.target.value as 'WPA' | 'WEP' | 'NONE')} aria-label="Wi-Fi security">
+            <option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="NONE">Abierta</option>
+          </select>
+        </div>
+        <p className="note" style={{ marginTop: -8 }}>
+          Con Wi‑Fi, el QR del código conecta el teléfono formateado a esa red para descargar el agente. Para que la red quede
+          guardada en todos los teléfonos de la carpeta, agrégala también en la configuración (Redes Wi‑Fi).
+        </p>
 
         {codes && codes.length === 0 && <p className="muted">No codes yet.</p>}
         {codes && codes.length > 0 && (
@@ -120,12 +137,14 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
 
         {shown && !shown.revoked && (
           <div className="codes-qr">
-            <div className="qr-frame"><QrCanvas text={buildProvisioningPayload(shown.code)} size={260} /></div>
+            <div className="qr-frame"><QrCanvas text={buildProvisioningPayload(shown.code, shown.wifiSsid
+              ? { ssid: shown.wifiSsid, password: shown.wifiPassword ?? '', security: (shown.wifiSecurity ?? 'WPA') as 'WPA' | 'WEP' | 'NONE' }
+              : undefined)} size={260} /></div>
             <div>
               <div className="mono code-big" style={{ fontSize: 28 }}>{displayCode(shown.code)}</div>
               <p className="note">
                 {(shown.groupId != null && pathOf.get(shown.groupId)) || shown.groupName}
-                {shown.label ? ` · ${shown.label}` : ''}. Reusable: print it for the team that enrolls these phones.
+                {shown.label ? ` · ${shown.label}` : ''}{shown.wifiSsid ? ` · Wi‑Fi ${shown.wifiSsid}` : ''}. Reusable: print it for the team that enrolls these phones.
               </p>
               <button className="btn btn-sm" onClick={() => setShown(null)}>Close</button>
             </div>

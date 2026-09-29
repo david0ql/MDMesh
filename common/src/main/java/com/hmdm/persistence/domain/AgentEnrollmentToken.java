@@ -54,6 +54,17 @@ public class AgentEnrollmentToken implements Serializable {
     private String label;
     private int uses;
     private boolean revoked;
+    /** Wi-Fi the code's QR provisions the phone on (optional). */
+    private String wifiSsid;
+    private String wifiPassword;
+    private String wifiSecurity;
+
+    public String getWifiSsid() { return wifiSsid; }
+    public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }
+    public String getWifiPassword() { return wifiPassword; }
+    public void setWifiPassword(String wifiPassword) { this.wifiPassword = wifiPassword; }
+    public String getWifiSecurity() { return wifiSecurity; }
+    public void setWifiSecurity(String wifiSecurity) { this.wifiSecurity = wifiSecurity; }
 
     public AgentEnrollmentToken() {
     }
