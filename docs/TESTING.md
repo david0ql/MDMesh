@@ -154,17 +154,20 @@ fixes captured offline uploaded on reconnection), `sim` (number, SIM change even
 keeps the kiosk and shows *Open <app>*), and the opt-in `typedcode` (re-enrolls the phone by typing a folder code on
 the agent screen). They create `e2e-*` folders/codes/devices and restore the configuration's policy on exit.
 
-### Results (2026-09-28, https://mdm.felapp.co + emulator DallyControl_Pixel8: Android 14 with Google Play, agent 0.2.1)
+### Results (2026-09-28, https://mdm.felapp.co + emulator DallyControl_Pixel8: Android 14 with Google Play, agent 0.2.2)
 
 | Suite | Result |
 |---|---|
-| `parity-e2e.sh` (all sections) | see the run log in the commit that records it |
+| `parity-e2e.sh` (all sections) | 87/87 |
 | `parity-e2e.sh --only typedcode` | 6/6 |
 | `parity-console-e2e.mjs` | 14/14 |
+| remote view/control in kiosk (tap, typing, Back soft key) | 6/6 |
+| `security-check.sh` (production, behind Cloudflare) | 40/40 |
 | `agent-v1-e2e.sh` (dev stack, regression) | 82/82 |
 | `security-check.sh` (dev: edge + Tomcat) | 44/44 |
 | server/common unit tests · agent unit tests | all green |
 
 Findings fixed along the way: the enroll half of reusable codes was missing; lock task hid incoming calls; the kiosk
 crash-loop guard released the kiosk (4× Back was a way out) and, once fixed, missed bounces when Android recreated the
-kiosk home; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.
+kiosk home; after a re-enrollment the wake socket kept the old device id; the in-call screen could lose the race with
+the phone-state broadcast; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.
