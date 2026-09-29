@@ -242,17 +242,25 @@ public class AgentAdminResource {
         return Response.OK(tokenDAO.listCodes(customerId.get()));
     }
 
-    @ApiOperation(value = "Revoke a reusable enrollment code", notes = "Devices already enrolled stay; the code stops working.")
+    @ApiOperation(value = "Revoke a reusable enrollment code", notes = "Devices already enrolled stay; the code stops working. "
+            + "With ?purge=true a code that is already revoked is deleted from the list.")
     @DELETE
     @Path("/codes/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response revokeCode(@PathParam("id") int id) {
+    public Response revokeCode(@PathParam("id") int id, @QueryParam("purge") boolean purge) {
         if (!canEditDevices("revoke enrollment code")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
+        }
+        if (purge) {
+            if (!tokenDAO.deleteRevoked(customerId.get(), id)) {
+                return Response.ERROR("error.agent.code.not.revoked");
+            }
+            logger.info("Revoked enrollment code {} deleted (customer {})", id, customerId.get());
+            return Response.OK();
         }
         if (!tokenDAO.revoke(customerId.get(), id)) {
             return Response.ERROR("error.agent.code.not.found");

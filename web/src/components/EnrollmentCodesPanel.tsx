@@ -5,7 +5,7 @@ import { QrCanvas } from './QrCanvas';
 import { buildProvisioningPayload, serverBaseUrl } from '../enroll/provisioning';
 import { groupTree, type FleetGroup } from '../api/fleet';
 import {
-  createEnrollmentCode, displayCode, listEnrollmentCodes, revokeEnrollmentCode, type EnrollmentCode,
+  createEnrollmentCode, deleteEnrollmentCode, displayCode, listEnrollmentCodes, revokeEnrollmentCode, type EnrollmentCode,
 } from '../api/enroll';
 
 /**
@@ -57,6 +57,15 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
     }
   }
 
+  async function remove(c: EnrollmentCode) {
+    try {
+      await deleteEnrollmentCode(c.id);
+      await load();
+    } catch (e) {
+      toast.push('err', 'Could not delete', e instanceof Error ? e.message : '');
+    }
+  }
+
   return (
     <section className="panel enroll-wrap" data-testid="enrollment-codes">
       <div className="panel-head">
@@ -91,7 +100,12 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
                   <td data-label="Phones">{c.uses}</td>
                   <td data-label="Created">{fmtDateTime(c.createdAt)}</td>
                   <td>
-                    {c.revoked ? <span className="muted">Revoked</span> : (
+                    {c.revoked ? (
+                      <div className="gr-actions">
+                        <span className="muted">Revoked</span>
+                        <button className="btn btn-sm btn-ghost" onClick={() => void remove(c)}>Delete</button>
+                      </div>
+                    ) : (
                       <div className="gr-actions">
                         <button className="btn btn-sm" onClick={() => setShown(c)}>QR</button>
                         <button className="btn btn-sm btn-ghost gr-del" onClick={() => void revoke(c)}>Revoke</button>

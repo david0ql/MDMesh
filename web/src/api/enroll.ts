@@ -47,3 +47,6 @@ export const createEnrollmentCode = (groupId: number, label?: string, expiresAt?
   });
 
 export const revokeEnrollmentCode = (id: number) => apiClient.del<void>(`/private/agent/v1/codes/${id}`);
+
+/** Remove a revoked code from the list. */
+export const deleteEnrollmentCode = (id: number) => apiClient.del<void>(`/private/agent/v1/codes/${id}?purge=true`);

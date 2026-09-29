@@ -74,4 +74,9 @@ public interface AgentEnrollmentTokenMapper {
 
     @Update({"UPDATE agentEnrollmentToken SET revoked = true WHERE id = #{id} AND customerId = #{customerId} AND reusable = true"})
     int revoke(@Param("customerId") int customerId, @Param("id") int id);
+
+    /** Only a revoked code can be deleted (an active one is revoked first, so no phone is caught mid-enrollment). */
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM agentEnrollmentToken WHERE id = #{id} AND customerId = #{customerId} " +
+            "AND reusable = true AND revoked = true"})
+    int deleteRevoked(@Param("customerId") int customerId, @Param("id") int id);
 }

@@ -73,4 +73,8 @@ public class AgentEnrollmentTokenDAO {
     public boolean revoke(int customerId, int id) {
         return mapper.revoke(customerId, id) == 1;
     }
+
+    public boolean deleteRevoked(int customerId, int id) {
+        return mapper.deleteRevoked(customerId, id) == 1;
+    }
 }
