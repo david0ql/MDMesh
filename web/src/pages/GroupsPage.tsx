@@ -82,7 +82,7 @@ export function GroupsPage() {
 
   function changeGroupConfig(g: FleetGroup, value: string) {
     const cfg = value === '' ? null : Number(value);
-    void guarded(`Configuración de ${g.name}`, async () => {
+    void guarded(`Política de ${g.name}`, async () => {
       const r = await updateGroup(g.id, g.name, cfg, g.parentId);
       return reconfigured(r.devicesReconfigured);
     });
@@ -90,7 +90,7 @@ export function GroupsPage() {
 
   function changeGlobal(value: string) {
     if (!value) return;
-    void guarded('Configuración global', async () => {
+    void guarded('Política global', async () => {
       const r = await setGlobalConfiguration(Number(value));
       return reconfigured(r.devicesReconfigured);
     });
@@ -157,8 +157,8 @@ export function GroupsPage() {
           <div>
             <h2 className="panel-title">Global</h2>
             <p className="muted gr-note">
-              Se aplica a todos los dispositivos. La configuración de una carpeta la reemplaza (y llega a sus subcarpetas que
-              no tengan una), y la configuración propia de un dispositivo reemplaza a ambas.
+              Se aplica a todos los dispositivos. La política de una carpeta la reemplaza (y llega a sus subcarpetas que
+              no tengan una), y la política propia de un dispositivo reemplaza a ambas.
             </p>
           </div>
           <button className="btn" disabled={!data || total === 0}
@@ -167,7 +167,7 @@ export function GroupsPage() {
           </button>
         </div>
         <label className="field gr-field">
-          <span>Configuración por defecto</span>
+          <span>Política por defecto</span>
           <select className="sel" value={data?.global.configurationId ?? ''} disabled={busy || !data}
                   onChange={(e) => changeGlobal(e.target.value)}>
             {data?.global.configurationId == null && <option value="">Seleccionar…</option>}
@@ -187,7 +187,7 @@ export function GroupsPage() {
         {data && data.groups.length > 0 && (
           <table className="gr-table">
             <thead>
-              <tr><th>Carpeta</th><th>Dispositivos</th><th>Configuración</th><th aria-label="Acciones" /></tr>
+              <tr><th>Carpeta</th><th>Dispositivos</th><th>Política</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {tree.map(({ group: g, depth, totalDevices, path }) => (
@@ -204,10 +204,10 @@ export function GroupsPage() {
                       <span className="muted"> · {totalDevices} con subcarpetas</span>
                     )}
                   </td>
-                  <td data-label="Configuración">
+                  <td data-label="Política">
                     <select className="sel" value={g.configurationId ?? ''} disabled={busy}
                             onChange={(e) => changeGroupConfig(g, e.target.value)}
-                            aria-label={`Configuración de ${g.name}`}>
+                            aria-label={`Política de ${g.name}`}>
                       <option value="">
                         {g.parentId != null ? `Heredar (${inheritedName(g)})` : `Global (${globalName})`}
                       </option>
@@ -235,7 +235,7 @@ export function GroupsPage() {
         {data && data.ungroupedDevices > 0 && (
           <p className="muted gr-ungrouped">
             <Link to="/devices?group=none">{plural(data.ungroupedDevices, 'dispositivo')} sin carpeta</Link>: usan la
-            configuración global, salvo que tengan una propia.
+            política global, salvo que tengan una propia.
           </p>
         )}
       </section>
@@ -252,7 +252,7 @@ export function GroupsPage() {
                 <h3>Eliminar {dialog.group.name}</h3>
                 <p className="muted">
                   {dialog.group.deviceCount
-                    ? `${dialog.group.deviceCount === 1 ? 'Su' : 'Sus'} ${plural(dialog.group.deviceCount, 'dispositivo')} siguen inscritos, sin carpeta, y vuelven a la configuración global salvo que tengan una propia.`
+                    ? `${dialog.group.deviceCount === 1 ? 'Su' : 'Sus'} ${plural(dialog.group.deviceCount, 'dispositivo')} siguen inscritos, sin carpeta, y vuelven a la política global salvo que tengan una propia.`
                     : 'La carpeta no tiene dispositivos propios.'}
                   {tree.some((n) => n.group.parentId === dialog.group.id)
                     ? ' Sus subcarpetas suben un nivel.'
@@ -277,7 +277,7 @@ export function GroupsPage() {
                 </label>
                 {dialog.kind === 'create' && (
                   <label className="field">
-                    <span>Configuración</span>
+                    <span>Política</span>
                     <select className="sel" value={newConfig} onChange={(e) => setNewConfig(e.target.value)}>
                       <option value="">
                         {parent ? `Heredar (${nodeOf.get(Number(parent))?.group.effectiveConfigurationName ?? globalName})` : `Global (${globalName})`}

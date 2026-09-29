@@ -136,7 +136,7 @@ export function AppsPanel({ device }: { device: { number: string } }) {
           <div className="modal">
             <h3>¿Desinstalar {confirm.label || confirm.pkg}?</h3>
             <p className="muted">
-              La app y sus datos se eliminan del dispositivo en silencio. Si una configuración todavía la incluye
+              La app y sus datos se eliminan del dispositivo en silencio. Si una política todavía la incluye
               para instalar, la próxima sincronización de apps la vuelve a instalar.
             </p>
             <div className="modal-actions">

@@ -1,4 +1,6 @@
 import { DcPolicyPanel } from '../components/DcPolicyPanel';
+import { PolicyFolders, applyPolicyFolders } from '../components/PolicyFolders';
+import { uploadApkToLibrary } from '../api/uploadToLibrary';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -84,7 +86,7 @@ export function ConfigurationsPage() {
       })
       .catch(() => {
         setConfigs([]);
-        setError('No se pudieron cargar las configuraciones.');
+        setError('No se pudieron cargar las políticas.');
       })
       .then(() => getSyncSummary().then((rows) => setSync(Object.fromEntries(rows.map((r) => [r.configurationId, r])))).catch(() => undefined));
 
@@ -95,7 +97,7 @@ export function ConfigurationsPage() {
 
   if (editing) {
     return (
-      <AppShell title="Configuración">
+      <AppShell title="Política">
         <ConfigEditor
           initial={editing}
           apps={apps}
@@ -116,11 +118,11 @@ export function ConfigurationsPage() {
   }
 
   return (
-    <AppShell title="Configuraciones">
+    <AppShell title="Políticas">
       <div className="page-head">
-        <h1>Configuraciones</h1>
+        <h1>Políticas</h1>
         <button className="btn btn-dark" onClick={() => setChooserOpen(true)}>
-          Nueva configuración
+          Nueva política
         </button>
       </div>
 
@@ -129,7 +131,7 @@ export function ConfigurationsPage() {
       {configs === null ? (
         <div className="panel"><div className="empty"><span className="spin" /> Cargando…</div></div>
       ) : configs.length === 0 ? (
-        <div className="panel"><div className="empty"><span className="label">No hay configuraciones</span>Crea una para usarla como plantilla de dispositivos.</div></div>
+        <div className="panel"><div className="empty"><span className="label">No hay políticas</span>Crea una para usarla como plantilla de dispositivos.</div></div>
       ) : (
         <div className="cfg-grid">
           {configs.map((c) => (
@@ -178,14 +180,14 @@ export function ConfigurationsPage() {
 
   async function doDelete(c: Configuration) {
     if (c.id == null) return;
-    if (!window.confirm(`¿Eliminar la configuración "${c.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`¿Eliminar la política "${c.name}"? Esta acción no se puede deshacer.`)) return;
     try {
       await deleteConfiguration(c.id);
-      toast.push('ok', 'Configuración eliminada', c.name);
+      toast.push('ok', 'Política eliminada', c.name);
       void load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'No se pudo eliminar', /device/i.test(msg) ? 'Todavía hay dispositivos que usan esta configuración.' : msg);
+      toast.push('err', 'No se pudo eliminar', /device/i.test(msg) ? 'Todavía hay dispositivos que usan esta política.' : msg);
     }
   }
 }
@@ -267,11 +269,11 @@ function NewChooser({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Nueva configuración</h3>
+        <h3>Nueva política</h3>
         <p className="muted" style={{ margin: '2px 0 14px' }}>Empieza desde cero o parte de una plantilla predeterminada.</p>
         <div className="chooser-list">
           <button className="chooser-opt" onClick={() => onPick(null)}>
-            <span className="chooser-nm">Configuración en blanco</span>
+            <span className="chooser-nm">Política en blanco</span>
             <span className="chooser-sub">Plantilla vacía: tú defines todo.</span>
           </button>
           {defaults.map((d) => (
@@ -298,7 +300,7 @@ function CopyModal({ source, onClose, onDone }: { source: Configuration; onClose
     setBusy(true);
     try {
       await copyConfiguration(source.id, name.trim(), source.description as string | undefined);
-      toast.push('ok', 'Configuración copiada', name.trim());
+      toast.push('ok', 'Política copiada', name.trim());
       onDone();
     } catch (e) {
       toast.push('err', 'No se pudo copiar', e instanceof Error ? e.message : '');
@@ -309,7 +311,7 @@ function CopyModal({ source, onClose, onDone }: { source: Configuration; onClose
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Copiar configuración</h3>
+        <h3>Copiar política</h3>
         <label className="field"><span>Nombre nuevo</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </label>
@@ -411,7 +413,7 @@ function ConfigEditor({
 
   function requestSave() {
     if (!String(draft.name ?? '').trim()) {
-      toast.push('err', 'Falta el nombre', 'Ponle un nombre a la configuración.');
+      toast.push('err', 'Falta el nombre', 'Ponle un nombre a la política.');
       return;
     }
     if (!appsReady) {
@@ -424,19 +426,42 @@ function ConfigEditor({
     void doSave();
   }
 
+  async function uploadIntoPolicy(file: File) {
+    setUploadingApk(true);
+    try {
+      const r = await uploadApkToLibrary(file);
+      if (r.kind === 'error') { toast.push('err', 'No se agregó el APK', r.note); return; }
+      // In the policy (install), or already there: a new version reaches its phones through the Library version.
+      if (!allowed.some((a) => a.id === r.app.id)) addApps([r.app]);
+      toast.push('ok', r.kind === 'new' ? 'APK agregado a la política' : 'Nueva versión', `${r.note} Guarda la política para aplicarla.`);
+    } catch (e) {
+      toast.push('err', 'Falló la subida', e instanceof Error ? e.message : '');
+    } finally {
+      setUploadingApk(false);
+    }
+  }
+
   async function doSave() {
     setBusy(true);
     try {
-      await saveConfiguration(draft);
-      toast.push('ok', isNew ? 'Configuración creada' : 'Configuración guardada', String(draft.name));
+      const saved = await saveConfiguration(draft);
+      const policyId = (saved?.id ?? draft.id) as number | undefined;
+      if (policyId != null && folders !== null) {
+        const n = await applyPolicyFolders(policyId, folders);
+        if (n) toast.push('ok', 'Carpetas actualizadas', `${n} dispositivo${n === 1 ? '' : 's'} toman esta política.`);
+      }
+      toast.push('ok', isNew ? 'Política creada' : 'Política guardada', String(draft.name));
       onSaved();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'No se pudo guardar', /duplicate/i.test(msg) ? 'Ya existe una configuración con ese nombre.' : msg);
+      toast.push('err', 'No se pudo guardar', /duplicate/i.test(msg) ? 'Ya existe una política con ese nombre.' : msg);
     } finally {
       setBusy(false);
     }
   }
+
+  const [folders, setFolders] = useState<Set<number> | null>(null);
+  const [uploadingApk, setUploadingApk] = useState(false);
 
   const enforcedByGroup = GROUP_ORDER.map((g) => ({
     group: g,
@@ -451,13 +476,13 @@ function ConfigEditor({
   return (
     <>
       <div className="crumb">
-        <a href="/configs" onClick={(e) => { e.preventDefault(); onCancel(); }}>Configuraciones</a>
+        <a href="/configs" onClick={(e) => { e.preventDefault(); onCancel(); }}>Políticas</a>
         {' / '}{isNew ? 'Nueva' : String(initial.name)}
       </div>
 
       <div className="cfg-editbar">
         <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
-          {isNew ? 'Nueva configuración' : String(initial.name)}
+          {isNew ? 'Nueva política' : String(initial.name)}
         </h1>
         <div style={{ flex: 1 }} />
         <button className="btn" onClick={onCancel} disabled={busy}>{readOnly ? <span key="back">Volver</span> : <span key="cancel">Cancelar</span>}</button>
@@ -472,7 +497,7 @@ function ConfigEditor({
 
       {appsError && !appsReady ? (
         <div className="banner banner-alert" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span>No se pudieron cargar las apps asignadas a esta configuración. Guardar está desactivado para no borrar la lista de apps (ni las apps permitidas del quiosco).</span>
+          <span>No se pudieron cargar las apps asignadas a esta política. Guardar está desactivado para no borrar la lista de apps (ni las apps permitidas del quiosco).</span>
           <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setAppsAttempt((n) => n + 1)}>
             Reintentar
           </button>
@@ -508,13 +533,21 @@ function ConfigEditor({
         <div className="cfg-sec-h" style={{ display: 'flex', alignItems: 'center' }}>
           <span>Apps permitidas</span>
           {!readOnly && (
-            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setPickerOpen(true)}>
-              Agregar apps
-            </button>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8 }}>
+              <label className="btn btn-sm" data-testid="policy-upload-apk" style={{ cursor: uploadingApk ? 'wait' : 'pointer' }}>
+                {uploadingApk ? <span key="u">Subiendo…</span> : <span key="s">Subir APK</span>}
+                <input type="file" accept=".apk" hidden disabled={uploadingApk}
+                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadIntoPolicy(f); }} />
+              </label>
+              <button className="btn btn-sm" onClick={() => setPickerOpen(true)}>
+                Agregar desde la biblioteca
+              </button>
+            </span>
           )}
         </div>
         <p className="note" style={{ margin: '0 0 12px' }}>
-          Apps que esta plantilla instala en sus dispositivos. Marca una app como “Desinstalar” para quitarla.
+          Apps que esta política instala y mantiene en sus dispositivos (sube el APK aquí mismo; una versión nueva llega sola
+          a los teléfonos). Marca una app como “Desinstalar” para quitarla.
         </p>
         {allowed.length === 0 && <div className="cfg-empty">No hay apps asignadas.</div>}
         {allowed.map((a) => (
@@ -540,11 +573,13 @@ function ConfigEditor({
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
 
+      {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}
+
       <button className="cfg-adv-toggle" onClick={() => setAdvanced((v) => !v)}>
         {advanced ? '▾' : '▸'} Campos heredados de Headwind ({LEGACY_FIELDS.length}): el agente DallyControl no los aplica
       </button>
       {advanced && (
-        <p className="cfg-legacy-note">Estos campos se guardan con la configuración, pero el agente DallyControl todavía no los aplica. Se conservan para el launcher incluido y para futuras migraciones.</p>
+        <p className="cfg-legacy-note">Estos campos se guardan con la política, pero el agente DallyControl todavía no los aplica. Se conservan para el launcher incluido y para futuras migraciones.</p>
       )}
 
       {advanced &&

@@ -60,7 +60,7 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
 
   return (
     <div className="scope-card">
-      <div className="grp">Carpeta y configuración</div>
+      <div className="grp">Carpeta y política</div>
       <div className="row">
         <span className="k">Carpeta</span>
         <select className="sel v" value={scope.groupId ?? ''} disabled={busy} aria-label="Carpeta"
@@ -73,10 +73,10 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
         </select>
       </div>
       <div className="row">
-        <span className="k">Configuración</span>
+        <span className="k">Política</span>
         <span className="v">
           {scope.configurationName ?? '—'}{' '}
-          <span className={`chip scope-${scope.source}`} title="De dónde viene esta configuración">
+          <span className={`chip scope-${scope.source}`} title="De dónde viene esta política">
             {SOURCE_LABEL[scope.source]}
           </span>
         </span>
@@ -84,10 +84,10 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
       <div className="row">
         <span className="k">Fijar en el dispositivo</span>
         <select className="sel v" value={scope.pinned ? String(scope.configurationId) : ''} disabled={busy}
-                aria-label="Configuración del dispositivo"
+                aria-label="Política del dispositivo"
                 onChange={(e) => {
                   const cfg = e.target.value === '' ? null : Number(e.target.value);
-                  void change(cfg == null ? 'Configuración heredada' : 'Configuración fijada en el dispositivo',
+                  void change(cfg == null ? 'Política heredada' : 'Política fijada en el dispositivo',
                     () => setDevicesConfiguration([deviceId], cfg));
                 }}>
           <option value="">Heredar ({inheritName})</option>

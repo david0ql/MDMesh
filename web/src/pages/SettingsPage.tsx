@@ -41,7 +41,7 @@ export function SettingsPage() {
     setDefaultConfig(value);
     try {
       const r = await setGlobalConfiguration(Number(value));
-      toast.push('ok', 'Configuración global cambiada',
+      toast.push('ok', 'Política global cambiada',
         r.devicesReconfigured ? `${r.devicesReconfigured} dispositivo(s) reconfigurado(s).` : 'Ningún dispositivo necesitó cambios.');
     } catch (e) {
       setDefaultConfig(before);
@@ -304,7 +304,7 @@ export function SettingsPage() {
         {/* Enrollment defaults */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Configuración global</h2>
+            <h2 className="panel-title">Política global</h2>
             <button
               className="btn btn-sm btn-primary"
               onClick={() => navigate('/enroll')}
@@ -314,8 +314,8 @@ export function SettingsPage() {
           </div>
           <div className="set-row">
             <span className="k">
-              Configuración por defecto
-              <small>Para todo dispositivo cuya carpeta no tenga configuración y que no tenga una propia.</small>
+              Política por defecto
+              <small>Para todo dispositivo cuya carpeta no tenga política y que no tenga una propia.</small>
             </span>
             <span className="v">
               <select
@@ -335,7 +335,7 @@ export function SettingsPage() {
           {configList.length === 0 && (
             <div className="set-row">
               <span className="k" style={{ fontWeight: 400 }}>
-                Aún no hay configuraciones asignadas a dispositivos.
+                Aún no hay políticas asignadas a dispositivos.
               </span>
             </div>
           )}

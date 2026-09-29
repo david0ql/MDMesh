@@ -30,7 +30,7 @@ const NAV: NavEntry[] = [
   { to: '/groups', label: 'Carpetas', Icon: IconGroups },
   { to: '/devices', label: 'Dispositivos', Icon: IconDevices },
   { to: '/map', label: 'Mapa', Icon: IconMap },
-  { to: '/configs', label: 'Configuraciones', Icon: IconConfig },
+  { to: '/configs', label: 'Políticas', Icon: IconConfig },
   { to: '/apps', label: 'Aplicaciones', Icon: IconApps },
   { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings },

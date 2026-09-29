@@ -159,7 +159,7 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
             “Solo apps permitidas”: lo que el usuario instale fuera de la lista (p. ej. desde la Play Store) se pausa de inmediato y no
-            se puede abrir; se reactiva cuando lo permites. Las apps de esta configuración siempre están permitidas.
+            se puede abrir; se reactiva cuando lo permites. Las apps de esta política siempre están permitidas.
           </span>
         </div>
         <div className="cfg-field-ctl">
@@ -225,7 +225,7 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <label>Redes Wi‑Fi</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            Se guardan en todos los dispositivos de esta configuración (el teléfono se conecta a la primera si no tiene Wi‑Fi). Si quitas
+            Se guardan en todos los dispositivos de esta política (el teléfono se conecta a la primera si no tiene Wi‑Fi). Si quitas
             una aquí, se quita de los teléfonos; las redes que agregó el usuario no se tocan.
           </span>
         </div>

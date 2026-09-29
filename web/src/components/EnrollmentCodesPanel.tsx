@@ -77,7 +77,7 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
       </div>
       <div style={{ padding: 20 }}>
         <p className="note" style={{ marginTop: 0 }}>
-          Un código reutilizable por carpeta: cada teléfono inscrito con él queda en esa carpeta y toma su configuración. Escríbelo
+          Un código reutilizable por carpeta: cada teléfono inscrito con él queda en esa carpeta y toma su política. Escríbelo
           en el teléfono (DallyControl → <b>Código de inscripción</b>, servidor <span className="mono">{serverBaseUrl()}</span>) o
           escanea su QR en un teléfono formateado. Sirve para cualquier cantidad de teléfonos hasta que lo revoques.
         </p>
@@ -101,7 +101,7 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
         </div>
         <p className="note" style={{ marginTop: -8 }}>
           Con Wi‑Fi, el QR del código conecta el teléfono formateado a esa red para descargar el agente. Para que la red quede
-          guardada en todos los teléfonos de la carpeta, agrégala también en la configuración (Redes Wi‑Fi).
+          guardada en todos los teléfonos de la carpeta, agrégala también en la política (Redes Wi‑Fi).
         </p>
 
         {codes && codes.length === 0 && <p className="muted">Aún no hay códigos.</p>}

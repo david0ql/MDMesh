@@ -233,7 +233,7 @@ export function KioskEnterModal({
     if (kind === 'config') {
       try {
         await reapplyConfiguration(device.number);
-        toast.push('ok', 'Quiosco de la configuración enviado', String(config?.name ?? ''));
+        toast.push('ok', 'Quiosco de la política enviado', String(config?.name ?? ''));
         onQueued();
         onClose();
       } catch (e) {
@@ -271,7 +271,7 @@ export function KioskEnterModal({
         <div className="kiosk-mode" role="radiogroup" aria-label="Tipo de quiosco">
           <label>
             <input type="radio" checked={kind === 'config'} disabled={!config?.kioskMode} onChange={() => setKind('config')} />{' '}
-            Usar el quiosco de la configuración{config?.name ? ` (${String(config.name)})` : ''}
+            Usar el quiosco de la política{config?.name ? ` (${String(config.name)})` : ''}
           </label>
           <label>
             <input type="radio" checked={kind === 'custom'} onChange={() => setKind('custom')} /> Personalizado
@@ -280,9 +280,9 @@ export function KioskEnterModal({
         {kind === 'config' ? (
           <p className="muted" data-testid="kiosk-use-config">
             {config === undefined
-              ? 'Leyendo la configuración del dispositivo…'
+              ? 'Leyendo la política del dispositivo…'
               : <>El dispositivo vuelve al quiosco de <b>{String(config?.name ?? '')}</b> tal como está configurado: sus apps,
-                funciones, colores, botones y barra. Para cambiarlo, edita la configuración.</>}
+                funciones, colores, botones y barra. Para cambiarlo, edita la política.</>}
           </p>
         ) : (
         <>

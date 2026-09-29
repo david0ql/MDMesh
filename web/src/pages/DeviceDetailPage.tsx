@@ -117,6 +117,13 @@ function NameField({
   );
 }
 
+/** "12,4 GB libres de 64 GB" from telemetry byte counts; a dash when unknown. */
+function freeOf(free: unknown, total: unknown): string {
+  const gb = (n: number) => (n / 1024 ** 3).toLocaleString('es-CO', { maximumFractionDigits: 1 });
+  if (typeof free !== 'number' || typeof total !== 'number' || total <= 0) return '—';
+  return `${gb(free)} GB libres de ${gb(total)} GB`;
+}
+
 export function DeviceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -234,7 +241,7 @@ export function DeviceDetailPage() {
     setBusy(true);
     try {
       const res = await syncConfigApps(device.number);
-      toast.push('ok', 'Apps de la configuración enviadas', `${res.queued} ${res.queued === 1 ? 'orden de instalación enviada' : 'órdenes de instalación enviadas'}.`);
+      toast.push('ok', 'Apps de la política enviadas', `${res.queued} ${res.queued === 1 ? 'orden de instalación enviada' : 'órdenes de instalación enviadas'}.`);
     } catch (e) {
       toast.push('err', 'No se pudieron sincronizar las apps', e instanceof Error ? e.message : '');
     } finally {
@@ -280,7 +287,8 @@ export function DeviceDetailPage() {
   ];
   const hardwareRows: Row[] = [
     { k: 'Android', v: orDash(teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion) },
-    { k: 'Almacenamiento', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
+    { k: 'Almacenamiento', v: freeOf(dyn.freeStorageBytes, hw.totalStorageBytes) },
+    { k: 'RAM', v: freeOf(dyn.freeRamBytes, hw.totalRamBytes) },
     { k: 'Serie', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
     { k: 'MAC Wi‑Fi', v: orDash(teleStr(idn.wifiMac)), mono: true },
@@ -299,11 +307,11 @@ export function DeviceDetailPage() {
     { k: 'SIM', v: simLabel },
     { k: 'Número de teléfono', v: orDash((phoneNumbers.length ? phoneNumbers : idnNumbers).join(', ') || undefined), mono: true },
     { k: 'Tipo', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
-    { k: 'IP local', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
+    { k: 'IP local', v: orDash(teleStr(dyn.ipAddress) ?? teleStr(dyn.localIp)), mono: true },
     { k: 'IP pública', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
   ];
   const managementRows: Row[] = [
-    { k: 'Configuración', v: configName },
+    { k: 'Política', v: configName },
     { k: 'Agente', v: orDash(ds?.agentVersion ?? device.launcherVersion) },
     { k: 'Modo MDM', v: onOff(sec.isDeviceOwner, device.mdmMode) },
     { k: 'Inscrito', v: fmtDateTime(device.enrollTime) },
@@ -381,7 +389,7 @@ export function DeviceDetailPage() {
               Bloquear
             </button>
             <button className="sec" disabled={busy} onClick={() => void installConfigApps()}>
-              Instalar apps de la configuración
+              Instalar apps de la política
             </button>
           </div>
 

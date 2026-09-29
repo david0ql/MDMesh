@@ -35,7 +35,7 @@ export function parseOutcomes(detail: string | null | undefined): ConfigOutcomes
 
 /** One-line verdict for badges. Pure so it can be unit-tested once Vitest lands (Phase 6.1). */
 export function summarizeStatus(s: ConfigStatus | null): { tone: 'ok' | 'warn' | 'alert' | 'idle'; label: string } {
-  if (!s || s.configurationId == null) return { tone: 'idle', label: 'Sin configuración' };
+  if (!s || s.configurationId == null) return { tone: 'idle', label: 'Sin política' };
   if (!s.supported) return { tone: 'warn', label: 'Agente desactualizado' };
   if (s.inSync) return { tone: 'ok', label: 'Sincronizado' };
   const st = s.lastCommand?.status;

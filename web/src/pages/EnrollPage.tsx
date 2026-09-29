@@ -151,11 +151,11 @@ export function EnrollPage() {
                   {wifiSsid.trim() ? ` · se conecta al Wi‑Fi “${wifiSsid.trim()}”` : ''}
                 </div>
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
-                  <summary>Conectar a Wi‑Fi durante la configuración (opcional)</summary>
+                  <summary>Conectar a Wi‑Fi durante la puesta en marcha (opcional)</summary>
                   <div className="wifi-fields">
                     {configs.length > 0 && (
                       <label>
-                        Cargar Wi‑Fi desde una configuración
+                        Cargar Wi‑Fi desde una política
                         <select className="sel" value={cfgId} onChange={(e) => setCfgId(e.target.value)}>
                           <option value="">— ninguna / ingresar manualmente —</option>
                           {configs.map((c) => (

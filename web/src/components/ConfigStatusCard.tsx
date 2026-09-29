@@ -11,7 +11,7 @@ export function ConfigStatusCard({ status }: { status: ConfigStatus | null }) {
   const outcomes = parseOutcomes(status?.lastCommand?.detail);
   return (
     <div>
-      <div className="grp">Estado de la configuración</div>
+      <div className="grp">Estado de la política</div>
       <div className="row">
         <span className="k">Estado</span>
         <span className={`v chip tone-${v.tone}`}>{v.label}</span>
@@ -30,7 +30,7 @@ export function ConfigStatusCard({ status }: { status: ConfigStatus | null }) {
         </span>
       </div>
       {v.label === 'Agente desactualizado' ? (
-        <p className="muted">Actualiza el agente (Ajustes → Actualizaciones) para que se aplique la configuración.</p>
+        <p className="muted">Actualiza el agente (Ajustes → Actualizaciones) para que se aplique la política.</p>
       ) : null}
       {outcomes ? (
         <ul className="cfg-outcomes">

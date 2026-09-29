@@ -28,7 +28,7 @@ export function KioskChangeConfirm({ count, keys, onCancel, onConfirm }: { count
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>{count == null ? '¿Cambiar el quiosco en sus dispositivos?' : `¿Cambiar el quiosco en ${count} dispositivo${count === 1 ? '' : 's'}?`}</h3>
-        <p>Este cambio modifica ajustes del quiosco ({keys.join(', ')}). Cada dispositivo asignado a esta configuración volverá a aplicar el quiosco en su próximo reporte, normalmente en segundos. Desactivar el quiosco solo lo quita en los dispositivos que entraron al quiosco mediante esta configuración.</p>
+        <p>Este cambio modifica ajustes del quiosco ({keys.join(', ')}). Cada dispositivo asignado a esta política volverá a aplicar el quiosco en su próximo reporte, normalmente en segundos. Desactivar el quiosco solo lo quita en los dispositivos que entraron al quiosco mediante esta política.</p>
         <div className="modal-actions">
           <button className="btn" onClick={onCancel}>Seguir editando</button>
           <button className="btn btn-primary" onClick={onConfirm}>Guardar y aplicar</button>

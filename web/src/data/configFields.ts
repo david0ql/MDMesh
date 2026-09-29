@@ -47,7 +47,7 @@ export const GROUP_ORDER: FieldGroup[] = [
 
 export const CONFIG_FIELDS: FieldDef[] = [
   // ── Identity ──────────────────────────────────────────────────────────────
-  { key: 'name', label: 'Nombre', type: 'text', group: 'Identidad', focused: true, metadata: true, help: 'Nombre único de esta plantilla de configuración.' },
+  { key: 'name', label: 'Nombre', type: 'text', group: 'Identidad', focused: true, metadata: true, help: 'Nombre único de esta plantilla de política.' },
   { key: 'description', label: 'Descripción', type: 'textarea', group: 'Identidad', focused: true, metadata: true, help: 'Notas opcionales sobre para qué sirve esta plantilla.' },
 
   // ── Apps ──────────────────────────────────────────────────────────────────

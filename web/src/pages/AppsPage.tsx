@@ -30,9 +30,9 @@ interface Source {
 const SOURCES: Source[] = [
   { id: 'library', label: 'Biblioteca', enabled: true, tip: 'Apps ya subidas a este servidor de DallyControl.' },
   { id: 'custom', label: 'APK propio', enabled: true, tip: 'Despliega cualquier APK por archivo o URL, incluidas descargas de APKMirror / APKPure.' },
-  { id: 'device', label: 'En el teléfono', enabled: true, tip: 'Registra una app que los teléfonos ya tienen (Chrome, WhatsApp de la Play Store…) para que las configuraciones puedan permitirla. No se instala nada.' },
+  { id: 'device', label: 'En el teléfono', enabled: true, tip: 'Registra una app que los teléfonos ya tienen (Chrome, WhatsApp de la Play Store…) para que las políticas puedan permitirla. No se instala nada.' },
   { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Busca en el catálogo de código abierto de F-Droid y despliega directamente desde f-droid.org.' },
-  { id: 'play', label: 'Play Store', enabled: true, tip: 'Agrega una app de la Play Store por paquete o enlace. Al desplegarla se abre su página de la Play Store en los teléfonos (la persona toca Instalar); una configuración la permite en el quiosco y en la política de apps.' },
+  { id: 'play', label: 'Play Store', enabled: true, tip: 'Agrega una app de la Play Store por paquete o enlace. Al desplegarla se abre su página de la Play Store en los teléfonos (la persona toca Instalar); una política la permite en el quiosco y en la política de apps.' },
 ];
 
 // APKMirror / APKPure have no usable API and forbid embedding — they're search
@@ -271,7 +271,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         if (vc > current && committedUrl) {
           await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
           toast.push('ok', 'Nueva versión agregada',
-            `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las configuraciones que la usan ahora instalan esta versión.`);
+            `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las políticas que la usan ahora instalan esta versión.`);
         } else if (vc > current) {
           toast.push('err', 'No se pudo alojar el archivo',
             'Ya hay un archivo con ese nombre en el servidor: renombra el APK (p. ej., agrégale la versión) y suéltalo de nuevo.');
@@ -406,12 +406,12 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           : undefined,
       });
       setSavedAppId(saved.id);
-      toast.push('ok', 'Agregada a la Biblioteca', `${name.trim() || pkg.trim()} está en tu Biblioteca: ya se puede asignar a una configuración.`);
+      toast.push('ok', 'Agregada a la Biblioteca', `${name.trim() || pkg.trim()} está en tu Biblioteca: ya se puede asignar a una política.`);
     } catch (e) {
       const existing = (await listApplications(pkg.trim()).catch(() => [])).find((a) => a.pkg === pkg.trim());
       if (existing?.id) {
         setSavedAppId(existing.id);
-        toast.push('ok', 'Ya está en la Biblioteca', 'Esta app ya está en tu Biblioteca: puedes asignarla a una configuración.');
+        toast.push('ok', 'Ya está en la Biblioteca', 'Esta app ya está en tu Biblioteca: puedes asignarla a una política.');
       } else {
         toast.push('err', 'No se pudo agregar a la Biblioteca', e instanceof Error ? e.message : 'El servidor rechazó el guardado.');
       }
@@ -546,7 +546,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           <button className="btn btn-primary" onClick={submit}>
             Desplegar…
           </button>
-          {savedAppId && <span className="note" style={{ margin: 0 }}>Guardada: se puede asignar a una configuración.</span>}
+          {savedAppId && <span className="note" style={{ margin: 0 }}>Guardada: se puede asignar a una política.</span>}
         </div>
       </div>
     </div>
@@ -679,7 +679,7 @@ function DeviceAppSource() {
     setBusy(true);
     try {
       await saveAndroidApplication({ name: nm, pkg: pk, type: 'app' });
-      toast.push('ok', 'Agregada a la Biblioteca', `${nm}: permítela en una configuración (Apps permitidas).`);
+      toast.push('ok', 'Agregada a la Biblioteca', `${nm}: permítela en una política (Apps permitidas).`);
       setName(''); setPkg('');
       setExisting(await listApplications());
     } catch (e) {
@@ -694,8 +694,8 @@ function DeviceAppSource() {
       <h2 className="panel-title">App que ya está en el teléfono</h2>
       <p className="note">
         Para apps que los teléfonos ya tienen: Chrome, o WhatsApp instalado desde la Play Store. No se sube ningún APK ni se
-        instala nada: la app queda disponible para tus configuraciones (quiosco y política de apps). Para el marcador, los contactos o el
-        navegador del teléfono, usa mejor las <b>funciones</b> de una configuración: sirven en todas las marcas.
+        instala nada: la app queda disponible para tus políticas (quiosco y política de apps). Para el marcador, los contactos o el
+        navegador del teléfono, usa mejor las <b>funciones</b> de una política: sirven en todas las marcas.
       </p>
       <div className="dcp-roles" style={{ margin: '8px 0 16px' }}>
         {COMMON_DEVICE_APPS.map((a) => (
@@ -752,7 +752,7 @@ function PlayStoreSource() {
         toast.push('ok', 'Ya está en la Biblioteca', app.name);
       } else {
         await saveAndroidApplication({ name: app.name, pkg: app.packageName, type: 'app', icon: app.icon ?? undefined });
-        toast.push('ok', 'Agregada a la Biblioteca', `${app.name} — despliégala o agrégala a una configuración.`);
+        toast.push('ok', 'Agregada a la Biblioteca', `${app.name} — despliégala o agrégala a una política.`);
       }
       setFound(null); setQ('');
     } catch (e) {
@@ -768,7 +768,7 @@ function PlayStoreSource() {
       <p className="note">
         Busca por paquete o pega el enlace de la Play Store. Al <b>desplegarla</b>, en los teléfonos se abre su página de la
         Play Store y la persona toca <b>Instalar</b>: instalarla sin tocar el teléfono exige la Play administrada de Google, que
-        este sistema no usa. Si la agregas a una configuración, queda permitida en el quiosco y en la política de apps.
+        este sistema no usa. Si la agregas a una política, queda permitida en el quiosco y en la política de apps.
       </p>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '10px 0' }}>
         <input className="input mono" style={{ flex: 1 }} value={q} placeholder="com.whatsapp  o  https://play.google.com/store/apps/details?id=…"

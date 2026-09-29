@@ -193,8 +193,8 @@ export function DevicesPage() {
       const inherit = target === 'inherit';
       await setDevicesConfiguration([...selected], inherit ? null : Number(target));
       const name = inherit ? 'heredada de la carpeta / global'
-        : allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuración';
-      toast.push('ok', 'Configuración cambiada', `${selected.size} dispositivo(s) → ${name}.`);
+        : allConfigs.find((c) => c.id === Number(target))?.name ?? 'política';
+      toast.push('ok', 'Política cambiada', `${selected.size} dispositivo(s) → ${name}.`);
       setMoveOpen(false);
       setTarget('');
       clearSel();
@@ -307,8 +307,8 @@ export function DevicesPage() {
           ))}
           <option value="none">Sin carpeta</option>
         </select>
-        <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filtrar por configuración">
-          <option value="all">Configuración: todas</option>
+        <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filtrar por política">
+          <option value="all">Política: todas</option>
           {configOptions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
@@ -331,7 +331,7 @@ export function DevicesPage() {
             Mover a carpeta
           </button>
           <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
-            Cambiar configuración
+            Cambiar política
           </button>
           <button className="btn btn-sm btn-danger" onClick={() => setDelOpen(true)}>
             Eliminar
@@ -430,16 +430,16 @@ export function DevicesPage() {
       {moveOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setMoveOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Cambiar configuración</h3>
+            <h3>Cambiar política</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Configuración propia para {selected.size} dispositivo{selected.size === 1 ? '' : 's'}: la configuración
+              Política propia para {selected.size} dispositivo{selected.size === 1 ? '' : 's'}: la política
               que elijas aquí tiene prioridad sobre la de la carpeta y la global. &ldquo;Heredar&rdquo; los devuelve a la de su carpeta
-              (o a la configuración global).
+              (o a la política global).
             </p>
             <label className="field">
-              <span>Configuración</span>
+              <span>Política</span>
               <select className="sel" value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: '100%' }}>
-                <option value="">Elige una configuración…</option>
+                <option value="">Elige una política…</option>
                 <option value="inherit">Heredar de la carpeta / global</option>
                 {allConfigs.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.name}</option>
@@ -461,7 +461,7 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Mover a carpeta</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Pon {selected.size} dispositivo{selected.size === 1 ? '' : 's'} en una carpeta (empresa). Toman la configuración
+              Pon {selected.size} dispositivo{selected.size === 1 ? '' : 's'} en una carpeta (empresa). Toman la política
               de la carpeta, salvo que tengan una propia.
             </p>
             <label className="field">
@@ -576,7 +576,7 @@ function DeviceCard({
           <div className="v">{orDash(d.androidVersion)}</div>
         </div>
         <div>
-          <div className="k">Configuración</div>
+          <div className="k">Política</div>
           <div className="v">{config}</div>
         </div>
         <div>
@@ -638,7 +638,7 @@ function DeviceRow({
         <span className="lv">{orDash(d.androidVersion)}</span>
       </div>
       <div className="lc">
-        <span className="lk">Configuración</span>
+        <span className="lk">Política</span>
         <span className="lv">{config}</span>
       </div>
       <div className="lc">

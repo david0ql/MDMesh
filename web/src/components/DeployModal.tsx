@@ -162,7 +162,7 @@ export function DeployModal({
         applicationId: subject.applicationId,
         configurations: updated,
       });
-      const name = configs.find((c) => c.id === cid)?.name ?? 'la configuración';
+      const name = configs.find((c) => c.id === cid)?.name ?? 'la política';
       toast.push('ok', `${subject.label} agregada`, `Asignada a ${name}.`);
       onClose();
     } catch (e) {
@@ -196,16 +196,16 @@ export function DeployModal({
             className={tab === 'config' ? 'on' : ''}
             onClick={() => canAssign && setTab('config')}
             disabled={!canAssign}
-            title={canAssign ? undefined : 'Solo las apps de la Biblioteca se pueden asignar a una configuración'}
+            title={canAssign ? undefined : 'Solo las apps de la Biblioteca se pueden asignar a una política'}
           >
-            Agregar a una configuración
+            Agregar a una política
           </button>
         </div>
 
         {!installable && tab !== 'config' && (
           <div className="banner banner-warn">
             Esta app no tiene APK en el servidor (viene de la Play Store): en los teléfonos elegidos se abre su página de la
-            Play Store para que la persona toque <b>Instalar</b>. Agrégala también a una configuración para permitirla en el
+            Play Store para que la persona toque <b>Instalar</b>. Agrégala también a una política para permitirla en el
             quiosco y en la política de apps.
           </div>
         )}
@@ -213,7 +213,7 @@ export function DeployModal({
           <>
             <p className="note" style={{ marginTop: 0 }}>
               Se instala ahora en todos los dispositivos de las carpetas elegidas, <b>incluidas sus subcarpetas</b>. Para que
-              quede siempre (también en los que entren después), agrégala a la configuración de esas carpetas.
+              quede siempre (también en los que entren después), agrégala a la política de esas carpetas.
             </p>
             <div className="deploy-devlist" data-testid="deploy-folders">
               {tree.length === 0 ? <div className="empty" style={{ padding: 20 }}>No hay carpetas.</div> : tree.map((n) => (
@@ -268,14 +268,14 @@ export function DeployModal({
           </>
         ) : (
           <div className="field" style={{ margin: '4px 0 8px' }}>
-            <span>Configuración</span>
+            <span>Política</span>
             <select
               className="sel"
               value={config}
               onChange={(e) => setConfig(e.target.value)}
               style={{ width: '100%' }}
             >
-              <option value="">Elige una configuración…</option>
+              <option value="">Elige una política…</option>
               {configs.map((c) => (
                 <option key={c.id} value={String(c.id)}>
                   {c.name}
@@ -283,7 +283,7 @@ export function DeployModal({
               ))}
             </select>
             <p className="note" style={{ marginTop: 8 }}>
-              Cada dispositivo con esta configuración instala la app en su próxima sincronización.
+              Cada dispositivo con esta política instala la app en su próxima sincronización.
             </p>
           </div>
         )}

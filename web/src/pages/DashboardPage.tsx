@@ -311,12 +311,12 @@ export function DashboardPage() {
 
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Por configuración</h2>
+              <h2 className="panel-title">Por política</h2>
             </div>
             <div className="ov-listpad">
               {byConfig.length === 0 ? (
                 <div className="empty">
-                  <span className="label">Configuraciones</span>
+                  <span className="label">Políticas</span>
                   Aún no hay dispositivos.
                 </div>
               ) : (
