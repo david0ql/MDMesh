@@ -347,6 +347,11 @@ export async function reapplyConfiguration(deviceId: number | string): Promise<v
   await apiClient.post(`/private/agent/v1/devices/${deviceId}/config/reapply`, {});
 }
 
+/** The DallyControl agent this server hosts, as an install spec (the phone installs it over itself, sha256-checked). */
+export async function agentPackage(): Promise<AppInstallSpec & { version?: string }> {
+  return apiClient.get<AppInstallSpec & { version?: string }>('/private/agent-package');
+}
+
 /** The remote-support app (droidVNC-NG) the server hosts, as an install spec (for installing it on many devices). */
 export async function remoteSupportPackage(): Promise<AppInstallSpec> {
   return apiClient.get<AppInstallSpec>('/private/agent/v1/remote/package');

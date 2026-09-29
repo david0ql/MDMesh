@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getEvents, type DeviceEvent } from '../api/events';
-import { listCommandHistory, queueCommand, syncConfigApps, type CommandHistoryItem } from '../api/commands';
+import { agentPackage, buildInstallCommand, listCommandHistory, queueCommand, syncConfigApps, type CommandHistoryItem } from '../api/commands';
 import { systemUpdateCommand } from '../api/fleet';
 
 type Device = { number: string };
@@ -81,6 +81,17 @@ export function UpdateTrail({ device, android, patch, pendingSince }: {
     }
   };
 
+  const updateAgent = async () => {
+    setMsg(null);
+    try {
+      const spec = await agentPackage();
+      await queueCommand(device.number, buildInstallCommand(spec));
+      setMsg(`Enviado: el teléfono instala el agente ${spec.version ?? ''} (si ya lo tiene, no cambia).`);
+    } catch (e) {
+      setMsg(`No se pudo enviar: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   const forceOs = async () => {
     setMsg(null);
     try {
@@ -109,6 +120,9 @@ export function UpdateTrail({ device, android, patch, pendingSince }: {
       </p>
       <div className="action-grid">
         <button className="btn" type="button" onClick={() => void forceApps()}>Actualizar ya las apps de la política</button>
+        <button className="btn" type="button" onClick={() => void updateAgent()} title="Instala la versión del agente publicada en el servidor">
+          Actualizar agente
+        </button>
         <button className="btn" type="button" onClick={() => void forceOs()} title="Android instala su actualización en cuanto esté disponible">
           Android: instalar actualizaciones ya
         </button>

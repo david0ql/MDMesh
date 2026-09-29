@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt,
-  buildInstallCommand, remoteSupportPackage, type AppInstallSpec,
+  agentPackage, buildInstallCommand, remoteSupportPackage, type AppInstallSpec,
 } from '../api/commands';
 import { listApplications, type Application } from '../api/applications';
 import { BulkKioskModal } from './BulkKioskModal';
@@ -75,6 +75,22 @@ export function BulkActionModal({
       onClose();
     } catch (e) {
       toast.push('err', 'Apps de la política: falló', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateAgent() {
+    setBusy(true);
+    try {
+      const spec = await agentPackage();
+      const res = await queueForTarget(target, buildInstallCommand(spec));
+      toast.push('ok', `Agente ${spec.version ?? ''}: en cola`,
+        `Para ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}; los que ya la tienen no cambian.`);
+      onDone();
+      onClose();
+    } catch (e) {
+      toast.push('err', 'Actualizar agente: falló', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -212,6 +228,10 @@ export function BulkActionModal({
                 <button className="btn" disabled={busy} onClick={() => void osUpdates('automatic')} data-testid="bulk-os-auto"
                         title="Android instala sus actualizaciones en cuanto estén disponibles, sin preguntar">
                   Android: instalar actualizaciones ya
+                </button>
+                <button className="btn" disabled={busy} onClick={() => void updateAgent()} data-testid="bulk-agent-update"
+                        title="Instala en los teléfonos la versión del agente DallyControl publicada en este servidor">
+                  Actualizar agente DallyControl
                 </button>
                 <button className="btn btn-ghost" disabled={busy} onClick={() => void osUpdates('default')}>
                   Android: como venga de fábrica
