@@ -10,26 +10,26 @@ import type { DeviceView, ConfigurationLookup } from '../api/devices';
 type Bucket = 'online' | 'attention' | 'offline';
 
 const EVENT_VERBS: Record<string, string> = {
-  boot: 'booted',
-  appInstalled: 'installed an app',
-  appUninstalled: 'removed an app',
-  commandResult: 'ran a command',
-  connectivityChange: 'changed network',
-  lowBattery: 'reported low battery',
-  enrolled: 'enrolled',
-  simRemoved: 'had its SIM removed',
-  simInserted: 'got a SIM inserted',
-  simChanged: 'had its SIM changed',
-  appBlocked: 'had an app blocked',
-  kioskCrashLoop: 'kiosk app closed repeatedly',
+  boot: 'se encendió',
+  appInstalled: 'instaló una aplicación',
+  appUninstalled: 'eliminó una aplicación',
+  commandResult: 'ejecutó un comando',
+  connectivityChange: 'cambió de red',
+  lowBattery: 'reportó batería baja',
+  enrolled: 'se inscribió',
+  simRemoved: 'se le retiró la SIM',
+  simInserted: 'se le insertó una SIM',
+  simChanged: 'se le cambió la SIM',
+  appBlocked: 'se le bloqueó una aplicación',
+  kioskCrashLoop: 'su aplicación de kiosco se cerró repetidamente',
 };
 
 function configName(
   d: DeviceView,
   configs: Record<string, ConfigurationLookup>,
 ): string {
-  if (d.configurationId == null) return 'Unassigned';
-  return configs[String(d.configurationId)]?.name ?? 'Unassigned';
+  if (d.configurationId == null) return 'Sin asignar';
+  return configs[String(d.configurationId)]?.name ?? 'Sin asignar';
 }
 
 function bucketOf(d: DeviceView, now?: number): Bucket {
@@ -178,9 +178,9 @@ export function DashboardPage() {
   }, [loading, devices]);
 
   return (
-    <AppShell title="Overview">
+    <AppShell title="Resumen">
       <div className="page-head">
-        <h1>Overview</h1>
+        <h1>Resumen</h1>
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
@@ -188,21 +188,21 @@ export function DashboardPage() {
       <div className="panel fleet">
         <div className="fleet-big">
           {total}
-          <small>{total === 1 ? 'device' : 'devices'}</small>
+          <small>{total === 1 ? 'dispositivo' : 'dispositivos'}</small>
         </div>
         <div className="fleet-barwrap">
           <div className="fleet-legend">
             <span>
               <i style={{ background: 'var(--online)' }} />
-              {counts.online} online
+              {counts.online} en línea
             </span>
             <span>
               <i style={{ background: 'var(--warn)' }} />
-              {counts.attention} need attention
+              {counts.attention} requiere{counts.attention === 1 ? '' : 'n'} atención
             </span>
             <span>
               <i style={{ background: 'var(--offline)' }} />
-              {counts.offline} offline
+              {counts.offline} sin conexión
             </span>
           </div>
           <div className="fleet-bar">
@@ -216,23 +216,23 @@ export function DashboardPage() {
       <div className="ov-grid">
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Recent activity</h2>
+            <h2 className="panel-title">Actividad reciente</h2>
             <button
               className="btn btn-sm btn-ghost"
               onClick={() => navigate('/devices')}
             >
-              All devices →
+              Todos los dispositivos →
             </button>
           </div>
           <div className="ov-listpad">
             {activity === null ? (
               <div className="empty">
-                <span className="spin" /> Loading activity…
+                <span className="spin" /> Cargando actividad…
               </div>
             ) : activity.length === 0 ? (
               <div className="empty">
-                <span className="label">Activity</span>
-                No recent events.
+                <span className="label">Actividad</span>
+                No hay eventos recientes.
               </div>
             ) : (
               activity.map((a) => (
@@ -271,17 +271,17 @@ export function DashboardPage() {
         <div className="ov-col">
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Needs attention</h2>
+              <h2 className="panel-title">Requiere atención</h2>
             </div>
             <div className="ov-listpad">
               {loading ? (
                 <div className="empty">
-                  <span className="spin" /> Loading…
+                  <span className="spin" /> Cargando…
                 </div>
               ) : attention.length === 0 ? (
                 <div className="empty">
-                  <span className="label">All clear</span>
-                  Every device is online.
+                  <span className="label">Todo en orden</span>
+                  Todos los dispositivos están en línea.
                 </div>
               ) : (
                 attention.map((d) => {
@@ -311,13 +311,13 @@ export function DashboardPage() {
 
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">By configuration</h2>
+              <h2 className="panel-title">Por configuración</h2>
             </div>
             <div className="ov-listpad">
               {byConfig.length === 0 ? (
                 <div className="empty">
-                  <span className="label">Configurations</span>
-                  No devices yet.
+                  <span className="label">Configuraciones</span>
+                  Aún no hay dispositivos.
                 </div>
               ) : (
                 byConfig.map(([name, n]) => (

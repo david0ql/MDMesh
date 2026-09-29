@@ -10,15 +10,15 @@ interface StatusMeta {
 }
 
 const MAP: Record<string, StatusMeta> = {
-  green: { tone: 'ok', label: 'Online' },
-  yellow: { tone: 'warn', label: 'Idle' },
-  brown: { tone: 'warn', label: 'Stale' },
-  red: { tone: 'alert', label: 'Offline' },
-  grey: { tone: 'idle', label: 'Unknown' },
+  green: { tone: 'ok', label: 'En línea' },
+  yellow: { tone: 'warn', label: 'Inactivo' },
+  brown: { tone: 'warn', label: 'Desactualizado' },
+  red: { tone: 'alert', label: 'Sin conexión' },
+  grey: { tone: 'idle', label: 'Desconocido' },
 };
 
 export function statusMeta(code?: string): StatusMeta {
-  return MAP[code ?? 'grey'] ?? { tone: 'idle', label: code ?? 'Unknown' };
+  return MAP[code ?? 'grey'] ?? { tone: 'idle', label: code ?? 'Desconocido' };
 }
 
 /** Online if last sync is within this window (ms). */

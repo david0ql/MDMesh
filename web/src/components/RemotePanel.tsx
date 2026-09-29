@@ -44,7 +44,7 @@ export function RemotePanel({ device }: { device: Device }) {
       setStatus(await getRemoteStatus(device.number));
       setStatusErr(null);
     } catch (e) {
-      setStatusErr(e instanceof Error ? e.message : 'Could not read the device');
+      setStatusErr(e instanceof Error ? e.message : 'No se pudo leer el dispositivo');
     }
   }, [device.number]);
 
@@ -73,13 +73,13 @@ export function RemotePanel({ device }: { device: Device }) {
       if (s) setStatus(s);
       if (s?.powerMode === 'alwaysOn') {
         setSwitching(false);
-        toast.push('ok', 'Always-on active', 'The device now answers remote sessions instantly.');
+        toast.push('ok', 'Siempre conectado activo', 'El dispositivo ya responde al instante a las sesiones remotas.');
         return;
       }
       if (Date.now() - since > SWITCH_LIMIT_MS) {
         setSwitching(false);
-        toast.push('err', 'Still in battery-saver',
-          'The device has not confirmed yet; it will switch at its next check-in (a few minutes while locked).');
+        toast.push('err', 'Sigue en ahorro de batería',
+          'El dispositivo aún no confirma; cambiará en su próxima conexión (unos minutos si está bloqueado).');
         return;
       }
       t = setTimeout(() => void tick(), POLL_MS);
@@ -103,11 +103,11 @@ export function RemotePanel({ device }: { device: Device }) {
         return;
       }
       if (cmd && ['failed', 'unsupported', 'expired'].includes(cmd.status)) {
-        setPhase({ kind: 'failed', message: cmd.detail || `The device answered "${cmd.status}".` });
+        setPhase({ kind: 'failed', message: cmd.detail || `El dispositivo respondió "${cmd.status}".` });
         return;
       }
       if (Date.now() - phase.since > WAIT_LIMIT_MS) {
-        setPhase({ kind: 'failed', message: 'The device did not answer within 6 minutes (offline or asleep?).' });
+        setPhase({ kind: 'failed', message: 'El dispositivo no respondió en 6 minutos (¿sin conexión o dormido?).' });
         return;
       }
       t = setTimeout(() => void tick(), POLL_MS);
@@ -122,7 +122,7 @@ export function RemotePanel({ device }: { device: Device }) {
       const session = await startRemoteSession(device.number, viewOnly);
       setPhase({ kind: 'waiting', session, since: Date.now() });
     } catch (e) {
-      toast.push('err', 'Could not start the session', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo iniciar la sesión', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -132,9 +132,9 @@ export function RemotePanel({ device }: { device: Device }) {
     setBusy(true);
     try {
       await stopRemoteSession(device.number);
-      toast.push('ok', 'Session ended', 'The device stops sharing its screen.');
+      toast.push('ok', 'Sesión terminada', 'El dispositivo deja de compartir su pantalla.');
     } catch (e) {
-      toast.push('err', 'Could not end the session', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo terminar la sesión', e instanceof Error ? e.message : '');
     } finally {
       setPhase({ kind: 'idle' });
       setBusy(false);
@@ -150,7 +150,7 @@ export function RemotePanel({ device }: { device: Device }) {
       });
       setSwitching(true);
     } catch (e) {
-      toast.push('err', 'Could not change the power mode', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo cambiar el modo de conectividad', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -187,13 +187,13 @@ export function RemotePanel({ device }: { device: Device }) {
     <div className="panel rp">
       {/* keep: tab bodies hide panel heads, but this one carries the encryption state */}
       <div className="panel-head keep">
-        <h2 className="panel-title">Remote control</h2>
+        <h2 className="panel-title">Control remoto</h2>
         {status && available && (
           <span className={`chip ${status.encrypted ? 'tone-ok' : 'tone-warn'}`}
                 title={status.encrypted
-                  ? 'Phone ↔ server travels inside the server’s HTTPS (TLS).'
-                  : 'This agent dials the repeater port directly: only the password exchange is protected.'}>
-            {status.encrypted ? 'Encrypted (TLS)' : 'Not encrypted'}
+                  ? 'Teléfono ↔ servidor viaja dentro del HTTPS del servidor (TLS).'
+                  : 'Este agente se conecta directo al puerto del repetidor: solo el intercambio de la contraseña va protegido.'}>
+            {status.encrypted ? 'Cifrado (TLS)' : 'Sin cifrar'}
           </span>
         )}
       </div>
@@ -228,35 +228,35 @@ export function RemotePanel({ device }: { device: Device }) {
 
       {status && available && !status.encrypted && (
         <div className="banner banner-warn">
-          This device’s agent is older than the encrypted tunnel, so the screen travels unencrypted between the
-          phone and the repeater. Update the agent, or keep the repeater port behind a VPN.
+          El agente de este dispositivo es anterior al túnel cifrado, así que la pantalla viaja sin cifrar entre el
+          teléfono y el repetidor. Actualiza el agente o deja el puerto del repetidor detrás de una VPN.
         </div>
       )}
 
       {status && available && status.powerMode !== 'alwaysOn' && (
         <div className="banner banner-warn rp-power">
           <span>
-            <strong>Battery-saver mode.</strong> While the phone is locked on battery it picks up a session
-            only at its next heartbeat, a few minutes later. For instant support keep it in Always-on.
+            <strong>Modo ahorro de batería.</strong> Mientras el teléfono está bloqueado y sin cargar, solo toma una
+            sesión en su próxima conexión, unos minutos después. Para soporte inmediato déjalo en Siempre conectado.
           </span>
           <button className="btn btn-sm" disabled={busy || switching} onClick={() => void setAlwaysOn()}>
-            {switching ? 'Switching…' : 'Set Always-on'}
+            {switching ? <span key="switching">Cambiando…</span> : <span key="set">Activar Siempre conectado</span>}
           </button>
         </div>
       )}
 
       {status && available && !sessionOpen && (
         <div className="rp-start">
-          <button className="btn btn-primary" disabled={busy} title="See the screen, tap and type"
+          <button className="btn btn-primary" disabled={busy} title="Ver la pantalla, tocar y escribir"
                   onClick={() => void start(false)}>
-            View &amp; control
+            Ver y controlar
           </button>
           <button className="btn" disabled={busy} onClick={() => void start(true)}>
-            View only
+            Solo ver
           </button>
           {tier === 'view' && (
             <span className="muted rp-note">
-              The device last reported view only (input service off). Control starts once it reports input.
+              El dispositivo reportó solo ver (servicio de entrada apagado). El control empieza en cuanto reporte entrada.
             </span>
           )}
         </div>
@@ -265,7 +265,7 @@ export function RemotePanel({ device }: { device: Device }) {
       {phase.kind === 'failed' && (
         <div className="banner banner-alert rp-power">
           <span>{phase.message}</span>
-          <button className="btn btn-sm" onClick={() => setPhase({ kind: 'idle' })}>Dismiss</button>
+          <button className="btn btn-sm" onClick={() => setPhase({ kind: 'idle' })}>Cerrar</button>
         </div>
       )}
 
@@ -273,39 +273,39 @@ export function RemotePanel({ device }: { device: Device }) {
         <div className="rp-wait">
           <span className="spin" />
           <span>
-            Waiting for the device to connect… {Math.round((now - phase.since) / 1000)} s
-            {status?.powerMode !== 'alwaysOn' && ' (battery-saver: can take a few minutes while locked)'}
+            Esperando a que el dispositivo se conecte… {Math.round((now - phase.since) / 1000)} s
+            {status?.powerMode !== 'alwaysOn' && ' (ahorro de batería: puede tardar unos minutos si está bloqueado)'}
           </span>
-          <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void stop()}>Cancel</button>
+          <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void stop()}>Cancelar</button>
         </div>
       )}
 
       {phase.kind === 'live' && (
         <>
           <div className="rp-bar">
-            <span className="chip tone-ok">{phase.session.viewOnly ? 'Viewing' : 'Controlling'}</span>
+            <span className="chip tone-ok">{phase.session.viewOnly ? 'Viendo' : 'Controlando'}</span>
             <div style={{ flex: 1 }} />
-            <button className="btn btn-sm" onClick={fullscreen}>Full screen</button>
+            <button className="btn btn-sm" onClick={fullscreen}>Pantalla completa</button>
             {/* The repeater pairs one viewer per session: hand it to the new tab and drop the inline one. */}
             <a className="btn btn-sm" href={viewerUrl(phase.session)} target="_blank" rel="noopener noreferrer"
                onClick={() => setPhase({ kind: 'popped', session: phase.session })}>
-              Open in new tab
+              Abrir en otra pestaña
             </a>
             <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => void stop()}>
-              End session
+              Terminar sesión
             </button>
           </div>
           <iframe
             ref={frame}
             className="rp-viewer"
-            title={`Screen of ${device.number}`}
+            title={`Pantalla de ${device.number}`}
             src={viewerUrl(phase.session)}
             allow="fullscreen; clipboard-read; clipboard-write"
           />
           {!phase.session.viewOnly && (
             <NavBar
               frame={frame}
-              onUnavailable={() => toast.push('err', 'Viewer not connected', 'Wait until the screen shows, then try again.')}
+              onUnavailable={() => toast.push('err', 'Visor no conectado', 'Espera a que aparezca la pantalla y vuelve a intentarlo.')}
             />
           )}
         </>
@@ -313,10 +313,10 @@ export function RemotePanel({ device }: { device: Device }) {
 
       {phase.kind === 'popped' && (
         <div className="rp-bar">
-          <span className="muted">The viewer is open in another tab.</span>
+          <span className="muted">El visor está abierto en otra pestaña.</span>
           <div style={{ flex: 1 }} />
           <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => void stop()}>
-            End session
+            Terminar sesión
           </button>
         </div>
       )}

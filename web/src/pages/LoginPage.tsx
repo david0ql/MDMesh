@@ -26,9 +26,9 @@ export function LoginPage() {
       navigate(u.passwordReset ? '/set-password' : from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.httpStatus === 0) {
-        setError('Cannot reach the server. Check that it is running.');
+        setError('No se puede conectar con el servidor. Verifica que esté en ejecución.');
       } else {
-        setError('Wrong login or password');
+        setError('Usuario o contraseña incorrectos');
       }
     } finally {
       setBusy(false);
@@ -40,12 +40,12 @@ export function LoginPage() {
       <form className="login-card route-enter" onSubmit={onSubmit}>
         <Wordmark />
         <div className="login-head">
-          <h1>Sign in to DallyControl</h1>
-          <p>Device fleet command console.</p>
+          <h1>Inicia sesión en DallyControl</h1>
+          <p>Consola de control de la flota de dispositivos.</p>
         </div>
 
         <label className="field">
-          <span className="label">Login</span>
+          <span className="label">Usuario</span>
           <input
             className="input"
             type="text"
@@ -58,7 +58,7 @@ export function LoginPage() {
         </label>
 
         <label className="field">
-          <span className="label">Password</span>
+          <span className="label">Contraseña</span>
           <input
             className="input"
             type="password"
@@ -70,7 +70,7 @@ export function LoginPage() {
         </label>
 
         {state?.passwordChanged && !error && (
-          <div className="login-ok">Password updated — sign in with your new password.</div>
+          <div className="login-ok">Contraseña actualizada: inicia sesión con tu nueva contraseña.</div>
         )}
         {error && <div className="login-err">{error}</div>}
 
@@ -79,7 +79,7 @@ export function LoginPage() {
           type="submit"
           disabled={busy}
         >
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? <span key="busy">Iniciando sesión…</span> : <span key="idle">Iniciar sesión</span>}
         </button>
       </form>
     </div>

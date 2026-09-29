@@ -27,11 +27,11 @@ export function SetPasswordPage() {
     e.preventDefault();
     setError(null);
     if (pw.length < 8) {
-      setError('Use at least 8 characters.');
+      setError('Usa al menos 8 caracteres.');
       return;
     }
     if (pw !== confirm) {
-      setError('Passwords do not match.');
+      setError('Las contraseñas no coinciden.');
       return;
     }
     setBusy(true);
@@ -40,7 +40,7 @@ export function SetPasswordPage() {
       await signOut(); // clear the flagged session; require a fresh login with the new password
       navigate('/login', { replace: true, state: { passwordChanged: true } });
     } catch {
-      setError('Could not set the password. Please try again.');
+      setError('No se pudo establecer la contraseña. Inténtalo de nuevo.');
     } finally {
       setBusy(false);
     }
@@ -51,12 +51,12 @@ export function SetPasswordPage() {
       <form className="login-card route-enter" onSubmit={onSubmit}>
         <Wordmark />
         <div className="login-head">
-          <h1>Set your password</h1>
-          <p>Choose a new password to finish securing this account.</p>
+          <h1>Define tu contraseña</h1>
+          <p>Elige una nueva contraseña para terminar de proteger esta cuenta.</p>
         </div>
 
         <label className="field">
-          <span className="label">New password</span>
+          <span className="label">Nueva contraseña</span>
           <input
             className="input"
             type="password"
@@ -69,7 +69,7 @@ export function SetPasswordPage() {
         </label>
 
         <label className="field">
-          <span className="label">Confirm password</span>
+          <span className="label">Confirmar contraseña</span>
           <input
             className="input"
             type="password"
@@ -83,7 +83,7 @@ export function SetPasswordPage() {
         {error && <div className="login-err">{error}</div>}
 
         <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
-          {busy ? 'Saving…' : 'Set password'}
+          {busy ? <span key="busy">Guardando…</span> : <span key="idle">Establecer contraseña</span>}
         </button>
       </form>
     </div>

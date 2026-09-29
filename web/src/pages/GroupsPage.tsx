@@ -41,7 +41,7 @@ export function GroupsPage() {
       setData(await listGroups());
       setErr(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not load groups');
+      setErr(e instanceof Error ? e.message : 'No se pudieron cargar las carpetas');
     }
   }, []);
 
@@ -63,7 +63,7 @@ export function GroupsPage() {
     return p?.effectiveConfigurationName ?? globalName;
   };
 
-  async function guarded(what: string, fn: () => Promise<string | void>) {
+  async function guarded(what: string, fn: () => Promise<string | void>, failTitle = `${what}: error`) {
     setBusy(true);
     try {
       const msg = await fn();
@@ -71,18 +71,18 @@ export function GroupsPage() {
       await load();
       return true;
     } catch (e) {
-      toast.push('err', `${what} failed`, e instanceof Error ? e.message : '');
+      toast.push('err', failTitle, e instanceof Error ? e.message : '');
       return false;
     } finally {
       setBusy(false);
     }
   }
 
-  const reconfigured = (n: number) => (n ? `${plural(n, 'device')} reconfigured.` : 'No device needed a change.');
+  const reconfigured = (n: number) => (n ? `${plural(n, 'dispositivo')} reconfigurado${n === 1 ? '' : 's'}.` : 'Ningún dispositivo necesitó cambios.');
 
   function changeGroupConfig(g: FleetGroup, value: string) {
     const cfg = value === '' ? null : Number(value);
-    void guarded(`Configuration of ${g.name}`, async () => {
+    void guarded(`Configuración de ${g.name}`, async () => {
       const r = await updateGroup(g.id, g.name, cfg, g.parentId);
       return reconfigured(r.devicesReconfigured);
     });
@@ -90,7 +90,7 @@ export function GroupsPage() {
 
   function changeGlobal(value: string) {
     if (!value) return;
-    void guarded('Global configuration', async () => {
+    void guarded('Configuración global', async () => {
       const r = await setGlobalConfiguration(Number(value));
       return reconfigured(r.devicesReconfigured);
     });
@@ -114,22 +114,22 @@ export function GroupsPage() {
     const parentId = parent === '' ? null : Number(parent);
     let ok = false;
     if (dialog.kind === 'create') {
-      ok = await guarded('Folder created', async () => {
+      ok = await guarded('Carpeta creada', async () => {
         const g = await createGroup(name.trim(), newConfig ? Number(newConfig) : null, parentId);
         return g.name;
-      });
+      }, 'No se pudo crear la carpeta');
     } else if (dialog.kind === 'edit') {
       const g = dialog.group;
-      ok = await guarded('Folder saved', async () => {
+      ok = await guarded('Carpeta guardada', async () => {
         const r = await updateGroup(g.id, name.trim(), g.configurationId, parentId);
         return `${name.trim()}${parentId !== g.parentId ? ` — ${reconfigured(r.devicesReconfigured)}` : ''}`;
-      });
+      }, 'No se pudo guardar la carpeta');
     } else {
       const g = dialog.group;
-      ok = await guarded('Folder deleted', async () => {
+      ok = await guarded('Carpeta eliminada', async () => {
         await deleteGroup(g.id);
-        return g.deviceCount ? `${plural(g.deviceCount, 'device')} left without a group.` : g.name;
-      });
+        return g.deviceCount ? `${plural(g.deviceCount, 'dispositivo')} ${g.deviceCount === 1 ? 'quedó' : 'quedaron'} sin carpeta.` : g.name;
+      }, 'No se pudo eliminar la carpeta');
     }
     if (ok) setDialog(null);
   }
@@ -140,14 +140,14 @@ export function GroupsPage() {
     dialog?.kind === 'edit' ? tree.filter((n) => !nodeOf.get(dialog.group.id)?.subtree.has(n.group.id)) : tree;
 
   return (
-    <AppShell title="Groups">
+    <AppShell title="Carpetas">
       <div className="dv-head">
-        <h1>Groups</h1>
+        <h1>Carpetas</h1>
         <span className="dv-count">
-          {data ? `${plural(data.groups.length, 'folder')} · ${plural(total, 'device')}` : 'Loading…'}
+          {data ? `${plural(data.groups.length, 'carpeta')} · ${plural(total, 'dispositivo')}` : 'Cargando…'}
         </span>
         <div className="dv-spacer" />
-        <button className="btn btn-dark" onClick={() => openCreate(null)}>New folder</button>
+        <button className="btn btn-dark" onClick={() => openCreate(null)}>Nueva carpeta</button>
       </div>
 
       {err && <div className="banner banner-alert">{err}</div>}
@@ -157,20 +157,20 @@ export function GroupsPage() {
           <div>
             <h2 className="panel-title">Global</h2>
             <p className="muted gr-note">
-              Applies to every device. A folder&rsquo;s configuration overrides it (and reaches its sub-folders that have
-              none), and a device&rsquo;s own configuration overrides both.
+              Se aplica a todos los dispositivos. La configuración de una carpeta la reemplaza (y llega a sus subcarpetas que
+              no tengan una), y la configuración propia de un dispositivo reemplaza a ambas.
             </p>
           </div>
           <button className="btn" disabled={!data || total === 0}
                   onClick={() => setAction({ kind: 'all', count: total })}>
-            Run action on all devices
+            Ejecutar acción en todos
           </button>
         </div>
         <label className="field gr-field">
-          <span>Default configuration</span>
+          <span>Configuración por defecto</span>
           <select className="sel" value={data?.global.configurationId ?? ''} disabled={busy || !data}
                   onChange={(e) => changeGlobal(e.target.value)}>
-            {data?.global.configurationId == null && <option value="">Select…</option>}
+            {data?.global.configurationId == null && <option value="">Seleccionar…</option>}
             {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
           </select>
         </label>
@@ -179,37 +179,37 @@ export function GroupsPage() {
       <section className="panel gr-list">
         {data && data.groups.length === 0 && (
           <div className="empty">
-            <span className="label">No folders yet</span>
-            Create one per country, app, agency or phone model (for example Colombia → Preventa → Agencia Norte) and move
-            devices into them.
+            <span className="label">Aún no hay carpetas</span>
+            Crea una por país, aplicación, agencia o modelo de teléfono (por ejemplo Colombia → Preventa → Agencia Norte) y
+            mueve los dispositivos a ellas.
           </div>
         )}
         {data && data.groups.length > 0 && (
           <table className="gr-table">
             <thead>
-              <tr><th>Folder</th><th>Devices</th><th>Configuration</th><th aria-label="Actions" /></tr>
+              <tr><th>Carpeta</th><th>Dispositivos</th><th>Configuración</th><th aria-label="Acciones" /></tr>
             </thead>
             <tbody>
               {tree.map(({ group: g, depth, totalDevices, path }) => (
                 <tr key={g.id} data-testid={`group-row-${g.id}`}>
-                  <td data-label="Folder">
+                  <td data-label="Carpeta">
                     <span className="gr-tree" style={{ paddingLeft: depth * 20 }}>
                       {depth > 0 && <span className="gr-branch" aria-hidden="true">└</span>}
                       <Link to={`/devices?group=${g.id}`} className="gr-name" title={path}>{g.name}</Link>
                     </span>
                   </td>
-                  <td data-label="Devices">
-                    <Link to={`/devices?group=${g.id}`}>{plural(g.deviceCount, 'device')}</Link>
+                  <td data-label="Dispositivos">
+                    <Link to={`/devices?group=${g.id}`}>{plural(g.deviceCount, 'dispositivo')}</Link>
                     {totalDevices > g.deviceCount && (
-                      <span className="muted"> · {totalDevices} with sub-folders</span>
+                      <span className="muted"> · {totalDevices} con subcarpetas</span>
                     )}
                   </td>
-                  <td data-label="Configuration">
+                  <td data-label="Configuración">
                     <select className="sel" value={g.configurationId ?? ''} disabled={busy}
                             onChange={(e) => changeGroupConfig(g, e.target.value)}
-                            aria-label={`Configuration of ${g.name}`}>
+                            aria-label={`Configuración de ${g.name}`}>
                       <option value="">
-                        {g.parentId != null ? `Inherit (${inheritedName(g)})` : `Global (${globalName})`}
+                        {g.parentId != null ? `Heredar (${inheritedName(g)})` : `Global (${globalName})`}
                       </option>
                       {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                     </select>
@@ -218,12 +218,12 @@ export function GroupsPage() {
                     <div className="gr-actions">
                     <button className="btn btn-sm" disabled={totalDevices === 0}
                             onClick={() => setAction({ kind: 'group', id: g.id, name: path, count: totalDevices })}>
-                      Run action
+                      Ejecutar acción
                     </button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Sub-folder</button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Edit</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>
                     <button className="btn btn-sm btn-ghost gr-del" onClick={() => setDialog({ kind: 'delete', group: g })}>
-                      Delete
+                      Eliminar
                     </button>
                     </div>
                   </td>
@@ -234,8 +234,8 @@ export function GroupsPage() {
         )}
         {data && data.ungroupedDevices > 0 && (
           <p className="muted gr-ungrouped">
-            <Link to="/devices?group=none">{plural(data.ungroupedDevices, 'device')} without a group</Link> — they use the
-            global configuration unless they have their own.
+            <Link to="/devices?group=none">{plural(data.ungroupedDevices, 'dispositivo')} sin carpeta</Link>: usan la
+            configuración global, salvo que tengan una propia.
           </p>
         )}
       </section>
@@ -249,38 +249,38 @@ export function GroupsPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             {dialog.kind === 'delete' ? (
               <>
-                <h3>Delete {dialog.group.name}</h3>
+                <h3>Eliminar {dialog.group.name}</h3>
                 <p className="muted">
                   {dialog.group.deviceCount
-                    ? `Its ${plural(dialog.group.deviceCount, 'device')} stay enrolled, without a group, and fall back to the global configuration unless they have their own.`
-                    : 'The folder has no devices of its own.'}
+                    ? `${dialog.group.deviceCount === 1 ? 'Su' : 'Sus'} ${plural(dialog.group.deviceCount, 'dispositivo')} siguen inscritos, sin carpeta, y vuelven a la configuración global salvo que tengan una propia.`
+                    : 'La carpeta no tiene dispositivos propios.'}
                   {tree.some((n) => n.group.parentId === dialog.group.id)
-                    ? ' Its sub-folders move up one level.'
+                    ? ' Sus subcarpetas suben un nivel.'
                     : ''}
                 </p>
               </>
             ) : (
               <>
-                <h3>{dialog.kind === 'create' ? 'New folder' : `Edit ${dialog.group.name}`}</h3>
+                <h3>{dialog.kind === 'create' ? 'Nueva carpeta' : `Editar ${dialog.group.name}`}</h3>
                 <label className="field">
-                  <span>Name</span>
-                  <input autoFocus value={name} maxLength={100} placeholder="e.g. Colombia, Preventa, Agencia Norte"
+                  <span>Nombre</span>
+                  <input autoFocus value={name} maxLength={100} placeholder="p. ej. Colombia, Preventa, Agencia Norte"
                          onChange={(e) => setName(e.target.value)}
                          onKeyDown={(e) => { if (e.key === 'Enter' && nameValid) void submitDialog(); }} />
                 </label>
                 <label className="field">
-                  <span>Inside</span>
-                  <select className="sel" value={parent} onChange={(e) => setParent(e.target.value)} aria-label="Parent folder">
-                    <option value="">— Top level —</option>
+                  <span>Dentro de</span>
+                  <select className="sel" value={parent} onChange={(e) => setParent(e.target.value)} aria-label="Carpeta superior">
+                    <option value="">— Nivel superior —</option>
                     {parentChoices.map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
                   </select>
                 </label>
                 {dialog.kind === 'create' && (
                   <label className="field">
-                    <span>Configuration</span>
+                    <span>Configuración</span>
                     <select className="sel" value={newConfig} onChange={(e) => setNewConfig(e.target.value)}>
                       <option value="">
-                        {parent ? `Inherit (${nodeOf.get(Number(parent))?.group.effectiveConfigurationName ?? globalName})` : `Global (${globalName})`}
+                        {parent ? `Heredar (${nodeOf.get(Number(parent))?.group.effectiveConfigurationName ?? globalName})` : `Global (${globalName})`}
                       </option>
                       {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
                     </select>
@@ -289,11 +289,11 @@ export function GroupsPage() {
               </>
             )}
             <div className="modal-actions">
-              <button className="btn" onClick={() => setDialog(null)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setDialog(null)} disabled={busy}>Cancelar</button>
               <button className={`btn ${dialog.kind === 'delete' ? 'btn-danger' : 'btn-primary'}`}
                       disabled={busy || (dialog.kind !== 'delete' && !nameValid)}
                       onClick={() => void submitDialog()}>
-                {dialog.kind === 'delete' ? 'Delete' : dialog.kind === 'create' ? 'Create' : 'Save'}
+                {dialog.kind === 'delete' ? <span key="delete">Eliminar</span> : dialog.kind === 'create' ? <span key="create">Crear</span> : <span key="save">Guardar</span>}
               </button>
             </div>
           </div>

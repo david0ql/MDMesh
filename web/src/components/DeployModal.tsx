@@ -106,8 +106,8 @@ export function DeployModal({
     setBusy(false);
     toast.push(
       fail ? 'err' : 'ok',
-      `Deploy ${subject.label}`,
-      `${ok} device${ok === 1 ? '' : 's'} queued${fail ? `, ${fail} failed` : ''}.`,
+      `Despliegue de ${subject.label}`,
+      `${ok} dispositivo${ok === 1 ? '' : 's'} en cola${fail ? `, ${fail} con error` : ''}.`,
     );
     onClose();
   }
@@ -162,11 +162,11 @@ export function DeployModal({
         applicationId: subject.applicationId,
         configurations: updated,
       });
-      const name = configs.find((c) => c.id === cid)?.name ?? 'configuration';
-      toast.push('ok', `Added ${subject.label}`, `Assigned to ${name}.`);
+      const name = configs.find((c) => c.id === cid)?.name ?? 'la configuración';
+      toast.push('ok', `${subject.label} agregada`, `Asignada a ${name}.`);
       onClose();
     } catch (e) {
-      toast.push('err', 'Assign failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo asignar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -179,7 +179,7 @@ export function DeployModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal deploy-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Deploy {subject.label}</h3>
+        <h3>Desplegar {subject.label}</h3>
         <p className="muted" style={{ marginTop: 2 }}>
           <span className="mono">{subject.packageName}</span>
           {subject.versionCode != null ? ` · v${subject.versionCode}` : ''}
@@ -187,7 +187,7 @@ export function DeployModal({
 
         <div className="tabs" style={{ margin: '14px 0 14px' }}>
           <button className={tab === 'device' ? 'on' : ''} onClick={() => setTab('device')}>
-            Push to device(s)
+            Instalar en dispositivos
           </button>
           <button className={tab === 'folder' ? 'on' : ''} onClick={() => setTab('folder')}>
             Carpetas
@@ -196,9 +196,9 @@ export function DeployModal({
             className={tab === 'config' ? 'on' : ''}
             onClick={() => canAssign && setTab('config')}
             disabled={!canAssign}
-            title={canAssign ? undefined : 'Only library apps can be assigned to a configuration'}
+            title={canAssign ? undefined : 'Solo las apps de la Biblioteca se pueden asignar a una configuración'}
           >
-            Add to a configuration
+            Agregar a una configuración
           </button>
         </div>
 
@@ -235,7 +235,7 @@ export function DeployModal({
               </svg>
               <input
                 type="search"
-                placeholder="Filter devices"
+                placeholder="Filtrar dispositivos"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -243,7 +243,7 @@ export function DeployModal({
             <div className="deploy-devlist">
               {shown.length === 0 ? (
                 <div className="empty" style={{ padding: 20 }}>
-                  No devices match.
+                  Ningún dispositivo coincide.
                 </div>
               ) : (
                 shown.map((d) => {
@@ -268,14 +268,14 @@ export function DeployModal({
           </>
         ) : (
           <div className="field" style={{ margin: '4px 0 8px' }}>
-            <span>Configuration</span>
+            <span>Configuración</span>
             <select
               className="sel"
               value={config}
               onChange={(e) => setConfig(e.target.value)}
               style={{ width: '100%' }}
             >
-              <option value="">Select a configuration…</option>
+              <option value="">Elige una configuración…</option>
               {configs.map((c) => (
                 <option key={c.id} value={String(c.id)}>
                   {c.name}
@@ -283,7 +283,7 @@ export function DeployModal({
               ))}
             </select>
             <p className="note" style={{ marginTop: 8 }}>
-              Every device on this configuration installs the app on its next sync.
+              Cada dispositivo con esta configuración instala la app en su próxima sincronización.
             </p>
           </div>
         )}
@@ -294,20 +294,20 @@ export function DeployModal({
             checked={runAfter}
             onChange={(e) => setRunAfter(e.target.checked)}
           />
-          Launch the app after install
+          Abrir la app después de instalarla
         </label>
 
         <div className="modal-actions">
           <button className="btn" onClick={onClose} disabled={busy}>
-            Cancel
+            Cancelar
           </button>
           <button
             className="btn btn-primary"
             disabled={busy || !canSubmit}
             onClick={() => void (tab === 'device' ? pushNow() : tab === 'folder' ? pushToFolders() : assignConfig())}
           >
-            {busy ? <span key="b">Deploying…</span> : tab === 'device' ? <span key="d">{`Deploy to ${picked.size || ''}`.trim()}</span>
-              : tab === 'folder' ? <span key="f">Desplegar en carpetas</span> : <span key="a">Assign</span>}
+            {busy ? <span key="b">Desplegando…</span> : tab === 'device' ? <span key="d">{`Desplegar en ${picked.size || ''}`.trim()}</span>
+              : tab === 'folder' ? <span key="f">Desplegar en carpetas</span> : <span key="a">Asignar</span>}
           </button>
         </div>
       </div>

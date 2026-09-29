@@ -99,6 +99,30 @@ public interface AgentDeviceMapper {
     List<DeviceLocation> listFleetLocations(@Param("customerId") int customerId, @Param("from") long from,
                                             @Param("to") long to, @Param("limit") int limit);
 
+    // --- Connection history (device_connection): a session lasts while check-ins keep coming within the gap ---
+
+    @Update({"UPDATE device_connection SET lastSeenAt = #{now} WHERE id = (SELECT id FROM device_connection " +
+            "WHERE deviceNumber = #{number} ORDER BY lastSeenAt DESC LIMIT 1) AND lastSeenAt >= #{since}"})
+    int extendConnection(@Param("number") String number, @Param("now") long now, @Param("since") long since);
+
+    @Insert({"INSERT INTO device_connection (deviceNumber, connectedAt, lastSeenAt) VALUES (#{number}, #{now}, #{now})"})
+    void openConnection(@Param("number") String number, @Param("now") long now);
+
+    @Select({"SELECT c.deviceNumber, c.connectedAt, c.lastSeenAt FROM device_connection c JOIN devices d ON d.number = c.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND c.lastSeenAt >= #{from} AND c.connectedAt <= #{to} " +
+            "ORDER BY c.deviceNumber, c.connectedAt"})
+    List<java.util.Map<String, Object>> listConnections(@Param("customerId") int customerId, @Param("from") long from, @Param("to") long to);
+
+    /** Everything the device export needs, one row per device (telemetry is the agent's last census JSON). */
+    @Select({"SELECT d.id, d.number, d.description, d.enrollTime, d.lastUpdate, d.configurationId, c.name AS configurationName, " +
+            "m.groupId, s.battery, s.charging, s.kioskActive, s.agentVersion, s.powerMode, s.androidRelease, s.telemetry, " +
+            "s.updatedAt AS stateAt " +
+            "FROM devices d LEFT JOIN configurations c ON c.id = d.configurationId " +
+            "LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id ORDER BY dg.id LIMIT 1) m ON true " +
+            "LEFT JOIN device_state s ON s.deviceNumber = d.number " +
+            "WHERE d.customerId = #{customerId} ORDER BY lower(coalesce(d.description, d.number))"})
+    List<java.util.Map<String, Object>> listDeviceExportRows(@Param("customerId") int customerId);
+
     /** Name a device only while it has none (an operator's name is never overwritten). */
     @Update({"UPDATE devices SET description = #{name} WHERE number = #{number} AND (description IS NULL OR trim(description) = '')"})
     int nameIfUnnamed(@Param("number") String number, @Param("name") String name);

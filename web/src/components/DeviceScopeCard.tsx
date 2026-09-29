@@ -8,8 +8,8 @@ import {
 import { useToast } from '../ui/toast';
 
 const SOURCE_LABEL: Record<DeviceScope['source'], string> = {
-  device: 'Device',
-  group: 'Group',
+  device: 'Dispositivo',
+  group: 'Carpeta',
   global: 'Global',
 };
 
@@ -46,7 +46,7 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
       onChanged?.();
       toast.push('ok', what, '');
     } catch (e) {
-      toast.push('err', `${what} failed`, e instanceof Error ? e.message : '');
+      toast.push('err', `${what}: falló`, e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -60,43 +60,43 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
 
   return (
     <div className="scope-card">
-      <div className="grp">Group &amp; configuration</div>
+      <div className="grp">Carpeta y configuración</div>
       <div className="row">
-        <span className="k">Group</span>
-        <select className="sel v" value={scope.groupId ?? ''} disabled={busy} aria-label="Group"
+        <span className="k">Carpeta</span>
+        <select className="sel v" value={scope.groupId ?? ''} disabled={busy} aria-label="Carpeta"
                 onChange={(e) => {
                   const gid = e.target.value === '' ? null : Number(e.target.value);
-                  void change('Group changed', () => moveDevicesToGroup([deviceId], gid));
+                  void change('Carpeta cambiada', () => moveDevicesToGroup([deviceId], gid));
                 }}>
-          <option value="">No group</option>
+          <option value="">Sin carpeta</option>
           {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
         </select>
       </div>
       <div className="row">
-        <span className="k">Configuration</span>
+        <span className="k">Configuración</span>
         <span className="v">
           {scope.configurationName ?? '—'}{' '}
-          <span className={`chip scope-${scope.source}`} title="Where this configuration comes from">
+          <span className={`chip scope-${scope.source}`} title="De dónde viene esta configuración">
             {SOURCE_LABEL[scope.source]}
           </span>
         </span>
       </div>
       <div className="row">
-        <span className="k">Set on device</span>
+        <span className="k">Fijar en el dispositivo</span>
         <select className="sel v" value={scope.pinned ? String(scope.configurationId) : ''} disabled={busy}
-                aria-label="Device configuration"
+                aria-label="Configuración del dispositivo"
                 onChange={(e) => {
                   const cfg = e.target.value === '' ? null : Number(e.target.value);
-                  void change(cfg == null ? 'Configuration inherited' : 'Configuration set on device',
+                  void change(cfg == null ? 'Configuración heredada' : 'Configuración fijada en el dispositivo',
                     () => setDevicesConfiguration([deviceId], cfg));
                 }}>
-          <option value="">Inherit ({inheritName})</option>
+          <option value="">Heredar ({inheritName})</option>
           {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
         </select>
       </div>
       {scope.groupId != null && (
         <p className="muted scope-note">
-          <Link to={`/devices?group=${scope.groupId}`}>Other devices in {scope.groupName}</Link>
+          <Link to={`/devices?group=${scope.groupId}`}>Otros dispositivos en {scope.groupName}</Link>
         </p>
       )}
     </div>

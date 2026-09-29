@@ -4,18 +4,18 @@ import { getEvents, type DeviceEvent } from '../api/events';
 type Device = { number: string };
 
 const LABELS: Record<string, string> = {
-  boot: 'Booted',
-  appInstalled: 'App installed',
-  appUninstalled: 'App uninstalled',
-  commandResult: 'Command',
-  connectivityChange: 'Network change',
-  lowBattery: 'Low battery',
-  enrolled: 'Enrolled',
-  simRemoved: 'SIM removed',
-  simInserted: 'SIM inserted',
-  simChanged: 'SIM changed',
-  appBlocked: 'App blocked (not allowed)',
-  kioskCrashLoop: 'Kiosk app closed repeatedly',
+  boot: 'Encendido',
+  appInstalled: 'App instalada',
+  appUninstalled: 'App desinstalada',
+  commandResult: 'Orden',
+  connectivityChange: 'Cambio de red',
+  lowBattery: 'Batería baja',
+  enrolled: 'Inscrito',
+  simRemoved: 'SIM retirada',
+  simInserted: 'SIM insertada',
+  simChanged: 'SIM cambiada',
+  appBlocked: 'App bloqueada (no permitida)',
+  kioskCrashLoop: 'La app del quiosco se cerró varias veces',
 };
 
 export function EventTimeline({ device }: { device: Device }) {
@@ -37,9 +37,9 @@ export function EventTimeline({ device }: { device: Device }) {
 
   return (
     <div className="panel">
-      <h2 className="panel-title">Events</h2>
+      <h2 className="panel-title">Eventos</h2>
       {events.length === 0 ? (
-        <p className="muted">No events yet.</p>
+        <p className="muted">Aún no hay eventos.</p>
       ) : (
         <ul className="timeline">
           {events.map((e) => (

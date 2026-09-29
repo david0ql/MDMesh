@@ -41,11 +41,11 @@ export function SettingsPage() {
     setDefaultConfig(value);
     try {
       const r = await setGlobalConfiguration(Number(value));
-      toast.push('ok', 'Global configuration changed',
-        r.devicesReconfigured ? `${r.devicesReconfigured} device(s) reconfigured.` : 'No device needed a change.');
+      toast.push('ok', 'Configuración global cambiada',
+        r.devicesReconfigured ? `${r.devicesReconfigured} dispositivo(s) reconfigurado(s).` : 'Ningún dispositivo necesitó cambios.');
     } catch (e) {
       setDefaultConfig(before);
-      toast.push('err', 'Change failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo cambiar', e instanceof Error ? e.message : '');
     }
   }
 
@@ -74,14 +74,14 @@ export function SettingsPage() {
     const x = await checkForUpdates();
     setChecking(false);
     if (x) setUpd(x);
-    else setUpdMsg('Could not check for updates.');
+    else setUpdMsg('No se pudo buscar actualizaciones.');
   };
 
   const applyNow = async () => {
     if (
       !window.confirm(
-        `Update to v${upd?.latest}?\n\nThe server restarts briefly. The database is backed up first `
-          + 'and the update rolls back automatically if it fails.',
+        `¿Actualizar a v${upd?.latest}?\n\nEl servidor se reinicia por un momento. Primero se respalda la base de datos `
+          + 'y la actualización se revierte automáticamente si falla.',
       )
     )
       return;
@@ -89,8 +89,8 @@ export function SettingsPage() {
     setUpdMsg(null);
     const r = await applyUpdate();
     setApplying(false);
-    if (!r.ok) setUpdMsg(r.error || 'Failed to start update.');
-    else setUpdMsg('Update started — watch the banner at the top for live progress.');
+    if (!r.ok) setUpdMsg(r.error || 'No se pudo iniciar la actualización.');
+    else setUpdMsg('Actualización iniciada: sigue el progreso en el aviso de la parte superior.');
   };
 
   const scrollToRollout = () =>
@@ -102,7 +102,7 @@ export function SettingsPage() {
     const r = await setAutoUpdate(next);
     setAutoSaving(false);
     if (!r.ok) {
-      setAutoErr(r.error || 'Could not save');
+      setAutoErr(r.error || 'No se pudo guardar');
       return;
     }
     setUpd((p) => (p ? { ...p, auto: next } : p));
@@ -110,52 +110,52 @@ export function SettingsPage() {
 
 
   const connMeta: Record<Conn, { tone: string; label: string }> = {
-    checking: { tone: 'idle', label: 'Checking…' },
-    ok: { tone: 'ok', label: 'Connected' },
-    down: { tone: 'alert', label: 'Unreachable' },
+    checking: { tone: 'idle', label: 'Comprobando…' },
+    ok: { tone: 'ok', label: 'Conectado' },
+    down: { tone: 'alert', label: 'Sin acceso' },
   };
   const cm = connMeta[conn];
 
   return (
-    <AppShell title="Settings">
+    <AppShell title="Ajustes">
       <div className="page-head">
-        <h1>Settings</h1>
+        <h1>Ajustes</h1>
       </div>
 
       <div className="settings">
         {/* Account & session */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Account</h2>
+            <h2 className="panel-title">Cuenta</h2>
             <button className="btn btn-sm" onClick={() => void signOut()}>
-              Sign out
+              Cerrar sesión
             </button>
           </div>
           <div className="set-row">
-            <span className="k">Signed in as</span>
+            <span className="k">Sesión iniciada como</span>
             <span className="v">{orDash(user?.name || user?.login)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Login</span>
+            <span className="k">Usuario</span>
             <span className="v mono">{orDash(user?.login)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Email</span>
+            <span className="k">Correo</span>
             <span className="v mono">{orDash(user?.email)}</span>
           </div>
           <div className="set-row">
-            <span className="k">Role</span>
-            <span className="v">{user?.superAdmin ? 'Super admin' : 'Admin'}</span>
+            <span className="k">Rol</span>
+            <span className="v">{user?.superAdmin ? 'Superadministrador' : 'Administrador'}</span>
           </div>
         </section>
 
         {/* Server & connection */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Server &amp; connection</h2>
+            <h2 className="panel-title">Servidor y conexión</h2>
           </div>
           <div className="set-row">
-            <span className="k">Status</span>
+            <span className="k">Estado</span>
             <span className="v">
               <span className="conn">
                 <span className={`dot dot-${cm.tone}`} />
@@ -164,11 +164,11 @@ export function SettingsPage() {
             </span>
           </div>
           <div className="set-row">
-            <span className="k">API base</span>
-            <span className="v mono">{API_BASE || '(same origin)'}</span>
+            <span className="k">Base de la API</span>
+            <span className="v mono">{API_BASE || '(mismo origen)'}</span>
           </div>
           <div className="set-row">
-            <span className="k">Console version</span>
+            <span className="k">Versión de la consola</span>
             <span className="v mono">DallyControl {APP_VERSION}</span>
           </div>
         </section>
@@ -177,14 +177,14 @@ export function SettingsPage() {
         {upd && (
           <section className="panel">
             <div className="panel-head">
-              <h2 className="panel-title">Updates</h2>
+              <h2 className="panel-title">Actualizaciones</h2>
             </div>
             <div className="set-row">
-              <span className="k">Running version</span>
+              <span className="k">Versión en ejecución</span>
               <span className="v mono">{orDash(upd.current)}</span>
             </div>
             <div className="set-row">
-              <span className="k">Latest available</span>
+              <span className="k">Última disponible</span>
               <span className="v mono">
                 {orDash(upd.latest)}
                 {upd.latest && upd.verified ? ' ✓' : ''}
@@ -194,14 +194,14 @@ export function SettingsPage() {
             {upd.updateAvailable && upd.release?.notes && (
               <div className="set-row">
                 <span className="k">
-                  What&rsquo;s new
-                  <small>Release notes for v{orDash(upd.latest)}.</small>
+                  Novedades
+                  <small>Notas de la versión v{orDash(upd.latest)}.</small>
                 </span>
                 <span className="v">
                   <div className="whatsnew">{upd.release.notes}</div>
                   {upd.release.url && (
                     <a className="whatsnew-link" href={upd.release.url} target="_blank" rel="noreferrer">
-                      Full release notes ↗
+                      Notas completas de la versión ↗
                     </a>
                   )}
                 </span>
@@ -210,11 +210,11 @@ export function SettingsPage() {
             {upd.updateAvailable && (
               <div className="set-row">
                 <span className="k">
-                  Apply this release
+                  Aplicar esta versión
                   <small>
                     {upd.applySupported === false
-                      ? 'Agent APK rolls out to devices; server + console update via the installer.'
-                      : 'Server + console update now; agent APK rolls out to devices.'}
+                      ? 'El APK del agente se despliega a los dispositivos; el servidor y la consola se actualizan con el instalador.'
+                      : 'El servidor y la consola se actualizan ahora; el APK del agente se despliega a los dispositivos.'}
                   </small>
                 </span>
                 <span className="v">
@@ -225,23 +225,23 @@ export function SettingsPage() {
                         onClick={() => void applyNow()}
                         disabled={applying || !upd.verified}
                       >
-                        {applying ? 'Starting…' : 'Update server + console'}
+                        {applying ? <span key="busy">Iniciando…</span> : <span key="idle">Actualizar servidor y consola</span>}
                       </button>
                     )}
                     <button className="btn btn-sm" onClick={scrollToRollout}>
-                      Roll out agent to devices ↓
+                      Desplegar el agente a los dispositivos ↓
                     </button>
                   </div>
                   {upd.applySupported === false && (
                     <p className="au-note">
-                      This deployment was installed from source — update the server/console with the
-                      command for your install. Docker (from source): <span className="mono">git pull && ./setup.sh</span> · Native:{' '}
+                      Esta instalación se hizo desde el código fuente: actualiza el servidor y la consola con el
+                      comando de tu instalación. Docker (desde el código): <span className="mono">git pull && ./setup.sh</span> · Nativa:{' '}
                       <span className="mono">git pull && sudo ./install/install-native.sh</span>
                     </p>
                   )}
                   {!upd.verified && (
                     <p className="au-note" style={{ color: 'var(--err)' }}>
-                      Release signature not verified — apply is disabled.
+                      La firma de la versión no está verificada: no se puede aplicar.
                     </p>
                   )}
                 </span>
@@ -249,27 +249,27 @@ export function SettingsPage() {
             )}
             <div className="set-row">
               <span className="k">
-                Check for updates
+                Buscar actualizaciones
                 <small>
-                  {upd.checkedAt ? `Last checked ${fmtRelative(upd.checkedAt)}.` : 'Not checked yet.'}
+                  {upd.checkedAt ? `Última comprobación: ${fmtRelative(upd.checkedAt)}.` : 'Aún no se ha comprobado.'}
                 </small>
                 {updMsg && <p className="au-note">{updMsg}</p>}
               </span>
               <span className="v">
                 <button className="btn btn-sm" onClick={() => void checkNow()} disabled={checking}>
-                  {checking ? 'Checking…' : 'Check now'}
+                  {checking ? <span key="busy">Comprobando…</span> : <span key="idle">Comprobar ahora</span>}
                 </button>
               </span>
             </div>
             {upd.applySupported !== false && (
             <div className="set-row auto-update-row">
               <span className="k">
-                Automatic updates
-                <small>Apply verified releases without a prompt.</small>
+                Actualizaciones automáticas
+                <small>Aplica las versiones verificadas sin preguntar.</small>
                 <p className="au-note">
-                  When on, the updater applies each verified release on its own — backing up the
-                  database first and rolling back automatically if it fails. Leave off to review and
-                  click Update each time.
+                  Si está activado, el actualizador aplica cada versión verificada por su cuenta: primero respalda la
+                  base de datos y revierte automáticamente si algo falla. Déjalo desactivado para revisar y hacer
+                  clic en Actualizar cada vez.
                 </p>
                 {autoErr && <p className="au-note" style={{ color: 'var(--err)' }}>{autoErr}</p>}
               </span>
@@ -280,14 +280,14 @@ export function SettingsPage() {
                     onClick={() => void toggleAuto(true)}
                     disabled={autoSaving}
                   >
-                    On
+                    Activado
                   </button>
                   <button
                     className={!upd.auto ? 'on' : ''}
                     onClick={() => void toggleAuto(false)}
                     disabled={autoSaving}
                   >
-                    Off
+                    Desactivado
                   </button>
                 </span>
               </span>
@@ -304,18 +304,18 @@ export function SettingsPage() {
         {/* Enrollment defaults */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Global configuration</h2>
+            <h2 className="panel-title">Configuración global</h2>
             <button
               className="btn btn-sm btn-primary"
               onClick={() => navigate('/enroll')}
             >
-              Enroll a device →
+              Inscribir un dispositivo →
             </button>
           </div>
           <div className="set-row">
             <span className="k">
-              Default configuration
-              <small>For every device whose group has no configuration and that has none of its own.</small>
+              Configuración por defecto
+              <small>Para todo dispositivo cuya carpeta no tenga configuración y que no tenga una propia.</small>
             </span>
             <span className="v">
               <select
@@ -323,7 +323,7 @@ export function SettingsPage() {
                 value={defaultConfig}
                 onChange={(e) => void changeGlobal(e.target.value)}
               >
-                {defaultConfig === '' && <option value="">Select…</option>}
+                {defaultConfig === '' && <option value="">Seleccionar…</option>}
                 {configList.map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.name}
@@ -335,7 +335,7 @@ export function SettingsPage() {
           {configList.length === 0 && (
             <div className="set-row">
               <span className="k" style={{ fontWeight: 400 }}>
-                No configurations are assigned to devices yet.
+                Aún no hay configuraciones asignadas a dispositivos.
               </span>
             </div>
           )}
@@ -344,12 +344,12 @@ export function SettingsPage() {
         {/* Appearance */}
         <section className="panel">
           <div className="panel-head">
-            <h2 className="panel-title">Appearance</h2>
+            <h2 className="panel-title">Apariencia</h2>
           </div>
           <div className="set-row">
             <span className="k">
-              Theme
-              <small>Switches with a smooth crossfade.</small>
+              Tema
+              <small>Cambia con una transición suave.</small>
             </span>
             <span className="v">
               <span className="seg">
@@ -357,21 +357,21 @@ export function SettingsPage() {
                   className={theme === 'light' ? 'on' : ''}
                   onClick={() => setTheme('light')}
                 >
-                  Light
+                  Claro
                 </button>
                 <button
                   className={theme === 'dark' ? 'on' : ''}
                   onClick={() => setTheme('dark')}
                 >
-                  Dark
+                  Oscuro
                 </button>
               </span>
             </span>
           </div>
           <div className="set-row">
             <span className="k">
-              Density
-              <small>Tighten spacing across the console.</small>
+              Densidad
+              <small>Reduce el espaciado en toda la consola.</small>
             </span>
             <span className="v">
               <span className="seg">
@@ -379,13 +379,13 @@ export function SettingsPage() {
                   className={density === 'comfortable' ? 'on' : ''}
                   onClick={() => setDensity('comfortable')}
                 >
-                  Comfortable
+                  Cómoda
                 </button>
                 <button
                   className={density === 'compact' ? 'on' : ''}
                   onClick={() => setDensity('compact')}
                 >
-                  Compact
+                  Compacta
                 </button>
               </span>
             </span>

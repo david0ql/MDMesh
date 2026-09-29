@@ -32,8 +32,8 @@ interface Row {
 }
 
 function powerLabel(mode?: string | null): string {
-  if (mode === 'alwaysOn') return 'Always-on';
-  if (mode === 'adaptive') return 'Battery-saver';
+  if (mode === 'alwaysOn') return 'Siempre conectado';
+  if (mode === 'adaptive') return 'Ahorro de batería';
   return '—';
 }
 
@@ -71,9 +71,9 @@ function NameField({
       await updateDeviceDescription(device.id, next);
       onSaved(next);
       setEditing(false);
-      toast.push('ok', 'Name saved', next || 'Name cleared.');
+      toast.push('ok', 'Nombre guardado', next || 'Nombre borrado.');
     } catch (e) {
-      toast.push('err', 'Rename failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo cambiar el nombre', e instanceof Error ? e.message : '');
     } finally {
       setSaving(false);
     }
@@ -86,7 +86,7 @@ function NameField({
           autoFocus
           value={value}
           maxLength={200}
-          placeholder="Device name"
+          placeholder="Nombre del dispositivo"
           disabled={saving}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -95,19 +95,19 @@ function NameField({
           }}
         />
         <button className="pri" disabled={saving} onClick={() => void save()}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? <span key="saving">Guardando…</span> : <span key="save">Guardar</span>}
         </button>
         <button className="sec" disabled={saving} onClick={cancel}>
-          Cancel
+          Cancelar
         </button>
       </div>
     );
   }
 
   return (
-    <button type="button" className="dd-name" onClick={() => setEditing(true)} title="Rename this device">
+    <button type="button" className="dd-name" onClick={() => setEditing(true)} title="Cambiar el nombre de este dispositivo">
       <span className={`mfr ${device.description ? '' : 'muted'}`}>
-        {device.description || 'Add a name'}
+        {device.description || 'Añade un nombre'}
       </span>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M12 20h9" />
@@ -148,11 +148,11 @@ export function DeviceDetailPage() {
       }
       setConfigs(res.configurations ?? {});
       setDevice(found);
-      if (!found) setError('Device not found.');
+      if (!found) setError('Dispositivo no encontrado.');
     } catch (err) {
       if (err instanceof ApiError && err.httpStatus === 0)
-        setError('Cannot reach the server.');
-      else setError('Failed to load device.');
+        setError('No se puede conectar con el servidor.');
+      else setError('No se pudo cargar el dispositivo.');
     } finally {
       setLoading(false);
     }
@@ -193,7 +193,7 @@ export function DeviceDetailPage() {
   const teleStr = (v: unknown): string | undefined =>
     v == null ? undefined : Array.isArray(v) ? (v[0] != null ? String(v[0]) : undefined) : String(v);
   const onOff = (v: unknown, fallback: boolean | null | undefined): string =>
-    v === true ? 'On' : v === false ? 'Off' : fallback == null ? '—' : fallback ? 'On' : 'Off';
+    v === true ? 'Sí' : v === false ? 'No' : fallback == null ? '—' : fallback ? 'Sí' : 'No';
 
   async function syncNow() {
     if (!device) return;
@@ -202,9 +202,9 @@ export function DeviceDetailPage() {
       await forceSync(device.number);
       void getDeviceState(device.number).then(setDs).catch(() => undefined);
       void getConfigStatus(device.number).then(setCfgStatus).catch(() => undefined);
-      toast.push('ok', 'Sync requested', '');
+      toast.push('ok', 'Sincronización solicitada', '');
     } catch (e) {
-      toast.push('err', 'Sync failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo sincronizar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -219,9 +219,9 @@ export function DeviceDetailPage() {
         requiresCapability: 'device.lock',
       });
       await forceSync(device.number).catch(() => undefined);
-      toast.push('ok', 'Lock queued', '');
+      toast.push('ok', 'Bloqueo enviado', '');
     } catch (e) {
-      toast.push('err', 'Lock failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo bloquear', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -234,9 +234,9 @@ export function DeviceDetailPage() {
     setBusy(true);
     try {
       const res = await syncConfigApps(device.number);
-      toast.push('ok', 'Config apps queued', `${res.queued} install command${res.queued === 1 ? '' : 's'} queued.`);
+      toast.push('ok', 'Apps de la configuración enviadas', `${res.queued} ${res.queued === 1 ? 'orden de instalación enviada' : 'órdenes de instalación enviadas'}.`);
     } catch (e) {
-      toast.push('err', 'Sync apps failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudieron sincronizar las apps', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -244,10 +244,10 @@ export function DeviceDetailPage() {
 
   if (loading) {
     return (
-      <AppShell title="Device">
+      <AppShell title="Dispositivo">
         <div className="panel">
           <div className="empty">
-            <span className="spin" /> Loading device…
+            <span className="spin" /> Cargando dispositivo…
           </div>
         </div>
       </AppShell>
@@ -256,13 +256,13 @@ export function DeviceDetailPage() {
 
   if (!device) {
     return (
-      <AppShell title="Device">
+      <AppShell title="Dispositivo">
         <div className="crumb">
           <a href="/devices" onClick={(e) => { e.preventDefault(); navigate('/devices'); }}>
-            Devices
+            Dispositivos
           </a>
         </div>
-        <div className="banner banner-alert">{error ?? 'Device not found.'}</div>
+        <div className="banner banner-alert">{error ?? 'Dispositivo no encontrado.'}</div>
       </AppShell>
     );
   }
@@ -270,20 +270,20 @@ export function DeviceDetailPage() {
   // Online/offline is recency of last check-in — NOT statusCode (which is config compliance and
   // stays green for a device that was factory-reset and stopped reporting).
   const online = isOnlineByRecency(device.lastUpdate);
-  const statusLabel = online ? 'Online' : 'Offline';
+  const statusLabel = online ? 'En línea' : 'Sin conexión';
 
   const statusRows: Row[] = [
-    { k: 'Battery', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'charging' : 'not charging'}`) : '—' },
-    { k: 'Screen', v: ds ? (ds.locked ? 'Locked' : 'Unlocked') : '—' },
-    { k: 'Kiosk', v: ds ? (ds.kioskActive ? 'On' : 'Off') : '—' },
-    { k: 'Connectivity', v: powerLabel(ds?.powerMode) },
+    { k: 'Batería', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'cargando' : 'sin cargar'}`) : '—' },
+    { k: 'Pantalla', v: ds ? (ds.locked ? 'Bloqueada' : 'Desbloqueada') : '—' },
+    { k: 'Quiosco', v: ds ? (ds.kioskActive ? 'Activo' : 'Inactivo') : '—' },
+    { k: 'Conectividad', v: powerLabel(ds?.powerMode) },
   ];
   const hardwareRows: Row[] = [
     { k: 'Android', v: orDash(teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion) },
-    { k: 'Storage', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
-    { k: 'Serial', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
+    { k: 'Almacenamiento', v: orDash(teleStr(hw.storage) ?? teleStr(hw.storageFree)) },
+    { k: 'Serie', v: orDash(teleStr(idn.serial) ?? device.serial), mono: true },
     { k: 'IMEI', v: orDash(teleStr(idn.imei) ?? device.imei), mono: true },
-    { k: 'Wi-Fi MAC', v: orDash(teleStr(idn.wifiMac)), mono: true },
+    { k: 'MAC Wi‑Fi', v: orDash(teleStr(idn.wifiMac)), mono: true },
   ];
   // SIM (agent SimMonitor): state + carrier + number per slot; the number only when the carrier stores it on the SIM.
   const sim = dyn.sim as { state?: string; slots?: { slot: number; carrier?: string; number?: string }[] } | undefined;
@@ -291,22 +291,22 @@ export function DeviceDetailPage() {
   const phoneNumbers = simSlots.map((s) => s.number).filter(Boolean) as string[];
   const idnNumbers = Array.isArray(idn.phoneNumber) ? (idn.phoneNumber as unknown[]).filter((x): x is string => typeof x === 'string' && x !== '') : [];
   const simLabel = !sim?.state ? '—'
-    : sim.state === 'absent' ? 'No SIM'
-    : sim.state === 'locked' ? 'Locked (PIN/PUK)'
-    : sim.state === 'ready' ? (simSlots.map((s) => s.carrier).filter(Boolean).join(', ') || 'Ready')
-    : 'Unknown';
+    : sim.state === 'absent' ? 'Sin SIM'
+    : sim.state === 'locked' ? 'Bloqueada (PIN/PUK)'
+    : sim.state === 'ready' ? (simSlots.map((s) => s.carrier).filter(Boolean).join(', ') || 'Lista')
+    : 'Desconocido';
   const networkRows: Row[] = [
     { k: 'SIM', v: simLabel },
-    { k: 'Phone number', v: orDash((phoneNumbers.length ? phoneNumbers : idnNumbers).join(', ') || undefined), mono: true },
-    { k: 'Type', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
-    { k: 'Local IP', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
-    { k: 'Public IP', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
+    { k: 'Número de teléfono', v: orDash((phoneNumbers.length ? phoneNumbers : idnNumbers).join(', ') || undefined), mono: true },
+    { k: 'Tipo', v: orDash(teleStr(dyn.networkType) ?? teleStr(dyn.network)) },
+    { k: 'IP local', v: orDash(teleStr(dyn.localIp) ?? teleStr(hw.localIp)), mono: true },
+    { k: 'IP pública', v: orDash(teleStr((tele as Record<string, unknown> | null)?.publicIp) ?? device.publicIp), mono: true },
   ];
   const managementRows: Row[] = [
-    { k: 'Config', v: configName },
-    { k: 'Agent', v: orDash(ds?.agentVersion ?? device.launcherVersion) },
-    { k: 'MDM mode', v: onOff(sec.isDeviceOwner, device.mdmMode) },
-    { k: 'Enrolled', v: fmtDateTime(device.enrollTime) },
+    { k: 'Configuración', v: configName },
+    { k: 'Agente', v: orDash(ds?.agentVersion ?? device.launcherVersion) },
+    { k: 'Modo MDM', v: onOff(sec.isDeviceOwner, device.mdmMode) },
+    { k: 'Inscrito', v: fmtDateTime(device.enrollTime) },
   ];
 
   const loc = dyn.location as
@@ -316,7 +316,7 @@ export function DeviceDetailPage() {
   const locationRows: Row[] = hasFix
     ? [
         {
-          k: 'Coordinates',
+          k: 'Coordenadas',
           v: (
             <a href={`https://www.google.com/maps?q=${loc!.lat},${loc!.lon}`} target="_blank" rel="noopener noreferrer">
               {loc!.lat!.toFixed(5)}, {loc!.lon!.toFixed(5)} ↗
@@ -324,25 +324,25 @@ export function DeviceDetailPage() {
           ),
           mono: true,
         },
-        { k: 'Accuracy', v: loc!.accuracyM != null ? `±${Math.round(loc!.accuracyM)} m` : '—' },
-        { k: 'Source', v: orDash(loc!.provider) },
-        { k: 'Fix age', v: loc!.capturedAt ? fmtRelative(loc!.capturedAt) : '—' },
+        { k: 'Precisión', v: loc!.accuracyM != null ? `±${Math.round(loc!.accuracyM)} m` : '—' },
+        { k: 'Fuente', v: orDash(loc!.provider) },
+        { k: 'Antigüedad', v: loc!.capturedAt ? fmtRelative(loc!.capturedAt) : '—' },
       ]
-    : [{ k: 'Location', v: 'No fix reported yet' }];
+    : [{ k: 'Ubicación', v: 'Aún no ha reportado ubicación' }];
 
   const groups: Array<{ title: string; rows: Row[] }> = [
-    { title: 'Status', rows: statusRows },
-    { title: 'Location', rows: locationRows },
+    { title: 'Estado', rows: statusRows },
+    { title: 'Ubicación', rows: locationRows },
     { title: 'Hardware', rows: hardwareRows },
-    { title: 'Network', rows: networkRows },
-    { title: 'Management', rows: managementRows },
+    { title: 'Red', rows: networkRows },
+    { title: 'Gestión', rows: managementRows },
   ];
 
   return (
     <AppShell title={device.number}>
       <div className="crumb">
         <a href="/devices" onClick={(e) => { e.preventDefault(); navigate('/devices'); }}>
-          Devices
+          Dispositivos
         </a>{' '}
         / {device.number}
       </div>
@@ -364,7 +364,7 @@ export function DeviceDetailPage() {
 
           <div className="actions">
             <button className="pri" disabled={busy} onClick={() => void syncNow()}>
-              Sync now
+              Sincronizar ahora
             </button>
             <button
               className="sec"
@@ -375,13 +375,13 @@ export function DeviceDetailPage() {
                 requestAnimationFrame(() => workRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
               }}
             >
-              Remote
+              Remoto
             </button>
             <button className="sec" disabled={busy} onClick={() => void lock()}>
-              Lock
+              Bloquear
             </button>
             <button className="sec" disabled={busy} onClick={() => void installConfigApps()}>
-              Install config apps
+              Instalar apps de la configuración
             </button>
           </div>
 
@@ -399,7 +399,7 @@ export function DeviceDetailPage() {
 
           {sim?.state === 'absent' && (
             <div className="banner banner-alert" role="alert" data-testid="sim-absent">
-              <b>No SIM card.</b> The SIM was removed (see Events for when, and which card it was).
+              <b>Sin tarjeta SIM.</b> La SIM fue retirada (mira en Eventos cuándo y cuál era).
             </div>
           )}
 
@@ -418,19 +418,19 @@ export function DeviceDetailPage() {
               Control
             </button>
             <button className={tab === 'remote' ? 'on' : ''} onClick={() => setTab('remote')}>
-              Remote
+              Remoto
             </button>
             <button className={tab === 'apps' ? 'on' : ''} onClick={() => setTab('apps')}>
-              Apps
+              Aplicaciones
             </button>
             <button className={tab === 'telemetry' ? 'on' : ''} onClick={() => setTab('telemetry')}>
-              Telemetry
+              Telemetría
             </button>
             <button className={tab === 'events' ? 'on' : ''} onClick={() => setTab('events')}>
-              Events
+              Eventos
             </button>
             <button className={tab === 'location' ? 'on' : ''} onClick={() => setTab('location')}>
-              Location
+              Ubicación
             </button>
           </div>
 

@@ -63,6 +63,7 @@ public class FleetResource {
     private UnsecureDAO unsecureDAO;
     private AgentWakeHub wakeHub;
     private ConfigurationScopeApplier scopes;
+    private String baseUrl = "";
 
     /** A constructor required by Swagger. */
     public FleetResource() {
@@ -70,7 +71,9 @@ public class FleetResource {
 
     @Inject
     public FleetResource(AgentCommandDAO commandDAO, UnsecureDAO unsecureDAO, AgentWakeHub wakeHub,
-                         ConfigurationScopeApplier scopes) {
+                         ConfigurationScopeApplier scopes,
+                         @com.google.inject.name.Named("base.url") String baseUrl) {
+        this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.commandDAO = commandDAO;
         this.unsecureDAO = unsecureDAO;
         this.wakeHub = wakeHub;
@@ -104,6 +107,55 @@ public class FleetResource {
 
     public static class CommandBody {
         public AgentCommand command;
+    }
+
+    // --- export -------------------------------------------------------------------------------------------------
+
+    @ApiOperation(value = "Export devices (Excel)", notes = "Workbook with Resumen, Dispositivos, Carpetas and Conexiones "
+            + "(connection history). ?group=<id> limits it to a folder and its sub-folders; ?days=<n> (default 30) the history.")
+    @GET
+    @Path("/export.xlsx")
+    @Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    public javax.ws.rs.core.Response exportDevices(@javax.ws.rs.QueryParam("group") Integer groupId,
+                                                  @javax.ws.rs.QueryParam("days") Integer days,
+                                                  @javax.ws.rs.QueryParam("tz") String tz) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return javax.ws.rs.core.Response.status(403).build();
+        }
+        int c = customerId.get();
+        com.hmdm.util.DeviceExport.Input in = new com.hmdm.util.DeviceExport.Input();
+        in.baseUrl = baseUrl;
+        try {
+            if (tz != null && !tz.trim().isEmpty()) in.zone = java.time.ZoneId.of(tz.trim());
+        } catch (Exception ignored) {
+            // keep America/Bogota
+        }
+        in.now = System.currentTimeMillis();
+        int d = days == null ? 30 : Math.max(1, Math.min(days, 366));
+        in.from = in.now - d * 86_400_000L;
+        in.to = in.now;
+        in.connectionGapMs = com.hmdm.rest.resource.AgentResource.CONNECTION_GAP_MS;
+        in.groups = commandDAO.listGroups(c);
+        in.devices = commandDAO.listDeviceExportRows(c);
+        in.connections = commandDAO.listConnections(c, in.from, in.to);
+        String fileName = "dispositivos";
+        if (groupId != null) {
+            DeviceGroupView g = commandDAO.findGroup(c, groupId);
+            if (g == null) {
+                return javax.ws.rs.core.Response.status(404).build();
+            }
+            in.onlyGroups = com.hmdm.util.DeviceExport.branch(groupId, in.groups);
+            in.scopeLabel = "Carpeta " + g.getName() + " y sus subcarpetas";
+            fileName += "-" + g.getName().replaceAll("[^A-Za-z0-9._-]+", "_");
+        }
+        final com.hmdm.util.DeviceExport.Input input = in;
+        javax.ws.rs.core.StreamingOutput body = out -> com.hmdm.util.DeviceExport.write(input, out);
+        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm").format(java.time.Instant.ofEpochMilli(in.now).atZone(in.zone));
+        return javax.ws.rs.core.Response.ok(body)
+                .header("Content-Disposition", "attachment; filename=\"" + fileName + "-" + stamp + ".xlsx\"")
+                .header("Cache-Control", "no-store")
+                .build();
     }
 
     // --- groups ---------------------------------------------------------------------------------------------------

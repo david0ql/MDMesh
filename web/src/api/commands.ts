@@ -32,8 +32,8 @@ export interface CommandTemplate {
 export const COMMAND_TEMPLATES: CommandTemplate[] = [
   {
     key: 'wifi-off',
-    label: 'Disable Wi-Fi',
-    description: 'Apply a policy that turns the device Wi-Fi radio off.',
+    label: 'Desactivar Wi‑Fi',
+    description: 'Aplica una política que apaga el Wi‑Fi del dispositivo.',
     request: {
       type: 'policy.apply',
       requiresCapability: 'policy.wifi',
@@ -42,8 +42,8 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'wifi-on',
-    label: 'Enable Wi-Fi',
-    description: 'Apply a policy that turns the device Wi-Fi radio on.',
+    label: 'Activar Wi‑Fi',
+    description: 'Aplica una política que enciende el Wi‑Fi del dispositivo.',
     request: {
       type: 'policy.apply',
       requiresCapability: 'policy.wifi',
@@ -52,8 +52,8 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'camera-off',
-    label: 'Disable camera',
-    description: 'Apply a policy that blocks the device camera.',
+    label: 'Desactivar cámara',
+    description: 'Aplica una política que bloquea la cámara del dispositivo.',
     request: {
       type: 'policy.apply',
       requiresCapability: 'policy.camera',
@@ -62,15 +62,15 @@ export const COMMAND_TEMPLATES: CommandTemplate[] = [
   },
   {
     key: 'reboot',
-    label: 'Reboot device',
-    description: 'Restart the device now.',
+    label: 'Reiniciar',
+    description: 'Reinicia el dispositivo ahora.',
     danger: true,
     request: { type: 'device.reboot' },
   },
   {
     key: 'lock',
-    label: 'Lock device',
-    description: 'Lock the device screen immediately.',
+    label: 'Bloquear',
+    description: 'Bloquea la pantalla del dispositivo de inmediato.',
     danger: true,
     request: { type: 'device.lock' },
   },
@@ -134,9 +134,9 @@ export interface CommandTemplateExt extends CommandTemplate {
 
 export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   {
-    key: 'lockscreen-message', label: 'Set lock-screen message', group: 'safe',
-    description: 'Show a custom message on the device lock screen (empty clears it).',
-    params: [{ key: 'message', label: 'Message', kind: 'text', placeholder: 'Property of ACME IT' }],
+    key: 'lockscreen-message', label: 'Mensaje en pantalla de bloqueo', group: 'safe',
+    description: 'Muestra un mensaje en la pantalla de bloqueo del dispositivo (vacío lo borra).',
+    params: [{ key: 'message', label: 'Mensaje', kind: 'text', placeholder: 'Propiedad de ACME TI' }],
     request: { type: 'device.lockscreenMessage', requiresCapability: 'device.lockscreenMessage' },
     build: (v) => ({
       type: 'device.lockscreenMessage', requiresCapability: 'device.lockscreenMessage',
@@ -144,11 +144,11 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'alert', label: 'Send alert', group: 'safe',
-    description: 'Pop a high-priority message on the device.',
+    key: 'alert', label: 'Enviar mensaje', group: 'safe',
+    description: 'Muestra un mensaje de alta prioridad en el dispositivo.',
     params: [
-      { key: 'title', label: 'Title', kind: 'text', placeholder: 'Message from IT' },
-      { key: 'body', label: 'Message', kind: 'text', required: true },
+      { key: 'title', label: 'Título', kind: 'text', placeholder: 'Mensaje de TI' },
+      { key: 'body', label: 'Mensaje', kind: 'text', required: true },
     ],
     request: { type: 'device.alert', requiresCapability: 'device.alert' },
     build: (v) => ({
@@ -157,22 +157,22 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'ring', label: 'Ring device', group: 'safe',
-    description: 'Play a loud locate tone for 30 seconds.',
+    key: 'ring', label: 'Hacer sonar', group: 'safe',
+    description: 'Reproduce un tono fuerte durante 30 segundos para encontrarlo.',
     request: {
       type: 'device.ring', requiresCapability: 'device.ring',
       payload: JSON.stringify({ durationMs: 30000 }),
     },
   },
   {
-    key: 'ring-stop', label: 'Stop ringing', group: 'safe',
-    description: 'Silence an active locate tone.',
+    key: 'ring-stop', label: 'Dejar de sonar', group: 'safe',
+    description: 'Silencia el tono de localización activo.',
     request: { type: 'device.ringStop', requiresCapability: 'device.ringStop' },
   },
   {
-    key: 'app-launch', label: 'Open app', group: 'safe',
-    description: 'Bring an installed app to the front (in kiosk, only apps the kiosk allows).',
-    params: [{ key: 'packageName', label: 'Package', kind: 'text', required: true, placeholder: 'co.amovil.preventa' }],
+    key: 'app-launch', label: 'Abrir app', group: 'safe',
+    description: 'Trae al frente una app instalada (en quiosco, solo las apps que el quiosco permite).',
+    params: [{ key: 'packageName', label: 'Paquete', kind: 'text', required: true, placeholder: 'co.amovil.preventa' }],
     request: { type: 'device.appLaunch', requiresCapability: 'device.appLaunch' },
     build: (v) => ({
       type: 'device.appLaunch', requiresCapability: 'device.appLaunch',
@@ -180,19 +180,19 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'lock', label: 'Lock device', group: 'disruptive', danger: true,
-    description: 'Lock the device screen immediately.',
+    key: 'lock', label: 'Bloquear', group: 'disruptive', danger: true,
+    description: 'Bloquea la pantalla del dispositivo de inmediato.',
     request: { type: 'device.lock', requiresCapability: 'device.lock' },
   },
   {
-    key: 'reboot', label: 'Reboot device', group: 'disruptive', danger: true,
-    description: 'Restart the device now.', confirm: 'simple',
+    key: 'reboot', label: 'Reiniciar', group: 'disruptive', danger: true,
+    description: 'Reinicia el dispositivo ahora.', confirm: 'simple',
     request: { type: 'device.reboot', requiresCapability: 'device.reboot' },
   },
   {
-    key: 'passcode-reset', label: 'Reset passcode', group: 'destructive', danger: true,
-    description: 'Set or clear the device passcode (empty clears it).', confirm: 'simple',
-    params: [{ key: 'newPassword', label: 'New passcode (blank to clear)', kind: 'password' }],
+    key: 'passcode-reset', label: 'Cambiar PIN de bloqueo', group: 'destructive', danger: true,
+    description: 'Define o quita el PIN de bloqueo del dispositivo (vacío lo quita).', confirm: 'simple',
+    params: [{ key: 'newPassword', label: 'Nuevo PIN (vacío para quitarlo)', kind: 'password' }],
     request: { type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset' },
     build: (v) => ({
       type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset',
@@ -200,37 +200,37 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
-    key: 'wipe', label: 'Factory reset (wipe)', group: 'destructive', danger: true,
-    description: 'Irreversibly erase the device. Cannot be undone.', confirm: 'type-to-confirm',
+    key: 'wipe', label: 'Restablecer de fábrica (borrar todo)', group: 'destructive', danger: true,
+    description: 'Borra el dispositivo por completo. No se puede deshacer.', confirm: 'type-to-confirm',
     request: { type: 'device.wipe', requiresCapability: 'device.wipe' },
   },
   {
-    key: 'power-adaptive', label: 'Connectivity: Battery-saver', group: 'safe',
-    description: 'Hold the live connection only when the screen is on or charging; use the low-power heartbeat when idle. Battery-friendly default.',
+    key: 'power-adaptive', label: 'Conectividad: ahorro de batería', group: 'safe',
+    description: 'Mantiene la conexión en vivo solo con la pantalla encendida o cargando; en reposo usa el latido de bajo consumo. Opción por defecto, cuida la batería.',
     request: {
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
       payload: JSON.stringify({ mode: 'adaptive' }),
     },
   },
   {
-    key: 'power-always', label: 'Connectivity: Always-on', group: 'safe',
-    description: 'Keep the live connection up 24/7 so commands and remote sessions reach the device instantly, even locked on battery (higher battery use). Use it for devices that need immediate support.',
+    key: 'power-always', label: 'Conectividad: Siempre conectado', group: 'safe',
+    description: 'Mantiene la conexión en vivo 24/7 para que las órdenes y las sesiones remotas lleguen al instante, incluso bloqueado y sin cargar (gasta más batería). Úsalo en dispositivos que necesitan soporte inmediato.',
     request: {
       type: 'device.powerMode', requiresCapability: 'device.powerMode',
       payload: JSON.stringify({ mode: 'alwaysOn' }),
     },
   },
   {
-    key: 'location-passive', label: 'Location: Battery-saver', group: 'safe',
-    description: 'Report the device’s last-known location each check-in — near-zero battery, no active GPS.',
+    key: 'location-passive', label: 'Ubicación: ahorro de batería', group: 'safe',
+    description: 'Reporta la última ubicación conocida en cada conexión — casi sin gasto de batería, sin GPS activo.',
     request: {
       type: 'device.locationMode', requiresCapability: 'device.locationMode',
       payload: JSON.stringify({ mode: 'passive' }),
     },
   },
   {
-    key: 'location-active', label: 'Location: Accurate', group: 'safe',
-    description: 'Take a fresh GPS fix each check-in for tighter tracking (higher battery use).',
+    key: 'location-active', label: 'Ubicación: precisa', group: 'safe',
+    description: 'Toma una posición GPS nueva en cada conexión para un seguimiento más preciso (gasta más batería).',
     request: {
       type: 'device.locationMode', requiresCapability: 'device.locationMode',
       payload: JSON.stringify({ mode: 'active' }),
@@ -239,13 +239,13 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   {
     // Handled specially by ActionConsole: opens the app-picker modal (scans the device, builds the
     // KioskApplyPayload, queues kiosk.enter ungated). Listed here only for the button + grouping.
-    key: 'kiosk-enter', label: 'Enter kiosk', group: 'disruptive', danger: true,
-    description: 'Lock the device to one app or a set of apps, chosen from a scan of the device.',
+    key: 'kiosk-enter', label: 'Entrar en quiosco', group: 'disruptive', danger: true,
+    description: 'Limita el dispositivo a una app o a un grupo de apps, elegidas a partir de un escaneo del dispositivo.',
     request: { type: 'kiosk.enter' },
   },
   {
-    key: 'kiosk-exit', label: 'Exit kiosk', group: 'disruptive',
-    description: 'Release kiosk mode and restore the normal home screen.',
+    key: 'kiosk-exit', label: 'Salir del quiosco', group: 'disruptive',
+    description: 'Sale del modo quiosco y restaura la pantalla de inicio normal.',
     request: { type: 'kiosk.exit' },
   },
 ];

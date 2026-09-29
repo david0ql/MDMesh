@@ -13,7 +13,7 @@ import {
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
-import { groupTree, listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
+import { downloadDevicesExcel, groupTree, listGroups, moveDevicesToGroup, setDevicesConfiguration, type FleetGroup } from '../api/fleet';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -64,6 +64,7 @@ function IconList() {
 export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [exporting, setExporting] = useState(false);
   const { devices, total, configurations, loading, error, reload } = useDevices();
   const [view, setView] = useState<View>('grid');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -191,15 +192,15 @@ export function DevicesPage() {
     try {
       const inherit = target === 'inherit';
       await setDevicesConfiguration([...selected], inherit ? null : Number(target));
-      const name = inherit ? 'inherited from group / global'
-        : allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuration';
-      toast.push('ok', 'Configuration changed', `${selected.size} device(s) → ${name}.`);
+      const name = inherit ? 'heredada de la carpeta / global'
+        : allConfigs.find((c) => c.id === Number(target))?.name ?? 'configuración';
+      toast.push('ok', 'Configuración cambiada', `${selected.size} dispositivo(s) → ${name}.`);
       setMoveOpen(false);
       setTarget('');
       clearSel();
       await reload();
     } catch (e) {
-      toast.push('err', 'Change failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo cambiar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -211,15 +212,15 @@ export function DevicesPage() {
     try {
       const gid = groupTarget === 'none' ? null : Number(groupTarget);
       const r = await moveDevicesToGroup([...selected], gid);
-      const name = gid == null ? 'no group' : groups.find((g) => g.id === gid)?.name ?? 'group';
-      toast.push('ok', 'Group changed',
-        `${r.moved} device(s) → ${name}` + (r.devicesReconfigured ? ` · ${r.devicesReconfigured} reconfigured` : '') + '.');
+      const name = gid == null ? 'sin carpeta' : groups.find((g) => g.id === gid)?.name ?? 'carpeta';
+      toast.push('ok', 'Carpeta cambiada',
+        `${r.moved} dispositivo(s) → ${name}` + (r.devicesReconfigured ? ` · ${r.devicesReconfigured} reconfigurado(s)` : '') + '.');
       setGroupOpen(false);
       setGroupTarget('');
       clearSel();
       await Promise.all([reload(), loadGroups()]);
     } catch (e) {
-      toast.push('err', 'Move failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo mover', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -229,82 +230,91 @@ export function DevicesPage() {
     setBusy(true);
     try {
       await deleteDevicesBulk([...selected]);
-      toast.push('ok', 'Devices deleted', `${selected.size} device(s) removed.`);
+      toast.push('ok', 'Dispositivos eliminados', `${selected.size} dispositivo(s) eliminado(s).`);
       setDelOpen(false);
       clearSel();
       await reload();
     } catch (e) {
-      toast.push('err', 'Delete failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo eliminar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <AppShell title="Devices">
+    <AppShell title="Dispositivos">
       <div className="dv-head">
-        <h1>Devices</h1>
+        <h1>Dispositivos</h1>
         <span className="dv-count">
-          {total > devices.length ? `${devices.length} of ${total}` : devices.length} total · {onlineCount} online
+          {total > devices.length ? `${devices.length} de ${total}` : devices.length} en total · {onlineCount} en línea
         </span>
         <div className="dv-spacer" />
+        <button className="btn" data-testid="export-excel" disabled={exporting} title="Resumen, dispositivos, carpetas y conexiones (30 días); respeta la carpeta filtrada"
+          onClick={() => {
+            setExporting(true);
+            const gid = group !== 'all' && group !== 'none' ? Number(group) : undefined;
+            downloadDevicesExcel(gid).catch((e) => toast.push('err', 'No se pudo descargar', e instanceof Error ? e.message : ''))
+              .finally(() => setExporting(false));
+          }}>
+          {exporting ? <span key="x">Generando…</span> : <span key="d">Descargar Excel</span>}
+        </button>
         <div className="dv-search">
           <IconSearch />
           <input
             type="search"
-            placeholder="Search devices"
+            placeholder="Buscar dispositivos"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="toggle" role="group" aria-label="View">
-          <button className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} aria-label="Grid view" title="Grid">
+        <div className="toggle" role="group" aria-label="Vista">
+          <button className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')} aria-label="Vista de cuadrícula" title="Cuadrícula">
             <IconGrid />
           </button>
-          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="List view" title="List">
+          <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')} aria-label="Vista de lista" title="Lista">
             <IconList />
           </button>
         </div>
         <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
-          Enroll device
+          Inscribir dispositivo
         </button>
       </div>
 
       <div className="filters">
         <button className={`filter-chip ${status === 'all' ? 'on' : ''}`} onClick={() => setStatus('all')}>
-          All <b>{devices.length}</b>
+          Todos <b>{devices.length}</b>
         </button>
         <button className={`filter-chip ${status === 'online' ? 'on' : ''}`} onClick={() => setStatus('online')}>
-          Online <b>{onlineCount}</b>
+          En línea <b>{onlineCount}</b>
         </button>
         <button className={`filter-chip ${status === 'offline' ? 'on' : ''}`} onClick={() => setStatus('offline')}>
-          Offline <b>{devices.length - onlineCount}</b>
+          Sin conexión <b>{devices.length - onlineCount}</b>
         </button>
         {dupTotal > 0 && (
           <button
             className={`filter-chip dup ${dupOnly ? 'on' : ''}`}
             onClick={() => setDupOnly((v) => !v)}
-            title="Devices that share a hardware id with another row — likely the same physical device enrolled more than once"
+            title="Dispositivos que comparten el ID de hardware con otra fila: probablemente el mismo equipo físico inscrito más de una vez"
           >
-            ⚠ Duplicates <b>{dupTotal}</b>
+            ⚠ Duplicados <b>{dupTotal}</b>
           </button>
         )}
         <span className="filter-div" />
-        <select className="sel" value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Filter by group">
-          <option value="all">Group: All</option>
+        <select className="sel" value={group} onChange={(e) => setGroup(e.target.value)} aria-label="Filtrar por carpeta">
+          <option value="all">Carpeta: todas</option>
           {tree.map((n) => (
             <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>
           ))}
-          <option value="none">No group</option>
+          <option value="none">Sin carpeta</option>
         </select>
-        <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filter by configuration">
-          <option value="all">Config: All</option>
+        <select className="sel" value={config} onChange={(e) => setConfig(e.target.value)} aria-label="Filtrar por configuración">
+          <option value="all">Configuración: todas</option>
           {configOptions.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <select className="sel" value={android} onChange={(e) => setAndroid(e.target.value)} aria-label="Filter by Android version">
-          <option value="all">Android: All</option>
+        <select className="sel" value={android} onChange={(e) => setAndroid(e.target.value)} aria-label="Filtrar por versión de Android">
+          <option value="all">Android: todas</option>
           {androidOptions.map((a) => (
             <option key={a} value={a}>Android {a}</option>
           ))}
@@ -313,27 +323,27 @@ export function DevicesPage() {
 
       {selected.size > 0 && (
         <div className="bulk-bar">
-          <span className="bulk-count">{selected.size} selected</span>
+          <span className="bulk-count">{selected.size} seleccionado(s)</span>
           <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
-            Actions
+            Acciones
           </button>
           <button className="btn btn-sm" onClick={() => setGroupOpen(true)}>
-            Move to group
+            Mover a carpeta
           </button>
           <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
-            Change configuration
+            Cambiar configuración
           </button>
           <button className="btn btn-sm btn-danger" onClick={() => setDelOpen(true)}>
-            Delete
+            Eliminar
           </button>
           <div style={{ flex: 1 }} />
           {selected.size < filtered.length && (
             <button className="btn btn-sm btn-ghost" onClick={selectAllFiltered}>
-              Select all {filtered.length}
+              Seleccionar los {filtered.length}
             </button>
           )}
           <button className="btn btn-sm btn-ghost" onClick={clearSel}>
-            Clear
+            Limpiar
           </button>
         </div>
       )}
@@ -343,14 +353,14 @@ export function DevicesPage() {
       {loading ? (
         <div className="panel">
           <div className="empty">
-            <span className="spin" /> Loading devices…
+            <span className="spin" /> Cargando dispositivos…
           </div>
         </div>
       ) : filtered.length === 0 ? (
         <div className="panel">
           <div className="empty">
-            <span className="label">No devices</span>
-            {devices.length === 0 ? 'No devices are enrolled yet.' : 'No devices match these filters.'}
+            <span className="label">Sin dispositivos</span>
+            {devices.length === 0 ? 'Aún no hay dispositivos inscritos.' : 'Ningún dispositivo coincide con estos filtros.'}
           </div>
         </div>
       ) : (
@@ -364,10 +374,10 @@ export function DevicesPage() {
                 if (el) el.indeterminate = selectionActive && !allFilteredSelected;
               }}
               onChange={toggleAll}
-              aria-label="Select all devices"
+              aria-label="Seleccionar todos los dispositivos"
             />
             <span onClick={toggleAll} style={{ cursor: 'pointer' }}>
-              {allFilteredSelected ? 'Clear selection' : 'Select all'} · {filtered.length} device
+              {allFilteredSelected ? 'Quitar selección' : 'Seleccionar todo'} · {filtered.length} dispositivo
               {filtered.length === 1 ? '' : 's'}
             </span>
           </div>
@@ -420,26 +430,26 @@ export function DevicesPage() {
       {moveOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setMoveOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Change configuration</h3>
+            <h3>Cambiar configuración</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Device-level configuration for {selected.size} device{selected.size === 1 ? '' : 's'}: a configuration
-              chosen here wins over the group&rsquo;s and the global one. &ldquo;Inherit&rdquo; hands them back to their group
-              (or the global configuration).
+              Configuración propia para {selected.size} dispositivo{selected.size === 1 ? '' : 's'}: la configuración
+              que elijas aquí tiene prioridad sobre la de la carpeta y la global. &ldquo;Heredar&rdquo; los devuelve a la de su carpeta
+              (o a la configuración global).
             </p>
             <label className="field">
-              <span>Configuration</span>
+              <span>Configuración</span>
               <select className="sel" value={target} onChange={(e) => setTarget(e.target.value)} style={{ width: '100%' }}>
-                <option value="">Select a configuration…</option>
-                <option value="inherit">Inherit from group / global</option>
+                <option value="">Elige una configuración…</option>
+                <option value="inherit">Heredar de la carpeta / global</option>
                 {allConfigs.map((c) => (
                   <option key={c.id} value={String(c.id)}>{c.name}</option>
                 ))}
               </select>
             </label>
             <div className="modal-actions">
-              <button className="btn" onClick={() => setMoveOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setMoveOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-primary" disabled={busy || !target} onClick={() => void applyMove()}>
-                {busy ? 'Moving…' : 'Move'}
+                {busy ? 'Moviendo…' : 'Mover'}
               </button>
             </div>
           </div>
@@ -449,26 +459,26 @@ export function DevicesPage() {
       {groupOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setGroupOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Move to group</h3>
+            <h3>Mover a carpeta</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Put {selected.size} device{selected.size === 1 ? '' : 's'} in a group (company). They take the group&rsquo;s
-              configuration unless they have their own.
+              Pon {selected.size} dispositivo{selected.size === 1 ? '' : 's'} en una carpeta (empresa). Toman la configuración
+              de la carpeta, salvo que tengan una propia.
             </p>
             <label className="field">
-              <span>Group</span>
+              <span>Carpeta</span>
               <select className="sel" value={groupTarget} onChange={(e) => setGroupTarget(e.target.value)} style={{ width: '100%' }}>
-                <option value="">Select a group…</option>
+                <option value="">Elige una carpeta…</option>
                 {tree.map((n) => (
                   <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>
                 ))}
-                <option value="none">No group</option>
+                <option value="none">Sin carpeta</option>
               </select>
             </label>
-            {groups.length === 0 && <p className="muted">No groups yet — create one in Groups.</p>}
+            {groups.length === 0 && <p className="muted">Aún no hay carpetas: crea una en Carpetas.</p>}
             <div className="modal-actions">
-              <button className="btn" onClick={() => setGroupOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setGroupOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-primary" disabled={busy || !groupTarget} onClick={() => void applyGroup()}>
-                {busy ? 'Moving…' : 'Move'}
+                {busy ? 'Moviendo…' : 'Mover'}
               </button>
             </div>
           </div>
@@ -478,15 +488,15 @@ export function DevicesPage() {
       {delOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDelOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Delete devices</h3>
+            <h3>Eliminar dispositivos</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              Permanently remove {selected.size} device{selected.size === 1 ? '' : 's'} from DallyControl?
-              The device(s) will re-appear if they check in again.
+              ¿Eliminar definitivamente {selected.size} dispositivo{selected.size === 1 ? '' : 's'} de DallyControl?
+              Volverán a aparecer si se vuelven a conectar.
             </p>
             <div className="modal-actions">
-              <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancel</button>
+              <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancelar</button>
               <button className="btn btn-danger" disabled={busy} onClick={() => void applyDelete()}>
-                {busy ? 'Deleting…' : `Delete ${selected.size}`}
+                {busy ? 'Eliminando…' : `Eliminar ${selected.size}`}
               </button>
             </div>
           </div>
@@ -504,7 +514,7 @@ function SelectBox({ selected, onToggle }: { selected: boolean; onToggle: () => 
       checked={selected}
       onClick={(e) => e.stopPropagation()}
       onChange={onToggle}
-      aria-label="Select device"
+      aria-label="Seleccionar dispositivo"
     />
   );
 }
@@ -513,7 +523,7 @@ function DupBadge({ n }: { n: number }) {
   return (
     <span
       className="dup-badge"
-      title={`Shares a hardware id with ${n - 1} other device${n - 1 === 1 ? '' : 's'} — likely the same physical device enrolled more than once`}
+      title={`Comparte el ID de hardware con ${n - 1} dispositivo${n - 1 === 1 ? '' : 's'} más: probablemente el mismo equipo físico inscrito más de una vez`}
     >
       ⚠ {n}×
     </span>
@@ -566,15 +576,15 @@ function DeviceCard({
           <div className="v">{orDash(d.androidVersion)}</div>
         </div>
         <div>
-          <div className="k">Config</div>
+          <div className="k">Configuración</div>
           <div className="v">{config}</div>
         </div>
         <div>
-          <div className="k">Group</div>
+          <div className="k">Carpeta</div>
           <div className="v">{group}</div>
         </div>
         <div>
-          <div className="k">Seen</div>
+          <div className="k">Última conexión</div>
           <div className="v">{fmtRelative(d.lastUpdate)}</div>
         </div>
       </div>
@@ -628,15 +638,15 @@ function DeviceRow({
         <span className="lv">{orDash(d.androidVersion)}</span>
       </div>
       <div className="lc">
-        <span className="lk">Config</span>
+        <span className="lk">Configuración</span>
         <span className="lv">{config}</span>
       </div>
       <div className="lc">
-        <span className="lk">Group</span>
+        <span className="lk">Carpeta</span>
         <span className="lv">{group}</span>
       </div>
       <div className="lc">
-        <span className="lk">Seen</span>
+        <span className="lk">Última conexión</span>
         <span className="lv">{fmtRelative(d.lastUpdate)}</span>
       </div>
     </div>

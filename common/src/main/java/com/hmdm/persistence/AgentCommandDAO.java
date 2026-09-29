@@ -223,6 +223,24 @@ public class AgentCommandDAO {
         deviceMapper.reparentChildren(customerId, id, parentId);
     }
 
+    /**
+     * Extend the device's current connection session, or open a new one when it was silent longer than [gapMs] (the
+     * previous session then ended at its last check-in).
+     */
+    public void recordPresence(String deviceNumber, long now, long gapMs) {
+        if (deviceMapper.extendConnection(deviceNumber, now, now - gapMs) == 0) {
+            deviceMapper.openConnection(deviceNumber, now);
+        }
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listConnections(int customerId, long from, long to) {
+        return deviceMapper.listConnections(customerId, from, to);
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listDeviceExportRows(int customerId) {
+        return deviceMapper.listDeviceExportRows(customerId);
+    }
+
     public boolean nameIfUnnamed(String deviceNumber, String name) {
         return deviceMapper.nameIfUnnamed(deviceNumber, name) > 0;
     }

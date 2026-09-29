@@ -277,6 +277,13 @@ public class AgentResource {
             commandDAO.updateDeviceCapabilities(deviceNumber, capsJson);
         }
 
+        // Connection history (the Excel export): a silence longer than the gap ends a session.
+        try {
+            commandDAO.recordPresence(deviceNumber, System.currentTimeMillis(), CONNECTION_GAP_MS);
+        } catch (Exception e) {
+            logger.warn("Could not record presence of {}: {}", deviceNumber, e.getMessage());
+        }
+
         // Persist the latest device-state snapshot (powers the admin console).
         String appliedRevision = validRevision(deviceNumber,
                 request.getState() == null ? null : request.getState().getAppliedConfigRevision());
@@ -542,6 +549,12 @@ public class AgentResource {
             logger.warn("Could not store identity of {}: {}", deviceNumber, e.getMessage());
         }
     }
+
+    /**
+     * Longest silence that still counts as connected: an idle phone in battery-saver checks in every ~15 minutes (10 with
+     * the Doze heartbeat), so 20 minutes without a check-in means it went offline.
+     */
+    public static final long CONNECTION_GAP_MS = 20 * 60_000L;
 
     /** At most this many trail fixes per check-in (a day at one every 5 minutes). */
     private static final int MAX_TRAIL_FIXES = 288;

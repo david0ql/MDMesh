@@ -16,13 +16,13 @@ function CohortBar({ label, c }: { label: string; c: RolloutCounts }) {
     <div className="rollout-cohort">
       <div className="rollout-cohort-head">
         <span>{label}</span>
-        <span className="mono">{c.updated}/{c.total - c.ineligible} updated</span>
+        <span className="mono">{c.updated}/{c.total - c.ineligible} actualizados</span>
       </div>
       <div className="rollout-track"><div className="rollout-fill" style={{ width: `${pct}%` }} /></div>
       <div className="rollout-legend">
-        {c.pending > 0 && <span className="ub-warn">{c.pending} installing</span>}
-        {c.outstanding > 0 && <span>{c.outstanding} queued</span>}
-        {c.ineligible > 0 && <span className="muted">{c.ineligible} too old</span>}
+        {c.pending > 0 && <span className="ub-warn">{c.pending} instalando</span>}
+        {c.outstanding > 0 && <span>{c.outstanding} en cola</span>}
+        {c.ineligible > 0 && <span className="muted">{c.ineligible} muy antiguos</span>}
       </div>
     </div>
   );
@@ -99,7 +99,7 @@ export function RolloutPanel() {
 
   const promote = async () => {
     if (!rollout) return;
-    if (!window.confirm('Promote this update to the rest of the fleet?')) return;
+    if (!window.confirm('¿Extender esta actualización al resto de la flota?')) return;
     setBusy(true); setErr(null);
     try { setRollout(await promoteRollout(rollout.id)); void refresh(); }
     catch (e) { setErr((e as Error).message); }
@@ -120,18 +120,18 @@ export function RolloutPanel() {
 
   return (
     <section className="panel">
-      <div className="panel-head"><h2 className="panel-title">Agent rollout</h2></div>
+      <div className="panel-head"><h2 className="panel-title">Despliegue del agente</h2></div>
 
       {active && rollout && (
         <>
           <div className="set-row">
-            <span className="k">Rolling out</span>
+            <span className="k">Desplegando</span>
             <span className="v mono">
-              v{rollout.targetVersion} · <span className="ub-ch">{rollout.stage}</span>
+              v{rollout.targetVersion} · <span className="ub-ch">{rollout.stage === 'canary' ? 'canario' : rollout.stage === 'fleet' ? 'flota' : rollout.stage}</span>
             </span>
           </div>
-          <CohortBar label="Canary" c={rollout.progress.canary} />
-          {rollout.progress.fleet && <CohortBar label="Fleet" c={rollout.progress.fleet} />}
+          <CohortBar label="Canario" c={rollout.progress.canary} />
+          {rollout.progress.fleet && <CohortBar label="Flota" c={rollout.progress.fleet} />}
           <div className="set-row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             {rollout.stage === 'canary' && (
               <button
@@ -141,13 +141,13 @@ export function RolloutPanel() {
                   || rollout.progress.canary.pending > 0
                   || rollout.progress.canary.outstanding > 0
                   || rollout.progress.canary.updated < 1}
-                title="Enabled once every canary device has updated"
+                title="Se habilita cuando todos los dispositivos canario se hayan actualizado"
               >
-                Promote to fleet
+                Extender a la flota
               </button>
             )}
             <button className="btn btn-sm" onClick={() => void finish()} disabled={busy}>
-              {rollout.stage === 'fleet' ? 'Finish' : 'Cancel'}
+              {rollout.stage === 'fleet' ? <span key="finish">Finalizar</span> : <span key="cancel">Cancelar</span>}
             </button>
           </div>
         </>
@@ -156,12 +156,12 @@ export function RolloutPanel() {
       {!active && apk && apk.available && !picking && (
         <div className="set-row">
           <span className="k">
-            Agent v{apk.version} available
-            <small>Push the new agent APK to devices in stages.</small>
+            Agente v{apk.version} disponible
+            <small>Envía el nuevo APK del agente a los dispositivos por etapas.</small>
           </span>
           <span className="v">
             <button className="btn btn-sm btn-primary" onClick={() => void openPicker()}>
-              Roll out…
+              Desplegar…
             </button>
           </span>
         </div>
@@ -170,8 +170,8 @@ export function RolloutPanel() {
       {!active && picking && (
         <>
           <p className="muted" style={{ margin: '0 0 8px' }}>
-            Select the <b>canary</b> devices to update first (v{apk?.version}). You'll promote to the
-            rest of the fleet once they're confirmed healthy.
+            Selecciona los dispositivos <b>canario</b> que se actualizan primero (v{apk?.version}). Cuando confirmes que
+            funcionan bien, extiendes la actualización al resto de la flota.
           </p>
           <div className="rollout-devicelist">
             {devices.map((d) => (
@@ -181,14 +181,14 @@ export function RolloutPanel() {
                 {d.description && <span className="muted">{d.description}</span>}
               </label>
             ))}
-            {devices.length === 0 && <span className="muted">No devices.</span>}
+            {devices.length === 0 && <span className="muted">No hay dispositivos.</span>}
           </div>
           <div className="set-row" style={{ justifyContent: 'flex-end', gap: 8 }}>
             <button className="btn btn-sm" onClick={() => { setPicking(false); setSelected(new Set()); }} disabled={busy}>
-              Cancel
+              Cancelar
             </button>
             <button className="btn btn-sm btn-primary" onClick={() => void start()} disabled={busy || selected.size === 0}>
-              {busy ? 'Starting…' : `Start canary (${selected.size})`}
+              {busy ? <span key="busy">Iniciando…</span> : <span key="idle">Iniciar canario ({selected.size})</span>}
             </button>
           </div>
         </>

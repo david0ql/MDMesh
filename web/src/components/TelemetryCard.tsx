@@ -40,18 +40,18 @@ export function TelemetryCard({ device }: { device: Device }) {
   if (!t) {
     return (
       <div className="panel">
-        <h2 className="panel-title">Telemetry</h2>
-        <p className="muted">No telemetry yet.</p>
+        <h2 className="panel-title">Telemetría</h2>
+        <p className="muted">Aún no hay telemetría.</p>
       </div>
     );
   }
   return (
     <div className="panel">
-      <h2 className="panel-title">Telemetry</h2>
+      <h2 className="panel-title">Telemetría</h2>
       <Group title="Hardware" data={t.hardware} />
-      <Group title="Network & Battery" data={t.dynamic} />
-      <Group title="Security" data={t.security} />
-      <Group title="Identity" data={t.identity} />
+      <Group title="Red y batería" data={t.dynamic} />
+      <Group title="Seguridad" data={t.security} />
+      <Group title="Identidad" data={t.identity} />
     </div>
   );
 }

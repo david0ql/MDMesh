@@ -16,16 +16,16 @@ const icon = (d: ReactElement) => (
 
 /** The Nexus-style soft keys: Back ◁, Home ○, Recents □. */
 const PRIMARY: Action[] = [
-  { key: 'back', label: 'Back', keys: [K.escape], icon: icon(<path d="M16 5 7 12l9 7z" />) },
-  { key: 'home', label: 'Home', keys: [K.home], icon: icon(<circle cx="12" cy="12" r="7" />) },
-  { key: 'recents', label: 'Recent apps', keys: [K.ctrl, K.shift, K.escape], icon: icon(<rect x="6" y="6" width="12" height="12" rx="1.5" />) },
+  { key: 'back', label: 'Atrás', keys: [K.escape], icon: icon(<path d="M16 5 7 12l9 7z" />) },
+  { key: 'home', label: 'Inicio', keys: [K.home], icon: icon(<circle cx="12" cy="12" r="7" />) },
+  { key: 'recents', label: 'Recientes', keys: [K.ctrl, K.shift, K.escape], icon: icon(<rect x="6" y="6" width="12" height="12" rx="1.5" />) },
 ];
 
 const SECONDARY: Action[] = [
-  { key: 'power', label: 'Power menu', keys: [K.end], icon: icon(<><path d="M12 3v8" /><path d="M6.3 7.3a8 8 0 1 0 11.4 0" /></>) },
-  { key: 'vol-down', label: 'Volume down', keys: [K.ctrl, K.alt, K.pageDown], icon: icon(<><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M17 12h4" /></>) },
-  { key: 'vol-up', label: 'Volume up', keys: [K.ctrl, K.alt, K.pageUp], icon: icon(<><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M17 12h4M19 10v4" /></>) },
-  { key: 'rotate', label: 'Rotate screen', keys: [K.ctrl, K.alt, K.del], icon: icon(<><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v4h-4" /></>) },
+  { key: 'power', label: 'Menú de apagado', keys: [K.end], icon: icon(<><path d="M12 3v8" /><path d="M6.3 7.3a8 8 0 1 0 11.4 0" /></>) },
+  { key: 'vol-down', label: 'Bajar volumen', keys: [K.ctrl, K.alt, K.pageDown], icon: icon(<><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M17 12h4" /></>) },
+  { key: 'vol-up', label: 'Subir volumen', keys: [K.ctrl, K.alt, K.pageUp], icon: icon(<><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M17 12h4M19 10v4" /></>) },
+  { key: 'rotate', label: 'Girar pantalla', keys: [K.ctrl, K.alt, K.del], icon: icon(<><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v4h-4" /></>) },
 ];
 
 interface Rfb { sendKey(keysym: number, code: string | null, down?: boolean): void }
@@ -76,7 +76,7 @@ export function NavBar({ frame, onUnavailable }: {
     void press(frame.current, a.keys).then((ok) => { if (!ok) onUnavailable(); });
   };
   return (
-    <div className="rp-nav" role="toolbar" aria-label="Device buttons">
+    <div className="rp-nav" role="toolbar" aria-label="Botones del dispositivo">
       <div className="rp-nav-side">
         {SECONDARY.map((a) => (
           <button key={a.key} type="button" className="rp-nav-btn small" title={a.label} aria-label={a.label}

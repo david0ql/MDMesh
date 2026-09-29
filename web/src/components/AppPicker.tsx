@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { appCategory, type AppCategory, type Application } from '../api/applications';
 
 const CAT_LABEL: Record<AppCategory, string> = {
-  uploaded: 'Uploaded',
-  system: 'System',
-  web: 'Web apps',
+  uploaded: 'Subidas',
+  system: 'Sistema',
+  web: 'Apps web',
 };
 const CAT_ORDER: AppCategory[] = ['uploaded', 'system', 'web'];
 
@@ -65,7 +65,7 @@ export function AppPicker({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal app-picker" onClick={(e) => e.stopPropagation()}>
-        <h3>Add apps</h3>
+        <h3>Agregar apps</h3>
 
         <div className="picker-top">
           <div className="dv-search" style={{ flex: 1 }}>
@@ -73,7 +73,7 @@ export function AppPicker({
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-4-4" />
             </svg>
-            <input type="search" placeholder="Search apps" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            <input type="search" placeholder="Buscar apps" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
           </div>
           <span className="seg">
             {tabs.map((c) => (
@@ -86,7 +86,7 @@ export function AppPicker({
 
         <div className="picker-list">
           {shown.length === 0 ? (
-            <div className="cfg-empty" style={{ padding: 20 }}>No apps here.</div>
+            <div className="cfg-empty" style={{ padding: 20 }}>No hay apps aquí.</div>
           ) : (
             shown.map((a) => {
               const on = picked.has(a.id);
@@ -106,9 +106,9 @@ export function AppPicker({
         </div>
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={picked.size === 0} onClick={add}>
-            Add {picked.size || ''}
+            Agregar {picked.size || ''}
           </button>
         </div>
       </div>

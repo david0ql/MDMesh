@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, API_BASE } from './client';
 import { bulkQueueCommand, type QueueCommandRequest } from './commands';
 
 // Fleet organisation: groups (companies) and changes at three levels — device, group, global.
@@ -120,13 +120,13 @@ export type Target =
   | { kind: 'group'; id: number; name: string; count: number }
   | { kind: 'all'; count: number };
 
-const plural = (n: number) => `${n} device${n === 1 ? '' : 's'}`;
+const plural = (n: number) => `${n} dispositivo${n === 1 ? '' : 's'}`;
 
 export function targetLabel(t: Target): string {
   switch (t.kind) {
     case 'devices': return plural(t.ids.length);
-    case 'group': return `group ${t.name} (${plural(t.count)})`;
-    default: return `all devices (${t.count})`;
+    case 'group': return `carpeta ${t.name} (${plural(t.count)})`;
+    default: return `todos los dispositivos (${t.count})`;
   }
 }
 
@@ -139,4 +139,25 @@ export async function queueForTarget(t: Target, req: QueueCommandRequest): Promi
   const path = t.kind === 'group' ? `${BASE}/groups/${t.id}/commands` : `${BASE}/global/commands`;
   const r = await apiClient.post<{ queued: number }>(path, { command: req });
   return { queued: r.queued, skipped: 0 };
+}
+
+/**
+ * Download the devices workbook (Resumen, Dispositivos, Carpetas, Conexiones). groupId limits it to a folder and its
+ * sub-folders; days is the connection history window.
+ */
+export async function downloadDevicesExcel(groupId?: number, days = 30): Promise<void> {
+  const q = new URLSearchParams({ days: String(days), tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota' });
+  if (groupId != null) q.set('group', String(groupId));
+  const res = await fetch(`${API_BASE}${BASE}/export.xlsx?${q}`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`No se pudo generar el Excel (${res.status})`);
+  const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'dispositivos.xlsx';
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

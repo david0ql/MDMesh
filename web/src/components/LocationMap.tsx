@@ -21,7 +21,7 @@ export function LocationMap({ fixes }: { fixes: LocationFix[] }) {
       mapRef.current = L.map(el, { worldCopyJump: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
+        attribution: '© colaboradores de OpenStreetMap',
       }).addTo(mapRef.current);
       layerRef.current = L.layerGroup().addTo(mapRef.current);
     }

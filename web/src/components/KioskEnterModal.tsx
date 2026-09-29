@@ -55,6 +55,8 @@ interface PickItem {
   badge?: string;
 }
 
+const CATEGORY_LABELS: Record<string, string> = { system: 'sistema', uploaded: 'subida', web: 'web' };
+
 const iconKey = (pkg: string, v?: number) => `mdm.icon.${pkg}@${v ?? 0}`;
 function cachedIcon(pkg: string, v?: number): string | undefined {
   try { return localStorage.getItem(iconKey(pkg, v)) ?? undefined; } catch { return undefined; }
@@ -133,7 +135,7 @@ export function KioskEnterModal({
   useEffect(() => {
     listApplications()
       .then(setLib)
-      .catch((e) => setLibErr(e instanceof Error ? e.message : 'Failed to load library'));
+      .catch((e) => setLibErr(e instanceof Error ? e.message : 'No se pudo cargar la biblioteca'));
   }, []);
 
   // First time the Device tab is opened, load the last saved scan (from command history) so apps
@@ -160,10 +162,10 @@ export function KioskEnterModal({
       setApps(list);
       setScannedAt(Date.now());
       primeFrom(list);
-      if (!list.length) setScanErr('The device reported no apps. Give it a moment after an update, then retry.');
+      if (!list.length) setScanErr('El dispositivo no reportó apps. Dale un momento después de una actualización y vuelve a intentar.');
     } catch (e) {
       if (abortRef.current?.signal.aborted) return; // modal closed — nothing to report
-      setScanErr(e instanceof Error ? e.message : 'Scan failed');
+      setScanErr(e instanceof Error ? e.message : 'Falló el escaneo');
     } finally {
       setScanning(false);
     }
@@ -178,7 +180,7 @@ export function KioskEnterModal({
       // default would leave the list nearly empty.)
       return (lib ?? [])
         .filter((a) => a.pkg)
-        .map((a) => ({ pkg: a.pkg, label: a.name || a.pkg, iconUrl: a.icon || undefined, system: appCategory(a) === 'system', badge: appCategory(a) }))
+        .map((a) => ({ pkg: a.pkg, label: a.name || a.pkg, iconUrl: a.icon || undefined, system: appCategory(a) === 'system', badge: CATEGORY_LABELS[appCategory(a)] }))
         .filter((i) => match(i.label, i.pkg))
         .sort((a, b) => Number(a.system) - Number(b.system) || a.label.localeCompare(b.label));
     }
@@ -187,7 +189,7 @@ export function KioskEnterModal({
     // The toggle now reveals system apps; non-launchable are never shown.
     return (apps ?? [])
       .filter((a) => a.launchable !== false)
-      .map((a) => ({ pkg: a.pkg, label: a.label, iconUrl: deviceIcons[a.pkg], system: !!a.system, badge: a.system ? 'system' : undefined }))
+      .map((a) => ({ pkg: a.pkg, label: a.label, iconUrl: deviceIcons[a.pkg], system: !!a.system, badge: a.system ? 'sistema' : undefined }))
       .filter((i) => (showAll || !i.system) && match(i.label, i.pkg));
   }, [source, lib, apps, deviceIcons, query, showAll]);
 
@@ -204,7 +206,7 @@ export function KioskEnterModal({
       }, abortRef.current?.signal);
     } catch (e) {
       if (abortRef.current?.signal.aborted) return; // modal closed — nothing to report
-      toast.push('err', 'Icon fetch failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudieron cargar los íconos', e instanceof Error ? e.message : '');
     } finally {
       setLoadingIcons(false);
     }
@@ -251,11 +253,11 @@ export function KioskEnterModal({
     try {
       await queueCommand(device.number, { type: 'kiosk.enter', payload: JSON.stringify(payload) });
       saveLast(device.number, { mode, packages: pkgs, exitMode, features });
-      toast.push('ok', 'Enter kiosk queued', `${pkgs.length} app${pkgs.length === 1 ? '' : 's'}`);
+      toast.push('ok', 'Entrada al quiosco en cola', `${pkgs.length} app${pkgs.length === 1 ? '' : 's'}`);
       onQueued();
       onClose();
     } catch (e) {
-      toast.push('err', 'Enter kiosk failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo entrar en quiosco', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -288,29 +290,29 @@ export function KioskEnterModal({
           {last ? ' Se parte de lo último que enviaste a este dispositivo.' : ''}</p>
 
         <div className="kiosk-source">
-          <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Library</button>
-          <button className={`seg-btn ${source === 'device' ? 'on' : ''}`} onClick={() => setSource('device')}>Device apps</button>
+          <button className={`seg-btn ${source === 'library' ? 'on' : ''}`} onClick={() => setSource('library')}>Biblioteca</button>
+          <button className={`seg-btn ${source === 'device' ? 'on' : ''}`} onClick={() => setSource('device')}>Apps del dispositivo</button>
         </div>
 
         <div className="kiosk-mode">
-          <label><input type="radio" checked={mode === 'launcher'} onChange={() => switchMode('launcher')} /> Allowed apps (launcher grid)</label>
-          <label><input type="radio" checked={mode === 'single'} onChange={() => switchMode('single')} /> Pin a single app</label>
+          <label><input type="radio" checked={mode === 'launcher'} onChange={() => switchMode('launcher')} /> Apps permitidas (cuadrícula de inicio)</label>
+          <label><input type="radio" checked={mode === 'single'} onChange={() => switchMode('single')} /> Fijar una sola app</label>
         </div>
 
         <div className="kiosk-toolbar">
-          <input className="kiosk-search" placeholder="Search apps…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="kiosk-search" placeholder="Buscar apps…" value={query} onChange={(e) => setQuery(e.target.value)} />
           {source === 'device' && (
             <label className="kiosk-toggle">
-              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show all (incl. system)
+              <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Mostrar todas (incl. sistema)
             </label>
           )}
           {source === 'device' && apps && (
             <>
               <button className="btn" disabled={loadingIcons} onClick={() => { void loadDeviceIcons(); }}>
-                {loadingIcons ? 'Loading icons…' : 'Load icons'}
+                {loadingIcons ? <span key="loading">Cargando íconos…</span> : <span key="idle">Cargar íconos</span>}
               </button>
               <button className="btn" disabled={scanning} onClick={() => { void scan(); }}>
-                {scanning ? 'Scanning…' : 'Re-scan'}
+                {scanning ? <span key="scanning">Escaneando…</span> : <span key="idle">Volver a escanear</span>}
               </button>
             </>
           )}
@@ -318,16 +320,16 @@ export function KioskEnterModal({
 
         {source === 'device' && apps && (
           <p className="kiosk-saved muted">
-            {scannedAt ? `Saved scan from ${new Date(scannedAt).toLocaleString()} · ${apps.length} apps` : `${apps.length} apps`} — re-scan to refresh.
+            {scannedAt ? `Escaneo guardado del ${new Date(scannedAt).toLocaleString()} · ${apps.length} apps` : `${apps.length} apps`}. Vuelve a escanear para actualizar.
           </p>
         )}
 
         {source === 'device' && !apps && (
           <div className="kiosk-scan">
             <button className="btn btn-primary" disabled={scanning} onClick={() => { void scan(); }}>
-              {scanning ? 'Scanning device…' : 'Scan device apps'}
+              {scanning ? <span key="scanning">Escaneando dispositivo…</span> : <span key="idle">Escanear apps del dispositivo</span>}
             </button>
-            {scanning && <p className="muted">Asking the device for its installed apps…</p>}
+            {scanning && <p className="muted">Pidiendo al dispositivo sus apps instaladas…</p>}
             {scanErr && <p className="err-text">{scanErr}</p>}
           </div>
         )}
@@ -335,7 +337,7 @@ export function KioskEnterModal({
         {(source === 'library' || apps) && (
           <div className="kiosk-applist">
             {libErr && source === 'library' && <p className="err-text" style={{ padding: 10 }}>{libErr}</p>}
-            {source === 'library' && !lib && !libErr && <p className="muted" style={{ padding: 10 }}>Loading library…</p>}
+            {source === 'library' && !lib && !libErr && <p className="muted" style={{ padding: 10 }}>Cargando biblioteca…</p>}
             {items.map((i) => {
               const on = selected.has(i.pkg);
               return (
@@ -354,7 +356,7 @@ export function KioskEnterModal({
                 </button>
               );
             })}
-            {!items.length && (source === 'library' ? lib : apps) && <p className="muted" style={{ padding: 10 }}>No apps match.</p>}
+            {!items.length && (source === 'library' ? lib : apps) && <p className="muted" style={{ padding: 10 }}>Ninguna app coincide.</p>}
           </div>
         )}
 
@@ -369,16 +371,16 @@ export function KioskEnterModal({
 
         <div className="kiosk-exit-row">
           <label className="field">
-            <span>Exit mode</span>
+            <span>Modo de salida</span>
             <select value={exitMode} onChange={(e) => setExitMode(e.target.value as typeof exitMode)}>
-              <option value="gesture">Gesture (7-tap corner)</option>
-              <option value="visible">Visible button</option>
-              <option value="remote">Remote only</option>
+              <option value="gesture">Gesto (7 toques en la esquina)</option>
+              <option value="visible">Botón visible</option>
+              <option value="remote">Solo remoto</option>
             </select>
           </label>
           <label className="field">
-            <span>Exit password</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="optional" />
+            <span>Contraseña de salida</span>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="opcional" />
           </label>
         </div>
 

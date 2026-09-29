@@ -11,8 +11,8 @@ import { queueForTarget, targetLabel, type Target } from '../api/fleet';
 // Only safe + disruptive actions run in bulk; the destructive group (passcode-reset, wipe) is excluded.
 // kiosk-enter is handled by a dedicated Phase-3 flow, so it is filtered out here too.
 const BULK_GROUPS: Array<{ id: 'safe' | 'disruptive'; title: string }> = [
-  { id: 'safe', title: 'Actions' },
-  { id: 'disruptive', title: 'Disruptive' },
+  { id: 'safe', title: 'Acciones' },
+  { id: 'disruptive', title: 'Disruptivas' },
 ];
 
 function bulkable(t: CommandTemplateExt): boolean {
@@ -60,7 +60,7 @@ export function BulkActionModal({
     let cancelled = false;
     listApplications()
       .then((r) => { if (!cancelled) setApps(r); })
-      .catch((e) => { if (!cancelled) setAppErr(e instanceof Error ? e.message : 'Failed to load apps'); });
+      .catch((e) => { if (!cancelled) setAppErr(e instanceof Error ? e.message : 'No se pudieron cargar las aplicaciones'); });
     return () => { cancelled = true; };
   }, [appPicker]);
 
@@ -70,13 +70,13 @@ export function BulkActionModal({
       const req = t.build ? t.build(vals) : t.request;
       const res = await queueForTarget(target, req);
       const skipped = res.skipped;
-      toast.push('ok', `${t.label} queued`,
-        `Queued for ${res.queued} device${res.queued === 1 ? '' : 's'}` +
-        (skipped ? ` (${skipped} skipped)` : '') + '.');
+      toast.push('ok', `${t.label}: en cola`,
+        `En cola para ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` +
+        (skipped ? ` (${skipped} omitido${skipped === 1 ? '' : 's'})` : '') + '.');
       onDone();
       onClose();
     } catch (e) {
-      toast.push('err', `${t.label} failed`, e instanceof Error ? e.message : '');
+      toast.push('err', `${t.label}: falló`, e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -84,18 +84,18 @@ export function BulkActionModal({
 
   async function runInstall(app: Application) {
     const spec = specForApp(app);
-    if (!spec) { toast.push('err', 'Not installable', `${app.name} has no hosted APK.`); return; }
+    if (!spec) { toast.push('err', 'No se puede instalar', `${app.name} no tiene un APK alojado.`); return; }
     setBusy(true);
     try {
       const res = await queueForTarget(target, buildInstallCommand(spec));
       const skipped = res.skipped;
-      toast.push('ok', 'Install queued',
-        `${app.name} → ${res.queued} device${res.queued === 1 ? '' : 's'}` +
-        (skipped ? ` (${skipped} skipped)` : '') + '.');
+      toast.push('ok', 'Instalación en cola',
+        `${app.name} → ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` +
+        (skipped ? ` (${skipped} omitido${skipped === 1 ? '' : 's'})` : '') + '.');
       onDone();
       onClose();
     } catch (e) {
-      toast.push('err', 'Install failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'La instalación falló', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -126,7 +126,7 @@ export function BulkActionModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Run action on {who}</h3>
+        <h3>Ejecutar acción en {who}</h3>
 
         {showCatalog && (
           <>
@@ -149,19 +149,19 @@ export function BulkActionModal({
               </section>
             ))}
             <section className="action-group">
-              <h4 className="action-group-title">Apps</h4>
+              <h4 className="action-group-title">Aplicaciones</h4>
               <div className="action-grid">
-                <button className="btn" disabled={busy} onClick={() => setAppPicker(true)}>Install app…</button>
+                <button className="btn" disabled={busy} onClick={() => setAppPicker(true)}>Instalar aplicación…</button>
               </div>
             </section>
             <section className="action-group">
-              <h4 className="action-group-title">Kiosk</h4>
+              <h4 className="action-group-title">Kiosco</h4>
               <div className="action-grid">
-                <button className="btn btn-danger" disabled={busy} onClick={() => setKioskOpen(true)}>Enter kiosk…</button>
+                <button className="btn btn-danger" disabled={busy} onClick={() => setKioskOpen(true)}>Activar modo kiosco…</button>
               </div>
             </section>
             <div className="modal-actions">
-              <button className="btn" disabled={busy} onClick={onClose}>Close</button>
+              <button className="btn" disabled={busy} onClick={onClose}>Cerrar</button>
             </div>
           </>
         )}
@@ -170,7 +170,7 @@ export function BulkActionModal({
           <>
             <h4>{active.label}</h4>
             <p className="muted">{active.description}</p>
-            <p className="muted">This will run on <strong>{who}</strong>.</p>
+            <p className="muted">Se ejecutará en <strong>{who}</strong>.</p>
             {active.params?.map((p) => (
               <label key={p.key} className="field">
                 <span>{p.label}</span>
@@ -183,13 +183,13 @@ export function BulkActionModal({
               </label>
             ))}
             <div className="modal-actions">
-              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Back</button>
+              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Atrás</button>
               <button
                 className={`btn ${active.danger ? 'btn-danger' : 'btn-primary'}`}
                 disabled={busy || !canSend}
                 onClick={() => { void run(active, values); }}
               >
-                {busy ? 'Queueing…' : 'Run'}
+                {busy ? <span key="busy">Poniendo en cola…</span> : <span key="idle">Ejecutar</span>}
               </button>
             </div>
           </>
@@ -197,11 +197,11 @@ export function BulkActionModal({
 
         {appPicker && (
           <>
-            <h4>Install app on {who}</h4>
-            <input className="field" placeholder="Filter apps" value={appQuery}
+            <h4>Instalar aplicación en {who}</h4>
+            <input className="field" placeholder="Filtrar aplicaciones" value={appQuery}
                    onChange={(e) => setAppQuery(e.target.value)} />
             {appErr && <p className="muted">{appErr}</p>}
-            {!apps && !appErr && <p className="muted">Loading library…</p>}
+            {!apps && !appErr && <p className="muted">Cargando biblioteca…</p>}
             <div className="action-grid">
               {(apps ?? [])
                 .filter((a) => `${a.name} ${a.pkg}`.toLowerCase().includes(appQuery.toLowerCase()))
@@ -213,7 +213,7 @@ export function BulkActionModal({
                 ))}
             </div>
             <div className="modal-actions">
-              <button className="btn" disabled={busy} onClick={() => setAppPicker(false)}>Back</button>
+              <button className="btn" disabled={busy} onClick={() => setAppPicker(false)}>Atrás</button>
             </div>
           </>
         )}

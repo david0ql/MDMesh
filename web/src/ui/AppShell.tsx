@@ -26,14 +26,14 @@ interface NavEntry {
 }
 
 const NAV: NavEntry[] = [
-  { to: '/dashboard', label: 'Overview', Icon: IconDashboard },
-  { to: '/groups', label: 'Groups', Icon: IconGroups },
-  { to: '/devices', label: 'Devices', Icon: IconDevices },
-  { to: '/map', label: 'Map', Icon: IconMap },
-  { to: '/configs', label: 'Configurations', Icon: IconConfig },
-  { to: '/apps', label: 'Apps', Icon: IconApps },
-  { to: '/enroll', label: 'Enroll', Icon: IconEnroll },
-  { to: '/settings', label: 'Settings', Icon: IconSettings },
+  { to: '/dashboard', label: 'Resumen', Icon: IconDashboard },
+  { to: '/groups', label: 'Carpetas', Icon: IconGroups },
+  { to: '/devices', label: 'Dispositivos', Icon: IconDevices },
+  { to: '/map', label: 'Mapa', Icon: IconMap },
+  { to: '/configs', label: 'Configuraciones', Icon: IconConfig },
+  { to: '/apps', label: 'Aplicaciones', Icon: IconApps },
+  { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
+  { to: '/settings', label: 'Ajustes', Icon: IconSettings },
 ];
 
 export function AppShell({
@@ -88,14 +88,14 @@ export function AppShell({
           <button
             className="btn btn-ghost"
             onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}
           >
             {theme === 'dark' ? <IconSun className="ico" /> : <IconMoon className="ico" />}
-            <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
           </button>
           <button className="btn btn-ghost" onClick={() => void signOut()}>
             <IconSignOut className="ico" />
-            <span style={{ marginLeft: 8 }}>Sign out</span>
+            <span style={{ marginLeft: 8 }}>Cerrar sesión</span>
           </button>
         </div>
       </aside>
@@ -105,7 +105,7 @@ export function AppShell({
           <button
             className="btn btn-ghost menu-btn"
             onClick={() => setOpen((v) => !v)}
-            aria-label="Toggle navigation"
+            aria-label="Mostrar u ocultar navegación"
           >
             <IconMenu />
           </button>

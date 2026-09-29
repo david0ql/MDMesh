@@ -27,11 +27,11 @@ export function KioskChangeConfirm({ count, keys, onCancel, onConfirm }: { count
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{count == null ? 'Change kiosk on its devices?' : `Change kiosk on ${count} device${count === 1 ? '' : 's'}?`}</h3>
-        <p>This edit changes kiosk settings ({keys.join(', ')}). Every device assigned to this configuration will re-apply kiosk at its next check-in, usually within seconds. Turning kiosk off lifts it only on devices that entered kiosk through this configuration.</p>
+        <h3>{count == null ? '¿Cambiar el quiosco en sus dispositivos?' : `¿Cambiar el quiosco en ${count} dispositivo${count === 1 ? '' : 's'}?`}</h3>
+        <p>Este cambio modifica ajustes del quiosco ({keys.join(', ')}). Cada dispositivo asignado a esta configuración volverá a aplicar el quiosco en su próximo reporte, normalmente en segundos. Desactivar el quiosco solo lo quita en los dispositivos que entraron al quiosco mediante esta configuración.</p>
         <div className="modal-actions">
-          <button className="btn" onClick={onCancel}>Keep editing</button>
-          <button className="btn btn-primary" onClick={onConfirm}>Save and apply</button>
+          <button className="btn" onClick={onCancel}>Seguir editando</button>
+          <button className="btn btn-primary" onClick={onConfirm}>Guardar y aplicar</button>
         </div>
       </div>
     </div>

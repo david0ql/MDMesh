@@ -3,7 +3,7 @@ import { useToast } from '../ui/toast';
 import { queueCommand } from '../api/commands';
 import { parseScript } from '../api/script';
 
-const EXAMPLE = `# One action per line
+const EXAMPLE = `# Una acción por línea
 open co.amovil.preventa
 ring 15
 message Por favor comunícate con soporte`;
@@ -24,9 +24,9 @@ export function ScriptPanel({ device, onQueued }: { device: { number: string }; 
         if (s.waitMs) await new Promise((r) => setTimeout(r, s.waitMs));
         else if (s.request) { await queueCommand(device.number, s.request); queued++; onQueued(); }
       }
-      toast.push('ok', 'Script queued', `${queued} action${queued === 1 ? '' : 's'} sent to the device, in order.`);
+      toast.push('ok', 'Script enviado', `${queued} ${queued === 1 ? 'acción enviada' : 'acciones enviadas'} al dispositivo, en orden.`);
     } catch (e) {
-      toast.push('err', `Script stopped at “${running ?? ''}”`, e instanceof Error ? e.message : '');
+      toast.push('err', `El script se detuvo en “${running ?? ''}”`, e instanceof Error ? e.message : '');
     } finally {
       setRunning(null);
     }
@@ -40,19 +40,21 @@ export function ScriptPanel({ device, onQueued }: { device: { number: string }; 
         rows={5}
         placeholder={EXAMPLE}
         value={src}
-        aria-label="Device script"
+        aria-label="Script del dispositivo"
         onChange={(e) => setSrc(e.target.value)}
       />
       <p className="note" style={{ margin: '6px 0' }}>
-        <span className="mono">open &lt;package&gt;</span> · <span className="mono">ring [s]</span> · <span className="mono">stop ring</span> ·{' '}
-        <span className="mono">message &lt;text&gt;</span> · <span className="mono">lockscreen &lt;text&gt;</span> · <span className="mono">lock</span> ·{' '}
+        <span className="mono">open &lt;paquete&gt;</span> · <span className="mono">ring [s]</span> · <span className="mono">stop ring</span> ·{' '}
+        <span className="mono">message &lt;texto&gt;</span> · <span className="mono">lockscreen &lt;texto&gt;</span> · <span className="mono">lock</span> ·{' '}
         <span className="mono">reboot</span> · <span className="mono">location accurate|battery</span> · <span className="mono">wait &lt;s&gt;</span>
       </p>
       {parsed.errors.length > 0 && src.trim() && (
         <div className="banner banner-alert">{parsed.errors.map((e) => <div key={e}>{e}</div>)}</div>
       )}
       <button className="btn" disabled={!!running || parsed.errors.length > 0 || parsed.steps.length === 0} onClick={() => void run()}>
-        {running ? `Running: ${running}` : `Run script (${parsed.steps.length} step${parsed.steps.length === 1 ? '' : 's'})`}
+        {running
+          ? <span key="running">{`Ejecutando: ${running}`}</span>
+          : <span key="run">{`Ejecutar script (${parsed.steps.length} ${parsed.steps.length === 1 ? 'paso' : 'pasos'})`}</span>}
       </button>
     </section>
   );

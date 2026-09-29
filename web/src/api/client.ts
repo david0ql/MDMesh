@@ -77,19 +77,19 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     res = await fetch(url, init);
   } catch (e) {
     throw new ApiError(
-      `Network error contacting the server: ${(e as Error).message}`,
+      `No se pudo contactar al servidor: ${(e as Error).message}`,
       'ERROR',
       0,
     );
   }
 
   if (res.status === 401 || res.status === 403) {
-    throw new ApiError('Not authenticated', 'ERROR', res.status);
+    throw new ApiError('No autenticado', 'ERROR', res.status);
   }
 
   if (!res.ok) {
     throw new ApiError(
-      `Request failed with HTTP ${res.status}`,
+      `La solicitud falló (HTTP ${res.status})`,
       'ERROR',
       res.status,
     );
@@ -106,11 +106,11 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     envelope = JSON.parse(text) as ApiEnvelope<T>;
   } catch {
     // e.g. an HTML error page from a proxy — surface it as an API error, not a crash.
-    throw new ApiError('Unexpected non-JSON response from server', 'ERROR', res.status);
+    throw new ApiError('Respuesta inesperada del servidor (no es JSON)', 'ERROR', res.status);
   }
   if (envelope.status && envelope.status !== 'OK') {
     throw new ApiError(
-      envelope.message ?? 'The server returned an error',
+      envelope.message ?? 'El servidor devolvió un error',
       envelope.status,
       res.status,
     );

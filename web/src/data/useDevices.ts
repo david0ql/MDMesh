@@ -18,10 +18,10 @@ export interface DevicesState {
 function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.httpStatus === 401 || err.httpStatus === 403)
-      return 'Your session has expired. Sign in again.';
-    if (err.httpStatus === 0) return 'Cannot reach the server.';
+      return 'Tu sesión expiró. Inicia sesión de nuevo.';
+    if (err.httpStatus === 0) return 'No se puede conectar con el servidor.';
   }
-  return 'Failed to load devices.';
+  return 'No se pudieron cargar los dispositivos.';
 }
 
 export function useDevices(

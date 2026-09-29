@@ -35,12 +35,12 @@ export function parseOutcomes(detail: string | null | undefined): ConfigOutcomes
 
 /** One-line verdict for badges. Pure so it can be unit-tested once Vitest lands (Phase 6.1). */
 export function summarizeStatus(s: ConfigStatus | null): { tone: 'ok' | 'warn' | 'alert' | 'idle'; label: string } {
-  if (!s || s.configurationId == null) return { tone: 'idle', label: 'No configuration' };
-  if (!s.supported) return { tone: 'warn', label: 'Agent too old' };
-  if (s.inSync) return { tone: 'ok', label: 'In sync' };
+  if (!s || s.configurationId == null) return { tone: 'idle', label: 'Sin configuración' };
+  if (!s.supported) return { tone: 'warn', label: 'Agente desactualizado' };
+  if (s.inSync) return { tone: 'ok', label: 'Sincronizado' };
   const st = s.lastCommand?.status;
-  if (st === 'pending' || st === 'delivered') return { tone: 'warn', label: 'Applying…' };
-  if (st === 'failed') return { tone: 'alert', label: 'Apply failed' };
-  if (!s.appliedRevision) return { tone: 'idle', label: 'Not reported yet' };
-  return { tone: 'warn', label: 'Out of sync' };
+  if (st === 'pending' || st === 'delivered') return { tone: 'warn', label: 'Aplicando…' };
+  if (st === 'failed') return { tone: 'alert', label: 'Falló al aplicar' };
+  if (!s.appliedRevision) return { tone: 'idle', label: 'Aún sin reportar' };
+  return { tone: 'warn', label: 'Desincronizado' };
 }

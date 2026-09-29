@@ -10,9 +10,9 @@ import { KioskEnterModal } from './KioskEnterModal';
 type Device = { number: string };
 
 const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
-  { id: 'safe', title: 'Actions' },
-  { id: 'disruptive', title: 'Disruptive' },
-  { id: 'destructive', title: 'Destructive' },
+  { id: 'safe', title: 'Seguras' },
+  { id: 'disruptive', title: 'Interrumpen' },
+  { id: 'destructive', title: 'Destructivas' },
 ];
 
 export function ActionConsole({ device }: { device: Device }) {
@@ -59,11 +59,11 @@ export function ActionConsole({ device }: { device: Device }) {
       const req = t.build ? t.build(values) : t.request;
       const res = await queueCommand(device.number, req);
       const id = (res?.id as number | string | undefined) ?? '';
-      toast.push('ok', `${t.label} queued`, id ? `Command ${id}` : '');
+      toast.push('ok', `${t.label}: enviado`, id ? `Orden ${id}` : '');
       await forceSync(device.number).catch(() => undefined); // nudge (no-op until MQTT lands)
       await refresh();
     } catch (e) {
-      toast.push('err', `${t.label} failed`, e instanceof Error ? e.message : '');
+      toast.push('err', `${t.label}: falló`, e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -87,20 +87,20 @@ export function ActionConsole({ device }: { device: Device }) {
 
   const canSend =
     !active ? false
-    : active.confirm === 'type-to-confirm' ? confirmText === 'WIPE'
+    : active.confirm === 'type-to-confirm' ? confirmText === 'BORRAR'
     : active.params?.some((p) => p.required && !values[p.key]) ? false
     : true;
 
   return (
     <div className="panel">
       <div className="panel-head">
-        <h2 className="panel-title">Device control</h2>
+        <h2 className="panel-title">Control del dispositivo</h2>
         <button
           className="btn"
           disabled={busy}
           onClick={() => { void forceSync(device.number).then(refresh).catch(() => undefined); }}
         >
-          Sync now
+          Sincronizar ahora
         </button>
       </div>
 
@@ -155,18 +155,18 @@ export function ActionConsole({ device }: { device: Device }) {
             ))}
             {active.confirm === 'type-to-confirm' && (
               <label className="field">
-                <span>Type <strong>WIPE</strong> to confirm</span>
+                <span>Escribe <strong>BORRAR</strong> para confirmar</span>
                 <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
               </label>
             )}
             <div className="modal-actions">
-              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Cancel</button>
+              <button className="btn" disabled={busy} onClick={() => setActive(null)}>Cancelar</button>
               <button
                 className={`btn ${active.danger ? 'btn-danger' : 'btn-primary'}`}
                 disabled={busy || !canSend}
                 onClick={() => { void confirmAndSend(); }}
               >
-                {active.danger ? 'Confirm' : 'Send'}
+                {active.danger ? <span key="confirm">Confirmar</span> : <span key="send">Enviar</span>}
               </button>
             </div>
           </div>
@@ -177,23 +177,23 @@ export function ActionConsole({ device }: { device: Device }) {
 }
 
 function powerLabel(mode?: string | null): string {
-  if (mode === 'alwaysOn') return 'Always-on';
-  if (mode === 'adaptive') return 'Battery-saver';
+  if (mode === 'alwaysOn') return 'Siempre conectado';
+  if (mode === 'adaptive') return 'Ahorro de batería';
   return '—';
 }
 
 function DeviceStatePanel({ state }: { state: DeviceState | null }) {
-  if (!state) return <p className="muted">No state reported yet.</p>;
+  if (!state) return <p className="muted">Aún no ha reportado su estado.</p>;
   const seen = state.updatedAt ? new Date(state.updatedAt).toLocaleTimeString() : '—';
   return (
     <dl className="state-grid">
-      <div><dt>Battery</dt><dd>{state.battery < 0 ? '—' : `${state.battery}%`}{state.charging ? ' ⚡' : ''}</dd></div>
-      <div><dt>Screen</dt><dd>{state.locked ? 'Locked' : 'Unlocked'}</dd></div>
-      <div><dt>Kiosk</dt><dd>{state.kioskActive ? 'Active' : 'Off'}</dd></div>
+      <div><dt>Batería</dt><dd>{state.battery < 0 ? '—' : `${state.battery}%`}{state.charging ? ' ⚡' : ''}</dd></div>
+      <div><dt>Pantalla</dt><dd>{state.locked ? 'Bloqueada' : 'Desbloqueada'}</dd></div>
+      <div><dt>Quiosco</dt><dd>{state.kioskActive ? 'Activo' : 'Inactivo'}</dd></div>
       <div><dt>Android</dt><dd>{state.androidRelease || '—'}</dd></div>
-      <div><dt>Agent</dt><dd>{state.agentVersion || '—'}</dd></div>
-      <div><dt>Connectivity</dt><dd>{powerLabel(state.powerMode)}</dd></div>
-      <div><dt>State as of</dt><dd>{seen}</dd></div>
+      <div><dt>Agente</dt><dd>{state.agentVersion || '—'}</dd></div>
+      <div><dt>Conectividad</dt><dd>{powerLabel(state.powerMode)}</dd></div>
+      <div><dt>Estado a las</dt><dd>{seen}</dd></div>
     </dl>
   );
 }
@@ -202,7 +202,7 @@ function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
   if (!items.length) return null;
   return (
     <section className="timeline">
-      <h3 className="action-group-title">Recent commands</h3>
+      <h3 className="action-group-title">Órdenes recientes</h3>
       <ul>
         {items.map((c) => (
           <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
@@ -225,7 +225,7 @@ function CommandDetail({ text }: { text: string }) {
     <span className={`t-detail ${open ? 'open' : 'clamped'}`}>
       {open ? text : `${text.slice(0, DETAIL_LIMIT)}…`}
       <button type="button" className="t-more" onClick={() => setOpen((v) => !v)}>
-        {open ? 'show less' : 'show more'}
+        {open ? <span key="less">ver menos</span> : <span key="more">ver más</span>}
       </button>
     </span>
   );

@@ -24,21 +24,21 @@ async function runForResult(
 ): Promise<string> {
   const queued = await queueCommand(deviceId, req, signal);
   const id = queued?.id;
-  if (id == null) throw new Error('Command was not queued');
+  if (id == null) throw new Error('La orden no quedó en cola');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (signal?.aborted) throw new Error('Cancelled');
+    if (signal?.aborted) throw new Error('Cancelado');
     await sleep(1500);
-    if (signal?.aborted) throw new Error('Cancelled');
+    if (signal?.aborted) throw new Error('Cancelado');
     const hist = await listCommandHistory(deviceId, 0, signal).catch(() => []);
     const cmd = hist.find((c) => String(c.id) === String(id));
     if (!cmd) continue;
     if (cmd.status === 'done') return cmd.detail ?? '';
     if (cmd.status === 'failed' || cmd.status === 'unsupported' || cmd.status === 'expired') {
-      throw new Error(cmd.detail || `Device returned ${cmd.status}`);
+      throw new Error(cmd.detail || `El dispositivo respondió ${cmd.status}`);
     }
   }
-  throw new Error('Timed out waiting for the device (is it online?)');
+  throw new Error('Se agotó el tiempo esperando al dispositivo (¿está en línea?)');
 }
 
 /** Scan the device for installed packages (metadata only — no icons). */
@@ -90,7 +90,7 @@ export async function fetchIcons(
   const deadline = Date.now() + ICONS_DEADLINE_MS;
   for (const batch of chunk(packages, 24)) {
     const left = deadline - Date.now();
-    if (left <= 0) throw new Error('Icon fetch took too long — try again');
+    if (left <= 0) throw new Error('Los íconos tardaron demasiado — inténtalo de nuevo');
     const detail = await runForResult(deviceId, {
       type: 'apps.icons',
       payload: JSON.stringify({ packages: batch }),

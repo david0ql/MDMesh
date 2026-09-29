@@ -16,11 +16,11 @@ const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2
 const startOfDay = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
 const PRESETS: Array<{ key: string; label: string; range: () => [number, number] }> = [
-  { key: '1h', label: 'Last hour', range: () => [Date.now() - HOUR, Date.now()] },
-  { key: 'today', label: 'Today', range: () => [startOfDay(Date.now()), Date.now()] },
-  { key: 'yesterday', label: 'Yesterday', range: () => [startOfDay(Date.now()) - DAY, startOfDay(Date.now()) - 1] },
-  { key: '24h', label: 'Last 24 h', range: () => [Date.now() - DAY, Date.now()] },
-  { key: '7d', label: 'Last 7 days', range: () => [Date.now() - 7 * DAY, Date.now()] },
+  { key: '1h', label: 'Última hora', range: () => [Date.now() - HOUR, Date.now()] },
+  { key: 'today', label: 'Hoy', range: () => [startOfDay(Date.now()), Date.now()] },
+  { key: 'yesterday', label: 'Ayer', range: () => [startOfDay(Date.now()) - DAY, startOfDay(Date.now()) - 1] },
+  { key: '24h', label: 'Últimas 24 h', range: () => [Date.now() - DAY, Date.now()] },
+  { key: '7d', label: 'Últimos 7 días', range: () => [Date.now() - 7 * DAY, Date.now()] },
 ];
 
 /** <input type="datetime-local"> speaks local wall-clock time without a zone. */
@@ -30,7 +30,7 @@ const toInput = (ms: number) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 const fromInput = (v: string) => new Date(v).getTime();
-const fmt = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+const fmt = (ms: number) => new Date(ms).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' });
 
 /** The device's last fix at or before [t] (fixes oldest first), or null if it had none yet. */
 function positionAt(fixes: FleetFix[], t: number): FleetFix | null {
@@ -73,7 +73,7 @@ export function FleetMapPage() {
     setErr(null);
     listFleetLocations(range[0], range[1], ctl.signal)
       .then((d) => { setData(d); setAt(range[1]); fitted.current = false; })
-      .catch((e) => { if (!ctl.signal.aborted) setErr(e instanceof Error ? e.message : 'Could not load locations'); })
+      .catch((e) => { if (!ctl.signal.aborted) setErr(e instanceof Error ? e.message : 'No se pudieron cargar las ubicaciones'); })
       .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
     return () => ctl.abort();
   }, [range]);
@@ -91,7 +91,7 @@ export function FleetMapPage() {
     if (!mapEl.current || map.current) return;
     map.current = L.map(mapEl.current, { worldCopyJump: true }).setView([4.6, -74.1], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap contributors',
+      maxZoom: 19, attribution: '© colaboradores de OpenStreetMap',
     }).addTo(map.current);
     trailLayer.current = L.layerGroup().addTo(map.current);
     markerLayer.current = L.layerGroup().addTo(map.current);
@@ -136,9 +136,9 @@ export function FleetMapPage() {
       L.circleMarker([f.lat, f.lon], { radius: 9, color: '#fff', weight: 2, fillColor: c, fillOpacity: 0.95 })
         .bindPopup(
           `<strong>${esc(nameOf(d))}</strong><br>${fmt(f.capturedAt)}` +
-          (stale > 10 * 60 * 1000 ? ` <span style="opacity:.7">(${Math.round(stale / 60000)} min before)</span>` : '') +
+          (stale > 10 * 60 * 1000 ? ` <span style="opacity:.7">(${Math.round(stale / 60000)} min antes)</span>` : '') +
           (f.accuracy != null ? `<br>±${esc(Math.round(Number(f.accuracy)))} m` : '') +
-          `<br><a href="/devices/${encodeURIComponent(d.number)}">Open device</a>`,
+          `<br><a href="/devices/${encodeURIComponent(d.number)}">Abrir dispositivo</a>`,
         )
         .addTo(layer);
     });
@@ -160,40 +160,40 @@ export function FleetMapPage() {
   const placed = visible.filter((d) => positionAt(d.fixes, at)).length;
 
   return (
-    <AppShell title="Map">
+    <AppShell title="Mapa">
       <div className="dv-head">
-        <h1>Map</h1>
+        <h1>Mapa</h1>
         <span className="dv-count">
-          {loading ? 'Loading…' : `${plural(data?.devices.length ?? 0, 'device')} · ${plural(fixCount, 'fix', 'fixes')} in range`}
+          {loading ? 'Cargando…' : `${plural(data?.devices.length ?? 0, 'dispositivo')} · ${plural(fixCount, 'posición', 'posiciones')} en el rango`}
         </span>
       </div>
 
       <div className="panel fm-controls">
-        <div className="fm-presets" role="group" aria-label="Time range">
+        <div className="fm-presets" role="group" aria-label="Rango de tiempo">
           {PRESETS.map((p) => (
             <button key={p.key} type="button" className={`btn btn-sm ${preset === p.key ? 'btn-primary' : ''}`}
                     onClick={() => applyPreset(p.key)}>{p.label}</button>
           ))}
         </div>
         <label className="fm-field">
-          <span>From</span>
+          <span>Desde</span>
           <input type="datetime-local" value={toInput(range[0])}
                  onChange={(e) => { const v = fromInput(e.target.value); if (!Number.isNaN(v)) { setPreset(null); setRange([v, Math.max(v, range[1])]); } }} />
         </label>
         <label className="fm-field">
-          <span>To</span>
+          <span>Hasta</span>
           <input type="datetime-local" value={toInput(range[1])}
                  onChange={(e) => { const v = fromInput(e.target.value); if (!Number.isNaN(v)) { setPreset(null); setRange([Math.min(range[0], v), v]); } }} />
         </label>
         <label className="fm-check">
           <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
-          <span>Trails</span>
+          <span>Recorridos</span>
         </label>
       </div>
 
       {err && <div className="banner banner-alert">{err}</div>}
       {data?.truncated && (
-        <div className="banner banner-warn">This range holds more fixes than the map loads at once; narrow it to see everything.</div>
+        <div className="banner banner-warn">Este rango tiene más posiciones de las que el mapa carga a la vez; acórtalo para verlas todas.</div>
       )}
 
       <div className="fm-cols">
@@ -201,18 +201,18 @@ export function FleetMapPage() {
           <div ref={mapEl} className="fm-map" />
           <div className="fm-time">
             <input type="range" min={range[0]} max={range[1]} step={60_000} value={Math.min(Math.max(at, range[0]), range[1])}
-                   onChange={(e) => setAt(Number(e.target.value))} aria-label="Time" />
+                   onChange={(e) => setAt(Number(e.target.value))} aria-label="Hora" />
             <span className="fm-at">
-              Positions at <strong>{fmt(at)}</strong> · {placed}/{visible.length} devices
+              Posiciones a las <strong>{fmt(at)}</strong> · {placed}/{visible.length} dispositivos
             </span>
           </div>
         </div>
 
         <aside className="panel fm-list">
-          <input type="search" className="fm-search" placeholder="Filter devices" value={q}
+          <input type="search" className="fm-search" placeholder="Filtrar dispositivos" value={q}
                  onChange={(e) => setQ(e.target.value)} />
           {!loading && data && data.devices.length === 0 && (
-            <p className="muted">No device reported a location in this range.</p>
+            <p className="muted">Ningún dispositivo reportó ubicación en este rango.</p>
           )}
           <ul>
             {list.map((d) => {
@@ -225,14 +225,14 @@ export function FleetMapPage() {
                     <span className="fm-name" title={d.number}>{nameOf(d)}</span>
                   </label>
                   <span className="fm-meta">
-                    {plural(d.fixes.length, 'fix', 'fixes')} · last {fmt(last.capturedAt)}
+                    {plural(d.fixes.length, 'posición', 'posiciones')} · última {fmt(last.capturedAt)}
                   </span>
                   <span className="fm-actions">
                     <button type="button" className="t-more" onClick={() => {
                       map.current?.fitBounds(L.latLngBounds(d.fixes.map((f) => [f.lat, f.lon] as [number, number])),
                         { padding: [32, 32], maxZoom: 17 });
-                    }}>Zoom</button>
-                    <Link to={`/devices/${encodeURIComponent(d.number)}`} className="t-more">Open</Link>
+                    }}>Acercar</button>
+                    <Link to={`/devices/${encodeURIComponent(d.number)}`} className="t-more">Abrir</Link>
                   </span>
                 </li>
               );

@@ -24,7 +24,7 @@ export function BulkKioskModal({
     let cancelled = false;
     listApplications()
       .then((r) => { if (!cancelled) setApps(r); })
-      .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'Failed to load apps'); });
+      .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'No se pudieron cargar las apps'); });
     return () => { cancelled = true; };
   }, []);
 
@@ -53,12 +53,12 @@ export function BulkKioskModal({
         type: 'kiosk.enter', payload: JSON.stringify(payload),
       });
       const skipped = res.skipped;
-      toast.push('ok', 'Kiosk queued',
-        `Enter kiosk → ${res.queued} device${res.queued === 1 ? '' : 's'}` +
-        (skipped ? ` (${skipped} skipped)` : '') + '.');
+      toast.push('ok', 'Quiosco en cola',
+        `Entrar en quiosco → ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` +
+        (skipped ? ` (${skipped} omitido${skipped === 1 ? '' : 's'})` : '') + '.');
       onDone(); onClose();
     } catch (e) {
-      toast.push('err', 'Kiosk failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo enviar el quiosco', e instanceof Error ? e.message : '');
     } finally { setBusy(false); }
   }
 
@@ -68,18 +68,18 @@ export function BulkKioskModal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Enter kiosk on {who}</h3>
+        <h3>Entrar en quiosco en {who}</h3>
         <div className="kiosk-mode">
           <label><input type="radio" checked={mode === 'launcher'}
-            onChange={() => switchMode('launcher')} /> Allowed apps (launcher grid)</label>
+            onChange={() => switchMode('launcher')} /> Apps permitidas (cuadrícula de inicio)</label>
           <label><input type="radio" checked={mode === 'single'}
-            onChange={() => switchMode('single')} /> Pin a single app</label>
+            onChange={() => switchMode('single')} /> Fijar una sola app</label>
         </div>
 
-        <input className="field" placeholder="Filter Library apps" value={query}
+        <input className="field" placeholder="Filtrar apps de la biblioteca" value={query}
                onChange={(e) => setQuery(e.target.value)} />
         {err && <p className="muted">{err}</p>}
-        {!apps && !err && <p className="muted">Loading library…</p>}
+        {!apps && !err && <p className="muted">Cargando biblioteca…</p>}
         <div className="action-grid">
           {filtered.map((a) => (
             <button key={a.id ?? a.pkg}
@@ -91,24 +91,24 @@ export function BulkKioskModal({
         </div>
 
         <label className="field">
-          <span>Exit mode</span>
+          <span>Modo de salida</span>
           <select value={exitMode} onChange={(e) => setExitMode(e.target.value as typeof exitMode)}>
-            <option value="gesture">Gesture</option>
-            <option value="visible">Visible button</option>
-            <option value="remote">Remote only</option>
+            <option value="gesture">Gesto (7 toques en la esquina)</option>
+            <option value="visible">Botón visible</option>
+            <option value="remote">Solo remoto</option>
           </select>
         </label>
         <label className="field">
-          <span>Exit password</span>
-          <input type="password" value={password} placeholder="optional"
+          <span>Contraseña de salida</span>
+          <input type="password" value={password} placeholder="opcional"
                  onChange={(e) => setPassword(e.target.value)} />
         </label>
 
         <div className="modal-actions">
-          <button className="btn" disabled={busy} onClick={onClose}>Cancel</button>
+          <button className="btn" disabled={busy} onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" disabled={busy || !canApply}
                   onClick={() => { void apply(); }}>
-            {busy ? 'Queueing…' : 'Enter kiosk'}
+            {busy ? <span key="busy">Enviando…</span> : <span key="idle">Entrar en quiosco</span>}
           </button>
         </div>
       </div>

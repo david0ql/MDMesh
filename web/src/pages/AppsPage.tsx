@@ -28,11 +28,11 @@ interface Source {
 }
 
 const SOURCES: Source[] = [
-  { id: 'library', label: 'Library', enabled: true, tip: 'Apps already uploaded to this DallyControl server.' },
-  { id: 'custom', label: 'Custom APK', enabled: true, tip: 'Deploy any APK by file or URL — including APKMirror / APKPure downloads.' },
-  { id: 'device', label: 'On the phone', enabled: true, tip: 'Register an app the phones already have (Chrome, WhatsApp from the Play Store…) so configurations can allow it. Nothing is installed.' },
-  { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Search the F-Droid open-source catalogue and deploy straight from f-droid.org.' },
-  { id: 'play', label: 'Play Store', enabled: true, tip: 'Add a Play Store app by package or link. Deploying it opens its Play Store page on the phones (the person taps Install); a configuration allows it in kiosk and app policy.' },
+  { id: 'library', label: 'Biblioteca', enabled: true, tip: 'Apps ya subidas a este servidor de DallyControl.' },
+  { id: 'custom', label: 'APK propio', enabled: true, tip: 'Despliega cualquier APK por archivo o URL, incluidas descargas de APKMirror / APKPure.' },
+  { id: 'device', label: 'En el teléfono', enabled: true, tip: 'Registra una app que los teléfonos ya tienen (Chrome, WhatsApp de la Play Store…) para que las configuraciones puedan permitirla. No se instala nada.' },
+  { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Busca en el catálogo de código abierto de F-Droid y despliega directamente desde f-droid.org.' },
+  { id: 'play', label: 'Play Store', enabled: true, tip: 'Agrega una app de la Play Store por paquete o enlace. Al desplegarla se abre su página de la Play Store en los teléfonos (la persona toca Instalar); una configuración la permite en el quiosco y en la política de apps.' },
 ];
 
 // APKMirror / APKPure have no usable API and forbid embedding — they're search
@@ -84,7 +84,7 @@ export function AppsPage() {
         <h1>Apps</h1>
       </div>
 
-      <span className="seg modes" role="tablist" aria-label="App source" style={{ marginBottom: 16 }}>
+      <span className="seg modes" role="tablist" aria-label="Origen de la app" style={{ marginBottom: 16 }}>
         {SOURCES.map((s) => (
           <span className="tip" key={s.id}>
             <button
@@ -96,7 +96,7 @@ export function AppsPage() {
               aria-describedby={`src-${s.id}`}
             >
               {s.label}
-              {!s.enabled && <span className="src-soon">soon</span>}
+              {!s.enabled && <span className="src-soon">pronto</span>}
             </button>
             <span className="tip-pop" role="tooltip" id={`src-${s.id}`}>
               {s.tip}
@@ -109,7 +109,7 @@ export function AppsPage() {
         <LibrarySource onDeploy={(app) => {
           resolveApp(app)
             .then(setDeploy)
-            .catch((e) => toast.push('err', 'Cannot deploy', e instanceof Error ? e.message : ''));
+            .catch((e) => toast.push('err', 'No se puede desplegar', e instanceof Error ? e.message : ''));
         }} />
       )}
       {source === 'custom' && <CustomSource onDeploy={setDeploy} />}
@@ -148,7 +148,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
     let cancelled = false;
     listApplications()
       .then((list) => !cancelled && setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
-      .catch(() => !cancelled && (setApps([]), setError('Could not load the app library.')));
+      .catch(() => !cancelled && (setApps([]), setError('No se pudo cargar la Biblioteca de apps.')));
     return () => {
       cancelled = true;
     };
@@ -168,18 +168,18 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
           <circle cx="11" cy="11" r="7" />
           <path d="M21 21l-4-4" />
         </svg>
-        <input type="search" placeholder="Search apps" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" placeholder="Buscar apps" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
 
       {apps === null ? (
-        <div className="panel"><div className="empty"><span className="spin" /> Loading apps…</div></div>
+        <div className="panel"><div className="empty"><span className="spin" /> Cargando apps…</div></div>
       ) : shown.length === 0 ? (
         <div className="panel">
           <div className="empty">
-            <span className="label">No apps</span>
-            {apps.length === 0 ? 'No apps are in the library yet.' : 'No apps match your search.'}
+            <span className="label">Sin apps</span>
+            {apps.length === 0 ? 'Aún no hay apps en la Biblioteca.' : 'Ninguna app coincide con tu búsqueda.'}
           </div>
         </div>
       ) : (
@@ -196,7 +196,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
               <div className="app-foot">
                 <span className="app-ver">{a.version ? `v${a.version}` : '—'}</span>
                 <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
-                  Deploy
+                  Desplegar
                 </button>
               </div>
             </div>
@@ -236,7 +236,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       return;
     }
     if (!file.name.toLowerCase().endsWith('.apk')) {
-      toast.push('err', 'Not an APK', 'Drop an .apk, .xapk, .apks, .apkm or .zip file.');
+      toast.push('err', 'No es un APK', 'Suelta un archivo .apk, .xapk, .apks, .apkm o .zip.');
       return;
     }
     setBundle(null);
@@ -270,17 +270,17 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         const vc = fd.versionCode ?? 0;
         if (vc > current && committedUrl) {
           await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
-          toast.push('ok', 'New version added',
-            `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) — configurations using it now install this version.`);
+          toast.push('ok', 'Nueva versión agregada',
+            `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las configuraciones que la usan ahora instalan esta versión.`);
         } else if (vc > current) {
-          toast.push('err', 'Could not host the file',
-            'A file with that name is already on the server — rename the APK (e.g. add the version) and drop it again.');
+          toast.push('err', 'No se pudo alojar el archivo',
+            'Ya hay un archivo con ese nombre en el servidor: renombra el APK (p. ej., agrégale la versión) y suéltalo de nuevo.');
         } else if (vc === current) {
-          toast.push('err', 'Same versionCode as the Library',
-            `${fd.pkg} already has versionCode ${vc}. Phones only update to a higher versionCode — raise it in the app build.`);
+          toast.push('err', 'Mismo versionCode que en la Biblioteca',
+            `${fd.pkg} ya tiene versionCode ${vc}. Los teléfonos solo se actualizan a un versionCode mayor: súbelo en la compilación de la app.`);
         } else {
-          toast.push('err', 'Older than the Library',
-            `versionCode ${vc} is lower than ${current}. Phones never downgrade; uninstall first if you really need it.`);
+          toast.push('err', 'Más antigua que la de la Biblioteca',
+            `El versionCode ${vc} es menor que ${current}. Los teléfonos nunca bajan de versión; desinstálala primero si de verdad la necesitas.`);
         }
       } else if (committedUrl && fd?.pkg) {
         // New app: add it to the Library so it shows up everywhere (incl. the configuration and kiosk pickers).
@@ -294,17 +294,17 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             type: 'app', // applications.type is NOT NULL — send it explicitly so the save can't fail
           });
           setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
-          toast.push('ok', 'APK ready', 'Hosted, added to your Library — review and deploy.');
+          toast.push('ok', 'APK listo', 'Alojado y agregado a tu Biblioteca: revísalo y despliégalo.');
         } catch {
-          toast.push('ok', 'APK ready', 'Hosted — review and deploy. (Could not add to Library.)');
+          toast.push('ok', 'APK listo', 'Alojado: revísalo y despliégalo. (No se pudo agregar a la Biblioteca).');
         }
       } else if (committedUrl) {
-        toast.push('ok', 'APK ready', 'Details filled in — review and deploy.');
+        toast.push('ok', 'APK listo', 'Datos completados: revísalos y despliégalo.');
       } else {
-        toast.push('ok', 'Details extracted', 'Couldn’t host the file — paste a URL to deploy.');
+        toast.push('ok', 'Datos extraídos', 'No se pudo alojar el archivo: pega una URL para desplegarlo.');
       }
     } catch (e) {
-      toast.push('err', 'Upload failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló la subida', e instanceof Error ? e.message : '');
       setDropped(null);
     } finally {
       setUploading(false);
@@ -347,12 +347,12 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       }
       toast.push(
         'ok',
-        'Bundle ready',
-        `${b.parts.length} split${b.parts.length === 1 ? '' : 's'} hosted — added to your Library.`,
+        'Bundle listo',
+        `${b.parts.length} parte${b.parts.length === 1 ? '' : 's'} alojada${b.parts.length === 1 ? '' : 's'}: agregado a tu Biblioteca.`,
       );
     } catch (e) {
       // The server returns a clear message for encrypted .apkm / no-apks bundles.
-      toast.push('err', 'Bundle upload failed', e instanceof Error ? e.message : '');
+      toast.push('err', 'Falló la subida del bundle', e instanceof Error ? e.message : '');
       setDropped(null);
     } finally {
       setUploading(false);
@@ -362,7 +362,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   function submit() {
     if (bundle) {
       onDeploy({
-        label: name.trim() || bundle.name || 'Split bundle',
+        label: name.trim() || bundle.name || 'Bundle dividido',
         packageName: (pkg.trim() || bundle.packageName),
         // No single URL for a bundle; parts carry the hosted splits.
         url: '',
@@ -372,11 +372,11 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       return;
     }
     if (!url.trim() || !pkg.trim()) {
-      toast.push('err', 'Missing fields', 'APK URL and package name are required.');
+      toast.push('err', 'Faltan campos', 'La URL del APK y el nombre del paquete son obligatorios.');
       return;
     }
     onDeploy({
-      label: name.trim() || 'Custom APK',
+      label: name.trim() || 'APK propio',
       packageName: pkg.trim(),
       url: url.trim(),
       versionCode: vc ? Number(vc) : undefined,
@@ -391,7 +391,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
     // A multi-part bundle has no single URL — its parts stand in for one.
     const isMultiPart = !!bundle && bundle.parts.length > 1;
     if (!pkg.trim() || (!url.trim() && !isMultiPart)) {
-      toast.push('err', 'Missing fields', 'A package name and an APK URL (or a bundle) are required to add it to your Library.');
+      toast.push('err', 'Faltan campos', 'Para agregarla a tu Biblioteca se necesitan el nombre del paquete y la URL del APK (o un bundle).');
       return;
     }
     try {
@@ -406,14 +406,14 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           : undefined,
       });
       setSavedAppId(saved.id);
-      toast.push('ok', 'Added to Library', `${name.trim() || pkg.trim()} is in your Library — now assignable to a configuration.`);
+      toast.push('ok', 'Agregada a la Biblioteca', `${name.trim() || pkg.trim()} está en tu Biblioteca: ya se puede asignar a una configuración.`);
     } catch (e) {
       const existing = (await listApplications(pkg.trim()).catch(() => [])).find((a) => a.pkg === pkg.trim());
       if (existing?.id) {
         setSavedAppId(existing.id);
-        toast.push('ok', 'Already in Library', 'This app is already in your Library — you can assign it to a configuration.');
+        toast.push('ok', 'Ya está en la Biblioteca', 'Esta app ya está en tu Biblioteca: puedes asignarla a una configuración.');
       } else {
-        toast.push('err', 'Could not add to Library', e instanceof Error ? e.message : 'The server rejected the save.');
+        toast.push('err', 'No se pudo agregar a la Biblioteca', e instanceof Error ? e.message : 'El servidor rechazó el guardado.');
       }
     }
   }
@@ -421,12 +421,12 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   return (
     <div className="panel" style={{ maxWidth: 640 }}>
       <div className="panel-head">
-        <h2 className="panel-title">Deploy a custom APK</h2>
+        <h2 className="panel-title">Desplegar un APK propio</h2>
         <div className="ext-search">
           <input
             className="input"
             style={{ width: 150, padding: '6px 10px' }}
-            placeholder="find app…"
+            placeholder="buscar app…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -473,66 +473,66 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             }}
           />
           {uploading ? (
-            <span className="dz-main"><span className="spin" /> Analyzing {dropped}…</span>
+            <span className="dz-main"><span className="spin" /> Analizando {dropped}…</span>
           ) : dropped ? (
             <span className="dz-main">
               ✓ {dropped}
               <span className="dz-sub">
                 {bundle
-                  ? `Split bundle · ${bundle.parts.length} part${bundle.parts.length === 1 ? '' : 's'} · drop another to replace`
-                  : 'Drop another to replace'}
+                  ? `Bundle dividido · ${bundle.parts.length} parte${bundle.parts.length === 1 ? '' : 's'} · suelta otro para reemplazarlo`
+                  : 'Suelta otro para reemplazarlo'}
               </span>
             </span>
           ) : (
             <span className="dz-main">
-              Drop an APK or split bundle here, or click to browse
+              Suelta aquí un APK o un bundle dividido, o haz clic para buscarlo
               <span className="dz-sub">
-                APK, or .xapk / .apks / .apkm / .zip — auto-fills package, version and hosted URL(s)
+                APK, o .xapk / .apks / .apkm / .zip: completa automáticamente el paquete, la versión y las URL alojadas
               </span>
             </span>
           )}
         </div>
         <p className="note" style={{ margin: 0 }}>
-          Point the agent at any reachable APK, or drop a file to upload and host it here.
-          Split bundles (<span className="mono">.xapk</span> / <span className="mono">.apks</span> /{' '}
-          <span className="mono">.apkm</span> / <span className="mono">.zip</span>) are unpacked and
-          installed as one session. Need an app from APKMirror or APKPure? Search above, download it,
-          then drop it in — those are unofficial sources, at your own risk. Silent install needs
-          Device Owner (the <span className="mono">silentInstall</span> capability).
+          Indica al agente cualquier APK accesible, o suelta un archivo para subirlo y alojarlo aquí.
+          Los bundles divididos (<span className="mono">.xapk</span> / <span className="mono">.apks</span> /{' '}
+          <span className="mono">.apkm</span> / <span className="mono">.zip</span>) se descomprimen y
+          se instalan en una sola sesión. ¿Necesitas una app de APKMirror o APKPure? Búscala arriba, descárgala
+          y suéltala aquí: son fuentes no oficiales, bajo tu propio riesgo. La instalación silenciosa requiere
+          Device Owner (la capacidad <span className="mono">silentInstall</span>).
         </p>
         {bundle ? (
           <label className="field">
-            <span className="label">Split bundle</span>
+            <span className="label">Bundle dividido</span>
             <input
               className="input mono"
-              value={`${bundle.parts.length} part${bundle.parts.length === 1 ? '' : 's'}: ${bundle.parts.map((p) => p.name).join(', ')}`}
+              value={`${bundle.parts.length} parte${bundle.parts.length === 1 ? '' : 's'}: ${bundle.parts.map((p) => p.name).join(', ')}`}
               readOnly
             />
           </label>
         ) : (
           <label className="field">
-            <span className="label">APK URL *</span>
+            <span className="label">URL del APK *</span>
             <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/app.apk" />
           </label>
         )}
         <label className="field">
-          <span className="label">Package name *</span>
+          <span className="label">Nombre del paquete *</span>
           <input className="input mono" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="com.example.app" />
         </label>
         <div style={{ display: 'flex', gap: 12 }}>
           <label className="field" style={{ flex: 1 }}>
-            <span className="label">Version code</span>
-            <input className="input" type="number" value={vc} onChange={(e) => setVc(e.target.value)} placeholder="optional" />
+            <span className="label">Código de versión</span>
+            <input className="input" type="number" value={vc} onChange={(e) => setVc(e.target.value)} placeholder="opcional" />
           </label>
           <label className="field" style={{ flex: 1 }}>
-            <span className="label">Display name</span>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="optional" />
+            <span className="label">Nombre visible</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="opcional" />
           </label>
         </div>
         {!bundle && (
           <label className="field">
             <span className="label">SHA-256 (base64)</span>
-            <input className="input mono" value={sha} onChange={(e) => setSha(e.target.value)} placeholder="optional — integrity check" />
+            <input className="input mono" value={sha} onChange={(e) => setSha(e.target.value)} placeholder="opcional: verificación de integridad" />
           </label>
         )}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -541,12 +541,12 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             onClick={() => void saveToLibrary()}
             disabled={!pkg.trim() || (!url.trim() && !(bundle && bundle.parts.length > 1))}
           >
-            {savedAppId ? '✓ In Library' : 'Add to Library'}
+            {savedAppId ? '✓ En la Biblioteca' : 'Agregar a la Biblioteca'}
           </button>
           <button className="btn btn-primary" onClick={submit}>
-            Deploy…
+            Desplegar…
           </button>
-          {savedAppId && <span className="note" style={{ margin: 0 }}>Saved — assignable to a configuration.</span>}
+          {savedAppId && <span className="note" style={{ margin: 0 }}>Guardada: se puede asignar a una configuración.</span>}
         </div>
       </div>
     </div>
@@ -568,7 +568,7 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           .catch(() => {
             if (cancelled) return;
             setApps([]);
-            setError('Could not reach the F-Droid catalogue.');
+            setError('No se pudo conectar con el catálogo de F-Droid.');
           });
       },
       q ? 350 : 0,
@@ -598,18 +598,18 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           <circle cx="11" cy="11" r="7" />
           <path d="M21 21l-4-4" />
         </svg>
-        <input type="search" placeholder="Search F-Droid (e.g. firefox, keepass)" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input type="search" placeholder="Buscar en F-Droid (p. ej., firefox, keepass)" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
 
       {apps === null ? (
-        <div className="panel"><div className="empty"><span className="spin" /> Searching F-Droid…</div></div>
+        <div className="panel"><div className="empty"><span className="spin" /> Buscando en F-Droid…</div></div>
       ) : apps.length === 0 ? (
         <div className="panel">
           <div className="empty">
-            <span className="label">No results</span>
-            {error ? 'The server could not load the catalogue.' : 'No apps match your search.'}
+            <span className="label">Sin resultados</span>
+            {error ? 'El servidor no pudo cargar el catálogo.' : 'Ninguna app coincide con tu búsqueda.'}
           </div>
         </div>
       ) : (
@@ -627,7 +627,7 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
               <div className="app-foot">
                 <span className="app-ver">{a.versionName ? `v${a.versionName}` : `v${a.versionCode}`}</span>
                 <button className="btn btn-sm btn-primary" onClick={() => deploy(a)}>
-                  Deploy
+                  Desplegar
                 </button>
               </div>
             </div>
@@ -635,7 +635,7 @@ function FDroidSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         </div>
       )}
       <p className="note" style={{ marginTop: 14 }}>
-        Apps are downloaded by the device directly from f-droid.org. The device must be able to reach it.
+        El dispositivo descarga las apps directamente de f-droid.org, así que debe poder acceder a ese sitio.
       </p>
     </>
   );
@@ -669,21 +669,21 @@ function DeviceAppSource() {
     const nm = n.trim() || p.trim();
     const pk = p.trim();
     if (!PACKAGE_RE.test(pk)) {
-      toast.push('err', 'Invalid package name', 'Use the app\'s package, e.g. com.android.chrome.');
+      toast.push('err', 'Nombre de paquete no válido', 'Usa el paquete de la app, p. ej., com.android.chrome.');
       return;
     }
     if (known.has(pk)) {
-      toast.push('ok', 'Already in your Library', pk);
+      toast.push('ok', 'Ya está en tu Biblioteca', pk);
       return;
     }
     setBusy(true);
     try {
       await saveAndroidApplication({ name: nm, pkg: pk, type: 'app' });
-      toast.push('ok', 'Added to Library', `${nm} — allow it in a configuration (Allowed apps).`);
+      toast.push('ok', 'Agregada a la Biblioteca', `${nm}: permítela en una configuración (Apps permitidas).`);
       setName(''); setPkg('');
       setExisting(await listApplications());
     } catch (e) {
-      toast.push('err', 'Could not add', e instanceof Error ? e.message : '');
+      toast.push('err', 'No se pudo agregar', e instanceof Error ? e.message : '');
     } finally {
       setBusy(false);
     }
@@ -691,11 +691,11 @@ function DeviceAppSource() {
 
   return (
     <section className="panel" data-testid="device-app-source">
-      <h2 className="panel-title">App already on the phone</h2>
+      <h2 className="panel-title">App que ya está en el teléfono</h2>
       <p className="note">
-        For apps the phones already have — Chrome, or WhatsApp installed from the Play Store. No APK is uploaded and nothing is
-        installed: the app becomes available to your configurations (kiosk and app policy). For the phone's dialer, contacts or
-        browser, use a configuration's <b>functions</b> instead: they work on every brand.
+        Para apps que los teléfonos ya tienen: Chrome, o WhatsApp instalado desde la Play Store. No se sube ningún APK ni se
+        instala nada: la app queda disponible para tus configuraciones (quiosco y política de apps). Para el marcador, los contactos o el
+        navegador del teléfono, usa mejor las <b>funciones</b> de una configuración: sirven en todas las marcas.
       </p>
       <div className="dcp-roles" style={{ margin: '8px 0 16px' }}>
         {COMMON_DEVICE_APPS.map((a) => (
@@ -706,14 +706,14 @@ function DeviceAppSource() {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
         <label className="field">
-          <span className="label">Name</span>
+          <span className="label">Nombre</span>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Chrome" />
         </label>
         <label className="field">
-          <span className="label">Package name *</span>
+          <span className="label">Nombre del paquete *</span>
           <input className="input mono" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="com.android.chrome" />
         </label>
-        <button className="btn btn-primary" disabled={busy || !pkg.trim()} onClick={() => void add(name, pkg)}>Add to Library</button>
+        <button className="btn btn-primary" disabled={busy || !pkg.trim()} onClick={() => void add(name, pkg)}>Agregar a la Biblioteca</button>
       </div>
     </section>
   );
@@ -749,10 +749,10 @@ function PlayStoreSource() {
     try {
       const existing = (await listApplications(app.packageName)).find((a) => a.pkg === app.packageName);
       if (existing) {
-        toast.push('ok', 'Ya está en la biblioteca', app.name);
+        toast.push('ok', 'Ya está en la Biblioteca', app.name);
       } else {
         await saveAndroidApplication({ name: app.name, pkg: app.packageName, type: 'app', icon: app.icon ?? undefined });
-        toast.push('ok', 'Agregada a la biblioteca', `${app.name} — despliégala o agrégala a una configuración.`);
+        toast.push('ok', 'Agregada a la Biblioteca', `${app.name} — despliégala o agrégala a una configuración.`);
       }
       setFound(null); setQ('');
     } catch (e) {
@@ -784,7 +784,7 @@ function PlayStoreSource() {
             <div style={{ fontWeight: 600 }}>{found.name}</div>
             <div className="mono muted">{found.packageName}</div>
           </div>
-          <button className="btn btn-primary" disabled={busy} onClick={() => void add(found)}>Agregar a la biblioteca</button>
+          <button className="btn btn-primary" disabled={busy} onClick={() => void add(found)}>Agregar a la Biblioteca</button>
         </div>
       )}
     </section>

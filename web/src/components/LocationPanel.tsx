@@ -12,7 +12,7 @@ export function LocationPanel({ device }: { device: { number: string } }) {
     try {
       setFixes(await listLocations(device.number));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load locations');
+      setErr(e instanceof Error ? e.message : 'No se pudieron cargar las ubicaciones');
     }
   }
 
@@ -24,21 +24,21 @@ export function LocationPanel({ device }: { device: { number: string } }) {
   return (
     <div className="panel">
       <div className="panel-head keep">
-        <h2 className="panel-title">Location history</h2>
+        <h2 className="panel-title">Historial de ubicación</h2>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {fixes && (
             <span className="muted">
-              {fixes.length} fix{fixes.length === 1 ? '' : 'es'}
-              {fixes[0] ? ` · latest ${fmtRelative(fixes[0].capturedAt)}` : ''}
+              {fixes.length} {fixes.length === 1 ? 'punto' : 'puntos'}
+              {fixes[0] ? ` · último ${fmtRelative(fixes[0].capturedAt)}` : ''}
             </span>
           )}
-          <button className="btn" onClick={() => void load()}>Refresh</button>
+          <button className="btn" onClick={() => void load()}>Actualizar</button>
         </div>
       </div>
       {err && <p className="err-text">{err}</p>}
-      {!fixes && !err && <p className="muted">Loading location…</p>}
+      {!fixes && !err && <p className="muted">Cargando ubicación…</p>}
       {fixes && fixes.length === 0 && (
-        <p className="muted">No location reported yet. Wake the device, or switch it to Accurate location mode.</p>
+        <p className="muted">Aún no ha reportado ubicación. Despierta el dispositivo o cámbialo a Ubicación: precisa.</p>
       )}
       {fixes && fixes.length > 0 && <LocationMap fixes={fixes} />}
     </div>

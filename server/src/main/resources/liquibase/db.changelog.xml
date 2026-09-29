@@ -2963,4 +2963,35 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.29-device-connection-sessions" author="dallycontrol" context="common">
+        <comment>Connection history: one row per period a device kept checking in (a gap longer than the server's
+            threshold ends it). Deleted with the device.</comment>
+        <sql>
+            CREATE TABLE device_connection (
+                id SERIAL PRIMARY KEY,
+                deviceNumber VARCHAR(100) NOT NULL,
+                connectedAt BIGINT NOT NULL,
+                lastSeenAt BIGINT NOT NULL
+            );
+            CREATE INDEX device_connection_dev_idx ON device_connection (deviceNumber, lastSeenAt DESC);
+            CREATE INDEX device_connection_time_idx ON device_connection (connectedAt);
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_agent_data() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM agentCommand       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_event       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_state       WHERE deviceNumber = OLD.number;
+                DELETE FROM device_location    WHERE deviceNumber = OLD.number;
+                DELETE FROM agentRolloutCanary WHERE deviceNumber = OLD.number;
+                DELETE FROM device_connection  WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_connection;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

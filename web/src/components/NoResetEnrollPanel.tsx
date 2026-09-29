@@ -37,9 +37,9 @@ export function NoResetEnrollPanel({ token }: { token?: string }) {
             El teléfono y el computador en la misma red Wi‑Fi. Escribe aquí lo que muestra:</li>
         </ol>
         <div className="codes-new">
-          <input className="input mono" placeholder="IP:puerto de vinculación (p. ej. 192.168.1.20:37123)" value={pair} onChange={(e) => setPair(e.target.value.trim())} aria-label="Pairing address" />
-          <input className="input mono" placeholder="Código de 6 dígitos" value={code} onChange={(e) => setCode(e.target.value.trim())} aria-label="Pairing code" />
-          <input className="input mono" placeholder="IP:puerto de la pantalla Depuración inalámbrica" value={connect} onChange={(e) => setConnect(e.target.value.trim())} aria-label="Connect address" />
+          <input className="input mono" placeholder="IP:puerto de vinculación (p. ej. 192.168.1.20:37123)" value={pair} onChange={(e) => setPair(e.target.value.trim())} aria-label="Dirección de vinculación" />
+          <input className="input mono" placeholder="Código de 6 dígitos" value={code} onChange={(e) => setCode(e.target.value.trim())} aria-label="Código de vinculación" />
+          <input className="input mono" placeholder="IP:puerto de la pantalla Depuración inalámbrica" value={connect} onChange={(e) => setConnect(e.target.value.trim())} aria-label="Dirección de conexión" />
         </div>
         <ol className="steps-list" start={4}>
           <li><b>Ejecutar en el computador</b> (con este repositorio y <span className="mono">adb</span>):</li>
