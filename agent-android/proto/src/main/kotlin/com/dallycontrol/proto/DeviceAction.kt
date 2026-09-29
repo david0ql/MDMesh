@@ -21,6 +21,9 @@ object DeviceAction {
     /** Open an installed app in the foreground. Payload: `{ "packageName": "…" }`. */
     const val APP_LAUNCH = "device.appLaunch"
 
+    /** Open an app's Play Store page so the person taps Install. Payload: `{ "packageName": "…" }`. */
+    const val OPEN_STORE = "device.openStore"
+
     /** Set the agent's connectivity power mode. Payload: `{ "mode": "adaptive" | "alwaysOn" }`. */
     const val POWER_MODE = "device.powerMode"
 
@@ -42,6 +45,6 @@ object DeviceAction {
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
     )
 }

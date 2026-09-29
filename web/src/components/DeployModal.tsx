@@ -6,7 +6,8 @@ import {
   updateAppConfigLinks,
   type AppConfigLink,
 } from '../api/applications';
-import { installApp } from '../api/commands';
+import { installApp, buildInstallCommand, queueCommand } from '../api/commands';
+import { groupTree, listGroups, queueForTarget, type FleetGroup } from '../api/fleet';
 import { statusMeta } from '../ui/status';
 import { fmtRelative, orDash } from '../ui/format';
 import { useToast } from '../ui/toast';
@@ -25,7 +26,7 @@ export interface DeploySubject {
   parts?: { url: string; sha256?: string }[];
 }
 
-type Tab = 'device' | 'config';
+type Tab = 'device' | 'folder' | 'config';
 
 export function DeployModal({
   subject,
@@ -38,6 +39,12 @@ export function DeployModal({
   const canAssign = subject.applicationId != null;
   const [tab, setTab] = useState<Tab>('device');
   const [devices, setDevices] = useState<DeviceView[]>([]);
+  // Folders: install now on every device of the chosen folders and their sub-folders.
+  const [groups, setGroups] = useState<FleetGroup[]>([]);
+  const [folders, setFolders] = useState<Set<number>>(new Set());
+  useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
+  const tree = useMemo(() => groupTree(groups), [groups]);
+  const installable = !!subject.url || !!subject.parts?.length;
   const [configs, setConfigs] = useState<ConfigurationSummary[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [config, setConfig] = useState('');
@@ -82,6 +89,7 @@ export function DeployModal({
     let fail = 0;
     for (const num of picked) {
       try {
+        if (!installable) { await queueCommand(num, openStoreCmd); ok++; continue; }
         await installApp(num, {
           url: subject.url,
           packageName: subject.packageName,
@@ -102,6 +110,30 @@ export function DeployModal({
       `${ok} device${ok === 1 ? '' : 's'} queued${fail ? `, ${fail} failed` : ''}.`,
     );
     onClose();
+  }
+
+  async function pushToFolders() {
+    if (folders.size === 0) return;
+    // A folder already covers its sub-folders: send only the top-most chosen ones, so no device gets it twice.
+    const top = [...folders].filter((id) => !tree.some((n) => n.group.id !== id && folders.has(n.group.id) && n.subtree.has(id)));
+    const cmd = installable ? buildInstallCommand({
+      url: subject.url, packageName: subject.packageName, versionCode: subject.versionCode,
+      sha256: subject.sha256, runAfterInstall: runAfter, parts: subject.parts,
+    }) : openStoreCmd;
+    setBusy(true);
+    let queued = 0;
+    try {
+      for (const id of top) {
+        const n = tree.find((x) => x.group.id === id);
+        queued += (await queueForTarget({ kind: 'group', id, name: n?.path ?? String(id), count: n?.totalDevices ?? 0 }, cmd)).queued;
+      }
+      toast.push('ok', `Despliegue de ${subject.label}`, `${queued} dispositivo${queued === 1 ? '' : 's'} en ${top.length} carpeta${top.length === 1 ? '' : 's'}.`);
+      onClose();
+    } catch (e) {
+      toast.push('err', 'No se pudo desplegar', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function assignConfig() {
@@ -140,7 +172,9 @@ export function DeployModal({
     }
   }
 
-  const canSubmit = tab === 'device' ? picked.size > 0 : !!config;
+  const canSubmit = tab === 'device' ? picked.size > 0 : tab === 'folder' ? folders.size > 0 : !!config;
+  // No APK here: the phones open the app's Play Store page instead of installing it.
+  const openStoreCmd = { type: 'device.openStore', requiresCapability: 'device.openStore', payload: JSON.stringify({ packageName: subject.packageName }) };
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
@@ -155,6 +189,9 @@ export function DeployModal({
           <button className={tab === 'device' ? 'on' : ''} onClick={() => setTab('device')}>
             Push to device(s)
           </button>
+          <button className={tab === 'folder' ? 'on' : ''} onClick={() => setTab('folder')}>
+            Carpetas
+          </button>
           <button
             className={tab === 'config' ? 'on' : ''}
             onClick={() => canAssign && setTab('config')}
@@ -165,7 +202,31 @@ export function DeployModal({
           </button>
         </div>
 
-        {tab === 'device' ? (
+        {!installable && tab !== 'config' && (
+          <div className="banner banner-warn">
+            Esta app no tiene APK en el servidor (viene de la Play Store): en los teléfonos elegidos se abre su página de la
+            Play Store para que la persona toque <b>Instalar</b>. Agrégala también a una configuración para permitirla en el
+            quiosco y en la política de apps.
+          </div>
+        )}
+        {tab === 'folder' ? (
+          <>
+            <p className="note" style={{ marginTop: 0 }}>
+              Se instala ahora en todos los dispositivos de las carpetas elegidas, <b>incluidas sus subcarpetas</b>. Para que
+              quede siempre (también en los que entren después), agrégala a la configuración de esas carpetas.
+            </p>
+            <div className="deploy-devlist" data-testid="deploy-folders">
+              {tree.length === 0 ? <div className="empty" style={{ padding: 20 }}>No hay carpetas.</div> : tree.map((n) => (
+                <label key={n.group.id} className="deploy-devrow" style={{ paddingLeft: 12 + n.depth * 18 }}>
+                  <input type="checkbox" checked={folders.has(n.group.id)}
+                    onChange={() => setFolders((prev) => { const x = new Set(prev); if (x.has(n.group.id)) x.delete(n.group.id); else x.add(n.group.id); return x; })} />
+                  <span className="dd-nm">{n.group.name}</span>
+                  <span className="dd-seen">{n.totalDevices} disp.</span>
+                </label>
+              ))}
+            </div>
+          </>
+        ) : tab === 'device' ? (
           <>
             <div className="dv-search" style={{ width: '100%', marginBottom: 10 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -243,9 +304,10 @@ export function DeployModal({
           <button
             className="btn btn-primary"
             disabled={busy || !canSubmit}
-            onClick={() => void (tab === 'device' ? pushNow() : assignConfig())}
+            onClick={() => void (tab === 'device' ? pushNow() : tab === 'folder' ? pushToFolders() : assignConfig())}
           >
-            {busy ? 'Deploying…' : tab === 'device' ? `Deploy to ${picked.size || ''}`.trim() : 'Assign'}
+            {busy ? <span key="b">Deploying…</span> : tab === 'device' ? <span key="d">{`Deploy to ${picked.size || ''}`.trim()}</span>
+              : tab === 'folder' ? <span key="f">Desplegar en carpetas</span> : <span key="a">Assign</span>}
           </button>
         </div>
       </div>

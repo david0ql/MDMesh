@@ -97,6 +97,33 @@ public class ApplicationResource {
         }
     }
 
+    @ApiOperation(value = "Look up a Play Store app", notes = "Name and icon of an app on the Play Store, by package name or link.")
+    @GET
+    @Path("/play")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response lookupPlayStore(@javax.ws.rs.QueryParam("q") String q) {
+        String pkg = com.hmdm.util.PlayStoreLookup.packageOf(q);
+        if (pkg == null) {
+            return Response.ERROR("error.play.package.invalid");
+        }
+        try {
+            com.hmdm.util.PlayStoreLookup.Result r = com.hmdm.util.PlayStoreLookup.fetch(pkg);
+            if (r.name == null) {
+                return Response.ERROR("error.play.not.found");
+            }
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("packageName", r.packageName);
+            out.put("name", r.name);
+            out.put("icon", r.icon);
+            return Response.OK(out);
+        } catch (java.io.FileNotFoundException e) {
+            return Response.ERROR("error.play.not.found");
+        } catch (Exception e) {
+            logger.warn("Play Store lookup failed for {}: {}", pkg, e.getMessage());
+            return Response.ERROR("error.play.unreachable");
+        }
+    }
+
     // =================================================================================================================
     @ApiOperation(
             value = "Get all applications",

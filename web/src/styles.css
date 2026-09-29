@@ -2873,3 +2873,4 @@ a {
 @media (max-width: 640px) { .codes-new { grid-template-columns: 1fr; } }
 .kiosk-features { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
 .kiosk-features label { display: inline-flex; gap: 6px; align-items: center; }
+.play-found { display: flex; gap: 14px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }

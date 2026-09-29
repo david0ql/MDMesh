@@ -26,3 +26,19 @@ class DeviceAppLaunchHandlerTest {
         assertEquals(CommandStatus.FAILED, h.handle(cmd(null)).status)
     }
 }
+
+class DeviceOpenStoreHandlerTest {
+    private fun cmd(pkg: String?) = com.dallycontrol.proto.CommandEnvelope(
+        commandId = "1", issuedAt = "2026-09-29T00:00:00Z", type = "device.openStore",
+        payload = pkg?.let { kotlinx.serialization.json.buildJsonObject { put("packageName", kotlinx.serialization.json.JsonPrimitive(it)) } },
+    )
+
+    @org.junit.Test fun `opens a valid package and refuses junk`() = kotlinx.coroutines.test.runTest {
+        val opened = mutableListOf<String>()
+        val h = com.dallycontrol.core.command.handlers.DeviceOpenStoreHandler { opened += it; null }
+        org.junit.Assert.assertEquals(com.dallycontrol.proto.CommandStatus.DONE, h.handle(cmd("com.whatsapp")).status)
+        org.junit.Assert.assertEquals(listOf("com.whatsapp"), opened)
+        org.junit.Assert.assertEquals(com.dallycontrol.proto.CommandStatus.FAILED, h.handle(cmd("x; rm")).status)
+        org.junit.Assert.assertEquals(com.dallycontrol.proto.CommandStatus.FAILED, h.handle(cmd(null)).status)
+    }
+}

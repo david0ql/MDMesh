@@ -10,6 +10,8 @@ import {
   uploadBundle,
   commitUpload,
   saveAndroidApplication,
+  lookupPlayApp,
+  type PlayApp,
   type Application,
   type BundleUploadResult,
 } from '../api/applications';
@@ -30,7 +32,7 @@ const SOURCES: Source[] = [
   { id: 'custom', label: 'Custom APK', enabled: true, tip: 'Deploy any APK by file or URL — including APKMirror / APKPure downloads.' },
   { id: 'device', label: 'On the phone', enabled: true, tip: 'Register an app the phones already have (Chrome, WhatsApp from the Play Store…) so configurations can allow it. Nothing is installed.' },
   { id: 'fdroid', label: 'F-Droid', enabled: true, tip: 'Search the F-Droid open-source catalogue and deploy straight from f-droid.org.' },
-  { id: 'play', label: 'Play Store', enabled: false, tip: 'Download via a Google account (Aurora-style dispenser). Not built yet.' },
+  { id: 'play', label: 'Play Store', enabled: true, tip: 'Add a Play Store app by package or link. Deploying it opens its Play Store page on the phones (the person taps Install); a configuration allows it in kiosk and app policy.' },
 ];
 
 // APKMirror / APKPure have no usable API and forbid embedding — they're search
@@ -67,7 +69,7 @@ async function resolveApp(app: Application): Promise<DeploySubject> {
       /* malformed parts — ignore, fall back to url */
     }
   }
-  if (!url && !(parts && parts.length)) throw new Error('This app has no APK to deploy.');
+  // No APK (a Play Store / on-the-phone app): the deploy dialog opens its Play Store page instead of installing it.
   return { label: app.name, packageName: app.pkg, url: url ?? '', versionCode, sha256, applicationId: app.id, parts };
 }
 
@@ -113,6 +115,7 @@ export function AppsPage() {
       {source === 'custom' && <CustomSource onDeploy={setDeploy} />}
       {source === 'device' && <DeviceAppSource />}
       {source === 'fdroid' && <FDroidSource onDeploy={setDeploy} />}
+      {source === 'play' && <PlayStoreSource />}
 
       {deploy && <DeployModal subject={deploy} onClose={() => setDeploy(null)} />}
     </AppShell>
@@ -712,6 +715,78 @@ function DeviceAppSource() {
         </label>
         <button className="btn btn-primary" disabled={busy || !pkg.trim()} onClick={() => void add(name, pkg)}>Add to Library</button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * Play Store apps: looked up by package or link (name + icon), added to the Library without an APK. Installing from the
+ * Play Store without anyone touching the phone needs Google's managed Play (Android Enterprise), which DallyControl does
+ * not use — so deploying one opens its Play Store page on the phones, and a configuration allows it.
+ */
+function PlayStoreSource() {
+  const toast = useToast();
+  const [q, setQ] = useState('');
+  const [found, setFound] = useState<PlayApp | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function search() {
+    setBusy(true); setErr(null); setFound(null);
+    try {
+      setFound(await lookupPlayApp(q.trim()));
+    } catch (e) {
+      const m = e instanceof Error ? e.message : '';
+      setErr(/invalid/.test(m) ? 'Escribe el paquete (com.whatsapp) o pega el enlace de la Play Store.'
+        : /not\.found/.test(m) ? 'Esa app no existe en la Play Store.' : 'No se pudo consultar la Play Store. Intenta de nuevo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function add(app: PlayApp) {
+    setBusy(true);
+    try {
+      const existing = (await listApplications(app.packageName)).find((a) => a.pkg === app.packageName);
+      if (existing) {
+        toast.push('ok', 'Ya está en la biblioteca', app.name);
+      } else {
+        await saveAndroidApplication({ name: app.name, pkg: app.packageName, type: 'app', icon: app.icon ?? undefined });
+        toast.push('ok', 'Agregada a la biblioteca', `${app.name} — despliégala o agrégala a una configuración.`);
+      }
+      setFound(null); setQ('');
+    } catch (e) {
+      toast.push('err', 'No se pudo agregar', e instanceof Error ? e.message : '');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="panel" data-testid="play-store-source">
+      <h2 className="panel-title">Play Store</h2>
+      <p className="note">
+        Busca por paquete o pega el enlace de la Play Store. Al <b>desplegarla</b>, en los teléfonos se abre su página de la
+        Play Store y la persona toca <b>Instalar</b>: instalarla sin tocar el teléfono exige la Play administrada de Google, que
+        este sistema no usa. Si la agregas a una configuración, queda permitida en el quiosco y en la política de apps.
+      </p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '10px 0' }}>
+        <input className="input mono" style={{ flex: 1 }} value={q} placeholder="com.whatsapp  o  https://play.google.com/store/apps/details?id=…"
+          aria-label="Paquete o enlace de la Play Store" onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && q.trim()) void search(); }} />
+        <button className="btn btn-primary" disabled={busy || !q.trim()} onClick={() => void search()}>Buscar</button>
+      </div>
+      {err && <div className="banner banner-alert">{err}</div>}
+      {found && (
+        <div className="play-found" data-testid="play-found">
+          {found.icon ? <img src={found.icon} alt="" width={48} height={48} style={{ borderRadius: 10 }} /> : null}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600 }}>{found.name}</div>
+            <div className="mono muted">{found.packageName}</div>
+          </div>
+          <button className="btn btn-primary" disabled={busy} onClick={() => void add(found)}>Agregar a la biblioteca</button>
+        </div>
+      )}
     </section>
   );
 }

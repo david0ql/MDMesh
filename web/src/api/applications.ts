@@ -167,3 +167,9 @@ export async function commitUpload(serverPath: string): Promise<UploadedFileView
     external: false,
   });
 }
+
+/** A Play Store app looked up by package name or link (name + icon from its public page). */
+export interface PlayApp { packageName: string; name: string; icon?: string | null }
+export async function lookupPlayApp(q: string): Promise<PlayApp> {
+  return apiClient.get<PlayApp>(`/private/applications/play?q=${encodeURIComponent(q)}`);
+}

@@ -316,6 +316,28 @@ object AgentModule {
         context, handle.dpm, handle.admin, roles, events, protectedPackages = listOf(DroidVncController.PACKAGE),
     )
 
+    /** `device.openStore`: the app's Play Store page (the person taps Install); in kiosk the store must be allowed. */
+    @Provides
+    @IntoSet
+    fun provideDeviceOpenStoreHandler(@ApplicationContext context: Context, handle: DpmHandle): CommandHandler =
+        com.dallycontrol.core.command.handlers.DeviceOpenStoreHandler { pkg ->
+            val store = "com.android.vending"
+            val installed = runCatching { context.packageManager.getPackageInfo(store, 0); true }.getOrDefault(false)
+            val am = context.getSystemService(android.app.ActivityManager::class.java)
+            when {
+                !installed -> "the Play Store is not installed (or is hidden by the app policy)"
+                am?.lockTaskModeState != android.app.ActivityManager.LOCK_TASK_MODE_NONE &&
+                    android.os.Build.VERSION.SDK_INT >= 23 && !handle.dpm.isLockTaskPermitted(store) -> "the kiosk does not allow the Play Store"
+                else -> {
+                    context.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$pkg"))
+                            .setPackage(store).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                    null
+                }
+            }
+        }
+
     /** `device.appLaunch`: start the app's launcher activity; in kiosk only apps the kiosk allows can start. */
     @Provides
     @IntoSet
