@@ -225,7 +225,9 @@ class KioskLauncherActivity : ComponentActivity() {
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         val cell = iconCellPx(p.theme.iconSize)
-        val cols = maxOf(2, (resources.displayMetrics.widthPixels - dp(24)) / (cell + dp(24)))
+        // Width left for the grid: the screen minus the page's side padding (2 x 24dp) and the grid's (2 x 12dp);
+        // each cell is the icon plus its own 2 x 12dp padding. Cells then share that width evenly.
+        val cols = maxOf(2, (resources.displayMetrics.widthPixels - dp(72)) / (cell + dp(24)))
 
         val grid = GridLayout(this).apply {
             columnCount = cols
@@ -306,7 +308,11 @@ class KioskLauncherActivity : ComponentActivity() {
     ): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
-        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setPadding(dp(8), dp(12), dp(8), dp(12))
+        layoutParams = android.widget.GridLayout.LayoutParams(
+            android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED),
+            android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f),
+        ).apply { width = 0 }
         isClickable = true
         addView(
             ImageView(this@KioskLauncherActivity).apply {
@@ -318,6 +324,7 @@ class KioskLauncherActivity : ComponentActivity() {
             text(label, 12f, fg).apply {
                 gravity = Gravity.CENTER
                 maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
                 setPadding(0, dp(6), 0, 0)
             },
         )
