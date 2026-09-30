@@ -32,8 +32,11 @@ public class ConfigReconciler {
     private final UnsecureDAO unsecureDAO;
     private final AgentCommandDAO commandDAO;
 
+    private final PolicyApps policyApps;
+
     @Inject
-    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO) {
+    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, PolicyApps policyApps) {
+        this.policyApps = policyApps;
         this.unsecureDAO = unsecureDAO;
         this.commandDAO = commandDAO;
     }
@@ -44,7 +47,8 @@ public class ConfigReconciler {
         Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
         if (cfg == null) return null;
         List<Application> apps = unsecureDAO.getPlainConfigurationAppsOptimized(cfg.getId());
-        return DesiredConfigBuilder.build(cfg, apps);
+        PolicyApps.Resolved r = policyApps.resolve(cfg, apps);
+        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk);
     }
 
     public String currentRevision(Device device) {

@@ -51,6 +51,19 @@ public class DcPolicy {
     private String deviceName;
     /** Wi-Fi networks saved on the devices (the agent adds them; one removed here is removed from the phones). */
     private List<Wifi> wifi;
+    /** App groups this policy uses: their apps are installed and allowed; shown in the kiosk only when kiosk=true. */
+    private List<AppGroupRef> appGroups;
+    /** Packages of this policy's own apps that are installed and allowed but NOT shown in the kiosk. */
+    private List<String> notInKiosk;
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AppGroupRef {
+        private Integer id;
+        private Boolean kiosk;
+    }
 
     @Getter
     @Setter
@@ -121,7 +134,8 @@ public class DcPolicy {
 
     @JsonIgnore
     public boolean isEmpty() {
-        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null && deviceName == null && wifi == null;
+        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
+                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null;
     }
 
     private DcPolicy cleaned() {
@@ -170,6 +184,20 @@ public class DcPolicy {
             }
             c.wifi = out.isEmpty() ? null : out;
         }
+        if (appGroups != null) {
+            List<AppGroupRef> out = new ArrayList<AppGroupRef>();
+            Set<Integer> seen = new LinkedHashSet<Integer>();
+            for (AppGroupRef g : appGroups) {
+                if (g == null || g.id == null || g.id <= 0 || !seen.add(g.id)) continue;
+                AppGroupRef n = new AppGroupRef();
+                n.id = g.id;
+                n.kiosk = Boolean.TRUE.equals(g.kiosk) ? Boolean.TRUE : null;
+                out.add(n);
+                if (out.size() >= 50) break;
+            }
+            c.appGroups = out.isEmpty() ? null : out;
+        }
+        c.notInKiosk = packages(notInKiosk);
         return c;
     }
 

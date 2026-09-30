@@ -43,11 +43,13 @@ public class ConfigAppInstaller {
     private static final String AGENT_PACKAGE_PREFIX = "com.dallycontrol.agent";
 
     private final UnsecureDAO unsecureDAO;
+    private final PolicyApps policyApps;
     private final AgentCommandDAO commandDAO;
     private final AgentWakeHub wakeHub;
 
     @Inject
-    public ConfigAppInstaller(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, AgentWakeHub wakeHub) {
+    public ConfigAppInstaller(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, AgentWakeHub wakeHub, PolicyApps policyApps) {
+        this.policyApps = policyApps;
         this.unsecureDAO = unsecureDAO;
         this.commandDAO = commandDAO;
         this.wakeHub = wakeHub;
@@ -66,6 +68,11 @@ public class ConfigAppInstaller {
         try {
             List<Application> apps = unsecureDAO.getPlainConfigurationApplications(
                     device.getCustomerId(), device.getConfigurationId());
+            // Plus the apps of the policy's app groups.
+            if (policyApps != null) {
+                com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                if (cfg != null) apps = policyApps.resolve(cfg, apps).apps;
+            }
             long now = System.currentTimeMillis();
             for (Application app : apps) {
                 String uninstallPkg = uninstallTarget(app);

@@ -46,12 +46,21 @@ public final class DesiredConfigBuilder {
     private DesiredConfigBuilder() {}
 
     public static DesiredConfig build(Configuration cfg, List<Application> apps) {
+        DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
+        return build(cfg, apps, dc.getNotInKiosk() == null ? Collections.<String>emptySet() : new java.util.HashSet<String>(dc.getNotInKiosk()));
+    }
+
+    /**
+     * @param apps       the policy's apps plus those of its app groups (see the server's PolicyApps)
+     * @param notInKiosk packages installed and allowed but kept out of the kiosk (never the pinned main app)
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
         d.setConfigurationId(cfg.getId());
         d.setPolicies(policies(cfg));
-        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles()) : null);
+        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
         if (d.getKiosk() != null && Boolean.TRUE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
         DesiredLocation loc = new DesiredLocation();
         loc.setMode(cfg.getRequestUpdates() == RequestUpdatesType.GPS ? "active" : "passive");
@@ -152,7 +161,7 @@ public final class DesiredConfigBuilder {
      * Builds the kiosk block. The main (pinned) app is matched by application VERSION id:
      * {@code cfg.mainAppId == app.usedVersionId}, never by {@code app.id}.
      */
-    private static DesiredKiosk kiosk(Configuration cfg, List<Application> apps, List<String> roles) {
+    private static DesiredKiosk kiosk(Configuration cfg, List<Application> apps, List<String> roles, Set<String> notInKiosk) {
         String mainPkg = null;
         for (Application a : apps) {
             if (a == null || a.getPkg() == null || a.getPkg().trim().isEmpty() || a.getAction() != ACTION_INSTALL) continue;
@@ -166,6 +175,7 @@ public final class DesiredConfigBuilder {
             if (a == null || a.getPkg() == null || a.getPkg().trim().isEmpty() || a.getAction() != ACTION_INSTALL) continue;
             String pkg = a.getPkg().trim();
             if (mainPkg != null && mainPkg.equals(pkg)) continue;
+            if (notInKiosk != null && notInKiosk.contains(pkg)) continue; // installed and allowed, not in the kiosk
             distinctOthers.add(pkg);
         }
         List<String> allowed = new ArrayList<String>(distinctOthers);

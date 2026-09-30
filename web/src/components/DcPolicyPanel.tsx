@@ -19,6 +19,10 @@ export interface DcPolicy {
   kioskQuickSettings?: boolean;
   deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
   wifi?: { ssid: string; password?: string; security?: 'WPA' | 'WEP' | 'NONE'; hidden?: boolean }[];
+  /** App groups used by the policy; kiosk = its apps also show in the kiosk. */
+  appGroups?: { id: number; kiosk?: boolean }[];
+  /** The policy's own apps installed and allowed but kept out of the kiosk. */
+  notInKiosk?: string[];
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -41,6 +45,8 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskQuickSettings) out.kioskQuickSettings = true;
   if (p.deviceName) out.deviceName = p.deviceName;
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
+  if (p.appGroups?.length) out.appGroups = p.appGroups;
+  if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 

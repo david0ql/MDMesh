@@ -170,4 +170,24 @@ public class DesiredConfigBuilderTest {
         c.setSystemUpdateTo("bad");
         assertNull("a broken window is not sent", DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getSystemUpdate());
     }
+
+    @Test
+    public void not_in_kiosk_apps_stay_installed_and_allowed_but_out_of_the_kiosk() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"apps\":{\"mode\":\"allowlist\"},\"notInKiosk\":[\"com.acme.tool\",\"com.acme.pos\"]}");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1), app(7, 707, "com.acme.tool", 1), app(8, 808, "com.acme.chat", 1)));
+        // The pinned main app is never taken out; the tool is.
+        assertEquals(Arrays.asList("com.acme.pos", "com.acme.chat"), d.getKiosk().getAllowedPackages());
+        assertTrue(d.getApps().getAllowed().contains("com.acme.tool"));
+        // Group apps passed as not-in-kiosk by the server resolver.
+        DesiredConfig g = DesiredConfigBuilder.build(kioskConfig(), Arrays.asList(app(5, 505, "com.acme.pos", 1), app(9, 909, "com.acme.group", 1)),
+                new java.util.HashSet<String>(Arrays.asList("com.acme.group")));
+        assertEquals(Arrays.asList("com.acme.pos"), g.getKiosk().getAllowedPackages());
+    }
+
+    @Test
+    public void dc_policy_keeps_app_groups_clean() {
+        String n = DcPolicy.normalize("{\"appGroups\":[{\"id\":3,\"kiosk\":true},{\"id\":3},{\"id\":-1},{\"id\":4,\"kiosk\":false}],\"notInKiosk\":[\"com.a.b\",\"not a pkg\"]}");
+        assertEquals("{\"appGroups\":[{\"id\":3,\"kiosk\":true},{\"id\":4}],\"notInKiosk\":[\"com.a.b\"]}", n);
+    }
 }

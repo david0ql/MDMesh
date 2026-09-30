@@ -1,4 +1,6 @@
-import { DcPolicyPanel } from '../components/DcPolicyPanel';
+import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
+import { AppGroupsPanel } from '../components/AppGroupsPanel';
+import { listAppGroups, type AppGroup } from '../api/appGroups';
 import { PolicyFolders, applyPolicyFolders } from '../components/PolicyFolders';
 import { uploadApkToLibrary } from '../api/uploadToLibrary';
 import { useEffect, useMemo, useState } from 'react';
@@ -73,6 +75,7 @@ export function ConfigurationsPage() {
   const [sync, setSync] = useState<Record<number, ConfigSyncSummary>>({});
   // The list endpoint carries no apps: count each configuration's assigned apps separately.
   const [appCounts, setAppCounts] = useState<Record<number, number>>({});
+  const [view, setView] = useState<'policies' | 'groups'>('policies');
 
   const load = () =>
     getConfigurations()
@@ -121,14 +124,22 @@ export function ConfigurationsPage() {
     <AppShell title="Políticas">
       <div className="page-head">
         <h1>Políticas</h1>
-        <button className="btn btn-dark" onClick={() => setChooserOpen(true)}>
-          Nueva política
-        </button>
+        {view === 'policies' && (
+          <button className="btn btn-dark" onClick={() => setChooserOpen(true)}>
+            Nueva política
+          </button>
+        )}
+      </div>
+      <div className="seg" role="tablist" aria-label="Políticas o grupos de aplicaciones" style={{ marginBottom: 14 }}>
+        <button type="button" className={view === 'policies' ? 'on' : ''} onClick={() => setView('policies')}>Políticas</button>
+        <button type="button" className={view === 'groups' ? 'on' : ''} onClick={() => setView('groups')} data-testid="tab-app-groups">Grupos de aplicaciones</button>
       </div>
 
       {error && <div className="banner banner-alert">{error}</div>}
 
-      {configs === null ? (
+      {view === 'groups' ? (
+        <AppGroupsPanel apps={apps} />
+      ) : configs === null ? (
         <div className="panel"><div className="empty"><span className="spin" /> Cargando…</div></div>
       ) : configs.length === 0 ? (
         <div className="panel"><div className="empty"><span className="label">No hay políticas</span>Crea una para usarla como plantilla de dispositivos.</div></div>
@@ -564,12 +575,32 @@ function ConfigEditor({
               <option value={2}>Desinstalar</option>
               <option value={0}>Ocultar ícono</option>
             </select>
+            {!!draft.kioskMode && (a.action ?? 1) === 1 && !!a.pkg && (
+              <label className="cfg-kiosk-chk" title="Si lo desmarcas, la app se instala y se permite, pero no aparece en el quiosco">
+                <input type="checkbox" disabled={readOnly}
+                       checked={!(parseDcPolicy(draft.dcPolicy).notInKiosk ?? []).includes(a.pkg)}
+                       onChange={(e) => {
+                         const dc = parseDcPolicy(draft.dcPolicy);
+                         const cur = new Set(dc.notInKiosk ?? []);
+                         if (e.target.checked) cur.delete(a.pkg as string); else cur.add(a.pkg as string);
+                         set('dcPolicy', serializeDcPolicy({ ...dc, notInKiosk: [...cur] }));
+                       }} />
+                En quiosco
+              </label>
+            )}
             {!readOnly && (
               <button className="btn btn-sm btn-ghost" onClick={() => removeApp(a.id)} aria-label="Quitar app">✕</button>
             )}
           </div>
         ))}
       </section>
+
+      <PolicyAppGroups
+        dc={parseDcPolicy(draft.dcPolicy)}
+        kiosk={!!draft.kioskMode}
+        disabled={readOnly}
+        onChange={(dc) => set('dcPolicy', serializeDcPolicy(dc))}
+      />
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
 
@@ -696,4 +727,46 @@ function FieldControl({ def, value, apps, assigned, disabled, onChange }: { def:
     default:
       return <input className="input" type="text" value={value == null ? '' : String(value)} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
   }
+}
+
+/** The app groups this policy uses; per group, whether its apps also show in the kiosk. */
+function PolicyAppGroups({ dc, kiosk, disabled, onChange }: {
+  dc: DcPolicy; kiosk: boolean; disabled?: boolean; onChange: (dc: DcPolicy) => void;
+}) {
+  const [groups, setGroups] = useState<AppGroup[] | null>(null);
+  useEffect(() => { listAppGroups().then(setGroups).catch(() => setGroups([])); }, []);
+  const used = new Map((dc.appGroups ?? []).map((g) => [g.id, !!g.kiosk]));
+  const put = (id: number, on: boolean, showInKiosk: boolean) => {
+    const next = (dc.appGroups ?? []).filter((g) => g.id !== id);
+    if (on) next.push({ id, kiosk: showInKiosk || undefined });
+    onChange({ ...dc, appGroups: next });
+  };
+  return (
+    <section className="panel cfg-panel">
+      <div className="cfg-sec-h">Grupos de aplicaciones</div>
+      <p className="note" style={{ margin: '0 0 12px' }}>
+        Todas las apps de los grupos elegidos se instalan y se permiten en los teléfonos de esta política (siempre la última
+        versión). {kiosk ? 'Marca «En quiosco» para que además aparezcan en el quiosco; si no, solo quedan instaladas.' : ''}
+        {' '}Los grupos se crean en la pestaña «Grupos de aplicaciones».
+      </p>
+      {groups == null ? <div className="cfg-empty">Cargando…</div> : groups.length === 0 ? (
+        <div className="cfg-empty">Aún no hay grupos de aplicaciones.</div>
+      ) : groups.map((g) => (
+        <div className="cfg-app" key={g.id}>
+          <label className="cfg-app-nm" style={{ display: 'inline-flex', gap: 8, alignItems: 'center', cursor: disabled ? 'default' : 'pointer' }}>
+            <input type="checkbox" disabled={disabled} checked={used.has(g.id)} data-testid={`policy-group-${g.id}`}
+                   onChange={(e) => put(g.id, e.target.checked, used.get(g.id) ?? false)} />
+            {g.name}
+          </label>
+          <span className="cfg-app-pkg">{g.apps.map((a) => a.name || a.pkg).join(', ') || 'sin apps'}</span>
+          {kiosk && used.has(g.id) && (
+            <label className="cfg-kiosk-chk">
+              <input type="checkbox" disabled={disabled} checked={!!used.get(g.id)} onChange={(e) => put(g.id, true, e.target.checked)} />
+              En quiosco
+            </label>
+          )}
+        </div>
+      ))}
+    </section>
+  );
 }

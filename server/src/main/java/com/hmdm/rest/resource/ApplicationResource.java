@@ -77,6 +77,7 @@ public class ApplicationResource {
 
     private com.hmdm.persistence.AgentCommandDAO agentCommandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
+    private com.hmdm.rest.resource.support.PolicyApps policyApps;
 
     @Inject
     public ApplicationResource(ApplicationDAO applicationDAO,
@@ -84,7 +85,9 @@ public class ApplicationResource {
                                PushService pushService,
                                @Named("files.directory") String filesDirectory,
                                com.hmdm.persistence.AgentCommandDAO agentCommandDAO,
-                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
+                               com.hmdm.rest.resource.support.PolicyApps policyApps) {
+        this.policyApps = policyApps;
         this.agentCommandDAO = agentCommandDAO;
         this.configAppInstaller = configAppInstaller;
         this.applicationDAO = applicationDAO;
@@ -352,6 +355,12 @@ public class ApplicationResource {
             int queued = 0;
             for (Integer configurationId : configs) {
                 queued += configAppInstaller.enqueueForConfiguration(configurationId);
+            }
+            // Policies that get the app through an app group (always its latest version).
+            if (policyApps != null) {
+                java.util.Set<Integer> viaGroups = policyApps.policiesUsing(app.getCustomerId(), policyApps.groupsWithApp(app.getCustomerId(), app.getId()));
+                viaGroups.removeAll(configs);
+                for (Integer configurationId : viaGroups) queued += configAppInstaller.enqueueForConfiguration(configurationId);
             }
             logger.info("Application {} version {} is the latest: {} configuration(s) moved to it, {} install(s) queued",
                     app.getPkg(), version.getVersion(), configs.size(), queued);

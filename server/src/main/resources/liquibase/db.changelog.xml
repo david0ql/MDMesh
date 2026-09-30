@@ -3086,4 +3086,23 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.29-app-groups" author="dallycontrol" context="common">
+        <comment>App groups: a named set of library apps a policy can use as a whole (installed, allowed, and shown in
+            the kiosk or not, chosen per policy).</comment>
+        <sql>
+            CREATE TABLE app_group (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                description VARCHAR(500),
+                appIds TEXT NOT NULL DEFAULT '[]',
+                updatedAt BIGINT NOT NULL
+            );
+            CREATE INDEX app_group_customer_idx ON app_group (customerId);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS app_group;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
