@@ -302,17 +302,7 @@ class KioskLauncherActivity : ComponentActivity() {
                 ),
             )
         }
-        if (p.quickSettings) {
-            grid.addView(
-                appCell(
-                    QUICK_SETTINGS_TILE,
-                    getString(R.string.qs_tile),
-                    ContextCompat.getDrawable(this, android.R.drawable.ic_menu_manage)!!,
-                    cell,
-                    fg,
-                ),
-            )
-        }
+        // (Quick settings are the strip at the top of the page, not a tile.)
         column.addView(grid)
 
         // Apps scroll; the footer (serial on the left, second logo on the right) stays at the bottom.
@@ -368,6 +358,13 @@ class KioskLauncherActivity : ComponentActivity() {
                 },
                 LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
             )
+        }
+        // Android draws the app behind the status and navigation bars: keep the kiosk's content clear of them (the
+        // wallpaper still fills the whole screen).
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(page) { v, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            v.setPadding(0, bars.top, 0, bars.bottom)
+            insets
         }
         val root = frame(bg)
         p.theme.backgroundUrl?.takeIf { it.isNotBlank() }?.let { wallpaper ->
