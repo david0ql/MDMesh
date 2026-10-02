@@ -832,19 +832,22 @@ public class FilesResource {
     private List<ExtractedPart> extractApkParts(File zip) throws IOException {
         List<ExtractedPart> parts = new LinkedList<>();
         ExtractedPart universal = null;
-        try (java.util.zip.ZipInputStream zin =
-                     new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new FileInputStream(zip)))) {
-            java.util.zip.ZipEntry entry;
-            while ((entry = zin.getNextEntry()) != null) {
+        // ZipFile reads through the central directory: unlike a ZipInputStream it handles STORED entries written
+        // with data descriptors, which store bundles (.xapk) use.
+        try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(zip)) {
+            java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zf.entries();
+            while (entries.hasMoreElements()) {
+                java.util.zip.ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
                 String base = new File(entry.getName()).getName().toLowerCase();
                 if (!base.endsWith(".apk")) continue;
                 // Output name is generated (not the entry name), so a malicious entry path can't escape.
                 File out = FileUtil.createTempFile("bundlepart");
-                try (java.io.OutputStream os = new java.io.BufferedOutputStream(new java.io.FileOutputStream(out))) {
+                try (InputStream in = zf.getInputStream(entry);
+                     java.io.OutputStream os = new java.io.BufferedOutputStream(new java.io.FileOutputStream(out))) {
                     byte[] buf = new byte[64 * 1024];
                     int n;
-                    while ((n = zin.read(buf)) >= 0) os.write(buf, 0, n);
+                    while ((n = in.read(buf)) >= 0) os.write(buf, 0, n);
                 }
                 if (base.equals("universal.apk")) universal = new ExtractedPart(out, "base.apk"); else parts.add(new ExtractedPart(out, base));
             }
