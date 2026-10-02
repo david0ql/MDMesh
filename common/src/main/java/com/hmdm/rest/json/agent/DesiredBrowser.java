@@ -19,4 +19,6 @@ public class DesiredBrowser {
     private String mode;
     private List<String> allow;
     private List<String> block;
+    /** Company page: Chrome's home page and where address-bar searches go. */
+    private String homeUrl;
 }

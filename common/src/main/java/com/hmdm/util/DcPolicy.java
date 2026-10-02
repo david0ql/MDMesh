@@ -91,6 +91,8 @@ public class DcPolicy {
         private String mode;
         private List<String> allow;
         private List<String> block;
+        /** The company page: Chrome's home page, and every search typed in the address bar goes there. */
+        private String homeUrl;
     }
 
     @Getter
@@ -155,6 +157,9 @@ public class DcPolicy {
                 b.mode = mode;
                 b.allow = urls(browser.allow);
                 b.block = urls(browser.block);
+                String h = browser.homeUrl == null ? "" : browser.homeUrl.trim();
+                b.homeUrl = (h.startsWith("https://") || h.startsWith("http://")) && h.length() <= MAX_ENTRY && !containsControl(h)
+                        && !h.contains(" ") ? h : null;
                 c.browser = b;
             }
         }

@@ -36,6 +36,16 @@ class ChromeManagedBrowser(
             put(b, types, "URLAllowlist", allow); put(b, types, "URLBlocklist", block)
             if ("URLWhitelist" in types) put(b, types, "URLWhitelist", allow)
             if ("URLBlacklist" in types) put(b, types, "URLBlacklist", block)
+            // Company page: Chrome cannot redirect a blocked site, so the page becomes its home page and the
+            // address bar's search engine (whatever they type, they land there).
+            browser.homeUrl?.takeIf { it.isNotBlank() }?.let { home ->
+                val search = home + (if ('?' in home) "&" else "?") + "q={searchTerms}"
+                putScalar(b, types, "HomepageLocation", home)
+                putScalar(b, types, "HomepageIsNewTabPage", false)
+                putScalar(b, types, "DefaultSearchProviderEnabled", true)
+                putScalar(b, types, "DefaultSearchProviderName", "Empresa")
+                putScalar(b, types, "DefaultSearchProviderSearchURL", search)
+            }
             runCatching { dpm.setApplicationRestrictions(admin, pkg, b) }
                 .onFailure { return ConfigOutcome.failed(it.message ?: "setApplicationRestrictions") }
         }
@@ -49,6 +59,13 @@ class ChromeManagedBrowser(
         val rm = context.getSystemService(Context.RESTRICTIONS_SERVICE) as RestrictionsManager
         rm.getManifestRestrictions(pkg).orEmpty().associate { it.key to it.type }
     }.getOrDefault(emptyMap())
+
+    private fun putScalar(b: Bundle, types: Map<String, Int>, key: String, value: Any) {
+        when {
+            value is Boolean && types[key] != RestrictionEntry.TYPE_STRING -> b.putBoolean(key, value)
+            else -> b.putString(key, value.toString())
+        }
+    }
 
     private fun put(b: Bundle, types: Map<String, Int>, key: String, values: List<String>) {
         if (values.isEmpty()) return

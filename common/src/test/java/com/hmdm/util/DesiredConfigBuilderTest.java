@@ -276,4 +276,14 @@ public class DesiredConfigBuilderTest {
         assertNull(DesiredConfigBuilder.build(kioskConfig(), Collections.<Application>emptyList()).getDevice());
         assertNull(DcPolicy.normalize("{\"device\":{\"accountDomain\":\"no es dominio\"}}"));
     }
+
+    @Test
+    public void company_page_is_kept_reachable_in_allowlist_mode() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"browser\":{\"mode\":\"allowlist\",\"allow\":[\"amovil.com.co\"],\"homeUrl\":\"https://portal.alpina.com/inicio?x=1\"}}");
+        com.hmdm.rest.json.agent.DesiredBrowser b = DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getBrowser();
+        assertEquals("https://portal.alpina.com/inicio?x=1", b.getHomeUrl());
+        assertEquals(Arrays.asList("amovil.com.co", "portal.alpina.com"), b.getAllow());
+        assertNull(DcPolicy.parse("{\"browser\":{\"mode\":\"open\",\"homeUrl\":\"javascript:alert(1)\"}}").getBrowser().getHomeUrl());
+    }
 }

@@ -158,6 +158,17 @@ public final class DesiredConfigBuilder {
         b.setMode(dc.getBrowser().getMode());
         b.setAllow(dc.getBrowser().getAllow());
         b.setBlock(dc.getBrowser().getBlock());
+        String home = dc.getBrowser().getHomeUrl();
+        if (home != null) {
+            b.setHomeUrl(home);
+            // With "only these sites", the company page itself must stay reachable.
+            if ("allowlist".equals(b.getMode())) {
+                String host = home.replaceFirst("^https?://", "").replaceFirst("[/?#].*$", "");
+                List<String> allow = b.getAllow() == null ? new ArrayList<String>() : new ArrayList<String>(b.getAllow());
+                if (!host.isEmpty() && !allow.contains(host)) allow.add(host);
+                b.setAllow(allow);
+            }
+        }
         return b;
     }
 

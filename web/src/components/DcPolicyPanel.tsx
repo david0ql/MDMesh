@@ -14,7 +14,7 @@ export const ROLES: { key: string; label: string; help: string }[] = [
 
 export interface DcPolicy {
   kioskRoles?: string[];
-  browser?: { mode: 'open' | 'allowlist' | 'blocklist'; allow?: string[]; block?: string[] };
+  browser?: { mode: 'open' | 'allowlist' | 'blocklist'; allow?: string[]; block?: string[]; homeUrl?: string };
   apps?: { mode: 'open' | 'allowlist'; allowed?: string[]; roles?: string[]; hidePlayStore?: boolean };
   trackingMinutes?: number;
   kioskQuickSettings?: boolean;
@@ -282,6 +282,23 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           </select>
         </div>
       </div>
+      {browserMode !== 'unmanaged' && (
+        <div className="cfg-field">
+          <div className="cfg-field-label">
+            <label>Página de la empresa</label>
+            <span className="cfg-field-help">
+              Chrome no permite redirigir automáticamente un sitio bloqueado (muestra «bloqueado por tu organización»). Con esta
+              página: es la página de inicio de Chrome y cualquier búsqueda que escriban en la barra lleva a ella. Con «Solo estos
+              sitios» queda permitida sola.
+            </span>
+          </div>
+          <div className="cfg-field-ctl">
+            <input className="input mono" aria-label="Página de la empresa" placeholder="https://portal.empresa.com" disabled={disabled}
+              value={p.browser?.homeUrl ?? ''} data-testid="policy-home-url"
+              onChange={(e) => update({ ...p, browser: { ...(p.browser ?? { mode: browserMode as 'open' | 'allowlist' | 'blocklist' }), homeUrl: e.target.value.trim() || undefined } })} />
+          </div>
+        </div>
+      )}
       {browserMode === 'allowlist' || browserMode === 'blocklist' ? (
         <div className="cfg-field">
           <div className="cfg-field-label">

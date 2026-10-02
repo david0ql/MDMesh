@@ -73,6 +73,8 @@ data class ConfigBrowser(
     val mode: String = "open",
     val allow: List<String> = emptyList(),
     val block: List<String> = emptyList(),
+    /** Company page: Chrome's home page, and every search typed in the address bar goes there. */
+    val homeUrl: String? = null,
 )
 
 /**
