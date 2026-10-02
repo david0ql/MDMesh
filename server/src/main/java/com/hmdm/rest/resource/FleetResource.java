@@ -271,6 +271,38 @@ public class FleetResource {
         return Response.OK(out);
     }
 
+    @ApiOperation(value = "Set a folder's kiosk branding", notes = "Body: { logoUrl?, footerLogoUrl?, backgroundUrl?, supportPhone?, supportLabel? } (empty clears it: the "
+            + "folder inherits again). Devices under the folder re-apply their kiosk on their next check-in.")
+    @PUT
+    @Path("/groups/{id}/brand")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setGroupBrand(@PathParam("id") int id, com.hmdm.util.KioskBrand body) {
+        Optional<Integer> customerId = editor("set group branding");
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        if (commandDAO.findGroup(c, id) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        com.hmdm.util.KioskBrand b = body == null ? null : body.cleaned();
+        if (b != null) b.setShowSerial(null); // the serial is the policy's choice
+        commandDAO.updateGroupBrand(c, id, b == null || b.isEmpty() ? null : b.toJson());
+        Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
+        int woken = 0;
+        for (DeviceScopeRow r : commandDAO.listDeviceScopes(c)) {
+            if (r.getGroupId() != null && branch.contains(r.getGroupId())) {
+                wakeHub.wake(r.getNumber(), "commands");
+                woken++;
+            }
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("group", commandDAO.findGroup(c, id));
+        out.put("devices", woken);
+        return Response.OK(out);
+    }
+
     @ApiOperation(value = "Delete group", notes = "Refused while the folder itself holds devices (move them first); "
             + "its sub-folders move up to its parent.")
     @DELETE

@@ -1,5 +1,6 @@
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
+import { KioskBrandEditor } from '../components/KioskBrandEditor';
 import { listAppGroups, type AppGroup } from '../api/appGroups';
 import { PolicyFolders, applyPolicyFolders } from '../components/PolicyFolders';
 import { uploadApkToLibrary } from '../api/uploadToLibrary';
@@ -594,6 +595,22 @@ function ConfigEditor({
           </div>
         ))}
       </section>
+
+      {!!draft.kioskMode && (
+        <section className="panel cfg-panel">
+          <div className="cfg-sec-h">Marca del quiosco</div>
+          <p className="note" style={{ margin: '0 0 12px' }}>
+            Logo arriba de las apps, logo y serial en el pie, fondo y un botón para llamar a soporte. Cada carpeta puede poner
+            sus propios logos, fondo y número (Carpetas → Marca): gana la carpeta más cercana al equipo.
+          </p>
+          <KioskBrandEditor
+            value={parseDcPolicy(draft.dcPolicy).kioskBrand ?? {}}
+            disabled={readOnly}
+            colors={{ bg: draft.backgroundColor as string | undefined, text: draft.textColor as string | undefined }}
+            onChange={(b) => set('dcPolicy', serializeDcPolicy({ ...parseDcPolicy(draft.dcPolicy), kioskBrand: b }))}
+          />
+        </section>
+      )}
 
       <PolicyAppGroups
         dc={parseDcPolicy(draft.dcPolicy)}

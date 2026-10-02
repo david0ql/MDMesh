@@ -218,6 +218,15 @@ public class AgentCommandDAO {
         return deviceMapper.updateGroup(customerId, id, name, configurationId, parentId) > 0;
     }
 
+    /** Kiosk branding of a device's folders, nearest first (JSON, see KioskBrand). */
+    public java.util.List<String> deviceFolderBrands(int deviceId) {
+        return deviceMapper.listDeviceFolderBrands(deviceId);
+    }
+
+    public boolean updateGroupBrand(int customerId, int id, String brandJson) {
+        return deviceMapper.updateGroupBrand(customerId, id, brandJson) > 0;
+    }
+
     /** Move a group's direct children under {@code parentId} (null = top level). */
     public void reparentChildren(int customerId, int id, Integer parentId) {
         deviceMapper.reparentChildren(customerId, id, parentId);

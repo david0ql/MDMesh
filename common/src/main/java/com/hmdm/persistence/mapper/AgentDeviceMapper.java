@@ -160,7 +160,17 @@ public interface AgentDeviceMapper {
             "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
             "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
 
-    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, c.name AS configurationName, " +
+    /** A device's folder chain branding (groups.brand), nearest folder first; folders without branding are skipped. */
+    @Select({"WITH RECURSIVE up(id, parentId, brand, depth) AS (" +
+            "SELECT g.id, g.parentId, g.brand, 0 FROM groups g JOIN deviceGroups dg ON dg.groupId = g.id WHERE dg.deviceId = #{deviceId} " +
+            "UNION ALL SELECT g.id, g.parentId, g.brand, up.depth + 1 FROM groups g JOIN up ON g.id = up.parentId WHERE up.depth < 32) " +
+            "SELECT brand FROM up WHERE brand IS NOT NULL ORDER BY depth"})
+    List<String> listDeviceFolderBrands(@Param("deviceId") int deviceId);
+
+    @Update({"UPDATE groups SET brand = #{brand} WHERE id = #{id} AND customerId = #{customerId}"})
+    int updateGroupBrand(@Param("customerId") int customerId, @Param("id") int id, @Param("brand") String brand);
+
+    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, g.brand, c.name AS configurationName, " +
             "e.id AS effectiveConfigurationId, e.name AS effectiveConfigurationName, " +
             "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
             "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +

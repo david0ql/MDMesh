@@ -15,6 +15,8 @@ export interface FleetGroup {
   /** What its devices run when they do not pin their own (null = the global configuration). */
   effectiveConfigurationId: number | null;
   effectiveConfigurationName: string | null;
+  /** The folder's own kiosk branding; null = inherits. */
+  brand?: KioskBrand | null;
   /** Devices directly in this group (not its sub-folders). */
   deviceCount: number;
 }
@@ -140,6 +142,20 @@ export async function queueForTarget(t: Target, req: QueueCommandRequest): Promi
   const r = await apiClient.post<{ queued: number }>(path, { command: req });
   return { queued: r.queued, skipped: 0 };
 }
+
+/** Kiosk branding (see common KioskBrand): logos, wallpaper, serial and a support line. */
+export interface KioskBrand {
+  logoUrl?: string;
+  footerLogoUrl?: string;
+  backgroundUrl?: string;
+  showSerial?: boolean;
+  supportPhone?: string;
+  supportLabel?: string;
+}
+
+/** A folder's own branding; an empty object makes it inherit again (parent folder, then the policy). */
+export const setGroupBrand = (id: number, brand: KioskBrand) =>
+  apiClient.put<{ group: FleetGroup; devices: number }>(`${BASE}/groups/${id}/brand`, brand);
 
 /** Install/update now, on every device of the target, the policy apps it lacks or has in an older version. */
 export async function syncAppsFor(t: Target): Promise<{ devices: number; queued: number }> {

@@ -52,9 +52,9 @@ export const sendAnnouncement = (a: NewAnnouncement) => apiClient.post<{ id: num
 export const withdrawAnnouncement = (id: number) => apiClient.post<void>(`${BASE}/${id}/withdraw`, {});
 
 /** Host an image or video on the server; returns its public URL. The name gets a timestamp so it never collides. */
-export async function uploadMedia(file: File): Promise<string> {
+export async function uploadMedia(file: File, prefix = 'anuncio'): Promise<string> {
   const safe = file.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-60);
-  const named = new File([file], `anuncio-${Date.now()}-${safe}`, { type: file.type });
+  const named = new File([file], `${prefix}-${Date.now()}-${safe}`, { type: file.type });
   const form = new FormData();
   form.append('file', named, named.name);
   const up = await apiClient.postForm<{ serverPath: string }>('/private/web-ui-files', form);

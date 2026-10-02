@@ -3105,4 +3105,11 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.02-group-kiosk-brand" author="dallycontrol" context="common">
+        <comment>Kiosk branding per folder: logos shown above and below the apps (JSON, see KioskBrand). Null = the
+            parent folder's, else the policy's.</comment>
+        <sql>ALTER TABLE groups ADD COLUMN brand TEXT;</sql>
+        <rollback>ALTER TABLE groups DROP COLUMN brand;</rollback>
+    </changeSet>
+
 </databaseChangeLog>

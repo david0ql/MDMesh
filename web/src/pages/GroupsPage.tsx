@@ -4,10 +4,11 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import {
-  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, updateGroup,
-  type FleetGroup, type GroupNode, type GroupsOverview, type Target,
+  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, setGroupBrand, updateGroup,
+  type FleetGroup, type GroupNode, type GroupsOverview, type KioskBrand, type Target,
 } from '../api/fleet';
 import { BulkActionModal } from '../components/BulkActionModal';
+import { KioskBrandEditor } from '../components/KioskBrandEditor';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -31,6 +32,9 @@ export function GroupsPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [brandFor, setBrandFor] = useState<FleetGroup | null>(null);
+  const [brand, setBrand] = useState<KioskBrand>({});
+  const [brandBusy, setBrandBusy] = useState(false);
   const [name, setName] = useState('');
   const [newConfig, setNewConfig] = useState('');
   const [parent, setParent] = useState('');
@@ -134,6 +138,21 @@ export function GroupsPage() {
     if (ok) setDialog(null);
   }
 
+  async function saveBrand() {
+    if (!brandFor) return;
+    setBrandBusy(true);
+    try {
+      const r = await setGroupBrand(brandFor.id, brand);
+      toast.push('ok', 'Marca guardada', `${brandFor.name}: ${r.devices} dispositivo${r.devices === 1 ? '' : 's'} la aplican en su próximo reporte.`);
+      setBrandFor(null);
+      await load();
+    } catch (e) {
+      toast.push('err', 'No se pudo guardar la marca', e instanceof Error ? e.message : '');
+    } finally {
+      setBrandBusy(false);
+    }
+  }
+
   const nameValid = name.trim().length > 0 && name.trim().length <= 100;
   // A folder cannot move under itself or under one of its own sub-folders.
   const parentChoices: GroupNode[] =
@@ -222,6 +241,11 @@ export function GroupsPage() {
                     </button>
                     <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>
                     <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>
+                    <button className="btn btn-sm btn-ghost" data-testid={`group-brand-${g.id}`}
+                            title="Logos, fondo y número de soporte del quiosco para esta carpeta"
+                            onClick={() => { setBrand(g.brand ?? {}); setBrandFor(g); }}>
+                      Marca{g.brand ? ' ●' : ''}
+                    </button>
                     <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
                             title={g.deviceCount > 0 ? 'Tiene dispositivos: muévelos a otra carpeta antes de eliminarla' : undefined}
                             onClick={() => setDialog({ kind: 'delete', group: g })}>
@@ -241,6 +265,23 @@ export function GroupsPage() {
           </p>
         )}
       </section>
+
+      {brandFor && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal ann-modal">
+            <h3>Marca del quiosco: {brandFor.name}</h3>
+            <p className="muted small">
+              Aplica a los equipos de esta carpeta y de sus subcarpetas que estén en quiosco. Lo que dejes vacío se hereda de la
+              carpeta superior y, si no, de la política. El serial se activa en la política.
+            </p>
+            <KioskBrandEditor value={brand} onChange={setBrand} forFolder />
+            <div className="modal-actions">
+              <button className="btn" disabled={brandBusy} onClick={() => setBrandFor(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={brandBusy} data-testid="group-brand-save" onClick={() => void saveBrand()}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {action && (
         <BulkActionModal target={action} onClose={() => setAction(null)} onDone={() => undefined} />

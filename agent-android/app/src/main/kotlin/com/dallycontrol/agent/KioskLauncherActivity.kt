@@ -251,7 +251,21 @@ class KioskLauncherActivity : ComponentActivity() {
             setPadding(dp(24), dp(28), dp(24), dp(12))
             layoutParams = ViewGroup.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-        column.addView(text("DallyControl Kiosk", 20f, fg, bold = true))
+        // The policy/folder logo replaces the title; without one the kiosk keeps its plain heading.
+        val topLogo = p.theme.logoUrl?.takeIf { it.isNotBlank() }
+        if (topLogo != null) {
+            column.addView(
+                ImageView(this).apply {
+                    adjustViewBounds = true
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    contentDescription = "kiosk-logo"
+                    layoutParams = LinearLayout.LayoutParams(MATCH, dp(72)).apply { bottomMargin = dp(8) }
+                    com.dallycontrol.agent.kiosk.BrandImages.into(this, topLogo)
+                },
+            )
+        } else {
+            column.addView(text("DallyControl Kiosk", 20f, fg, bold = true))
+        }
         if (rendered == 0) {
             column.addView(
                 text(
@@ -259,6 +273,19 @@ class KioskLauncherActivity : ComponentActivity() {
                     14f,
                     MUTED,
                 ).apply { setPadding(0, dp(10), 0, 0) },
+            )
+        }
+        // The support line: one tap calls it.
+        val support = p.theme.supportPhone?.takeIf { it.isNotBlank() }
+        if (support != null) {
+            grid.addView(
+                appCell(
+                    SUPPORT_TILE + support,
+                    p.theme.supportLabel?.takeIf { it.isNotBlank() } ?: getString(R.string.kiosk_support),
+                    ContextCompat.getDrawable(this, android.R.drawable.sym_action_call)!!,
+                    cell,
+                    fg,
+                ),
             )
         }
         // Announcements from the console (the inbox), when there are any.
@@ -288,13 +315,56 @@ class KioskLauncherActivity : ComponentActivity() {
         }
         column.addView(grid)
 
+        // Apps scroll; the footer (serial on the left, second logo on the right) stays at the bottom.
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
+        }
+        page.addView(ScrollView(this).apply { addView(column) }, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        val footLogo = p.theme.footerLogoUrl?.takeIf { it.isNotBlank() }
+        val showSerial = p.theme.showSerial == true
+        if (footLogo != null || showSerial) {
+            page.addView(
+                LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setBackgroundColor(Color.argb(230, Color.red(bg), Color.green(bg), Color.blue(bg)))
+                    // Leave room for the visible "Exit kiosk" button, which sits over the bottom centre.
+                    setPadding(dp(20), dp(6), dp(20), if (p.exitMode == "visible") dp(76) else dp(14))
+                    if (showSerial) {
+                        addView(
+                            text("Serial: ${deviceSerial()}", 12f, fg).apply { contentDescription = "kiosk-serial" },
+                            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+                        )
+                    } else {
+                        addView(View(this@KioskLauncherActivity), LinearLayout.LayoutParams(0, 1, 1f))
+                    }
+                    if (footLogo != null) {
+                        addView(
+                            ImageView(this@KioskLauncherActivity).apply {
+                                adjustViewBounds = true
+                                scaleType = ImageView.ScaleType.FIT_END
+                                contentDescription = "kiosk-footer-logo"
+                                com.dallycontrol.agent.kiosk.BrandImages.into(this, footLogo)
+                            },
+                            LinearLayout.LayoutParams(dp(120), dp(36)),
+                        )
+                    }
+                },
+                LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
         val root = frame(bg)
-        root.addView(
-            ScrollView(this).apply {
-                addView(column)
-                layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
-            },
-        )
+        p.theme.backgroundUrl?.takeIf { it.isNotBlank() }?.let { wallpaper ->
+            root.addView(
+                ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
+                    com.dallycontrol.agent.kiosk.BrandImages.into(this, wallpaper)
+                },
+            )
+        }
+        root.addView(page)
         addExitAffordance(p, root)
         return root
     }
@@ -325,13 +395,18 @@ class KioskLauncherActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
+                // Readable over a wallpaper: a soft halo in the opposite tone of the text.
+                val dark = (Color.red(fg) * 299 + Color.green(fg) * 587 + Color.blue(fg) * 114) / 1000 < 128
+                setShadowLayer(3f, 0f, 1f, if (dark) Color.argb(170, 255, 255, 255) else Color.argb(170, 0, 0, 0))
                 setPadding(0, dp(6), 0, 0)
             },
         )
         contentDescription = "kiosk-app-$pkg"
         setOnClickListener {
             runCatching {
-                if (pkg == ANNOUNCEMENTS_TILE) {
+                if (pkg.startsWith(SUPPORT_TILE)) {
+                    callSupport(pkg.removePrefix(SUPPORT_TILE))
+                } else if (pkg == ANNOUNCEMENTS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.announce.AnnouncementsActivity::class.java))
                 } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
@@ -415,6 +490,27 @@ class KioskLauncherActivity : ComponentActivity() {
 
     // --- View helpers ------------------------------------------------------------------------
 
+    /** Call the support line directly (the Device Owner grants itself the call permission); else open the dialer. */
+    private fun callSupport(number: String) {
+        val uri = android.net.Uri.fromParts("tel", number, null)
+        runCatching {
+            val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+            dpm.setPermissionGrantState(
+                com.dallycontrol.agent.admin.AdminReceiver.componentName(this), packageName, android.Manifest.permission.CALL_PHONE,
+                android.app.admin.DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
+            )
+        }
+        val direct = checkSelfPermission(android.Manifest.permission.CALL_PHONE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        runCatching { startActivity(Intent(if (direct) Intent.ACTION_CALL else Intent.ACTION_DIAL, uri)) }
+            .onFailure { runCatching { startActivity(Intent(Intent.ACTION_DIAL, uri)) } }
+    }
+
+    /** The hardware serial (a Device Owner may read it); "—" when Android withholds it. */
+    @android.annotation.SuppressLint("HardwareIds", "MissingPermission")
+    private fun deviceSerial(): String = runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 26) android.os.Build.getSerial() else @Suppress("DEPRECATION") android.os.Build.SERIAL
+    }.getOrNull()?.takeIf { it.isNotBlank() && it != android.os.Build.UNKNOWN } ?: "—"
+
     private fun frame(bg: Int): android.widget.FrameLayout =
         android.widget.FrameLayout(this).apply {
             setBackgroundColor(bg)
@@ -448,6 +544,7 @@ class KioskLauncherActivity : ComponentActivity() {
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"
+        const val SUPPORT_TILE = "dallycontrol.support:"
         @Volatile var lastAutoLaunch = 0L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7

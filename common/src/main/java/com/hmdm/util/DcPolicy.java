@@ -55,6 +55,8 @@ public class DcPolicy {
     private List<AppGroupRef> appGroups;
     /** Packages of this policy's own apps that are installed and allowed but NOT shown in the kiosk. */
     private List<String> notInKiosk;
+    /** Kiosk branding: logo above the apps, logo below, serial at the bottom (folders may override the logos). */
+    private KioskBrand kioskBrand;
 
     @Getter
     @Setter
@@ -135,7 +137,7 @@ public class DcPolicy {
     @JsonIgnore
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
-                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null;
+                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskBrand == null;
     }
 
     private DcPolicy cleaned() {
@@ -198,6 +200,7 @@ public class DcPolicy {
             c.appGroups = out.isEmpty() ? null : out;
         }
         c.notInKiosk = packages(notInKiosk);
+        c.kioskBrand = kioskBrand == null ? null : kioskBrand.cleaned();
         return c;
     }
 

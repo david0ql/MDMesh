@@ -190,4 +190,42 @@ public class DesiredConfigBuilderTest {
         String n = DcPolicy.normalize("{\"appGroups\":[{\"id\":3,\"kiosk\":true},{\"id\":3},{\"id\":-1},{\"id\":4,\"kiosk\":false}],\"notInKiosk\":[\"com.a.b\",\"not a pkg\"]}");
         assertEquals("{\"appGroups\":[{\"id\":3,\"kiosk\":true},{\"id\":4}],\"notInKiosk\":[\"com.a.b\"]}", n);
     }
+
+    @Test
+    public void kiosk_brand_nearest_folder_wins_per_field_then_the_policy() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"kioskBrand\":{\"logoUrl\":\"https://x/policy-top.png\",\"footerLogoUrl\":\"https://x/policy-foot.png\",\"showSerial\":true}}");
+        java.util.List<Application> apps = Arrays.asList(app(5, 505, "com.acme.pos", 1));
+        DesiredConfig plain = DesiredConfigBuilder.build(c, apps);
+        assertEquals("https://x/policy-top.png", plain.getKiosk().getTheme().getLogoUrl());
+        assertEquals(Boolean.TRUE, plain.getKiosk().getTheme().getShowSerial());
+        // Nearest folder sets only the top logo; its parent sets both: top from the nearest, footer from the parent.
+        DesiredConfig d = DesiredConfigBuilder.build(c, apps, Collections.<String>emptySet(), Arrays.asList(
+                KioskBrand.parse("{\"logoUrl\":\"https://x/bogota.png\"}"),
+                KioskBrand.parse("{\"logoUrl\":\"https://x/colombia.png\",\"footerLogoUrl\":\"https://x/colombia-foot.png\"}")));
+        assertEquals("https://x/bogota.png", d.getKiosk().getTheme().getLogoUrl());
+        assertEquals("https://x/colombia-foot.png", d.getKiosk().getTheme().getFooterLogoUrl());
+        assertEquals(Boolean.TRUE, d.getKiosk().getTheme().getShowSerial());
+        assertNotEquals(plain.getRevision(), d.getRevision());
+        // Only http(s) URLs survive; nothing set = no branding and the same revision as before the feature.
+        assertNull(KioskBrand.parse("{\"logoUrl\":\"javascript:alert(1)\"}"));
+        Configuration none = kioskConfig();
+        assertNull(DesiredConfigBuilder.build(none, apps).getKiosk().getTheme().getLogoUrl());
+    }
+
+    @Test
+    public void kiosk_support_line_and_wallpaper_reach_the_theme_and_folders_override() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"kioskBrand\":{\"supportPhone\":\"+57 (300) 123-4567\",\"supportLabel\":\" Mesa de ayuda \",\"backgroundUrl\":\"https://x/bg.png\"}}");
+        java.util.List<Application> apps = Arrays.asList(app(5, 505, "com.acme.pos", 1));
+        DesiredConfig d = DesiredConfigBuilder.build(c, apps);
+        assertEquals("+573001234567", d.getKiosk().getTheme().getSupportPhone());
+        assertEquals("Mesa de ayuda", d.getKiosk().getTheme().getSupportLabel());
+        assertEquals("https://x/bg.png", d.getKiosk().getTheme().getBackgroundUrl());
+        DesiredConfig f = DesiredConfigBuilder.build(c, apps, Collections.<String>emptySet(),
+                Arrays.asList(KioskBrand.parse("{\"supportPhone\":\"018000123\"}")));
+        assertEquals("018000123", f.getKiosk().getTheme().getSupportPhone());
+        assertNull(f.getKiosk().getTheme().getSupportLabel()); // the folder's number comes with the folder's (empty) label
+        assertNull(KioskBrand.parse("{\"supportPhone\":\"llamar ya\"}"));
+    }
 }

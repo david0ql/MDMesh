@@ -58,4 +58,13 @@ data class KioskThemeDto(
     val backgroundColor: String? = null,
     val textColor: String? = null,
     val iconSize: String? = null,
+    /** Branding: a logo above the apps, a logo below them, and the device serial at the bottom. */
+    val logoUrl: String? = null,
+    val footerLogoUrl: String? = null,
+    val showSerial: Boolean? = null,
+    /** A wallpaper behind the apps. */
+    val backgroundUrl: String? = null,
+    /** A support line: the kiosk shows a button that calls it directly ([supportLabel] names the button). */
+    val supportPhone: String? = null,
+    val supportLabel: String? = null,
 )

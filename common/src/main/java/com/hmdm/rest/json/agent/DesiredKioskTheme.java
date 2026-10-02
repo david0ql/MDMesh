@@ -37,4 +37,11 @@ public class DesiredKioskTheme {
     private String backgroundColor;
     private String textColor;
     private String iconSize;
+    /** Branding (see KioskBrand): logo above the apps, logo below them, and the serial at the bottom. */
+    private String logoUrl;
+    private String footerLogoUrl;
+    private Boolean showSerial;
+    private String backgroundUrl;
+    private String supportPhone;
+    private String supportLabel;
 }

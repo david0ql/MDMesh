@@ -13,6 +13,12 @@ public class DeviceGroupView {
     private Integer effectiveConfigurationId;
     private String effectiveConfigurationName;
     private int deviceCount;
+    /** Kiosk branding of this folder (JSON, see KioskBrand); null = inherits. */
+    @com.fasterxml.jackson.annotation.JsonRawValue
+    private String brand;
+
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
 
     public Integer getParentId() { return parentId; }
     public void setParentId(Integer parentId) { this.parentId = parentId; }

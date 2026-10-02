@@ -48,7 +48,20 @@ public class ConfigReconciler {
         if (cfg == null) return null;
         List<Application> apps = unsecureDAO.getPlainConfigurationAppsOptimized(cfg.getId());
         PolicyApps.Resolved r = policyApps.resolve(cfg, apps);
-        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk);
+        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg));
+    }
+
+    /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */
+    private List<com.hmdm.util.KioskBrand> folderBrands(Device device, Configuration cfg) {
+        if (!cfg.isKioskMode() || device.getId() == null) return null;
+        try {
+            List<com.hmdm.util.KioskBrand> out = new java.util.ArrayList<>();
+            for (String json : commandDAO.deviceFolderBrands(device.getId())) out.add(com.hmdm.util.KioskBrand.parse(json));
+            return out;
+        } catch (Exception e) {
+            logger.warn("Folder branding of device {} not read: {}", device.getNumber(), e.getMessage());
+            return null;
+        }
     }
 
     public String currentRevision(Device device) {

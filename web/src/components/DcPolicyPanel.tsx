@@ -24,6 +24,8 @@ export interface DcPolicy {
   appGroups?: { id: number; kiosk?: boolean }[];
   /** The policy's own apps installed and allowed but kept out of the kiosk. */
   notInKiosk?: string[];
+  /** Kiosk branding: logos, wallpaper, serial, support line (folders may override). */
+  kioskBrand?: import('../api/fleet').KioskBrand;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -48,6 +50,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
   if (p.appGroups?.length) out.appGroups = p.appGroups;
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
+  if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 

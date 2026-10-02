@@ -55,6 +55,11 @@ public final class DesiredConfigBuilder {
      * @param notInKiosk packages installed and allowed but kept out of the kiosk (never the pinned main app)
      */
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk) {
+        return build(cfg, apps, notInKiosk, null);
+    }
+
+    /** @param folderBrands the device's folder chain branding, nearest first (see {@link KioskBrand#effective}) */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk, List<KioskBrand> folderBrands) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
@@ -62,6 +67,17 @@ public final class DesiredConfigBuilder {
         d.setPolicies(policies(cfg));
         d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
         if (d.getKiosk() != null && Boolean.TRUE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
+        if (d.getKiosk() != null) {
+            KioskBrand brand = KioskBrand.effective(dc.getKioskBrand(), folderBrands);
+            if (brand != null) {
+                d.getKiosk().getTheme().setLogoUrl(brand.getLogoUrl());
+                d.getKiosk().getTheme().setFooterLogoUrl(brand.getFooterLogoUrl());
+                d.getKiosk().getTheme().setShowSerial(brand.getShowSerial());
+                d.getKiosk().getTheme().setBackgroundUrl(brand.getBackgroundUrl());
+                d.getKiosk().getTheme().setSupportPhone(brand.getSupportPhone());
+                d.getKiosk().getTheme().setSupportLabel(brand.getSupportLabel());
+            }
+        }
         DesiredLocation loc = new DesiredLocation();
         loc.setMode(cfg.getRequestUpdates() == RequestUpdatesType.GPS ? "active" : "passive");
         d.setLocation(loc);
