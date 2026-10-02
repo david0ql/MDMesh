@@ -84,29 +84,34 @@ class AppUsageCollector(private val context: Context) {
         return AppUsageDay(key, apps)
     }
 
-    /** Time on screen per package in [start, end): from resume to pause of its activities. */
+    /**
+     * Time on screen per package in [start, end): from resume to pause of its activities. Events are read from a
+     * while before [start] too, so an app that was already open when the window began is counted from [start].
+     */
     private fun foregroundMs(start: Long, end: Long): Map<String, Long> {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return emptyMap()
-        val events = usm.queryEvents(start, end) ?: return emptyMap()
+        val events = usm.queryEvents(start - LOOKBACK_MS, end) ?: return emptyMap()
         val out = HashMap<String, Long>()
         val resumedAt = HashMap<String, Long>()
+        fun close(pkg: String, from: Long, until: Long) {
+            val ms = minOf(until, end) - maxOf(from, start)
+            if (ms > 0) out[pkg] = (out[pkg] ?: 0) + ms
+        }
         val e = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(e)
             val pkg = e.packageName ?: continue
             when (e.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> resumedAt.putIfAbsent(pkg, e.timeStamp)
-                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> resumedAt.remove(pkg)?.let { from ->
-                    out[pkg] = (out[pkg] ?: 0) + (e.timeStamp - from).coerceAtLeast(0)
-                }
+                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> resumedAt.remove(pkg)?.let { close(pkg, it, e.timeStamp) }
                 // Screen off / device shutdown closes whatever was on screen.
                 UsageEvents.Event.SCREEN_NON_INTERACTIVE, UsageEvents.Event.DEVICE_SHUTDOWN -> {
-                    resumedAt.forEach { (p, from) -> out[p] = (out[p] ?: 0) + (e.timeStamp - from).coerceAtLeast(0) }
+                    resumedAt.forEach { (p, from) -> close(p, from, e.timeStamp) }
                     resumedAt.clear()
                 }
             }
         }
-        resumedAt.forEach { (p, from) -> out[p] = (out[p] ?: 0) + (end - from).coerceAtLeast(0) } // still on screen
+        resumedAt.forEach { (p, from) -> close(p, from, end) } // still on screen
         return out
     }
 
@@ -185,6 +190,7 @@ class AppUsageCollector(private val context: Context) {
         /** Pseudo-package for battery lost with no app on screen (screen off, system). */
         const val IDLE = "android.idle"
         private const val DAY_MS = 24L * 3600_000L
+        private const val LOOKBACK_MS = 6L * 3600_000L
         private const val REPORT_EVERY_MS = 10L * 60_000L
         private const val SAMPLE_EVERY_MS = 3L * 60_000L
         private const val MAX_GAP_MS = 2L * 3600_000L
