@@ -110,6 +110,19 @@ class KioskLauncherActivity : ComponentActivity() {
     private fun applyState(p: KioskApplyPayload?) {
         active = p
         com.dallycontrol.agent.kiosk.QuickSettingsNotice.update(this, p?.quickSettings == true)
+        // Anti-theft follows the kiosk: on with the policy's PIN, off (and its restrictions lifted) without it.
+        runCatching {
+            com.dallycontrol.agent.kiosk.AntiTheft.apply(
+                this, p?.powerPin,
+                if (p == null) 0 else com.dallycontrol.kiosk.lockTaskFeatures(
+                    com.dallycontrol.kiosk.KioskToggles(
+                        home = p.features.home, recents = p.features.recents, notifications = p.features.notifications,
+                        systemInfo = p.features.systemInfo, keyguard = p.features.keyguard,
+                        lockButtons = if (!p.powerPin.isNullOrBlank()) true else p.features.lockButtons,
+                    ),
+                ),
+            )
+        }
         if (p == null) {
             paused = false
             stopLockTaskSafely()

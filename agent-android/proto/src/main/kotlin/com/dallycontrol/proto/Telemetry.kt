@@ -74,6 +74,39 @@ data class DynamicState(
     val trail: List<LocationDto> = emptyList(),
     /** A system (OTA) update is waiting to be installed since this time (Device Owner; null = none known). */
     val systemUpdatePendingSince: Long? = null,
+    /** Per-app usage of today and yesterday (sent every few minutes, not on every check-in); null = not this time. */
+    val appUsage: AppUsageReport? = null,
+    /** Android's "usage access" is on for the agent (needed for per-app screen time and the battery estimate). */
+    val usageAccess: Boolean? = null,
+)
+
+/**
+ * What each app used, per local day: time on screen, data over Wi-Fi and mobile, and an ESTIMATE of the battery it
+ * drained (the battery lost while that app was on screen; Android gives no per-app battery figure to a normal app).
+ * [usageAccess] false = Android's "usage access" is off for the agent, so screen time and battery are missing.
+ */
+@Serializable
+data class AppUsageReport(
+    val usageAccess: Boolean,
+    val days: List<AppUsageDay> = emptyList(),
+)
+
+@Serializable
+data class AppUsageDay(
+    /** Local date, `yyyy-MM-dd`. */
+    val day: String,
+    val apps: List<AppUsageEntry> = emptyList(),
+)
+
+@Serializable
+data class AppUsageEntry(
+    val packageName: String,
+    val label: String? = null,
+    val foregroundMs: Long = 0,
+    val wifiBytes: Long = 0,
+    val mobileBytes: Long = 0,
+    /** Battery percentage points lost while this app was on screen (estimate). */
+    val batteryPct: Double = 0.0,
 )
 
 /**

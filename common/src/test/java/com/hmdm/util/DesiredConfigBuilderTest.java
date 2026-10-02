@@ -245,4 +245,17 @@ public class DesiredConfigBuilderTest {
         assertEquals(Boolean.FALSE, off.getKiosk().getFeatures().getNotifications());
         assertNull(off.getKiosk().getQuickSettings());
     }
+
+    @Test
+    public void power_pin_closes_the_power_menu_and_offers_the_quick_settings() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"powerPin\":\"4821\",\"kioskQuickSettings\":false}");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+        assertEquals("4821", d.getKiosk().getPowerPin());
+        assertEquals(Boolean.TRUE, d.getKiosk().getFeatures().getLockButtons());
+        assertEquals(Boolean.TRUE, d.getKiosk().getQuickSettings()); // the PIN prompt lives there
+        assertNull(DcPolicy.parse("{\"powerPin\":\"12\"}").getPowerPin());
+        assertNull(DcPolicy.parse("{\"powerPin\":\"abcd\"}").getPowerPin());
+        assertNull(DesiredConfigBuilder.build(kioskConfig(), Arrays.asList(app(5, 505, "com.acme.pos", 1))).getKiosk().getPowerPin());
+    }
 }

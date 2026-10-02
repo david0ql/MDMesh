@@ -8,6 +8,7 @@ import {
 import { ActionConsole } from '../components/ActionConsole';
 import { TelemetryCard } from '../components/TelemetryCard';
 import { DeviceHistory } from '../components/DeviceHistory';
+import { AppUsagePanel } from '../components/AppUsagePanel';
 import { StoragePanel } from '../components/StoragePanel';
 import { UpdateTrail } from '../components/UpdateTrail';
 import { EventTimeline } from '../components/EventTimeline';
@@ -26,7 +27,7 @@ import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 
-type Tab = 'control' | 'remote' | 'apps' | 'updates' | 'history' | 'storage' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
 
 interface Row {
   k: string;
@@ -441,6 +442,9 @@ export function DeviceDetailPage() {
             <button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>
               Historial
             </button>
+            <button className={tab === 'usage' ? 'on' : ''} onClick={() => setTab('usage')}>
+              Uso de apps
+            </button>
             <button className={tab === 'storage' ? 'on' : ''} onClick={() => setTab('storage')}>
               Almacenamiento
             </button>
@@ -468,6 +472,7 @@ export function DeviceDetailPage() {
               />
             )}
             {tab === 'history' && <DeviceHistory device={device} />}
+            {tab === 'usage' && <AppUsagePanel device={device} usageAccess={typeof dyn.usageAccess === 'boolean' ? dyn.usageAccess : undefined} />}
             {tab === 'storage' && <StoragePanel device={device} />}
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}

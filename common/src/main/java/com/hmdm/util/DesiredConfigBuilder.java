@@ -68,6 +68,12 @@ public final class DesiredConfigBuilder {
         d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
         // Quick settings (Wi-Fi, Bluetooth, brightness) are part of a kiosk unless the policy turns them off.
         if (d.getKiosk() != null && !Boolean.FALSE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
+        if (d.getKiosk() != null && dc.getPowerPin() != null) {
+            // Anti-theft: the power menu is closed; the kiosk's quick settings ask for the PIN to switch off / restart.
+            d.getKiosk().setPowerPin(dc.getPowerPin());
+            d.getKiosk().getFeatures().setLockButtons(Boolean.TRUE);
+            d.getKiosk().setQuickSettings(Boolean.TRUE);
+        }
         if (d.getKiosk() != null) {
             KioskBrand brand = KioskBrand.effective(dc.getKioskBrand(), folderBrands);
             if (brand != null) {

@@ -3163,4 +3163,43 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.03-device-app-usage" author="dallycontrol" context="common">
+        <comment>Per-app usage report, one row per device, local day and app: time on screen, data over Wi-Fi and
+            mobile, and the agent's battery estimate. Kept 90 days; deleted with the device.</comment>
+        <sql>
+            CREATE TABLE device_app_usage (
+                deviceNumber VARCHAR(100) NOT NULL,
+                day VARCHAR(10) NOT NULL,
+                pkg VARCHAR(200) NOT NULL,
+                label VARCHAR(200),
+                foregroundMs BIGINT NOT NULL DEFAULT 0,
+                wifiBytes BIGINT NOT NULL DEFAULT 0,
+                mobileBytes BIGINT NOT NULL DEFAULT 0,
+                batteryPct DOUBLE PRECISION NOT NULL DEFAULT 0,
+                updatedAt BIGINT NOT NULL,
+                PRIMARY KEY (deviceNumber, day, pkg)
+            );
+            CREATE INDEX device_app_usage_day_idx ON device_app_usage (day);
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_agent_data() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM agentCommand         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_event         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_state         WHERE deviceNumber = OLD.number;
+                DELETE FROM device_location      WHERE deviceNumber = OLD.number;
+                DELETE FROM agentRolloutCanary   WHERE deviceNumber = OLD.number;
+                DELETE FROM device_connection    WHERE deviceNumber = OLD.number;
+                DELETE FROM device_metric        WHERE deviceNumber = OLD.number;
+                DELETE FROM announcement_receipt WHERE deviceNumber = OLD.number;
+                DELETE FROM device_app_usage     WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_app_usage;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

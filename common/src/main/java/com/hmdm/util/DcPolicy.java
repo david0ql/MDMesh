@@ -57,6 +57,8 @@ public class DcPolicy {
     private List<String> notInKiosk;
     /** Kiosk branding: logo above the apps, logo below, serial at the bottom (folders may override the logos). */
     private KioskBrand kioskBrand;
+    /** Anti-theft in the kiosk: 4-12 digits asked before switching the phone off or restarting it. */
+    private String powerPin;
 
     @Getter
     @Setter
@@ -137,7 +139,8 @@ public class DcPolicy {
     @JsonIgnore
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
-                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskBrand == null;
+                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskBrand == null
+                && powerPin == null;
     }
 
     private DcPolicy cleaned() {
@@ -201,6 +204,7 @@ public class DcPolicy {
         }
         c.notInKiosk = packages(notInKiosk);
         c.kioskBrand = kioskBrand == null ? null : kioskBrand.cleaned();
+        c.powerPin = powerPin != null && powerPin.trim().matches("^[0-9]{4,12}$") ? powerPin.trim() : null;
         return c;
     }
 

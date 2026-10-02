@@ -321,6 +321,15 @@ public class AgentResource {
             if (dyn != null && dyn.isObject() && dyn.has("trail")) {
                 trail = ((com.fasterxml.jackson.databind.node.ObjectNode) dyn).remove("trail");
             }
+            // The per-app usage report goes to its own table (a row per day and app), not into the snapshot.
+            if (dyn != null && dyn.isObject() && dyn.has("appUsage")) {
+                JsonNode usage = ((com.fasterxml.jackson.databind.node.ObjectNode) dyn).remove("appUsage");
+                try {
+                    saveAppUsage(deviceNumber, usage);
+                } catch (Exception e) {
+                    logger.warn("Could not store the app usage of {}: {}", deviceNumber, e.getMessage());
+                }
+            }
             // An authenticated device can still be hostile/buggy: cap the stored blob so a single
             // client can't bloat device_state via the 5s foreground poll.
             String telJson = tel == null ? null : tel.toString();
@@ -483,6 +492,34 @@ public class AgentResource {
             return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.FORBIDDEN).build();
         }
         return javax.ws.rs.core.Response.noContent().build();
+    }
+
+    private static final java.util.regex.Pattern USAGE_DAY = java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
+    private static final int MAX_USAGE_APPS = 80;
+
+    /** Validates and stores the agent's per-app usage report (at most two days, [MAX_USAGE_APPS] apps each). */
+    private void saveAppUsage(String deviceNumber, JsonNode usage) {
+        int days = 0;
+        for (JsonNode d : usage.path("days")) {
+            String day = d.path("day").asText("");
+            if (!USAGE_DAY.matcher(day).matches() || ++days > 2) continue;
+            java.util.List<java.util.Map<String, Object>> rows = new ArrayList<>();
+            for (JsonNode a : d.path("apps")) {
+                String pkg = a.path("packageName").asText("").trim();
+                if (pkg.isEmpty() || pkg.length() > 200) continue;
+                java.util.Map<String, Object> u = new java.util.HashMap<>();
+                u.put("pkg", pkg);
+                String label = a.path("label").isTextual() ? a.path("label").asText() : null;
+                u.put("label", label == null ? null : label.substring(0, Math.min(200, label.length())));
+                u.put("foregroundMs", Math.max(0L, Math.min(a.path("foregroundMs").asLong(0), 86_400_000L)));
+                u.put("wifiBytes", Math.max(0L, a.path("wifiBytes").asLong(0)));
+                u.put("mobileBytes", Math.max(0L, a.path("mobileBytes").asLong(0)));
+                u.put("batteryPct", Math.max(0d, Math.min(a.path("batteryPct").asDouble(0), 100d)));
+                rows.add(u);
+                if (rows.size() >= MAX_USAGE_APPS) break;
+            }
+            if (!rows.isEmpty()) commandDAO.saveAppUsage(deviceNumber, day, rows);
+        }
     }
 
     /** An app.install of the agent's own package (release or debug): the agent restarts while applying it. */

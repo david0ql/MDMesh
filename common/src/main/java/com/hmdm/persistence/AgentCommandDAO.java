@@ -227,6 +227,23 @@ public class AgentCommandDAO {
         return deviceMapper.updateGroup(customerId, id, name, configurationId, parentId) > 0;
     }
 
+    private static final java.util.concurrent.atomic.AtomicLong lastUsagePurge = new java.util.concurrent.atomic.AtomicLong();
+    public static final int APP_USAGE_KEEP_DAYS = 90;
+
+    /** Store one day of a device's per-app usage (rows: pkg, label, foregroundMs, wifiBytes, mobileBytes, batteryPct). */
+    public void saveAppUsage(String deviceNumber, String day, java.util.List<java.util.Map<String, Object>> apps) {
+        long now = System.currentTimeMillis();
+        for (java.util.Map<String, Object> u : apps) deviceMapper.upsertAppUsage(deviceNumber, day, u, now);
+        long prev = lastUsagePurge.get();
+        if (now - prev > 6 * 3600_000L && lastUsagePurge.compareAndSet(prev, now)) {
+            deviceMapper.purgeAppUsage(java.time.LocalDate.now().minusDays(APP_USAGE_KEEP_DAYS).toString());
+        }
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listAppUsage(String deviceNumber, int days) {
+        return deviceMapper.listAppUsage(deviceNumber, java.time.LocalDate.now().minusDays(Math.max(0, days)).toString());
+    }
+
     /** How long a deleted device may still come back by itself; an administrator's claim lasts {@link #CLAIM_TTL_MS}. */
     public static final long TOMBSTONE_TTL_MS = 90L * 24 * 3600_000L;
     public static final long CLAIM_TTL_MS = 7L * 24 * 3600_000L;

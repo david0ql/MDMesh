@@ -51,4 +51,14 @@
     <string name="ann_tile">Anuncios</string>
     <string name="kiosk_support">Soporte</string>
     <string name="qs_bar">Wi‑Fi · Bluetooth · Brillo</string>
+    <string name="at_title">Encendido</string>
+    <string name="at_help">Para apagar o reiniciar este equipo se pide la clave.</string>
+    <string name="at_button">Apagar o reiniciar</string>
+    <string name="at_pin">Clave</string>
+    <string name="at_wrong">Clave incorrecta.</string>
+    <string name="at_restart">Reiniciar ahora</string>
+    <string name="at_poweroff">Apagar (abre el menú de apagado durante 30 segundos)</string>
+    <string name="at_poweroff_hint">Mantén presionado el botón de encendido ahora y elige Apagar. El menú se vuelve a cerrar en 30 segundos.</string>
+    <string name="split_title">Pantalla dividida</string>
+    <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
 </resources>

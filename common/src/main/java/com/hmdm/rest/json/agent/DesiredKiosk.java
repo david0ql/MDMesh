@@ -46,4 +46,6 @@ public class DesiredKiosk {
     private List<String> roles;
     /** The agent's quick settings in kiosk; null = off (keeps older revisions unchanged). */
     private Boolean quickSettings;
+    /** Anti-theft: the power menu stays closed and switching off / restarting asks for this PIN. */
+    private String powerPin;
 }

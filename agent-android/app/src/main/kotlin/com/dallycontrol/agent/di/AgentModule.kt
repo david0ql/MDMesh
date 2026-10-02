@@ -182,10 +182,17 @@ object AgentModule {
         security: SecurityCollector,
         trail: TrailStore,
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
+        appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
-        dynamic = { dynamic.collect().copy(systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull()) },
+        dynamic = {
+            dynamic.collect().copy(
+                systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull(),
+                appUsage = runCatching { appUsage.collect() }.getOrNull(),
+                usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
+            )
+        },
         security = { security.collect() },
         // The trail fixes a successful check-in carried are on the server now.
         onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
@@ -497,6 +504,11 @@ object AgentModule {
         systemUpdates = systemUpdates::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
     )
+
+    @Provides
+    @Singleton
+    fun provideAppUsageCollector(@ApplicationContext context: Context): com.dallycontrol.agent.usage.AppUsageCollector =
+        com.dallycontrol.agent.usage.AppUsageCollector(context)
 
     @Provides
     @Singleton

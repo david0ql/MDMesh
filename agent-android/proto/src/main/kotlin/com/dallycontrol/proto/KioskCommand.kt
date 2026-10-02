@@ -30,6 +30,8 @@ data class KioskApplyPayload(
     val roles: List<String> = emptyList(),
     /** Offer the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth) in kiosk. */
     val quickSettings: Boolean = false,
+    /** Anti-theft: the power menu stays closed and switching off / restarting asks for this PIN (null = off). */
+    val powerPin: String? = null,
 )
 
 /** Device functions a configuration can allow by name instead of by package (resolved on the device). */

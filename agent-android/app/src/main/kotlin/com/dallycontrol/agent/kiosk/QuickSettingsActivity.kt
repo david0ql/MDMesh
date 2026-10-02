@@ -123,6 +123,21 @@ class QuickSettingsActivity : ComponentActivity() {
         }
         col.addView(space())
 
+        // Anti-theft: switching off or restarting asks for the policy's PIN.
+        if (AntiTheft.enabled(this)) {
+            col.addView(label(getString(R.string.at_title)))
+            col.addView(text(getString(R.string.at_help), 13f, MUTED))
+            col.addView(Button(this).apply {
+                text = getString(R.string.at_button)
+                contentDescription = "qs-power"
+                setOnClickListener { askPowerPin() }
+            })
+            col.addView(space())
+        }
+        col.addView(label(getString(R.string.split_title)))
+        col.addView(text(getString(R.string.split_help), 13f, MUTED))
+        col.addView(space())
+
         col.addView(Button(this).apply {
             text = getString(R.string.qs_close)
             setOnClickListener { finish() }
@@ -131,6 +146,34 @@ class QuickSettingsActivity : ComponentActivity() {
             setBackgroundColor(INK)
             addView(col)
         }
+    }
+
+    private fun askPowerPin() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = getString(R.string.at_pin)
+            contentDescription = "qs-power-pin"
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.at_button)
+            .setView(input)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (!AntiTheft.pinMatches(this, input.text.toString())) {
+                    android.widget.Toast.makeText(this, R.string.at_wrong, android.widget.Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.at_button)
+                    .setItems(arrayOf(getString(R.string.at_restart), getString(R.string.at_poweroff))) { _, which ->
+                        if (which == 0) AntiTheft.reboot(this) else {
+                            AntiTheft.allowPowerMenu(this)
+                            android.widget.Toast.makeText(this, R.string.at_poweroff_hint, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    .show()
+            }
+            .show()
     }
 
     private fun refreshWifi() {

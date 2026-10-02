@@ -160,6 +160,24 @@ public interface AgentDeviceMapper {
             "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
             "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
 
+    // --- Per-app usage report (device_app_usage): the day's totals so far, replaced on every report ---
+
+    @Insert({"INSERT INTO device_app_usage (deviceNumber, day, pkg, label, foregroundMs, wifiBytes, mobileBytes, batteryPct, updatedAt) " +
+            "VALUES (#{number}, #{day}, #{u.pkg}, #{u.label}, #{u.foregroundMs}, #{u.wifiBytes}, #{u.mobileBytes}, #{u.batteryPct}, #{now}) " +
+            "ON CONFLICT (deviceNumber, day, pkg) DO UPDATE SET label = COALESCE(EXCLUDED.label, device_app_usage.label), " +
+            "foregroundMs = GREATEST(device_app_usage.foregroundMs, EXCLUDED.foregroundMs), " +
+            "wifiBytes = GREATEST(device_app_usage.wifiBytes, EXCLUDED.wifiBytes), " +
+            "mobileBytes = GREATEST(device_app_usage.mobileBytes, EXCLUDED.mobileBytes), " +
+            "batteryPct = GREATEST(device_app_usage.batteryPct, EXCLUDED.batteryPct), updatedAt = EXCLUDED.updatedAt"})
+    void upsertAppUsage(@Param("number") String number, @Param("day") String day, @Param("u") java.util.Map<String, Object> u, @Param("now") long now);
+
+    @Select({"SELECT day, pkg, label, foregroundMs, wifiBytes, mobileBytes, batteryPct, updatedAt FROM device_app_usage " +
+            "WHERE deviceNumber = #{number} AND day >= #{fromDay} ORDER BY day DESC, foregroundMs DESC"})
+    List<java.util.Map<String, Object>> listAppUsage(@Param("number") String number, @Param("fromDay") String fromDay);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM device_app_usage WHERE day < #{beforeDay}"})
+    int purgeAppUsage(@Param("beforeDay") String beforeDay);
+
     // --- Deleted devices that are still enrolled (device_tombstone) ---
 
     @Select({"SELECT number, customerId, secretHash, description, groupId, configurationId, pinned, hardwareId, deletedAt " +

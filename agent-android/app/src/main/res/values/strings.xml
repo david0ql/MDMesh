@@ -53,4 +53,14 @@
     <string name="ann_tile">Announcements</string>
     <string name="kiosk_support">Support</string>
     <string name="qs_bar">Wi‑Fi · Bluetooth · Brightness</string>
+    <string name="at_title">Power</string>
+    <string name="at_help">Switching off or restarting this device needs the PIN.</string>
+    <string name="at_button">Switch off or restart</string>
+    <string name="at_pin">PIN</string>
+    <string name="at_wrong">Wrong PIN.</string>
+    <string name="at_restart">Restart now</string>
+    <string name="at_poweroff">Switch off (opens the power menu for 30 seconds)</string>
+    <string name="at_poweroff_hint">Hold the power button now and choose Power off. The menu closes again in 30 seconds.</string>
+    <string name="split_title">Split screen</string>
+    <string name="split_help">To use two apps at once: open Recents (the square button), tap the icon above an app and choose Split screen, then pick the second app.</string>
 </resources>

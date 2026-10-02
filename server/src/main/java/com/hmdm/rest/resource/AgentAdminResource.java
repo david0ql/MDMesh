@@ -577,6 +577,28 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "App usage report", notes = "Per day and app: time on screen, data over Wi-Fi and mobile, and "
+            + "the battery estimate (battery lost while the app was on screen). Up to 90 days.")
+    @GET
+    @Path("/devices/{deviceId}/usage")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response appUsage(@PathParam("deviceId") String deviceId, @QueryParam("days") Integer days) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int d = days == null ? 7 : Math.max(0, Math.min(com.hmdm.persistence.AgentCommandDAO.APP_USAGE_KEEP_DAYS, days));
+        return Response.OK(commandDAO.listAppUsage(deviceId, d));
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Command history", notes = "Command lifecycle history for a device, newest first. "
             + "Payloads are never returned (they can embed secrets); app commands carry the package as 'subject'.")
     @GET

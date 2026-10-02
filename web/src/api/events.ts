@@ -35,3 +35,19 @@ export interface DeviceHistory {
 export async function getHistory(deviceId: number | string, days: number): Promise<DeviceHistory> {
   return apiClient.get<DeviceHistory>(`/private/agent/v1/devices/${deviceId}/history?days=${days}`);
 }
+
+/** One app on one local day (see the server's device_app_usage). */
+export interface AppUsageRow {
+  day: string;
+  pkg: string;
+  label?: string | null;
+  foregroundms: number;
+  wifibytes: number;
+  mobilebytes: number;
+  batterypct: number;
+  updatedat?: number;
+}
+
+export async function getAppUsage(deviceId: number | string, days: number): Promise<AppUsageRow[]> {
+  return apiClient.get<AppUsageRow[]>(`/private/agent/v1/devices/${deviceId}/usage?days=${days}`);
+}

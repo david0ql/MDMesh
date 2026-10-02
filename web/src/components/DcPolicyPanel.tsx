@@ -26,6 +26,8 @@ export interface DcPolicy {
   notInKiosk?: string[];
   /** Kiosk branding: logos, wallpaper, serial, support line (folders may override). */
   kioskBrand?: import('../api/fleet').KioskBrand;
+  /** Anti-theft: 4-12 digits asked in the kiosk before switching off or restarting. */
+  powerPin?: string;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -51,6 +53,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.appGroups?.length) out.appGroups = p.appGroups;
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
+  if (p.powerPin) out.powerPin = p.powerPin;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -138,6 +141,25 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
         </div>
         <div className="cfg-field-ctl">
           <RoleChecks name="Funciones del quiosco" value={p.kioskRoles ?? []} disabled={disabled} onChange={(v) => update({ ...p, kioskRoles: v })} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Antirrobo: clave para apagar</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            Con una clave (4 a 12 dígitos), en el quiosco el botón de encendido ya no abre el menú de apagado: para apagar o reiniciar
+            hay que escribir esta clave en «Ajustes rápidos». También se bloquean el modo seguro y el restablecimiento de fábrica desde
+            Ajustes. Android no permite impedir el apagado forzado (mantener el botón ~10 segundos); el teléfono vuelve a encender en
+            el quiosco. Vacío = sin antirrobo.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input className="input mono" aria-label="Clave para apagar" inputMode="numeric" maxLength={12} placeholder="p. ej. 4821" disabled={disabled}
+            value={p.powerPin ?? ''} data-testid="policy-power-pin"
+            onChange={(e) => update({ ...p, powerPin: e.target.value.replace(/[^0-9]/g, '') || undefined })} />
+          {!!p.powerPin && p.powerPin.length < 4 && <span className="field-error">Mínimo 4 dígitos.</span>}
         </div>
       </div>
 

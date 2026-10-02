@@ -24,7 +24,9 @@ class KioskApplier(
         val features = lockTaskFeatures(
             KioskToggles(
                 home = p.features.home, recents = p.features.recents, notifications = p.features.notifications,
-                systemInfo = p.features.systemInfo, keyguard = p.features.keyguard, lockButtons = p.features.lockButtons,
+                systemInfo = p.features.systemInfo, keyguard = p.features.keyguard,
+                // Anti-theft (a power PIN) always closes the power menu.
+                lockButtons = if (!p.powerPin.isNullOrBlank()) true else p.features.lockButtons,
             ),
         )
         // Functions resolve to THIS device's packages (its dialer + in-call screen, its contacts app, …): the openable

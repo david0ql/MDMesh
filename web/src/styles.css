@@ -3065,3 +3065,18 @@ a {
 [data-theme='dark'] .dev-status.on .screen { fill: #23c9b6; }
 .dev-row .lc .lv, .dev-row .lc .lk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dev-row .id .sub { overflow-wrap: anywhere; }
+
+/* App usage report */
+.au-tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin: 4px 0 8px; }
+.au-top { margin: 0; }
+.au-top figcaption { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.au-top figcaption .muted { font-weight: 400; font-size: 12px; }
+.au-top ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.au-top li { display: grid; grid-template-columns: minmax(0, 38%) 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+.au-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.au-bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.au-bar i { display: block; height: 100%; background: var(--chart-1); border-radius: 0 4px 4px 0; }
+.au-v { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.au-sort { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.au-sort.on { color: var(--text); text-decoration: none; }
+.au-sort.on::after { content: ' ↓'; }
