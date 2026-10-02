@@ -3009,3 +3009,12 @@ a {
 .ag-head .note { flex: 1; }
 .ag-apps { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
 .cfg-kiosk-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+
+/* Site lists (policy browser allow/block) */
+.dcp-sites { width: 100%; max-width: 460px; }
+.dcp-sites-add { display: flex; gap: 8px; margin-bottom: 8px; }
+.dcp-sites-add input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+.dcp-sites-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); max-height: 260px; overflow-y: auto; }
+.dcp-sites-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--hairline); font-size: 13px; }
+.dcp-sites-list li:last-child { border-bottom: 0; }
+.dcp-sites-list li span { flex: 1; overflow-wrap: anywhere; }

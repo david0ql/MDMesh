@@ -1,3 +1,4 @@
+import { useState } from 'react';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -51,6 +52,48 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
 }
 
 const lines = (s: string) => s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+
+/** A list of sites edited one at a time: type one and add it (Enter or the button); remove with ✕. */
+function SiteList({ label, value, disabled, onChange }: { label: string; value: string[]; disabled?: boolean; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+  // A pasted batch (commas, spaces or lines) becomes one item each; repeats are skipped.
+  const add = () => {
+    const fresh = draft.split(/[\s,]+/).map((x) => x.trim()).filter((x) => x && !value.includes(x));
+    if (fresh.length) onChange([...value, ...Array.from(new Set(fresh))]);
+    setDraft('');
+  };
+  return (
+    <div className="dcp-sites">
+      {!disabled && (
+        <div className="dcp-sites-add">
+          <input
+            className="mono"
+            aria-label={`Agregar a ${label.toLowerCase()}`}
+            placeholder="amovil.com.co"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          />
+          <button type="button" className="btn btn-sm" disabled={!draft.trim()} onClick={add}>Agregar</button>
+        </div>
+      )}
+      {value.length === 0 ? (
+        <div className="cfg-empty">Aún no hay sitios en la lista.</div>
+      ) : (
+        <ul className="dcp-sites-list" aria-label={label}>
+          {value.map((site) => (
+            <li key={site}>
+              <span className="mono">{site}</span>
+              {!disabled && (
+                <button type="button" className="btn btn-sm btn-ghost" aria-label={`Quitar ${site}`} onClick={() => onChange(value.filter((x) => x !== site))}>✕</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function RoleChecks({ value, disabled, onChange, name }: { value: string[]; disabled?: boolean; onChange: (v: string[]) => void; name: string }) {
   return (
@@ -115,8 +158,8 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <label>Navegador (Chrome)</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            Solo los sitios permitidos (lista blanca) o todos menos algunos (lista negra). Una entrada por línea: <code>amovil.com.co</code>,{' '}
-            <code>*.gov.co</code>, <code>https://example.com/path</code>.
+            Solo los sitios permitidos (lista blanca) o todos menos algunos (lista negra). Agrega cada sitio a la lista, p. ej.{' '}
+            <code>amovil.com.co</code>, <code>*.gov.co</code> o <code>https://example.com/path</code>.
           </span>
         </div>
         <div className="cfg-field-ctl">
@@ -143,17 +186,13 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
             <label>{browserMode === 'allowlist' ? 'Sitios permitidos' : 'Sitios bloqueados'}</label>
           </div>
           <div className="cfg-field-ctl">
-            <textarea
+            <SiteList
               key={browserMode}
-              className="dcp-list mono"
-              aria-label={browserMode === 'allowlist' ? 'Sitios permitidos' : 'Sitios bloqueados'}
-              rows={5}
+              label={browserMode === 'allowlist' ? 'Sitios permitidos' : 'Sitios bloqueados'}
               disabled={disabled}
-              defaultValue={(browserMode === 'allowlist' ? p.browser?.allow : p.browser?.block)?.join('\n') ?? ''}
-              onBlur={(e) => {
-                const list = lines(e.target.value);
-                update({ ...p, browser: { ...(p.browser ?? { mode: browserMode }), mode: browserMode, ...(browserMode === 'allowlist' ? { allow: list } : { block: list }) } });
-              }}
+              value={(browserMode === 'allowlist' ? p.browser?.allow : p.browser?.block) ?? []}
+              onChange={(list) =>
+                update({ ...p, browser: { ...(p.browser ?? { mode: browserMode }), mode: browserMode, ...(browserMode === 'allowlist' ? { allow: list } : { block: list }) } })}
             />
           </div>
         </div>
