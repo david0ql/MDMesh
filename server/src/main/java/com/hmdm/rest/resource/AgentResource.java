@@ -443,8 +443,17 @@ public class AgentResource {
         List<AgentCommand> pending = commandDAO.listPending(deviceNumber);
         // Installing the agent over itself restarts it, and whatever else it was doing is lost (the commands stay
         // "delivered", unanswered). So an agent update travels alone: after everything else was delivered AND answered.
+        // An install of a split bundle from the store waits for an agent that keeps only the splits its phone needs
+        // (0.7.0+): older agents would push every processor's split into the installer, which Android refuses.
+        String reportedAgent = request.getState() != null ? request.getState().getAgentVersion() : null;
+        if (reportedAgent == null) {
+            DeviceState known = commandDAO.getState(deviceNumber);
+            reportedAgent = known == null ? null : known.getAgentVersion();
+        }
+        final boolean picksSplits = atLeast(reportedAgent, 0, 7, 0);
         boolean othersToDeliver = false;
         for (AgentCommand stored : pending) {
+            if (!picksSplits && isStoreBundleInstall(stored)) continue;
             if (!isAgentSelfUpdate(stored) && AgentCapabilityTokens.isAllowed(stored.getRequiresCapability(), deviceTokens)) {
                 othersToDeliver = true;
                 break;
@@ -455,6 +464,9 @@ public class AgentResource {
         for (AgentCommand stored : pending) {
             if (!AgentCapabilityTokens.isAllowed(stored.getRequiresCapability(), deviceTokens)) {
                 continue;
+            }
+            if (!picksSplits && isStoreBundleInstall(stored)) {
+                continue; // held (it stays pending) until the agent is updated
             }
             if (isAgentSelfUpdate(stored)) {
                 if (busy == null) busy = othersToDeliver || commandDAO.countInFlight(deviceNumber) > 0;
@@ -520,6 +532,29 @@ public class AgentResource {
             }
             if (!rows.isEmpty()) commandDAO.saveAppUsage(deviceNumber, day, rows);
         }
+    }
+
+    /** An app.install of a bundle whose parts carry their split names (a store bundle with per-device splits). */
+    static boolean isStoreBundleInstall(AgentCommand c) {
+        return c != null && "app.install".equals(c.getType()) && c.getPayload() != null
+                && c.getPayload().contains("\"split\":\"config.");
+    }
+
+    /** True when the dotted [version] (e.g. "0.5.3") is at least major.minor.patch; false when unknown. */
+    static boolean atLeast(String version, int major, int minor, int patch) {
+        if (version == null) return false;
+        String[] p = version.trim().split("[.-]");
+        int[] want = {major, minor, patch};
+        for (int i = 0; i < 3; i++) {
+            int v;
+            try {
+                v = i < p.length ? Integer.parseInt(p[i].replaceAll("\\D.*$", "")) : 0;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+            if (v != want[i]) return v > want[i];
+        }
+        return true;
     }
 
     /** An app.install of the agent's own package (release or debug): the agent restarts while applying it. */

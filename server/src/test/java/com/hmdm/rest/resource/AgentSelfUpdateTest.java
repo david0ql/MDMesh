@@ -23,4 +23,16 @@ public class AgentSelfUpdateTest {
         assertFalse(AgentResource.isAgentSelfUpdate(cmd("app.install", null)));
         assertFalse(AgentResource.isAgentSelfUpdate(null));
     }
+
+    @Test
+    public void store_bundles_wait_for_an_agent_that_picks_splits() {
+        assertTrue(AgentResource.isStoreBundleInstall(cmd("app.install", "{\"packageName\":\"com.waze\",\"parts\":[{\"url\":\"u\",\"split\":\"base\"},{\"url\":\"v\",\"split\":\"config.arm64_v8a\"}]}")));
+        assertFalse(AgentResource.isStoreBundleInstall(cmd("app.install", "{\"packageName\":\"x.y\",\"url\":\"u\"}")));
+        assertTrue(AgentResource.atLeast("0.7.0", 0, 7, 0));
+        assertTrue(AgentResource.atLeast("0.10.1", 0, 7, 0));
+        assertTrue(AgentResource.atLeast("1.0", 0, 7, 0));
+        assertFalse(AgentResource.atLeast("0.5.3", 0, 7, 0));
+        assertFalse(AgentResource.atLeast(null, 0, 7, 0));
+        assertFalse(AgentResource.atLeast("dev", 0, 7, 0));
+    }
 }
