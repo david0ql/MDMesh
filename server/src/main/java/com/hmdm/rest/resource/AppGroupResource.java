@@ -49,13 +49,18 @@ public class AppGroupResource {
     private AppGroupMapper mapper;
     private PolicyApps policyApps;
     private ConfigAppInstaller installer;
+    private com.hmdm.persistence.AgentCommandDAO commandDAO;
+    private com.hmdm.notification.AgentWakeHub wakeHub;
 
     /** A constructor required by Swagger. */
     public AppGroupResource() {
     }
 
     @Inject
-    public AppGroupResource(AppGroupMapper mapper, PolicyApps policyApps, ConfigAppInstaller installer) {
+    public AppGroupResource(AppGroupMapper mapper, PolicyApps policyApps, ConfigAppInstaller installer,
+                            com.hmdm.persistence.AgentCommandDAO commandDAO, com.hmdm.notification.AgentWakeHub wakeHub) {
+        this.commandDAO = commandDAO;
+        this.wakeHub = wakeHub;
         this.mapper = mapper;
         this.policyApps = policyApps;
         this.installer = installer;
@@ -65,6 +70,16 @@ public class AppGroupResource {
         public String name;
         public String description;
         public List<Integer> appIds;
+        /** Device folders (and their sub-folders) that get the group directly; null = leave as they are. */
+        public List<Ref> folders;
+        /** Policies that use the group; null = leave as they are. */
+        public List<Ref> policies;
+    }
+
+    public static class Ref {
+        public Integer id;
+        /** The group's apps also show in the kiosk there. */
+        public boolean kiosk;
     }
 
     @ApiOperation(value = "List app groups", notes = "Each with its apps (name, package, version) and how many policies use it.")
@@ -74,6 +89,7 @@ public class AppGroupResource {
         Optional<Integer> c = SecurityContext.get().getCurrentCustomerId();
         if (!c.isPresent()) return Response.PERMISSION_DENIED();
         List<Map<String, Object>> groups = mapper.list(c.get());
+        List<Map<String, Object>> policies = mapper.policies(c.get());
         Set<Integer> all = new LinkedHashSet<>();
         for (Map<String, Object> g : groups) all.addAll(PolicyApps.appIds(g.get("appids")));
         Map<Integer, Application> byId = new HashMap<>();
@@ -98,7 +114,30 @@ public class AppGroupResource {
                 apps.add(av);
             }
             v.put("apps", apps);
-            v.put("policies", policyApps.policiesUsing(c.get(), Collections.singleton(id)).size());
+            List<Map<String, Object>> folders = new ArrayList<>();
+            for (PolicyApps.FolderRef f : PolicyApps.folderRefs(g.get("folders"))) {
+                Map<String, Object> fv = new LinkedHashMap<>();
+                fv.put("id", f.id);
+                fv.put("kiosk", f.kiosk);
+                folders.add(fv);
+            }
+            v.put("folders", folders);
+            List<Map<String, Object>> used = new ArrayList<>();
+            for (Map<String, Object> p : policies) {
+                com.hmdm.util.DcPolicy dc = com.hmdm.util.DcPolicy.parse(p.get("dcpolicy") == null ? null : String.valueOf(p.get("dcpolicy")));
+                if (dc.getAppGroups() == null) continue;
+                for (com.hmdm.util.DcPolicy.AppGroupRef r : dc.getAppGroups()) {
+                    if (r.getId() != null && r.getId() == id) {
+                        Map<String, Object> pv = new LinkedHashMap<>();
+                        pv.put("id", p.get("id"));
+                        pv.put("name", p.get("name"));
+                        pv.put("kiosk", Boolean.TRUE.equals(r.getKiosk()));
+                        used.add(pv);
+                    }
+                }
+            }
+            v.put("policyRefs", used);
+            v.put("policies", used.size());
             out.add(v);
         }
         return Response.OK(out);
@@ -120,7 +159,10 @@ public class AppGroupResource {
         g.put("appIds", ids(b.appIds));
         g.put("updatedAt", System.currentTimeMillis());
         mapper.insert(g);
-        return Response.OK(Collections.singletonMap("id", g.get("id")));
+        int id = ((Number) g.get("id")).intValue();
+        Map<String, Object> out = assign(c.get(), id, b);
+        out.put("id", id);
+        return Response.OK(out);
     }
 
     @ApiOperation(value = "Update an app group", notes = "Policies using it install the added apps right away.")
@@ -136,14 +178,7 @@ public class AppGroupResource {
         if (mapper.update(c.get(), id, b.name.trim(), blankToNull(b.description), ids(b.appIds), System.currentTimeMillis()) == 0) {
             return Response.ERROR("El grupo no existe.");
         }
-        int queued = 0;
-        Set<Integer> policies = policyApps.policiesUsing(c.get(), Collections.singleton(id));
-        for (Integer p : policies) queued += installer.enqueueForConfiguration(p);
-        logger.info("App group {} saved: {} policy(ies) use it, {} install(s) queued", id, policies.size(), queued);
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("policies", policies.size());
-        out.put("queued", queued);
-        return Response.OK(out);
+        return Response.OK(assign(c.get(), id, b));
     }
 
     @ApiOperation(value = "Delete an app group", notes = "Refused while a policy uses it.")
@@ -153,11 +188,79 @@ public class AppGroupResource {
     public Response delete(@PathParam("id") int id) {
         Optional<Integer> c = editor();
         if (!c.isPresent()) return Response.PERMISSION_DENIED();
-        int used = policyApps.policiesUsing(c.get(), Collections.singleton(id)).size();
+        int used = policyApps.policiesUsing(c.get(), Collections.singleton(id)).size()
+                + policyApps.foldersUsing(c.get(), Collections.singleton(id)).size();
         if (used > 0) {
-            return Response.ERROR("Lo usa" + (used == 1 ? " 1 política" : "n " + used + " políticas") + ": quítalo de ellas antes de eliminarlo.");
+            return Response.ERROR("Está asignado a " + used + (used == 1 ? " política o carpeta" : " políticas o carpetas")
+                    + ": quita la asignación antes de eliminarlo.");
         }
         return mapper.delete(c.get(), id) > 0 ? Response.OK() : Response.ERROR("El grupo no existe.");
+    }
+
+    /**
+     * Store where the group is used (folders, policies — each only when given) and bring the affected phones up to
+     * date: installs for what they now lack, and a wake-up so they re-apply their policy (allowed apps, kiosk).
+     */
+    private Map<String, Object> assign(int customerId, int id, Body b) {
+        Set<Integer> folders = new java.util.HashSet<>(policyApps.foldersUsing(customerId, Collections.singleton(id)));
+        Set<Integer> policies = new java.util.HashSet<>(policyApps.policiesUsing(customerId, Collections.singleton(id)));
+        if (b.folders != null) {
+            List<Map<String, Object>> keep = new ArrayList<>();
+            Set<Integer> seen = new java.util.HashSet<>();
+            for (Ref r : b.folders) {
+                if (r == null || r.id == null || !seen.add(r.id) || commandDAO.findGroup(customerId, r.id) == null) continue;
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("id", r.id);
+                if (r.kiosk) f.put("kiosk", true);
+                keep.add(f);
+            }
+            try {
+                mapper.updateFolders(customerId, id, JSON.writeValueAsString(keep), System.currentTimeMillis());
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            folders.addAll(seen);
+        }
+        if (b.policies != null) {
+            Map<Integer, Boolean> want = new HashMap<>();
+            for (Ref r : b.policies) if (r != null && r.id != null) want.put(r.id, r.kiosk);
+            for (Map<String, Object> p : mapper.policies(customerId)) {
+                int pid = ((Number) p.get("id")).intValue();
+                String before = p.get("dcpolicy") == null ? null : String.valueOf(p.get("dcpolicy"));
+                com.hmdm.util.DcPolicy dc = com.hmdm.util.DcPolicy.parse(before);
+                List<com.hmdm.util.DcPolicy.AppGroupRef> refs = new ArrayList<>();
+                if (dc.getAppGroups() != null) for (com.hmdm.util.DcPolicy.AppGroupRef r : dc.getAppGroups()) if (r.getId() == null || r.getId() != id) refs.add(r);
+                if (want.containsKey(pid)) {
+                    com.hmdm.util.DcPolicy.AppGroupRef r = new com.hmdm.util.DcPolicy.AppGroupRef();
+                    r.setId(id);
+                    r.setKiosk(Boolean.TRUE.equals(want.get(pid)) ? Boolean.TRUE : null);
+                    refs.add(r);
+                }
+                dc.setAppGroups(refs.isEmpty() ? null : refs);
+                String after;
+                try {
+                    after = com.hmdm.util.DcPolicy.normalize(JSON.writeValueAsString(dc));
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+                if (!java.util.Objects.equals(com.hmdm.util.DcPolicy.normalize(before), after)) {
+                    mapper.updatePolicyDc(customerId, pid, after);
+                    policies.add(pid);
+                }
+            }
+        }
+        int queued = 0;
+        for (Integer p : policies) {
+            queued += installer.enqueueForConfiguration(p);
+            for (String number : commandDAO.listDeviceNumbersByConfigurationId(p)) wakeHub.wake(number, "commands");
+        }
+        queued += installer.enqueueForFolders(customerId, folders);
+        logger.info("App group {} saved: {} policy(ies), {} folder(s) touched, {} install(s) queued", id, policies.size(), folders.size(), queued);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("policies", policyApps.policiesUsing(customerId, Collections.singleton(id)).size());
+        out.put("folders", policyApps.foldersUsing(customerId, Collections.singleton(id)).size());
+        out.put("queued", queued);
+        return out;
     }
 
     private static String validate(Body b) {

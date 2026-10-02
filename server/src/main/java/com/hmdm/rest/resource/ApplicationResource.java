@@ -361,6 +361,9 @@ public class ApplicationResource {
                 java.util.Set<Integer> viaGroups = policyApps.policiesUsing(app.getCustomerId(), policyApps.groupsWithApp(app.getCustomerId(), app.getId()));
                 viaGroups.removeAll(configs);
                 for (Integer configurationId : viaGroups) queued += configAppInstaller.enqueueForConfiguration(configurationId);
+                // …and devices that get it through an app group assigned to their folder.
+                queued += configAppInstaller.enqueueForFolders(app.getCustomerId(),
+                        policyApps.foldersUsing(app.getCustomerId(), policyApps.groupsWithApp(app.getCustomerId(), app.getId())));
             }
             logger.info("Application {} version {} is the latest: {} configuration(s) moved to it, {} install(s) queued",
                     app.getPkg(), version.getVersion(), configs.size(), queued);

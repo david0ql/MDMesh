@@ -71,7 +71,7 @@ public class ConfigAppInstaller {
             // Plus the apps of the policy's app groups.
             if (policyApps != null) {
                 com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
-                if (cfg != null) apps = policyApps.resolve(cfg, apps).apps;
+                if (cfg != null) apps = policyApps.resolve(cfg, apps, device.getId()).apps;
             }
             long now = System.currentTimeMillis();
             for (Application app : apps) {
@@ -129,6 +129,22 @@ public class ConfigAppInstaller {
      * Queue the configuration's apps for every device running it (after the configuration was saved), so an APK
      * added to a configuration reaches its phones without visiting each one. Returns the number of commands queued.
      */
+    /** Queue installs for every device of these folders and the folders below them (app groups assigned to folders). */
+    public int enqueueForFolders(int customerId, java.util.Set<Integer> folderIds) {
+        if (folderIds == null || folderIds.isEmpty()) return 0;
+        java.util.Set<Integer> branch = new java.util.HashSet<>();
+        for (Integer f : folderIds) branch.addAll(commandDAO.groupSubtree(customerId, f));
+        int queued = 0;
+        for (com.hmdm.persistence.domain.DeviceScopeRow r : commandDAO.listDeviceScopes(customerId)) {
+            if (r.getGroupId() == null || !branch.contains(r.getGroupId())) continue;
+            Device d = unsecureDAO.getDeviceByNumber(r.getNumber());
+            if (d == null) continue;
+            queued += enqueueConfigApps(d);
+            wakeHub.wake(r.getNumber(), "commands"); // its policy document changed too (allowed apps / kiosk)
+        }
+        return queued;
+    }
+
     public int enqueueForConfiguration(int configurationId) {
         int queued = 0;
         for (String number : commandDAO.listDeviceNumbersByConfigurationId(configurationId)) {

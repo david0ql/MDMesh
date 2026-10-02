@@ -139,7 +139,7 @@ export function ConfigurationsPage() {
       {error && <div className="banner banner-alert">{error}</div>}
 
       {view === 'groups' ? (
-        <AppGroupsPanel apps={apps} />
+        <AppGroupsPanel apps={apps} lockedPolicy={isLocked} onChanged={() => void load()} />
       ) : configs === null ? (
         <div className="panel"><div className="empty"><span className="spin" /> Cargando…</div></div>
       ) : configs.length === 0 ? (

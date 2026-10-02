@@ -3112,4 +3112,10 @@
         <rollback>ALTER TABLE groups DROP COLUMN brand;</rollback>
     </changeSet>
 
+    <changeSet id="26.10.03-app-group-folders" author="dallycontrol" context="common">
+        <comment>App groups assigned straight to device folders (and their sub-folders): [{id, kiosk}] per app group.</comment>
+        <sql>ALTER TABLE app_group ADD COLUMN folders TEXT NOT NULL DEFAULT '[]';</sql>
+        <rollback>ALTER TABLE app_group DROP COLUMN folders;</rollback>
+    </changeSet>
+
 </databaseChangeLog>

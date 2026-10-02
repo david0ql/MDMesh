@@ -47,7 +47,7 @@ public class ConfigReconciler {
         Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
         if (cfg == null) return null;
         List<Application> apps = unsecureDAO.getPlainConfigurationAppsOptimized(cfg.getId());
-        PolicyApps.Resolved r = policyApps.resolve(cfg, apps);
+        PolicyApps.Resolved r = policyApps.resolve(cfg, apps, device.getId());
         return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg));
     }
 

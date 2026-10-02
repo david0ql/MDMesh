@@ -14,10 +14,10 @@ import java.util.Map;
 /** App groups (named sets of library apps) and what policies need to resolve them. */
 public interface AppGroupMapper {
 
-    @Select({"SELECT id, name, description, appIds, updatedAt FROM app_group WHERE customerId = #{customerId} ORDER BY lower(name)"})
+    @Select({"SELECT id, name, description, appIds, folders, updatedAt FROM app_group WHERE customerId = #{customerId} ORDER BY lower(name)"})
     List<Map<String, Object>> list(@Param("customerId") int customerId);
 
-    @Select({"SELECT id, name, description, appIds, updatedAt FROM app_group WHERE customerId = #{customerId} AND id = #{id}"})
+    @Select({"SELECT id, name, description, appIds, folders, updatedAt FROM app_group WHERE customerId = #{customerId} AND id = #{id}"})
     Map<String, Object> find(@Param("customerId") int customerId, @Param("id") int id);
 
     @Insert({"INSERT INTO app_group (customerId, name, description, appIds, updatedAt) " +
@@ -32,6 +32,25 @@ public interface AppGroupMapper {
 
     @Delete({"DELETE FROM app_group WHERE customerId = #{customerId} AND id = #{id}"})
     int delete(@Param("customerId") int customerId, @Param("id") int id);
+
+    @Update({"UPDATE app_group SET folders = #{folders}, updatedAt = #{now} WHERE customerId = #{customerId} AND id = #{id}"})
+    int updateFolders(@Param("customerId") int customerId, @Param("id") int id, @Param("folders") String folders, @Param("now") long now);
+
+    /** The device's folder and every folder above it. */
+    @Select({"WITH RECURSIVE up(id, parentId, depth) AS (" +
+            "SELECT g.id, g.parentId, 0 FROM groups g JOIN deviceGroups dg ON dg.groupId = g.id WHERE dg.deviceId = #{deviceId} " +
+            "UNION ALL SELECT g.id, g.parentId, up.depth + 1 FROM groups g JOIN up ON g.id = up.parentId WHERE up.depth < 32) " +
+            "SELECT id FROM up"})
+    List<Integer> deviceFolderChain(@Param("deviceId") int deviceId);
+
+    @Select({"SELECT id, name, dcPolicy FROM configurations WHERE customerId = #{customerId} ORDER BY lower(name)"})
+    List<Map<String, Object>> policies(@Param("customerId") int customerId);
+
+    @Select({"SELECT id, name, dcPolicy FROM configurations WHERE customerId = #{customerId} AND id = #{id}"})
+    Map<String, Object> policy(@Param("customerId") int customerId, @Param("id") int id);
+
+    @Update({"UPDATE configurations SET dcPolicy = #{dcPolicy} WHERE customerId = #{customerId} AND id = #{id}"})
+    int updatePolicyDc(@Param("customerId") int customerId, @Param("id") int id, @Param("dcPolicy") String dcPolicy);
 
     /** App ids per group id, for the given groups of the customer. */
     @Select({"<script>SELECT id, appIds FROM app_group WHERE customerId = #{customerId} AND id IN ",

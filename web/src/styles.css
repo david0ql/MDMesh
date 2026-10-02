@@ -3047,3 +3047,8 @@ a {
   color: var(--text); font: inherit; font-size: 13px; }
 .kb-support .field input:focus { outline: none; border-color: var(--text-2); }
 .kb-support .field input:disabled { opacity: .55; }
+
+/* App group assignment lists */
+.ag-assign { max-height: 220px; overflow-y: auto; }
+.ag-assign .deploy-devrow { display: flex; align-items: center; gap: 10px; cursor: default; }
+.ag-assign-nm { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
