@@ -95,6 +95,11 @@ public interface AgentCommandMapper {
     int countOpenIdentical(@Param("deviceNumber") String deviceNumber, @Param("type") String type,
                            @Param("payload") String payload);
 
+    /** Commands the device holds but has not answered yet, other than an install of the agent itself. */
+    @Select({"SELECT COUNT(*) FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND status = 'delivered' " +
+            "AND NOT (type = 'app.install' AND payload LIKE '%\"packageName\":\"com.dallycontrol.agent%')"})
+    int countInFlight(@Param("deviceNumber") String deviceNumber);
+
     @Select({"SELECT COUNT(*) FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND type = #{type} AND status IN ('pending','delivered')"})
     int countOpenOfType(@Param("deviceNumber") String deviceNumber, @Param("type") String type);
 

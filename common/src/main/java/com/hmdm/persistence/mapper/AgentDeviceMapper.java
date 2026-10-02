@@ -169,6 +169,9 @@ public interface AgentDeviceMapper {
     @org.apache.ibatis.annotations.Delete({"DELETE FROM device_tombstone WHERE number = #{number}"})
     int deleteTombstone(@Param("number") String number);
 
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM device_tombstone WHERE number = #{number} AND customerId = #{customerId}"})
+    int forgetTombstone(@Param("customerId") int customerId, @Param("number") String number);
+
     /** An administrator's one-time claim: no secret yet, the first check-in of that device sets it. */
     @Insert({"INSERT INTO device_tombstone (number, customerId, secretHash, description, groupId, configurationId, pinned, deletedAt) " +
             "VALUES (#{number}, #{customerId}, NULL, #{description}, #{groupId}, NULL, FALSE, #{now}) " +

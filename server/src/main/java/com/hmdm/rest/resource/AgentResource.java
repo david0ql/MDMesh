@@ -432,10 +432,24 @@ public class AgentResource {
         configReconciler.reconcile(device, deviceTokens, appliedRevision, now);
 
         List<AgentCommand> pending = commandDAO.listPending(deviceNumber);
+        // Installing the agent over itself restarts it, and whatever else it was doing is lost (the commands stay
+        // "delivered", unanswered). So an agent update travels alone: after everything else was delivered AND answered.
+        boolean othersToDeliver = false;
+        for (AgentCommand stored : pending) {
+            if (!isAgentSelfUpdate(stored) && AgentCapabilityTokens.isAllowed(stored.getRequiresCapability(), deviceTokens)) {
+                othersToDeliver = true;
+                break;
+            }
+        }
+        Boolean busy = null;
         List<com.hmdm.rest.json.agent.AgentCommand> commands = new ArrayList<>();
         for (AgentCommand stored : pending) {
             if (!AgentCapabilityTokens.isAllowed(stored.getRequiresCapability(), deviceTokens)) {
                 continue;
+            }
+            if (isAgentSelfUpdate(stored)) {
+                if (busy == null) busy = othersToDeliver || commandDAO.countInFlight(deviceNumber) > 0;
+                if (busy) continue; // next check-in, once the rest is done
             }
             // Atomically claim it so a concurrent check-in can't deliver the same command twice.
             if (commandDAO.claimForDelivery(stored.getId(), now)) {
@@ -471,14 +485,15 @@ public class AgentResource {
         return javax.ws.rs.core.Response.noContent().build();
     }
 
+    /** An app.install of the agent's own package (release or debug): the agent restarts while applying it. */
+    static boolean isAgentSelfUpdate(AgentCommand c) {
+        return c != null && "app.install".equals(c.getType()) && c.getPayload() != null
+                && c.getPayload().contains("\"packageName\":\"com.dallycontrol.agent");
+    }
+
     /** Header the agent names itself with on the tunnel's WebSocket handshake (the secret is in Authorization). */
     public static final String REMOTE_DEVICE_HEADER = "X-DallyControl-Device";
 
-    /**
-     * Verifies the {@code Authorization: Bearer <deviceSecret>} header against the
-     * SHA-256 hash stored at enrollment. Constant-time compare; fails closed when the
-     * header is missing or the device has no stored secret.
-     */
     /** The folder that takes recovered devices whose own folder no longer exists. */
     public static final String RECOVERED_FOLDER = "Recuperados";
 
@@ -535,6 +550,11 @@ public class AgentResource {
         }
     }
 
+    /**
+     * Verifies the {@code Authorization: Bearer <deviceSecret>} header against the
+     * SHA-256 hash stored at enrollment. Constant-time compare; fails closed when the
+     * header is missing or the device has no stored secret.
+     */
     private boolean authenticate(String authorization, String deviceNumber) {
         String presented = bearer(authorization);
         if (presented == null) {

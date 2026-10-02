@@ -59,6 +59,11 @@ public class AgentCommandDAO {
         mapper.insert(command);
     }
 
+    /** Delivered commands (other than an agent self-install) the device has not answered yet. */
+    public int countInFlight(String deviceNumber) {
+        return mapper.countInFlight(deviceNumber);
+    }
+
     public List<AgentCommand> listPending(String deviceNumber) {
         return mapper.listPending(deviceNumber);
     }
@@ -235,6 +240,8 @@ public class AgentCommandDAO {
     }
 
     public void deleteTombstone(String number) { deviceMapper.deleteTombstone(number); }
+
+    public boolean forgetTombstone(int customerId, String number) { return deviceMapper.forgetTombstone(customerId, number) > 0; }
 
     public void claimTombstone(String number, int customerId, String description, Integer groupId) {
         deviceMapper.claimTombstone(number, customerId, description, groupId, System.currentTimeMillis());

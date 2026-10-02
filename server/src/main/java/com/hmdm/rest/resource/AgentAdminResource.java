@@ -822,6 +822,22 @@ public class AgentAdminResource {
         return Response.OK(commandDAO.listTombstones(customerId.get()));
     }
 
+    @ApiOperation(value = "Forget a deleted device", notes = "It will no longer come back by itself (use it after the "
+            + "phone was reset or re-enrolled, or to withdraw a recovery claim).")
+    @javax.ws.rs.DELETE
+    @Path("/devices/deleted/{number}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response forgetDeleted(@PathParam("number") String number) {
+        if (!canEditDevices("forget deleted device")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        return commandDAO.forgetTombstone(customerId.get(), number) ? Response.OK() : Response.ERROR("error.agent.device.unknown");
+    }
+
     @ApiOperation(value = "Recover a deleted device", notes = "For a device deleted before its identity was kept: the "
             + "administrator vouches for that device id, and its next check-in (within 7 days) re-creates it in the folder.")
     @POST
