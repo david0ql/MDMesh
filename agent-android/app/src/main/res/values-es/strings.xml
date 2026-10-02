@@ -66,4 +66,5 @@
     <string name="cache_title">Liberar espacio</string>
     <string name="cache_button">Borrar la caché de todas las apps</string>
     <string name="cache_unavailable">No disponible en este teléfono: el agente necesita el acceso a todos los archivos.</string>
+    <string name="cache_done">Se borró la caché de las apps.</string>
 </resources>

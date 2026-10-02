@@ -68,4 +68,5 @@
     <string name="cache_title">Free up space</string>
     <string name="cache_button">Clear the cache of all apps</string>
     <string name="cache_unavailable">Not available on this phone: the agent needs the all-files access.</string>
+    <string name="cache_done">Cached files cleared.</string>
 </resources>

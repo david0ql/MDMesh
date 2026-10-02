@@ -131,6 +131,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Invisible bridge to Android's "clear the cache of all apps" confirmation (it must be asked with a result). -->
+        <activity
+            android:name=".storage.CacheClearActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:lockTaskMode="if_whitelisted" />
+
         <activity
             android:name=".KioskLauncherActivity"
             android:exported="true"

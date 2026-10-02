@@ -16,6 +16,24 @@ import com.dallycontrol.agent.admin.AdminReceiver
 object TimedAllow {
     private val main = Handler(Looper.getMainLooper())
 
+    /** Let [pkg] run in the kiosk for [windowMs] (no-op outside a kiosk). */
+    fun allow(context: Context, pkg: String, windowMs: Long) {
+        val app = context.applicationContext
+        val dpm = app.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val admin = AdminReceiver.componentName(app)
+        val am = app.getSystemService(ActivityManager::class.java)
+        if (am?.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE || Build.VERSION.SDK_INT < 26) return
+        runCatching {
+            val current = dpm.getLockTaskPackages(admin)
+            if (pkg !in current) {
+                dpm.setLockTaskPackages(admin, current + pkg)
+                main.postDelayed({
+                    runCatching { dpm.setLockTaskPackages(admin, dpm.getLockTaskPackages(admin).filter { it != pkg }.toTypedArray()) }
+                }, windowMs)
+            }
+        }
+    }
+
     /** @return null when the screen opened, else why it could not. */
     fun open(context: Context, intent: Intent, windowMs: Long = 3 * 60_000L): String? {
         val app = context.applicationContext

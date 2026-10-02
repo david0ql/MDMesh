@@ -241,7 +241,15 @@ object CacheCleaner {
     fun open(context: Context): String? {
         if (Build.VERSION.SDK_INT < 30) return "needs Android 11 or newer"
         if (!Environment.isExternalStorageManager()) return "all-files access is off for the agent"
-        return com.dallycontrol.agent.kiosk.TimedAllow.open(context, Intent(StorageManager.ACTION_CLEAR_APP_CACHE), 2 * 60_000L)
+        // Android's confirmation must be asked for "with a result": let its screen through the kiosk for a moment and
+        // open it from the agent's own bridge screen.
+        val target = context.packageManager.resolveActivity(Intent(StorageManager.ACTION_CLEAR_APP_CACHE), 0)?.activityInfo?.packageName
+            ?: return "this phone has no such screen"
+        com.dallycontrol.agent.kiosk.TimedAllow.allow(context, target, 2 * 60_000L)
+        return runCatching {
+            context.startActivity(Intent(context, CacheClearActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            null
+        }.getOrElse { it.message ?: "could not open" }
     }
 }
 
