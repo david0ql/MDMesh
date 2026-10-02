@@ -3118,4 +3118,49 @@
         <rollback>ALTER TABLE app_group DROP COLUMN folders;</rollback>
     </changeSet>
 
+    <changeSet id="26.10.03-device-tombstone" author="dallycontrol" context="common">
+        <comment>A deleted device whose phone is still enrolled must not be left adrift: its identity (secret hash),
+            folder and policy are kept so its next check-in re-creates it in its folder. secretHash NULL = an
+            administrator's one-time claim for a device deleted before this existed (the first check-in sets it).</comment>
+        <sql>
+            CREATE TABLE device_tombstone (
+                number VARCHAR(100) PRIMARY KEY,
+                customerId INT NOT NULL,
+                secretHash VARCHAR(100),
+                description TEXT,
+                groupId INT,
+                configurationId INT,
+                pinned BOOLEAN,
+                hardwareId TEXT,
+                deletedAt BIGINT NOT NULL
+            );
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_device_tombstone() RETURNS trigger AS $$
+            BEGIN
+                IF OLD.agentSecretHash IS NOT NULL THEN
+                    INSERT INTO device_tombstone (number, customerId, secretHash, description, groupId, configurationId, pinned, hardwareId, deletedAt)
+                    VALUES (OLD.number, OLD.customerId, OLD.agentSecretHash, OLD.description,
+                            (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = OLD.id ORDER BY dg.id LIMIT 1),
+                            OLD.configurationId, OLD.configurationPinned, OLD.hardwareid,
+                            (extract(epoch FROM now()) * 1000)::bigint)
+                    ON CONFLICT (number) DO UPDATE SET customerId = EXCLUDED.customerId, secretHash = EXCLUDED.secretHash,
+                        description = EXCLUDED.description, groupId = EXCLUDED.groupId, configurationId = EXCLUDED.configurationId,
+                        pinned = EXCLUDED.pinned, hardwareId = EXCLUDED.hardwareId, deletedAt = EXCLUDED.deletedAt;
+                END IF;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <sql>
+            CREATE TRIGGER devices_tombstone BEFORE DELETE ON devices
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_device_tombstone();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS devices_tombstone ON devices;
+            DROP FUNCTION IF EXISTS dallycontrol_device_tombstone();
+            DROP TABLE IF EXISTS device_tombstone;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -803,6 +803,57 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    public static class RecoverBody {
+        public String number;
+        public Integer groupId;
+        public String description;
+    }
+
+    @ApiOperation(value = "Deleted devices that can come back", notes = "Devices deleted from the console in the last 90 days; "
+            + "a phone that is still enrolled re-appears by itself on its next check-in.")
+    @GET
+    @Path("/devices/deleted")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response deletedDevices() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        return Response.OK(commandDAO.listTombstones(customerId.get()));
+    }
+
+    @ApiOperation(value = "Recover a deleted device", notes = "For a device deleted before its identity was kept: the "
+            + "administrator vouches for that device id, and its next check-in (within 7 days) re-creates it in the folder.")
+    @POST
+    @Path("/devices/recover")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response recoverDevice(RecoverBody body) {
+        if (!canEditDevices("recover deleted device")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        String number = body == null || body.number == null ? "" : body.number.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!number.matches("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) {
+            return Response.ERROR("El identificador del dispositivo no es válido.");
+        }
+        if (unsecureDAO.getDeviceByNumber(number) != null) {
+            return Response.ERROR("Ese dispositivo ya está en la consola.");
+        }
+        if (body.groupId != null && commandDAO.findGroup(customerId.get(), body.groupId) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        String description = body.description == null || body.description.trim().isEmpty() ? null
+                : body.description.trim().substring(0, Math.min(100, body.description.trim().length()));
+        commandDAO.claimTombstone(number, customerId.get(), description, body.groupId);
+        logger.info("Deleted device {} claimed for recovery into folder {} (customer {})", number, body.groupId, customerId.get());
+        return Response.OK();
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Remote-support package", notes = "The pinned droidVNC-NG this server hosts, as an app.install "
             + "spec (url, packageName, versionCode, sha256) — so the console can install it on many devices at once.")
     @GET

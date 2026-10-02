@@ -160,6 +160,36 @@ public interface AgentDeviceMapper {
             "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
             "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
 
+    // --- Deleted devices that are still enrolled (device_tombstone) ---
+
+    @Select({"SELECT number, customerId, secretHash, description, groupId, configurationId, pinned, hardwareId, deletedAt " +
+            "FROM device_tombstone WHERE number = #{number} AND deletedAt >= #{since}"})
+    java.util.Map<String, Object> findTombstone(@Param("number") String number, @Param("since") long since);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM device_tombstone WHERE number = #{number}"})
+    int deleteTombstone(@Param("number") String number);
+
+    /** An administrator's one-time claim: no secret yet, the first check-in of that device sets it. */
+    @Insert({"INSERT INTO device_tombstone (number, customerId, secretHash, description, groupId, configurationId, pinned, deletedAt) " +
+            "VALUES (#{number}, #{customerId}, NULL, #{description}, #{groupId}, NULL, FALSE, #{now}) " +
+            "ON CONFLICT (number) DO UPDATE SET groupId = EXCLUDED.groupId, deletedAt = EXCLUDED.deletedAt, " +
+            "description = COALESCE(EXCLUDED.description, device_tombstone.description)"})
+    void claimTombstone(@Param("number") String number, @Param("customerId") int customerId, @Param("description") String description,
+                        @Param("groupId") Integer groupId, @Param("now") long now);
+
+    @Select({"SELECT t.number, t.description, t.groupId, t.deletedAt, (t.secretHash IS NULL) AS claimed FROM device_tombstone t " +
+            "WHERE t.customerId = #{customerId} AND t.deletedAt >= #{since} ORDER BY t.deletedAt DESC LIMIT 200"})
+    List<java.util.Map<String, Object>> listTombstones(@Param("customerId") int customerId, @Param("since") long since);
+
+    @Select({"SELECT id FROM groups WHERE customerId = #{customerId} AND parentId IS NULL AND lower(name) = lower(#{name}) ORDER BY id LIMIT 1"})
+    Integer findTopGroupByName(@Param("customerId") int customerId, @Param("name") String name);
+
+    @Select({"SELECT count(*) FROM configurations WHERE id = #{id} AND customerId = #{customerId}"})
+    int countConfiguration(@Param("customerId") int customerId, @Param("id") int id);
+
+    @Update({"UPDATE devices SET description = #{description} WHERE number = #{number}"})
+    int setDescription(@Param("number") String number, @Param("description") String description);
+
     /** A device's folder chain branding (groups.brand), nearest folder first; folders without branding are skipped. */
     @Select({"WITH RECURSIVE up(id, parentId, brand, depth) AS (" +
             "SELECT g.id, g.parentId, g.brand, 0 FROM groups g JOIN deviceGroups dg ON dg.groupId = g.id WHERE dg.deviceId = #{deviceId} " +

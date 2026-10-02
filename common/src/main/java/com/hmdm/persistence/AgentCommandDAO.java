@@ -222,6 +222,34 @@ public class AgentCommandDAO {
         return deviceMapper.updateGroup(customerId, id, name, configurationId, parentId) > 0;
     }
 
+    /** How long a deleted device may still come back by itself; an administrator's claim lasts {@link #CLAIM_TTL_MS}. */
+    public static final long TOMBSTONE_TTL_MS = 90L * 24 * 3600_000L;
+    public static final long CLAIM_TTL_MS = 7L * 24 * 3600_000L;
+
+    /** The kept identity of a deleted device that may still be enrolled (null when none, or too old). */
+    public java.util.Map<String, Object> findTombstone(String number) {
+        java.util.Map<String, Object> t = deviceMapper.findTombstone(number, System.currentTimeMillis() - TOMBSTONE_TTL_MS);
+        if (t != null && t.get("secrethash") == null
+                && ((Number) t.get("deletedat")).longValue() < System.currentTimeMillis() - CLAIM_TTL_MS) return null;
+        return t;
+    }
+
+    public void deleteTombstone(String number) { deviceMapper.deleteTombstone(number); }
+
+    public void claimTombstone(String number, int customerId, String description, Integer groupId) {
+        deviceMapper.claimTombstone(number, customerId, description, groupId, System.currentTimeMillis());
+    }
+
+    public java.util.List<java.util.Map<String, Object>> listTombstones(int customerId) {
+        return deviceMapper.listTombstones(customerId, System.currentTimeMillis() - TOMBSTONE_TTL_MS);
+    }
+
+    public Integer findTopGroupByName(int customerId, String name) { return deviceMapper.findTopGroupByName(customerId, name); }
+
+    public boolean configurationExists(int customerId, int id) { return deviceMapper.countConfiguration(customerId, id) > 0; }
+
+    public void setDescription(String number, String description) { deviceMapper.setDescription(number, description); }
+
     /** Kiosk branding of a device's folders, nearest first (JSON, see KioskBrand). */
     public java.util.List<String> deviceFolderBrands(int deviceId) {
         return deviceMapper.listDeviceFolderBrands(deviceId);

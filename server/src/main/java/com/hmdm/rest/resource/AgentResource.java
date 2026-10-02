@@ -255,7 +255,12 @@ public class AgentResource {
         // One indistinguishable error for unknown-device AND bad-secret: a distinguishable pair
         // is an enumeration oracle for probing valid device numbers on a public endpoint.
         if (device == null) {
-            return Response.ERROR("error.agent.unauthorized");
+            // Deleted from the console but the phone is still enrolled: bring it back (in a folder) instead of
+            // leaving it managed and invisible.
+            device = recoverDeleted(deviceNumber, authorization);
+            if (device == null) {
+                return Response.ERROR("error.agent.unauthorized");
+            }
         }
 
         // Authenticate the device by its per-device secret BEFORE any state change.
@@ -474,6 +479,62 @@ public class AgentResource {
      * SHA-256 hash stored at enrollment. Constant-time compare; fails closed when the
      * header is missing or the device has no stored secret.
      */
+    /** The folder that takes recovered devices whose own folder no longer exists. */
+    public static final String RECOVERED_FOLDER = "Recuperados";
+
+    /**
+     * Re-create a device that was deleted from the console while its phone stayed enrolled. The phone proves who it
+     * is with its secret (kept, hashed, at deletion); an administrator's claim for a device deleted before that
+     * existed has no secret yet and takes the first one presented. The device returns to its folder — or to
+     * {@link #RECOVERED_FOLDER} when that folder is gone — so it is never left without one.
+     *
+     * @return the re-created device, or null when there is nothing to recover / the secret does not match
+     */
+    private synchronized Device recoverDeleted(String deviceNumber, String authorization) {
+        try {
+            String presented = bearer(authorization);
+            if (presented == null) return null;
+            java.util.Map<String, Object> t = commandDAO.findTombstone(deviceNumber);
+            if (t == null) return null;
+            Device again = unsecureDAO.getDeviceByNumber(deviceNumber); // a concurrent check-in already did it
+            if (again != null) return again;
+            String presentedHash = CryptoUtil.getSHA256String(presented);
+            String kept = (String) t.get("secrethash");
+            if (kept != null && !CryptoUtil.constantTimeEquals(presentedHash, kept)) return null;
+            int customerId = ((Number) t.get("customerid")).intValue();
+
+            Integer groupId = t.get("groupid") == null ? null : ((Number) t.get("groupid")).intValue();
+            com.hmdm.persistence.domain.DeviceGroupView group = groupId == null ? null : commandDAO.findGroup(customerId, groupId);
+            if (group == null) {
+                groupId = commandDAO.findTopGroupByName(customerId, RECOVERED_FOLDER);
+                if (groupId == null) groupId = commandDAO.insertGroup(customerId, RECOVERED_FOLDER, null, null);
+                group = commandDAO.findGroup(customerId, groupId);
+            }
+            boolean pinned = Boolean.TRUE.equals(t.get("pinned")) && t.get("configurationid") != null
+                    && commandDAO.configurationExists(customerId, ((Number) t.get("configurationid")).intValue());
+            Integer configurationId = pinned ? Integer.valueOf(((Number) t.get("configurationid")).intValue())
+                    : group == null ? null : group.getEffectiveConfigurationId();
+            Device device = unsecureDAO.createNewDeviceForToken(deviceNumber, customerId, configurationId, groupId);
+            if (device == null) {
+                logger.warn("Deleted device {} could not be recovered: no configuration for new devices", deviceNumber);
+                return null;
+            }
+            if (pinned) commandDAO.updateDevicePinned(device.getId(), true);
+            commandDAO.updateDeviceSecretHash(deviceNumber, presentedHash);
+            if (t.get("description") != null) commandDAO.setDescription(deviceNumber, String.valueOf(t.get("description")));
+            if (t.get("hardwareid") != null) commandDAO.updateHardwareId(deviceNumber, String.valueOf(t.get("hardwareid")));
+            commandDAO.deleteTombstone(deviceNumber);
+            commandDAO.insertEvent(deviceNumber, "recovered", System.currentTimeMillis(),
+                    kept == null ? "claimed by an administrator" : "deleted from the console while still enrolled");
+            logger.info("Deleted device {} recovered into folder {} (configuration {}, customer {})",
+                    deviceNumber, groupId, device.getConfigurationId(), customerId);
+            return unsecureDAO.getDeviceByNumber(deviceNumber);
+        } catch (Exception e) {
+            logger.warn("Recovering deleted device {} failed: {}", deviceNumber, e.getMessage());
+            return null;
+        }
+    }
+
     private boolean authenticate(String authorization, String deviceNumber) {
         String presented = bearer(authorization);
         if (presented == null) {

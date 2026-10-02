@@ -515,8 +515,9 @@ export function DevicesPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <h3>Eliminar dispositivos</h3>
             <p className="muted" style={{ marginTop: 2 }}>
-              ¿Eliminar definitivamente {selected.size} dispositivo{selected.size === 1 ? '' : 's'} de DallyControl?
-              Volverán a aparecer si se vuelven a conectar.
+              ¿Eliminar {selected.size} dispositivo{selected.size === 1 ? '' : 's'} de la consola? Si el teléfono sigue inscrito
+              (con el agente), vuelve a aparecer solo en su carpeta la próxima vez que se conecte. Para sacarlo de verdad,
+              primero restablécelo de fábrica desde su pestaña Control.
             </p>
             <div className="modal-actions">
               <button className="btn" onClick={() => setDelOpen(false)} disabled={busy}>Cancelar</button>

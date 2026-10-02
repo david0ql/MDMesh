@@ -20,6 +20,7 @@ const LABELS: Record<string, string> = {
   announcementSeen: 'Anuncio visto',
   announcementAck: 'Anuncio confirmado',
   kioskExit: 'Salió del quiosco',
+  recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
   systemUpdated: 'Android actualizado',
   systemUpdatePending: 'Actualización de Android disponible',
   kioskCrashLoop: 'La app del quiosco se cerró varias veces',
