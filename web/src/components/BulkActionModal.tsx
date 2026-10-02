@@ -118,7 +118,7 @@ export function BulkActionModal({
       const res = await queueForTarget(target, buildInstallCommand(spec));
       toast.push('ok', 'Soporte remoto: en cola',
         `Se instala en ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` + (res.skipped ? ` (${res.skipped} omitidos)` : '') +
-        '. Los apagados lo toman si se conectan en la próxima hora; si no, vuelve a enviarlo.');
+        '. Los apagados lo instalan cuando vuelvan a conectarse (hasta 30 días).');
       onDone();
       onClose();
     } catch (e) {

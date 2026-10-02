@@ -73,13 +73,16 @@ public interface AgentCommandMapper {
     /**
      * Two-tier lazy expiry: PENDING ages by creation time, but DELIVERED ages by delivery time
      * with its own (longer) leash — the device already holds a delivered command, and expiring it
-     * by createdAt was killing slow in-flight installs at the 60-minute mark.
+     * by createdAt was killing slow in-flight installs at the 60-minute mark. A pending {@code app.install} waits
+     * much longer ({@code installCutoff}): an install or an agent update sent to a phone that is switched off must
+     * still be there when it comes back (the agent skips an app already at that version), unlike a lock or a ring.
      */
     @Update({"UPDATE agentCommand SET status = 'expired', completedAt = #{now} " +
             "WHERE deviceNumber = #{deviceNumber} AND (" +
-            "(status = 'pending' AND createdAt < #{pendingCutoff}) OR " +
+            "(status = 'pending' AND createdAt < CASE WHEN type = 'app.install' THEN #{installCutoff} ELSE #{pendingCutoff} END) OR " +
             "(status = 'delivered' AND deliveredAt IS NOT NULL AND deliveredAt < #{deliveredCutoff}))"})
     void expireStale(@Param("deviceNumber") String deviceNumber, @Param("pendingCutoff") long pendingCutoff,
+                     @Param("installCutoff") long installCutoff,
                      @Param("deliveredCutoff") long deliveredCutoff, @Param("now") long now);
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND createdAt >= #{since} " +

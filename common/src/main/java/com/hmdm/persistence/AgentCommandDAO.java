@@ -83,9 +83,13 @@ public class AgentCommandDAO {
      * delivered ones get their own {@code deliveredTtlMillis} leash from delivery time (the
      * device already holds them — see the mapper note).
      */
+    /** How long an undelivered app.install (apps, remote support, agent updates) waits for a phone that is off. */
+    public static final long PENDING_INSTALL_TTL_MS = 30L * 24 * 3600_000L;
+
     public void expireStale(String deviceNumber, long pendingTtlMillis, long deliveredTtlMillis) {
         long now = System.currentTimeMillis();
-        mapper.expireStale(deviceNumber, now - pendingTtlMillis, now - deliveredTtlMillis, now);
+        mapper.expireStale(deviceNumber, now - pendingTtlMillis, now - Math.max(pendingTtlMillis, PENDING_INSTALL_TTL_MS),
+                now - deliveredTtlMillis, now);
     }
 
     /** Command lifecycle history for a device, newest first, created at/after {@code since}. */
