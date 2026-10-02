@@ -96,6 +96,18 @@ public final class DesiredConfigBuilder {
             d.setTracking(t);
         }
         d.setSystemUpdate(systemUpdate(cfg));
+        com.hmdm.rest.json.agent.DesiredDevice rules = dc.getDevice();
+        // The anti-theft PIN implies "no factory reset from Settings".
+        if (dc.getPowerPin() != null && cfg.isKioskMode() && (rules == null || rules.getFactoryReset() == null)) {
+            com.hmdm.rest.json.agent.DesiredDevice r = new com.hmdm.rest.json.agent.DesiredDevice();
+            if (rules != null) {
+                r.setTethering(rules.getTethering()); r.setGoogleAccounts(rules.getGoogleAccounts());
+                r.setAccountDomain(rules.getAccountDomain()); r.setFrpAccounts(rules.getFrpAccounts());
+            }
+            r.setFactoryReset("block");
+            rules = r;
+        }
+        d.setDevice(rules);
         if (dc.getWifi() != null) {
             List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
             for (DcPolicy.Wifi w : dc.getWifi()) {

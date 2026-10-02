@@ -134,6 +134,32 @@ class QuickSettingsActivity : ComponentActivity() {
             })
             col.addView(space())
         }
+        // Sharing data (hotspot): the system screen, opened for a few minutes, when the policy allows it.
+        if (getSharedPreferences("mdm_device_rules", Context.MODE_PRIVATE).getBoolean("tether_offered", false)) {
+            col.addView(label(getString(R.string.tether_title)))
+            col.addView(Button(this).apply {
+                text = getString(R.string.tether_button)
+                contentDescription = "qs-tether"
+                setOnClickListener {
+                    TimedAllow.open(this@QuickSettingsActivity, android.content.Intent("android.settings.TETHER_SETTINGS"))
+                        ?.let { android.widget.Toast.makeText(this@QuickSettingsActivity, it, android.widget.Toast.LENGTH_LONG).show() }
+                }
+            })
+            col.addView(space())
+        }
+        // Free space: Android's own "clear every app's cache" confirmation (Android 11+).
+        if (Build.VERSION.SDK_INT >= 30) {
+            col.addView(label(getString(R.string.cache_title)))
+            col.addView(Button(this).apply {
+                text = getString(R.string.cache_button)
+                contentDescription = "qs-clear-cache"
+                setOnClickListener {
+                    com.dallycontrol.agent.storage.CacheCleaner.open(this@QuickSettingsActivity)
+                        ?.let { android.widget.Toast.makeText(this@QuickSettingsActivity, getString(R.string.cache_unavailable), android.widget.Toast.LENGTH_LONG).show() }
+                }
+            })
+            col.addView(space())
+        }
         col.addView(label(getString(R.string.split_title)))
         col.addView(text(getString(R.string.split_help), 13f, MUTED))
         col.addView(space())

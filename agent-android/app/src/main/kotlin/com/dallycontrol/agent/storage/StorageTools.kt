@@ -234,3 +234,22 @@ class StorageAccessHandler(private val context: Context, private val handle: Dpm
 
     private companion object { const val SETTINGS = "com.android.settings" }
 }
+
+/** Clearing every app's cache: Android 11+ offers it as a confirmation the person accepts; it needs all-files access. */
+object CacheCleaner {
+    /** @return null when Android's confirmation opened, else why not. */
+    fun open(context: Context): String? {
+        if (Build.VERSION.SDK_INT < 30) return "needs Android 11 or newer"
+        if (!Environment.isExternalStorageManager()) return "all-files access is off for the agent"
+        return com.dallycontrol.agent.kiosk.TimedAllow.open(context, Intent(StorageManager.ACTION_CLEAR_APP_CACHE), 2 * 60_000L)
+    }
+}
+
+/** `device.clearCache` — opens Android's "clear cached files of all apps?" confirmation on the phone. */
+class ClearCacheHandler(private val context: Context) : CommandHandler {
+    override val type: String = DeviceAction.CLEAR_CACHE
+    override suspend fun handle(command: CommandEnvelope): CommandResult {
+        val err = CacheCleaner.open(context)
+        return if (err == null) CommandResults.done(command, "confirmation opened on the phone") else CommandResults.failed(command, err)
+    }
+}

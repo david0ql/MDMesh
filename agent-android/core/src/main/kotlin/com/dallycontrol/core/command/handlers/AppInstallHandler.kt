@@ -29,6 +29,8 @@ class AppInstallHandler(
         val url: String? = null,
         val localPath: String? = null,
         val sha256: String? = null,
+        /** The part's name inside its bundle (config.arm64_v8a, config.es…); the phone keeps only the splits it needs. */
+        val split: String? = null,
     )
 
     @Serializable
@@ -57,7 +59,7 @@ class AppInstallHandler(
                 versionCode = p.versionCode,
                 sha256 = p.sha256,
                 runAfterInstall = p.runAfterInstall,
-                parts = p.parts.map { ApkPart(url = it.url, localPath = it.localPath, sha256 = it.sha256) },
+                parts = p.parts.map { ApkPart(url = it.url, localPath = it.localPath, sha256 = it.sha256, split = it.split) },
             ),
         )
         return when (outcome) {

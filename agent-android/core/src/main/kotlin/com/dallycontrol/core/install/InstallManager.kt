@@ -28,6 +28,8 @@ data class ApkPart(
     val localPath: String? = null,
     /** Optional lowercase hex SHA-256 of this part; verified after fetch if present. */
     val sha256: String? = null,
+    /** The part's name inside its bundle (`config.arm64_v8a`, `config.es`…); lets [SplitSelector] skip what this phone does not need. */
+    val split: String? = null,
 )
 
 /** What the caller wants installed. */
@@ -114,7 +116,18 @@ class InstallManager @Inject constructor(
 
         // 2. Obtain every part (single APK, or base + splits of a bundle), verifying each
         // part's optional checksum. All parts install together in one session (step 3).
-        val parts = req.apkParts
+        // Of a bundle, only the splits for this phone's processor, screen and languages (the rest are never downloaded).
+        val parts = runCatching {
+            val res = context.resources
+            val langs = if (Build.VERSION.SDK_INT >= 24) {
+                val l = res.configuration.locales
+                (0 until l.size()).map { l[it].language }
+            } else {
+                @Suppress("DEPRECATION")
+                listOf(res.configuration.locale.language)
+            }
+            SplitSelector.select(req.apkParts, { it.split }, Build.SUPPORTED_ABIS.toList(), res.displayMetrics.densityDpi, langs)
+        }.getOrDefault(req.apkParts)
         val fetched = ArrayList<FetchedApk>(parts.size)
         try {
             for (part in parts) {

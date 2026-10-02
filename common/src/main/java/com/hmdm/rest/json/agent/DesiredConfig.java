@@ -56,4 +56,6 @@ public class DesiredConfig {
     private java.util.List<DesiredWifi> wifi;
     /** Present = the configuration sets the Android system-update policy (absent = device default). */
     private DesiredSystemUpdate systemUpdate;
+    /** Device security rules (data sharing, Google accounts, factory reset); null = none. */
+    private DesiredDevice device;
 }

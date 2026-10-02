@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { hasApk, obtainApk } from '../api/apkFetch';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import {
@@ -140,19 +141,18 @@ function AppIcon({ name, url }: { name: string; url?: string | null }) {
 }
 
 function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
+  const toast = useToast();
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // Package -> download progress (0..1, or -1 = unknown size) while the server fetches its APK.
+  const [fetching, setFetching] = useState<Record<string, number>>({});
+  const [bulk, setBulk] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    listApplications()
-      .then((list) => !cancelled && setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
-      .catch(() => !cancelled && (setApps([]), setError('No se pudo cargar la Biblioteca de apps.')));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const load = () => listApplications()
+    .then((list) => setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
+    .catch(() => (setApps([]), setError('No se pudo cargar la Biblioteca de apps.')));
+  useEffect(() => { void load(); }, []);
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -160,16 +160,62 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
     if (!needle) return apps;
     return apps.filter((a) => `${a.name} ${a.pkg}`.toLowerCase().includes(needle));
   }, [apps, q]);
+  const missing = (apps ?? []).filter((a) => !hasApk(a));
+
+  /** @return true when it worked (errors are shown as a toast). */
+  const obtain = async (a: Application, quiet = false): Promise<boolean> => {
+    setFetching((m) => ({ ...m, [a.pkg]: -1 }));
+    try {
+      const b = await obtainApk(a, (f) => setFetching((m) => ({ ...m, [a.pkg]: f == null ? -1 : f })));
+      if (!quiet) {
+        toast.push('ok', `${a.name} ${b.version ?? ''} lista para instalar`,
+          `${b.publisher ? `Firmada por ${b.publisher}. ` : 'Firma no reconocida: revisa el certificado en la biblioteca. '}Las políticas que la tienen la instalan solas en sus teléfonos.`);
+      }
+      return true;
+    } catch (e) {
+      toast.push('err', `${a.name}: no se pudo obtener el APK`, e instanceof Error ? e.message : '');
+      return false;
+    } finally {
+      setFetching((m) => { const n = { ...m }; delete n[a.pkg]; return n; });
+    }
+  };
+
+  const obtainAll = async () => {
+    let ok = 0;
+    for (let i = 0; i < missing.length; i++) {
+      setBulk(`Descargando ${i + 1} de ${missing.length}: ${missing[i].name}`);
+      if (await obtain(missing[i], true)) ok++;
+    }
+    setBulk(null);
+    toast.push('ok', 'Descargas terminadas', `${ok} de ${missing.length} apps quedaron listas; las políticas que las tienen las instalan solas.`);
+    void load();
+  };
 
   return (
     <>
-      <div className="dv-search" style={{ width: 260, marginBottom: 16 }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-4-4" />
-        </svg>
-        <input type="search" placeholder="Buscar apps" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+        <div className="dv-search" style={{ width: 260 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4-4" />
+          </svg>
+          <input type="search" placeholder="Buscar apps" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        {missing.length > 0 && (
+          <button className="btn btn-sm" disabled={!!bulk} onClick={() => void obtainAll()} data-testid="lib-obtain-all"
+                  title="El servidor descarga el APK público de cada app que hoy solo es una ficha de la Play Store">
+            Obtener APK de las {missing.length} que no lo tienen
+          </button>
+        )}
+        {bulk && <span className="muted small"><span className="spin" /> {bulk}</span>}
       </div>
+      {missing.length > 0 && (
+        <p className="note" style={{ marginTop: 0 }}>
+          Las apps marcadas «Sin APK» son fichas de la Play Store: el MDM no puede instalarlas solo. «Obtener APK» hace que el
+          servidor descargue el APK público de la app (la versión más reciente), compruebe que es ese paquete y quién lo firma, y lo
+          guarde aquí; desde ese momento cada política que la tenga la instala sola en sus teléfonos, sin cuenta de Google.
+        </p>
+      )}
 
       {error && <div className="banner banner-alert">{error}</div>}
 
@@ -184,23 +230,35 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
         </div>
       ) : (
         <div className="app-grid">
-          {shown.map((a) => (
-            <div className="app-card" key={a.id}>
-              <div className="app-top">
-                <AppIcon name={a.name} />
-                <div className="app-meta">
-                  <div className="app-nm">{a.name}</div>
-                  <div className="app-pkg mono">{a.pkg}</div>
+          {shown.map((a) => {
+            const busy = a.pkg in fetching;
+            const f = fetching[a.pkg];
+            return (
+              <div className="app-card" key={a.id}>
+                <div className="app-top">
+                  <AppIcon name={a.name} />
+                  <div className="app-meta">
+                    <div className="app-nm">{a.name}</div>
+                    <div className="app-pkg mono">{a.pkg}</div>
+                  </div>
+                </div>
+                <div className="app-foot">
+                  {hasApk(a)
+                    ? <span className="app-ver">{a.version ? `v${a.version}` : '—'}</span>
+                    : <span className="chip tone-warn" title="Solo es una ficha de la Play Store: el MDM no la puede instalar todavía">Sin APK</span>}
+                  {!hasApk(a) ? (
+                    <button className="btn btn-sm btn-primary" disabled={busy || !!bulk} onClick={() => void obtain(a).then(load)} data-testid={`obtain-${a.pkg}`}>
+                      {busy ? (f >= 0 ? `Descargando ${Math.round(f * 100)} %` : 'Descargando…') : 'Obtener APK'}
+                    </button>
+                  ) : (
+                    <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
+                      Desplegar
+                    </button>
+                  )}
                 </div>
               </div>
-              <div className="app-foot">
-                <span className="app-ver">{a.version ? `v${a.version}` : '—'}</span>
-                <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
-                  Desplegar
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
@@ -747,14 +805,25 @@ function PlayStoreSource() {
   async function add(app: PlayApp) {
     setBusy(true);
     try {
-      const existing = (await listApplications(app.packageName)).find((a) => a.pkg === app.packageName);
-      if (existing) {
-        toast.push('ok', 'Ya está en la Biblioteca', app.name);
-      } else {
+      let lib = (await listApplications(app.packageName)).find((a) => a.pkg === app.packageName);
+      if (!lib) {
         await saveAndroidApplication({ name: app.name, pkg: app.packageName, type: 'app', icon: app.icon ?? undefined });
-        toast.push('ok', 'Agregada a la Biblioteca', `${app.name} — despliégala o agrégala a una política.`);
+        lib = (await listApplications(app.packageName)).find((a) => a.pkg === app.packageName);
       }
       setFound(null); setQ('');
+      // Straight away, the server fetches its APK so the MDM can install it by itself (no Google account needed).
+      if (lib && !hasApk(lib)) {
+        toast.push('ok', `${app.name}: descargando el APK…`, 'Puede tardar un par de minutos; queda en la Biblioteca lista para instalar.');
+        try {
+          const b = await obtainApk(lib);
+          toast.push('ok', `${app.name} ${b.version ?? ''} lista para instalar`,
+            `${b.publisher ? `Firmada por ${b.publisher}. ` : ''}Agrégala a una política (o despliégala) y se instala sola.`);
+        } catch (e) {
+          toast.push('err', `${app.name} quedó en la Biblioteca sin APK`, `${e instanceof Error ? e.message : ''} Al desplegarla se abrirá su página de la Play Store.`);
+        }
+      } else {
+        toast.push('ok', 'Ya está en la Biblioteca', app.name);
+      }
     } catch (e) {
       toast.push('err', 'No se pudo agregar', e instanceof Error ? e.message : '');
     } finally {

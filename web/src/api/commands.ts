@@ -208,6 +208,11 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
+    key: 'clear-cache', label: 'Borrar caché de las apps', group: 'safe',
+    description: 'Abre en el teléfono la confirmación de Android para borrar la caché de todas las apps (Android 11 o superior; la persona toca Aceptar). No borra datos ni sesiones.',
+    request: { type: 'device.clearCache', requiresCapability: 'device.clearCache' },
+  },
+  {
     key: 'wipe', label: 'Restablecer de fábrica (borrar todo)', group: 'destructive', danger: true,
     description: 'Borra el dispositivo por completo. No se puede deshacer.', confirm: 'type-to-confirm',
     request: { type: 'device.wipe', requiresCapability: 'device.wipe' },

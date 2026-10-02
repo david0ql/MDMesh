@@ -27,6 +27,9 @@ object DeviceAction {
     /** Android update policy now: `{ "type": "automatic" | "windowed" | "postpone" | "default", fromMinutes?, toMinutes? }`. */
     const val SYSTEM_UPDATE = "device.systemUpdate"
 
+    /** Ask the person to clear every app's cache (Android 11+; opens Android's confirmation on the phone). */
+    const val CLEAR_CACHE = "device.clearCache"
+
     /** Show an announcement in the app (text, image or video; mandatory or optional), or withdraw one. */
     const val ANNOUNCE = "device.announce"
 
@@ -57,6 +60,6 @@ object DeviceAction {
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
-        "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate",
+        "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
     )
 }

@@ -30,7 +30,8 @@ object AntiTheft {
         val on = !pin.isNullOrBlank()
         prefs.edit().apply { if (on) putString(KEY_PIN, pin) else remove(KEY_PIN) }.putInt(KEY_FEATURES, lockTaskFeatures).apply()
         runCatching {
-            val restrictions = listOf(UserManager.DISALLOW_SAFE_BOOT, UserManager.DISALLOW_FACTORY_RESET)
+            // (Factory reset is blocked by the policy's device rules, which the server turns on with the PIN.)
+            val restrictions = listOf(UserManager.DISALLOW_SAFE_BOOT)
             if (on) {
                 restrictions.forEach { dpm.addUserRestriction(admin, it) }
                 prefs.edit().putBoolean(KEY_RESTRICTED, true).apply()

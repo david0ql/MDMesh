@@ -29,6 +29,22 @@ data class ConfigApplyPayload(
     val wifi: List<ConfigWifi>? = null,
     /** Android system-update policy (absent = device default). */
     val systemUpdate: ConfigSystemUpdate? = null,
+    /** Device security rules (absent = none): data sharing, Google accounts, factory reset. */
+    val device: ConfigDevice? = null,
+)
+
+/**
+ * [tethering]: `allow` | `block`. [googleAccounts]: `block` = no Google account can be added. [accountDomain]: only
+ * Google accounts of this domain stay on the phone. [factoryReset]: `block` = not from Settings. [frpAccounts]: Google
+ * account ids allowed to set the phone up again after a reset from recovery (Android 11+).
+ */
+@Serializable
+data class ConfigDevice(
+    val tethering: String? = null,
+    val googleAccounts: String? = null,
+    val accountDomain: String? = null,
+    val factoryReset: String? = null,
+    val frpAccounts: List<String>? = null,
 )
 
 /** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */

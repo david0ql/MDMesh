@@ -59,6 +59,8 @@ public class DcPolicy {
     private KioskBrand kioskBrand;
     /** Anti-theft in the kiosk: 4-12 digits asked before switching the phone off or restarting it. */
     private String powerPin;
+    /** Device security rules: data sharing, Google accounts, factory reset. */
+    private com.hmdm.rest.json.agent.DesiredDevice device;
 
     @Getter
     @Setter
@@ -140,7 +142,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskBrand == null
-                && powerPin == null;
+                && powerPin == null && device == null;
     }
 
     private DcPolicy cleaned() {
@@ -205,6 +207,24 @@ public class DcPolicy {
         c.notInKiosk = packages(notInKiosk);
         c.kioskBrand = kioskBrand == null ? null : kioskBrand.cleaned();
         c.powerPin = powerPin != null && powerPin.trim().matches("^[0-9]{4,12}$") ? powerPin.trim() : null;
+        if (device != null) {
+            com.hmdm.rest.json.agent.DesiredDevice d = new com.hmdm.rest.json.agent.DesiredDevice();
+            String t = lower(device.getTethering());
+            d.setTethering("allow".equals(t) || "block".equals(t) ? t : null);
+            d.setGoogleAccounts("block".equals(lower(device.getGoogleAccounts())) ? "block" : null);
+            String dom = device.getAccountDomain() == null ? "" : device.getAccountDomain().trim().toLowerCase(Locale.ROOT).replaceFirst("^@", "");
+            d.setAccountDomain(dom.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$") && dom.length() <= 100 ? dom : null);
+            d.setFactoryReset("block".equals(lower(device.getFactoryReset())) ? "block" : null);
+            if (device.getFrpAccounts() != null) {
+                List<String> ids = new ArrayList<String>();
+                for (String a : device.getFrpAccounts()) {
+                    if (a != null && a.trim().matches("^[0-9]{6,30}$") && !ids.contains(a.trim()) && ids.size() < 10) ids.add(a.trim());
+                }
+                d.setFrpAccounts(ids.isEmpty() ? null : ids);
+            }
+            c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomain() == null
+                    && d.getFactoryReset() == null && d.getFrpAccounts() == null ? null : d;
+        }
         return c;
     }
 

@@ -258,4 +258,22 @@ public class DesiredConfigBuilderTest {
         assertNull(DcPolicy.parse("{\"powerPin\":\"abcd\"}").getPowerPin());
         assertNull(DesiredConfigBuilder.build(kioskConfig(), Arrays.asList(app(5, 505, "com.acme.pos", 1))).getKiosk().getPowerPin());
     }
+
+    @Test
+    public void device_rules_are_cleaned_and_the_power_pin_blocks_factory_reset() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"device\":{\"tethering\":\"BLOCK\",\"googleAccounts\":\"whatever\",\"accountDomain\":\"@Amovil.com.co\","
+                + "\"factoryReset\":\"block\",\"frpAccounts\":[\"123456789012345678901\",\"not-an-id\"]}}");
+        com.hmdm.rest.json.agent.DesiredDevice r = DesiredConfigBuilder.build(c, Collections.<Application>emptyList()).getDevice();
+        assertEquals("block", r.getTethering());
+        assertNull(r.getGoogleAccounts());
+        assertEquals("amovil.com.co", r.getAccountDomain());
+        assertEquals("block", r.getFactoryReset());
+        assertEquals(Arrays.asList("123456789012345678901"), r.getFrpAccounts());
+        Configuration pin = kioskConfig();
+        pin.setDcPolicy("{\"powerPin\":\"4821\"}");
+        assertEquals("block", DesiredConfigBuilder.build(pin, Collections.<Application>emptyList()).getDevice().getFactoryReset());
+        assertNull(DesiredConfigBuilder.build(kioskConfig(), Collections.<Application>emptyList()).getDevice());
+        assertNull(DcPolicy.normalize("{\"device\":{\"accountDomain\":\"no es dominio\"}}"));
+    }
 }

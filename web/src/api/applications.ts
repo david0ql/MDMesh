@@ -83,6 +83,8 @@ export async function listApplications(value?: string): Promise<Application[]> {
  */
 export async function addApplicationVersion(v: {
   applicationId: number; version?: string; versionCode?: number; url: string;
+  /** Split-bundle parts as a JSON string (see [Application.parts]). */
+  parts?: string;
 }): Promise<ApplicationVersion> {
   return apiClient.put<ApplicationVersion>('/private/applications/versions', v);
 }

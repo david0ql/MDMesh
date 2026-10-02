@@ -24,6 +24,7 @@ object EventType {
     const val SIM_CHANGED = "simChanged"
     const val APP_BLOCKED = "appBlocked"
     const val APP_UPDATED = "appUpdated"
+    const val ACCOUNT_REMOVED = "accountRemoved"
     const val ANNOUNCEMENT_RECEIVED = "announcementReceived"
     const val ANNOUNCEMENT_SEEN = "announcementSeen"
     const val ANNOUNCEMENT_ACK = "announcementAck"

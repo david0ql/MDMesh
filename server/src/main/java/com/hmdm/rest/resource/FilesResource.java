@@ -621,53 +621,189 @@ public class FilesResource {
             return Response.PERMISSION_DENIED();
         }
         File bundleTmp = null;
-        List<File> partTmps = new LinkedList<>();
         try {
             String fileName = new String(fileDetail.getFileName().getBytes(StandardCharsets.ISO_8859_1),
                     StandardCharsets.UTF_8);
-            String lower = fileName.toLowerCase();
             bundleTmp = FileUtil.createTempFile(FileUtil.adjustFileName(fileName));
             FileUtil.writeToFile(uploadedInputStream, bundleTmp.getAbsolutePath());
+            Customer customer = customerDAO.findById(SecurityContext.get().getCurrentCustomerId().get());
+            return Response.OK(importBundle(bundleTmp, fileName, fileName.toLowerCase().endsWith(".apk"), customer));
+        } catch (BundleException e) {
+            return Response.ERROR(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Unexpected error unpacking bundle", e);
+            return Response.ERROR("error.bundle.unpack");
+        } finally {
+            if (bundleTmp != null) bundleTmp.delete();
+        }
+    }
 
-            // Extract the APK parts. A bare .apk is a one-part install; anything else is treated as a
-            // zip container (.xapk/.apks/.apkm/.zip) and every *.apk entry becomes a part.
-            if (lower.endsWith(".apk")) {
-                partTmps.add(bundleTmp);
-                bundleTmp = null; // it IS a part now; don't double-delete
+    // --- Fetch an app's public APK by package name (background job: the download can take minutes) -----------------
+
+    /** One download in progress or just finished; kept an hour. */
+    static final class FetchJob {
+        final String packageName;
+        final int customerId;
+        final long startedAt = System.currentTimeMillis();
+        volatile String state = "running"; // running | done | error
+        volatile long bytes;
+        volatile long total = -1;
+        volatile java.util.Map<String, Object> result;
+        volatile String error;
+
+        FetchJob(String packageName, int customerId) {
+            this.packageName = packageName;
+            this.customerId = customerId;
+        }
+    }
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, FetchJob> FETCH_JOBS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ExecutorService FETCH_POOL = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "apk-fetch");
+        t.setDaemon(true);
+        return t;
+    });
+
+    public static class FetchBody {
+        public String packageName;
+    }
+
+    @ApiOperation(value = "Fetch an app's public APK", notes = "Starts a background download of the app's APK (or split "
+            + "bundle) by package name and hosts it; poll GET /fetch/{job} for progress and the same result as /bundle.")
+    @POST
+    @Path("/fetch")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response fetchApk(FetchBody body) {
+        if (!SecurityContext.get().hasPermission("edit_files")) {
+            return Response.PERMISSION_DENIED();
+        }
+        final String pkg = body == null || body.packageName == null ? "" : body.packageName.trim();
+        if (!com.hmdm.util.ApkFetcher.PACKAGE.matcher(pkg).matches()) {
+            return Response.ERROR("El nombre de paquete no es válido.");
+        }
+        final Customer customer = customerDAO.findById(SecurityContext.get().getCurrentCustomerId().get());
+        final int customerId = customer.getId();
+        long now = System.currentTimeMillis();
+        FETCH_JOBS.values().removeIf(j -> now - j.startedAt > 3600_000L);
+        for (java.util.Map.Entry<String, FetchJob> e : FETCH_JOBS.entrySet()) {
+            FetchJob j = e.getValue();
+            if (j.customerId == customerId && j.packageName.equals(pkg) && "running".equals(j.state)) {
+                return Response.OK(java.util.Collections.singletonMap("job", e.getKey()));
+            }
+        }
+        final String id = java.util.UUID.randomUUID().toString();
+        final FetchJob job = new FetchJob(pkg, customerId);
+        FETCH_JOBS.put(id, job);
+        FETCH_POOL.submit(() -> {
+            File tmp = null;
+            try {
+                tmp = FileUtil.createTempFile("apkfetch");
+                com.hmdm.util.ApkFetcher.Fetched f = com.hmdm.util.ApkFetcher.fetch(pkg, tmp, (done, total) -> { job.bytes = done; job.total = total; });
+                java.util.Map<String, Object> out = importBundle(f.file, pkg + (f.plainApk ? ".apk" : ".xapk"), f.plainApk, customer);
+                if (!pkg.equals(out.get("packageName"))) {
+                    throw new IllegalStateException("El archivo descargado es de otro paquete (" + out.get("packageName") + ").");
+                }
+                job.result = out;
+                job.state = "done";
+                logger.info("APK of {} fetched: version {} ({}), signer {}", pkg, out.get("version"), out.get("versionCode"), out.get("signerSha256"));
+            } catch (Exception e) {
+                job.error = e instanceof BundleException ? "El archivo descargado no es un APK utilizable."
+                        : e.getMessage() == null ? "No se pudo descargar." : e.getMessage();
+                job.state = "error";
+                logger.warn("Fetching the APK of {} failed: {}", pkg, e.toString());
+            } finally {
+                if (tmp != null) tmp.delete();
+            }
+        });
+        return Response.OK(java.util.Collections.singletonMap("job", id));
+    }
+
+    @ApiOperation(value = "Progress of an APK fetch")
+    @GET
+    @Path("/fetch/{job}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response fetchStatus(@PathParam("job") String id) {
+        if (!SecurityContext.get().hasPermission("edit_files")) {
+            return Response.PERMISSION_DENIED();
+        }
+        FetchJob j = FETCH_JOBS.get(id);
+        if (j == null || j.customerId != SecurityContext.get().getCurrentCustomerId().orElse(-1)) {
+            return Response.ERROR("La descarga ya no existe.");
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("state", j.state);
+        out.put("packageName", j.packageName);
+        out.put("bytes", j.bytes);
+        out.put("total", j.total);
+        out.put("result", j.result);
+        out.put("error", j.error);
+        return Response.OK(out);
+    }
+
+    /** A bundle that cannot be used; the message is the error key (or text) for the console. */
+    static final class BundleException extends Exception {
+        BundleException(String message) { super(message); }
+    }
+
+    /** An APK taken out of a bundle, with the name it had inside it (e.g. {@code config.arm64_v8a.apk}). */
+    private static final class ExtractedPart {
+        final File file;
+        final String entryName;
+
+        ExtractedPart(File file, String entryName) {
+            this.file = file;
+            this.entryName = entryName;
+        }
+    }
+
+    /**
+     * Hosts every APK of a bundle (.xapk/.apks/zip, or one plain .apk) and describes it for a split app.install:
+     * packageName, version, versionCode, the parts (url, sha256, name, split = the part's name inside the bundle,
+     * which the agent uses to pick the splits that fit each phone) and who signed it.
+     */
+    java.util.Map<String, Object> importBundle(File bundle, String fileName, boolean plainApk, Customer customer) throws Exception {
+        List<ExtractedPart> partTmps = new LinkedList<>();
+        try {
+            if (plainApk) {
+                File copy = FileUtil.createTempFile("bundlepart");
+                java.nio.file.Files.copy(bundle.toPath(), copy.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                partTmps.add(new ExtractedPart(copy, "base.apk"));
             } else {
-                partTmps = extractApkParts(bundleTmp);
+                partTmps = extractApkParts(bundle);
                 if (partTmps.isEmpty()) {
-                    return Response.ERROR("error.bundle.noApks"); // encrypted .apkm, or not an APK bundle
+                    throw new BundleException("error.bundle.noApks"); // encrypted .apkm, or not an APK bundle
                 }
             }
 
-            Customer customer = customerDAO.findById(SecurityContext.get().getCurrentCustomerId().get());
-
             // Package + version come from any part (splits share them); prefer one that parses cleanly.
             APKFileDetails meta = null;
-            for (File part : partTmps) {
+            File base = null;
+            for (ExtractedPart part : partTmps) {
                 try {
-                    APKFileDetails d = apkFileAnalyzer.analyzeFile(part.getAbsolutePath());
-                    if (d != null && d.getPkg() != null && d.getVersionCode() != 0) { meta = d; break; }
-                    if (meta == null) meta = d;
+                    APKFileDetails d = apkFileAnalyzer.analyzeFile(part.file.getAbsolutePath());
+                    if (d != null && d.getPkg() != null && d.getVersionCode() != 0) { meta = d; base = part.file; break; }
+                    if (meta == null) { meta = d; base = part.file; }
                 } catch (Exception ignored) { /* a config split may not parse standalone — try the next */ }
             }
             if (meta == null || meta.getPkg() == null) {
-                return Response.ERROR("error.bundle.unreadable");
+                throw new BundleException("error.bundle.unreadable");
             }
+            com.hmdm.util.ApkSigner.Signer signer = base == null ? null : com.hmdm.util.ApkSigner.of(base);
 
             List<java.util.Map<String, Object>> parts = new LinkedList<>();
-            for (File part : partTmps) {
+            for (ExtractedPart part : partTmps) {
                 // Content-addressed name: identical bytes → identical name → re-uploading the same
                 // bundle reuses the already-hosted part instead of colliding (moveFile throws on an
                 // existing name). A different build hashes differently and never clobbers.
-                String sha256 = sha256Hex(part);
+                String sha256 = sha256Hex(part.file);
                 String partName = String.format("%s-%s.apk", meta.getPkg(), sha256);
-                String url = hostFile(part, partName, customer);
+                String url = hostFile(part.file, partName, customer);
                 java.util.Map<String, Object> p = new java.util.LinkedHashMap<>();
                 p.put("url", url);
                 p.put("sha256", sha256);
                 p.put("name", partName);
+                p.put("split", part.entryName.toLowerCase().replaceFirst("\\.apk$", ""));
                 parts.add(p);
             }
             partTmps.clear(); // moved/reused into the files area — nothing left to clean up
@@ -678,23 +814,24 @@ public class FilesResource {
             out.put("version", meta.getVersion());
             out.put("versionCode", meta.getVersionCode());
             out.put("parts", parts);
+            if (signer != null) {
+                out.put("signerSha256", signer.sha256);
+                out.put("signerSubject", signer.subject);
+                out.put("publisher", com.hmdm.util.ApkSigner.publisher(signer.sha256));
+            }
             logger.info("Bundle {} unpacked: {} parts for {} ({})", fileName, parts.size(), meta.getPkg(),
                     meta.getVersionCode());
-            return Response.OK(out);
-        } catch (Exception e) {
-            logger.error("Unexpected error unpacking bundle", e);
-            return Response.ERROR("error.bundle.unpack");
+            return out;
         } finally {
-            if (bundleTmp != null) bundleTmp.delete();
-            for (File f : partTmps) f.delete();
+            for (ExtractedPart f : partTmps) f.file.delete();
         }
     }
 
     /** Extract every {@code *.apk} entry of a zip container to temp files. If a {@code universal.apk}
      *  is present (bundletool .apks), return ONLY it — it's a self-contained single install. */
-    private List<File> extractApkParts(File zip) throws IOException {
-        List<File> parts = new LinkedList<>();
-        File universal = null;
+    private List<ExtractedPart> extractApkParts(File zip) throws IOException {
+        List<ExtractedPart> parts = new LinkedList<>();
+        ExtractedPart universal = null;
         try (java.util.zip.ZipInputStream zin =
                      new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(new FileInputStream(zip)))) {
             java.util.zip.ZipEntry entry;
@@ -709,12 +846,12 @@ public class FilesResource {
                     int n;
                     while ((n = zin.read(buf)) >= 0) os.write(buf, 0, n);
                 }
-                if (base.equals("universal.apk")) universal = out; else parts.add(out);
+                if (base.equals("universal.apk")) universal = new ExtractedPart(out, "base.apk"); else parts.add(new ExtractedPart(out, base));
             }
         }
         if (universal != null) {
-            for (File f : parts) f.delete(); // discard splits; the universal APK stands alone
-            List<File> only = new LinkedList<>();
+            for (ExtractedPart f : parts) f.file.delete(); // discard splits; the universal APK stands alone
+            List<ExtractedPart> only = new LinkedList<>();
             only.add(universal);
             return only;
         }

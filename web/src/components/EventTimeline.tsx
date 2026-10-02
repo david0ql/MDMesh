@@ -20,6 +20,7 @@ const LABELS: Record<string, string> = {
   announcementSeen: 'Anuncio visto',
   announcementAck: 'Anuncio confirmado',
   kioskExit: 'Salió del quiosco',
+  accountRemoved: 'Cuenta de Google quitada (no es del dominio permitido)',
   recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
   systemUpdated: 'Android actualizado',
   systemUpdatePending: 'Actualización de Android disponible',

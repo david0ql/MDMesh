@@ -28,6 +28,14 @@ export interface DcPolicy {
   kioskBrand?: import('../api/fleet').KioskBrand;
   /** Anti-theft: 4-12 digits asked in the kiosk before switching off or restarting. */
   powerPin?: string;
+  /** Device security rules: data sharing, Google accounts, factory reset. */
+  device?: {
+    tethering?: 'allow' | 'block';
+    googleAccounts?: 'block';
+    accountDomain?: string;
+    factoryReset?: 'block';
+    frpAccounts?: string[];
+  };
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -54,6 +62,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
+  if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -141,6 +150,73 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
         </div>
         <div className="cfg-field-ctl">
           <RoleChecks name="Funciones del quiosco" value={p.kioskRoles ?? []} disabled={disabled} onChange={(v) => update({ ...p, kioskRoles: v })} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Compartir datos (zona Wi‑Fi)</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Permitir»: los ajustes rápidos del quiosco muestran un botón que abre la pantalla de zona Wi‑Fi del teléfono por unos
+            minutos (Android no deja que el MDM la encienda por su cuenta). «Bloquear»: nadie puede compartir la conexión.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Compartir datos" disabled={disabled} value={p.device?.tethering ?? ''}
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), tethering: (e.target.value || undefined) as 'allow' | 'block' | undefined } })}>
+            <option value="">Sin administrar</option>
+            <option value="allow">Permitir (botón en el quiosco)</option>
+            <option value="block">Bloquear</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Cuentas de Google</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «No permitir agregar»: nadie agrega cuentas de Google al teléfono (deja puesta antes la corporativa). «Solo del dominio»:
+            cualquier cuenta de Google que no sea de ese dominio se quita sola del teléfono, y Chrome solo deja iniciar sesión con ese
+            dominio. Así Gmail y las demás apps de Google solo funcionan con cuentas de la empresa.
+          </span>
+        </div>
+        <div className="cfg-field-ctl" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
+          <select className="sel" aria-label="Cuentas de Google" disabled={disabled} value={p.device?.googleAccounts ?? ''}
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), googleAccounts: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Se pueden agregar</option>
+            <option value="block">No permitir agregar</option>
+          </select>
+          <input className="input mono" aria-label="Dominio permitido" placeholder="Solo del dominio, p. ej. amovil.com.co" disabled={disabled}
+            value={p.device?.accountDomain ?? ''} data-testid="policy-account-domain"
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), accountDomain: e.target.value.trim().toLowerCase().replace(/^@/, '') || undefined } })} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Restablecimiento de fábrica</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Bloquear»: no se puede restablecer desde los Ajustes del teléfono; solo desde esta consola (Control → Restablecer de
+            fábrica). El reseteo por botones (recovery) no lo impide ningún MDM, pero en Android 11+ puedes indicar qué cuentas de
+            Google pueden volver a activar el equipo después: sin una de ellas queda inservible. Van los ID numéricos de la cuenta
+            de Google (no el correo), separados por coma.
+          </span>
+        </div>
+        <div className="cfg-field-ctl" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
+          <select className="sel" aria-label="Restablecimiento de fábrica" disabled={disabled} value={p.device?.factoryReset ?? ''}
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), factoryReset: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Permitido</option>
+            <option value="block">Bloquear desde Ajustes</option>
+          </select>
+          <input className="input mono" aria-label="Cuentas de reactivación" placeholder="ID de cuentas que pueden reactivar (opcional)" disabled={disabled}
+            value={(p.device?.frpAccounts ?? []).join(', ')}
+            onChange={(e) => {
+              const ids = e.target.value.split(/[\s,]+/).map((x) => x.replace(/[^0-9]/g, '')).filter(Boolean);
+              update({ ...p, device: { ...(p.device ?? {}), frpAccounts: ids.length ? ids : undefined } });
+            }} />
         </div>
       </div>
 

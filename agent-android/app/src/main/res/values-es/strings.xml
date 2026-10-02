@@ -61,4 +61,9 @@
     <string name="at_poweroff_hint">Mantén presionado el botón de encendido ahora y elige Apagar. El menú se vuelve a cerrar en 30 segundos.</string>
     <string name="split_title">Pantalla dividida</string>
     <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
+    <string name="tether_title">Compartir datos</string>
+    <string name="tether_button">Zona Wi‑Fi y compartir conexión</string>
+    <string name="cache_title">Liberar espacio</string>
+    <string name="cache_button">Borrar la caché de todas las apps</string>
+    <string name="cache_unavailable">No disponible en este teléfono: el agente necesita el acceso a todos los archivos.</string>
 </resources>

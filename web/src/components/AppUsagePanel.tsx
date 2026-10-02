@@ -18,7 +18,7 @@ const fmtBytes = (b: number) =>
   b <= 0 ? '—' : b >= 1024 ** 3 ? `${(b / 1024 ** 3).toLocaleString('es-CO', { maximumFractionDigits: 2 })} GB`
     : b >= 1024 ** 2 ? `${(b / 1024 ** 2).toLocaleString('es-CO', { maximumFractionDigits: 1 })} MB`
       : `${Math.max(1, Math.round(b / 1024)).toLocaleString('es-CO')} KB`;
-const fmtPct = (p: number) => (p <= 0 ? '—' : `${p.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %`);
+const fmtPct = (p: number) => (p <= 0 ? '—' : p < 0.1 ? '< 0,1 %' : `${p.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %`);
 const fmtDay = (k: string) => new Date(`${k}T12:00:00`).toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
 
 /** The top apps by one measure: thin bars from a common baseline, one hue, values in text. */
