@@ -330,7 +330,7 @@ class KioskLauncherActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_VERTICAL
                     setBackgroundColor(Color.argb(230, Color.red(bg), Color.green(bg), Color.blue(bg)))
                     // Leave room for the visible "Exit kiosk" button, which sits over the bottom centre.
-                    setPadding(dp(20), dp(6), dp(20), if (p.exitMode == "visible") dp(76) else dp(14))
+                    setPadding(dp(20), dp(6), dp(20), if (p.exitMode == "visible") dp(76) else dp(24))
                     if (showSerial) {
                         addView(
                             text("Serial: ${deviceSerial()}", 12f, fg).apply { contentDescription = "kiosk-serial" },
