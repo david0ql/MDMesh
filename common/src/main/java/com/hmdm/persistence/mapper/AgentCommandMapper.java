@@ -81,6 +81,10 @@ public interface AgentCommandMapper {
             "WHERE deviceNumber = #{deviceNumber} AND (" +
             "(status = 'pending' AND createdAt < CASE WHEN type = 'app.install' THEN #{installCutoff} ELSE #{pendingCutoff} END) OR " +
             "(status = 'delivered' AND deliveredAt IS NOT NULL AND deliveredAt < #{deliveredCutoff}))"})
+    void expireStale(@Param("deviceNumber") String deviceNumber, @Param("pendingCutoff") long pendingCutoff,
+                     @Param("installCutoff") long installCutoff,
+                     @Param("deliveredCutoff") long deliveredCutoff, @Param("now") long now);
+
     /**
      * Commands the phone received but never answered — lost when the agent restarted (an update installed over it, a
      * crash) — go back to the queue, but only the repeatable ones: applying the policy and installing an app.
@@ -90,10 +94,6 @@ public interface AgentCommandMapper {
             "(type = 'config.apply' AND deliveredAt < #{configCutoff}) OR (type = 'app.install' AND deliveredAt < #{installCutoff}))"})
     int requeueLostRepeatable(@Param("deviceNumber") String deviceNumber, @Param("configCutoff") long configCutoff,
                               @Param("installCutoff") long installCutoff);
-
-    void expireStale(@Param("deviceNumber") String deviceNumber, @Param("pendingCutoff") long pendingCutoff,
-                     @Param("installCutoff") long installCutoff,
-                     @Param("deliveredCutoff") long deliveredCutoff, @Param("now") long now);
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND createdAt >= #{since} " +
             "ORDER BY id DESC LIMIT #{limit}"})
