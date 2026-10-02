@@ -811,7 +811,10 @@ public class FilesResource {
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("name", fileName);
             out.put("packageName", meta.getPkg());
-            out.put("version", meta.getVersion());
+            // Some apps name their version through a resource the analyzer cannot read: fall back to the version code
+            // (the library needs a version text, and it orders versions by it).
+            out.put("version", meta.getVersion() == null || meta.getVersion().trim().isEmpty()
+                    ? String.valueOf(meta.getVersionCode()) : meta.getVersion());
             out.put("versionCode", meta.getVersionCode());
             out.put("parts", parts);
             if (signer != null) {
