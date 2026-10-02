@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
-import { DeviceGlyph } from '../ui/DeviceGlyph';
+import { DeviceStatusIcon } from '../ui/DeviceGlyph';
 import { useDevices } from '../data/useDevices';
 import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
@@ -62,6 +62,11 @@ function IconList() {
   );
 }
 
+/** List-row geometry (see .dev-row): side padding + border, the gap between columns, and the name column's minimum. */
+const ROW_PADDING = 34;
+const ROW_GAP = 16;
+const NAME_MIN = 230;
+
 export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -76,10 +81,30 @@ export function DevicesPage() {
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('dc-columns', onCols); window.removeEventListener('resize', onResize); };
   }, []);
-  const columns: DeviceColumn[] = useMemo(
-    () => colKeys.map((k) => DEVICE_COLUMNS.find((c) => c.key === k)).filter((c): c is DeviceColumn => !!c).slice(0, maxCols),
-    [colKeys, maxCols],
-  );
+  // The list's real width: the row shows the chosen columns, in order, only while they fit next to the name.
+  const [listWidth, setListWidth] = useState(0);
+  const listObserver = useRef<ResizeObserver | null>(null);
+  const listRef = useCallback((el: HTMLDivElement | null) => {
+    listObserver.current?.disconnect();
+    if (!el) return;
+    setListWidth(el.clientWidth);
+    listObserver.current = new ResizeObserver(([e]) => setListWidth(Math.floor(e.contentRect.width)));
+    listObserver.current.observe(el);
+  }, []);
+  useEffect(() => () => listObserver.current?.disconnect(), []);
+  const columns: DeviceColumn[] = useMemo(() => {
+    const chosen = colKeys.map((k) => DEVICE_COLUMNS.find((c) => c.key === k)).filter((c): c is DeviceColumn => !!c).slice(0, maxCols);
+    if (!listWidth) return chosen;
+    let left = listWidth - ROW_PADDING - NAME_MIN; // what the extra columns may use
+    const fit: DeviceColumn[] = [];
+    for (const c of chosen) {
+      const need = parseInt(c.width, 10) + ROW_GAP;
+      if (need > left) break;
+      left -= need;
+      fit.push(c);
+    }
+    return fit;
+  }, [colKeys, maxCols, listWidth]);
   const [summaries, setSummaries] = useState<Record<string, DeviceSummary>>({});
   useEffect(() => {
     let on = true;
@@ -422,7 +447,7 @@ export function DevicesPage() {
               ))}
             </div>
           ) : (
-            <div className="dev-list">
+            <div className="dev-list" ref={listRef}>
               {filtered.map((d) => (
                 <DeviceRow
                   key={d.id}
@@ -590,10 +615,9 @@ function DeviceCard({
     >
       <div className="h">
         <SelectBox selected={selected} onToggle={onToggle} />
-        <span className={`dot ${online ? 'on' : 'off'}`} />
+        <DeviceStatusIcon online={online} name={d.description || d.number} size={26} />
         <span className="nm">{orDash(d.number)}</span>
         {dup > 1 && <DupBadge n={dup} />}
-        <DeviceGlyph className="ico" name={d.description || d.number} size={16} />
       </div>
       {d.description && <div className="sub">{d.description}</div>}
       <div className="kv">
@@ -648,7 +672,7 @@ function DeviceRow({
   return (
     <div
       className={`dev-row ${selected ? 'sel' : ''}`}
-      style={{ gridTemplateColumns: `minmax(200px, 1fr) ${columns.map((c) => c.width).join(' ')}` }}
+      style={{ gridTemplateColumns: `minmax(${NAME_MIN}px, 1fr) ${columns.map((c) => c.width).join(' ')}` }}
       role="button"
       tabIndex={0}
       onClick={act}
@@ -656,8 +680,7 @@ function DeviceRow({
     >
       <div className="id">
         <SelectBox selected={selected} onToggle={onToggle} />
-        <span className={`dot ${online ? 'on' : 'off'}`} />
-        <DeviceGlyph className="ico" name={d.description || d.number} size={15} />
+        <DeviceStatusIcon online={online} name={d.description || d.number} size={32} />
         <div style={{ minWidth: 0 }}>
           <div className="nm">{d.description || orDash(d.number)}</div>
           <div className="sub mono">{d.description ? d.number : summary?.model ?? ''}</div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
-import { DeviceGlyph } from '../ui/DeviceGlyph';
+import { DeviceStatusIcon } from '../ui/DeviceGlyph';
 import {
   searchDevices, updateDeviceDescription, type DeviceView, type ConfigurationLookup,
 } from '../api/devices';
@@ -364,10 +364,9 @@ export function DeviceDetailPage() {
         {/* LEFT: the device */}
         <aside className="panel detail-rail">
           <div className="top">
-            <span className={`dot ${online ? 'on' : 'off'}`} />
+            <DeviceStatusIcon online={online} name={device.description || device.number} size={30} />
             <span className={`st ${online ? 'on' : 'off'}`}>{statusLabel}</span>
             <span className="ago">· {fmtRelative(device.lastUpdate)}</span>
-            <DeviceGlyph className="ico" name={device.description || device.number} size={20} />
           </div>
           <h1>{device.number}</h1>
           <NameField

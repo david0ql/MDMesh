@@ -3052,3 +3052,16 @@ a {
 .ag-assign { max-height: 220px; overflow-y: auto; }
 .ag-assign .deploy-devrow { display: flex; align-items: center; gap: 10px; cursor: default; }
 .ag-assign-nm { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+
+/* Device as a phone: screen lit when online, dark when offline */
+.dev-status { flex: none; display: block; }
+.dev-status .body { fill: #39414f; stroke: #232831; stroke-width: 1; }
+.dev-status .screen { fill: #20252e; }
+.dev-status .key { fill: #1b1f27; }
+.dev-status.on .screen { fill: #19b8a6; }
+.dev-status.off { opacity: .85; }
+[data-theme='dark'] .dev-status .body { fill: #4a5364; stroke: #5b6578; }
+[data-theme='dark'] .dev-status .screen { fill: #161a21; }
+[data-theme='dark'] .dev-status.on .screen { fill: #23c9b6; }
+.dev-row .lc .lv, .dev-row .lc .lk { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-row .id .sub { overflow-wrap: anywhere; }
