@@ -88,6 +88,12 @@ public class AgentCommandDAO {
      * delivered ones get their own {@code deliveredTtlMillis} leash from delivery time (the
      * device already holds them — see the mapper note).
      */
+    /** Re-queue a lost config.apply after 3 minutes and a lost app.install after 45 (a big download takes a while). */
+    public int requeueLostRepeatable(String deviceNumber) {
+        long now = System.currentTimeMillis();
+        return mapper.requeueLostRepeatable(deviceNumber, now - 3 * 60_000L, now - 45 * 60_000L);
+    }
+
     /** How long an undelivered app.install (apps, remote support, agent updates) waits for a phone that is off. */
     public static final long PENDING_INSTALL_TTL_MS = 30L * 24 * 3600_000L;
 

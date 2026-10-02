@@ -417,6 +417,12 @@ public class AgentResource {
         // leash (6 h): the device HAS them — a slow install on metered network must not be
         // expired out from under its own genuine result.
         commandDAO.expireStale(deviceNumber, 60L * 60L * 1000L, 6L * 60L * 60L * 1000L);
+        try {
+            int requeued = commandDAO.requeueLostRepeatable(deviceNumber);
+            if (requeued > 0) logger.info("Device {}: {} unanswered policy/install command(s) sent again", deviceNumber, requeued);
+        } catch (Exception e) {
+            logger.warn("Could not re-queue lost commands of {}: {}", deviceNumber, e.getMessage());
+        }
 
         // Gate pending commands by capability-token set membership, reusing the matrix this very
         // request carried (fall back to the stored copy only when the agent omitted it).
