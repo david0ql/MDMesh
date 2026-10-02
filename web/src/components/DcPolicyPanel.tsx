@@ -45,7 +45,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.browser) out.browser = p.browser;
   if (p.apps) out.apps = p.apps;
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
-  if (p.kioskQuickSettings) out.kioskQuickSettings = true;
+  if (p.kioskQuickSettings === false) out.kioskQuickSettings = false; // on by default
   if (p.deviceName) out.deviceName = p.deviceName;
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
   if (p.appGroups?.length) out.appGroups = p.appGroups;
@@ -146,13 +146,14 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <label>Ajustes rápidos del quiosco</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            Un ícono de Ajustes en el inicio del quiosco (y una notificación, si el quiosco muestra la barra de estado) con brillo, volumen,
-            Wi‑Fi y Bluetooth. Android mantiene cerrado su propio panel de ajustes rápidos en el quiosco; este nunca abre los Ajustes del sistema.
+            Una barrita arriba del quiosco (y deslizar hacia abajo) abre un panel con brillo, volumen, Wi‑Fi y Bluetooth; dentro de una
+            app se abre desde la notificación «Ajustes rápidos» al bajar la barra de estado. Activado por defecto. Android mantiene cerrado
+            su propio panel en el quiosco; este nunca abre los Ajustes del sistema.
           </span>
         </div>
         <div className="cfg-field-ctl">
-          <input type="checkbox" className="dev-check" aria-label="Ajustes rápidos del quiosco" checked={p.kioskQuickSettings === true} disabled={disabled}
-            onChange={(e) => update({ ...p, kioskQuickSettings: e.target.checked || undefined })} />
+          <input type="checkbox" className="dev-check" aria-label="Ajustes rápidos del quiosco" checked={p.kioskQuickSettings !== false} disabled={disabled}
+            onChange={(e) => update({ ...p, kioskQuickSettings: e.target.checked ? undefined : false })} />
         </div>
       </div>
 

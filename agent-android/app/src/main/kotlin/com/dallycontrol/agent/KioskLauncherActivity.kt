@@ -320,6 +320,21 @@ class KioskLauncherActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
+        // The pull-down "bar": Android keeps its own quick settings closed in a kiosk, so the kiosk offers this strip
+        // (tap it, or swipe down from the top) for Wi-Fi, Bluetooth, brightness and volume.
+        if (p.quickSettings) {
+            page.addView(
+                text("⌄  ${getString(R.string.qs_bar)}", 12f, fg).apply {
+                    gravity = Gravity.CENTER
+                    contentDescription = "kiosk-quick-settings-bar"
+                    setPadding(dp(16), dp(10), dp(16), dp(8))
+                    setBackgroundColor(Color.argb(40, Color.red(fg), Color.green(fg), Color.blue(fg)))
+                    isClickable = true
+                    setOnClickListener { openQuickSettings() }
+                },
+                LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
         page.addView(ScrollView(this).apply { addView(column) }, LinearLayout.LayoutParams(MATCH, 0, 1f))
         val footLogo = p.theme.footerLogoUrl?.takeIf { it.isNotBlank() }
         val showSerial = p.theme.showSerial == true
@@ -489,6 +504,31 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     // --- View helpers ------------------------------------------------------------------------
+
+    private fun openQuickSettings() {
+        runCatching { startActivity(Intent(this, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java)) }
+    }
+
+    private var swipeFromY = -1f
+
+    /** A swipe down that starts near the top of the kiosk home opens the quick settings, like the system bar would. */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (active?.quickSettings == true) {
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> swipeFromY = if (ev.y < dp(140)) ev.y else -1f
+                android.view.MotionEvent.ACTION_UP -> {
+                    if (swipeFromY >= 0 && ev.y - swipeFromY > dp(110)) {
+                        swipeFromY = -1f
+                        openQuickSettings()
+                        return true
+                    }
+                    swipeFromY = -1f
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> swipeFromY = -1f
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
 
     /** Call the support line directly (the Device Owner grants itself the call permission); else open the dialer. */
     private fun callSupport(number: String) {

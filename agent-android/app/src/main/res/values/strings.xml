@@ -52,4 +52,5 @@
     <string name="ann_has_image">image</string>
     <string name="ann_tile">Announcements</string>
     <string name="kiosk_support">Support</string>
+    <string name="qs_bar">Wi‑Fi · Bluetooth · Brightness</string>
 </resources>

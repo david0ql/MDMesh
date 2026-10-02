@@ -228,4 +228,21 @@ public class DesiredConfigBuilderTest {
         assertNull(f.getKiosk().getTheme().getSupportLabel()); // the folder's number comes with the folder's (empty) label
         assertNull(KioskBrand.parse("{\"supportPhone\":\"llamar ya\"}"));
     }
+
+    @Test
+    public void kiosk_shows_navigation_status_bar_and_quick_settings_unless_turned_off() {
+        Configuration c = new Configuration();
+        c.setId(1); c.setKioskMode(true); c.setRequestUpdates(RequestUpdatesType.GPS);
+        DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+        assertEquals(Boolean.TRUE, d.getKiosk().getFeatures().getHome());
+        assertEquals(Boolean.TRUE, d.getKiosk().getFeatures().getRecents());
+        assertEquals(Boolean.TRUE, d.getKiosk().getFeatures().getNotifications());
+        assertEquals(Boolean.TRUE, d.getKiosk().getFeatures().getSystemInfo());
+        assertEquals(Boolean.TRUE, d.getKiosk().getQuickSettings());
+        c.setKioskRecents(false); c.setKioskNotifications(false); c.setDcPolicy("{\"kioskQuickSettings\":false}");
+        DesiredConfig off = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+        assertEquals(Boolean.FALSE, off.getKiosk().getFeatures().getRecents());
+        assertEquals(Boolean.FALSE, off.getKiosk().getFeatures().getNotifications());
+        assertNull(off.getKiosk().getQuickSettings());
+    }
 }

@@ -45,7 +45,7 @@ public class DcPolicy {
     private Browser browser;
     private Apps apps;
     private Integer trackingMinutes;
-    /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth). */
+    /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth): on by default, false = off. */
     private Boolean kioskQuickSettings;
     /** Automatic device name: serial (default) / imei / model-serial / none. */
     private String deviceName;
@@ -165,7 +165,7 @@ public class DcPolicy {
             }
         }
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
-        c.kioskQuickSettings = Boolean.TRUE.equals(kioskQuickSettings) ? Boolean.TRUE : null;
+        c.kioskQuickSettings = Boolean.FALSE.equals(kioskQuickSettings) ? Boolean.FALSE : null; // on unless turned off
         c.deviceName = DeviceNaming.normalizeRule(deviceName);
         if (wifi != null) {
             List<Wifi> out = new ArrayList<Wifi>();

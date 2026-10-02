@@ -66,7 +66,8 @@ public final class DesiredConfigBuilder {
         d.setConfigurationId(cfg.getId());
         d.setPolicies(policies(cfg));
         d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
-        if (d.getKiosk() != null && Boolean.TRUE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
+        // Quick settings (Wi-Fi, Bluetooth, brightness) are part of a kiosk unless the policy turns them off.
+        if (d.getKiosk() != null && !Boolean.FALSE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
         if (d.getKiosk() != null) {
             KioskBrand brand = KioskBrand.effective(dc.getKioskBrand(), folderBrands);
             if (brand != null) {
@@ -205,8 +206,10 @@ public final class DesiredConfigBuilder {
         k.setAllowedPackages(allowed);
         k.setPinPackage(mainPkg);
         DesiredKioskFeatures f = new DesiredKioskFeatures();
-        f.setHome(cfg.getKioskHome()); f.setRecents(cfg.getKioskRecents()); f.setNotifications(cfg.getKioskNotifications());
-        f.setSystemInfo(cfg.getKioskSystemInfo()); f.setKeyguard(cfg.getKioskKeyguard()); f.setLockButtons(cfg.getKioskLockButtons());
+        // "Auto" (unset) shows the navigation buttons and the status bar: people in a kiosk still need Back/Home/
+        // Recents, the clock and battery, and the pull-down. The policy turns each off with an explicit "No".
+        f.setHome(shown(cfg.getKioskHome())); f.setRecents(shown(cfg.getKioskRecents())); f.setNotifications(shown(cfg.getKioskNotifications()));
+        f.setSystemInfo(shown(cfg.getKioskSystemInfo())); f.setKeyguard(cfg.getKioskKeyguard()); f.setLockButtons(cfg.getKioskLockButtons());
         k.setFeatures(f);
         k.setExitMode(Boolean.TRUE.equals(cfg.getKioskExit()) ? "visible" : "gesture");
         k.setPassword(cfg.getPassword());
@@ -215,6 +218,10 @@ public final class DesiredConfigBuilder {
         t.setIconSize(cfg.getIconSize() == null ? null : cfg.getIconSize().name());
         k.setTheme(t);
         return k;
+    }
+
+    private static Boolean shown(Boolean v) {
+        return v == null ? Boolean.TRUE : v;
     }
 
     /** Recursively sorts map keys and drops null values so nested objects canonicalise too. */
