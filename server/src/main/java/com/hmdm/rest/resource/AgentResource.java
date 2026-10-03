@@ -543,7 +543,7 @@ public class AgentResource {
     /** An app.install of a bundle whose parts carry their split names (a store bundle with per-device splits). */
     static boolean isStoreBundleInstall(AgentCommand c) {
         return c != null && "app.install".equals(c.getType()) && c.getPayload() != null
-                && c.getPayload().contains("\"split\":\"config.");
+                && compact(c.getPayload()).contains("\"split\":\"config.");
     }
 
     /** True when the dotted [version] (e.g. "0.5.3") is at least major.minor.patch; false when unknown. */
@@ -566,7 +566,12 @@ public class AgentResource {
     /** An app.install of the agent's own package (release or debug): the agent restarts while applying it. */
     static boolean isAgentSelfUpdate(AgentCommand c) {
         return c != null && "app.install".equals(c.getType()) && c.getPayload() != null
-                && c.getPayload().contains("\"packageName\":\"com.dallycontrol.agent");
+                && compact(c.getPayload()).contains("\"packageName\":\"com.dallycontrol.agent");
+    }
+
+    /** The payload without whitespace: a command queued from a script may carry {@code "key": "value"}. */
+    private static String compact(String json) {
+        return json.replaceAll("\\s+", "");
     }
 
     /** Header the agent names itself with on the tunnel's WebSocket handshake (the secret is in Authorization). */

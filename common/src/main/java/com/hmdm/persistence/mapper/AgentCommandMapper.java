@@ -107,7 +107,7 @@ public interface AgentCommandMapper {
 
     /** Commands the device holds but has not answered yet, other than an install of the agent itself. */
     @Select({"SELECT COUNT(*) FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND status = 'delivered' " +
-            "AND NOT (type = 'app.install' AND payload LIKE '%\"packageName\":\"com.dallycontrol.agent%')"})
+            "AND NOT (type = 'app.install' AND regexp_replace(payload, '\\s', '', 'g') LIKE '%\"packageName\":\"com.dallycontrol.agent%')"})
     int countInFlight(@Param("deviceNumber") String deviceNumber);
 
     @Select({"SELECT COUNT(*) FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND type = #{type} AND status IN ('pending','delivered')"})

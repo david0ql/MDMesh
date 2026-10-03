@@ -22,6 +22,7 @@ public class AgentSelfUpdateTest {
         assertFalse(AgentResource.isAgentSelfUpdate(cmd("app.uninstall", "{\"packageName\":\"com.dallycontrol.agent\"}")));
         assertFalse(AgentResource.isAgentSelfUpdate(cmd("app.install", null)));
         assertFalse(AgentResource.isAgentSelfUpdate(null));
+        assertTrue(AgentResource.isAgentSelfUpdate(cmd("app.install", "{\"url\": \"https://x/a.apk\", \"packageName\": \"com.dallycontrol.agent\"}")));
     }
 
     @Test
