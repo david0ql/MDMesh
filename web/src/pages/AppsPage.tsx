@@ -10,6 +10,8 @@ import {
   uploadApk,
   uploadBundle,
   commitUpload,
+  isNewVersion,
+  uniqueApkName,
   saveAndroidApplication,
   lookupPlayApp,
   type PlayApp,
@@ -309,16 +311,16 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         if (fd.versionCode) setVc(String(fd.versionCode));
       }
       // An app already in the Library is updated through versions (never a second Library entry): a higher
-      // versionCode becomes its new version and the server moves the configurations using it there (their phones
-      // then update); the same versionCode cannot update a phone — Android and the agent compare versionCode.
+      // versionCode, or the same one under a new version name, becomes its new version and the server moves the
+      // configurations using it there (their phones then update).
       const existing = fd?.pkg
         ? (await listApplications(fd.pkg).catch(() => [] as Application[])).find((a) => a.pkg === fd.pkg)
         : undefined;
       let committedUrl: string | undefined;
       try {
-        committedUrl = (await commitUpload(up.serverPath)).url || undefined;
+        committedUrl = (await commitUpload(up.serverPath, uniqueApkName(fd?.pkg, fd?.version, file.name))).url || undefined;
       } catch {
-        committedUrl = undefined; // e.g. the same file name is already hosted
+        committedUrl = undefined;
       }
       if (committedUrl) setUrl(committedUrl);
       if (existing?.id && fd?.pkg) {
@@ -326,16 +328,16 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         const versions = await getVersions(existing.id).catch(() => [] as ApplicationVersion[]);
         const current = versions.reduce((m, v) => Math.max(m, v.versionCode ?? 0), 0);
         const vc = fd.versionCode ?? 0;
-        if (vc > current && committedUrl) {
+        const fresh = isNewVersion(versions, vc, fd.version);
+        if (fresh && committedUrl) {
           await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
           toast.push('ok', 'Nueva versión agregada',
             `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las políticas que la usan ahora instalan esta versión.`);
-        } else if (vc > current) {
-          toast.push('err', 'No se pudo alojar el archivo',
-            'Ya hay un archivo con ese nombre en el servidor: renombra el APK (p. ej., agrégale la versión) y suéltalo de nuevo.');
+        } else if (fresh) {
+          toast.push('err', 'No se pudo alojar el archivo', 'El servidor no guardó el APK: inténtalo de nuevo.');
         } else if (vc === current) {
-          toast.push('err', 'Mismo versionCode que en la Biblioteca',
-            `${fd.pkg} ya tiene versionCode ${vc}. Los teléfonos solo se actualizan a un versionCode mayor: súbelo en la compilación de la app.`);
+          toast.push('err', 'Esa versión ya está en la Biblioteca',
+            `${fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) ya está cargada. Si es otra compilación, cámbiale el nombre de versión.`);
         } else {
           toast.push('err', 'Más antigua que la de la Biblioteca',
             `El versionCode ${vc} es menor que ${current}. Los teléfonos nunca bajan de versión; desinstálala primero si de verdad la necesitas.`);

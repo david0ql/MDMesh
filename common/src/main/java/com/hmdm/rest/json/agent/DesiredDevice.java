@@ -19,7 +19,10 @@ import java.util.List;
 public class DesiredDevice {
     private String tethering;
     private String googleAccounts;
+    /** One allowed domain: set only when there is exactly one (agents before 0.7.3 read just this). */
     private String accountDomain;
+    /** Allowed Google account domains (any other Google account is removed). */
+    private List<String> accountDomains;
     private String factoryReset;
     private List<String> frpAccounts;
 }

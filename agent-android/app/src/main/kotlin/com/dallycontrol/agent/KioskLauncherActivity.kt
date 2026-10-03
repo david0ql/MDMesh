@@ -247,14 +247,18 @@ class KioskLauncherActivity : ComponentActivity() {
             setPadding(dp(12), dp(16), dp(12), dp(28))
         }
         var rendered = 0
+        val shownApps = ArrayList<Pair<String, String>>()
         for (pkg in p.allowedPackages.distinct()) {
+            if (pkg in p.hidden) continue // allowed, but the policy keeps it off the home
             if (packageManager.getLaunchIntentForPackage(pkg) == null) continue // services / in-call UI: allowed, not shown
             val app = runCatching { packageManager.getApplicationInfo(pkg, 0) }.getOrNull() ?: continue
             val icon = runCatching { packageManager.getApplicationIcon(pkg) }.getOrNull() ?: continue
             val label = runCatching { packageManager.getApplicationLabel(app).toString() }.getOrDefault(pkg)
             grid.addView(appCell(pkg, label, icon, cell, fg))
+            shownApps += pkg to label
             rendered++
         }
+        splitChoices = shownApps
 
         // Always render a header + (when nothing resolved) an empty-state, so kiosk is never a
         // bare black screen — that previously happened whenever the allowlist was empty or none of
@@ -313,6 +317,19 @@ class KioskLauncherActivity : ComponentActivity() {
                     cell,
                     fg,
                 ),
+            )
+        }
+        // Sharing data (hotspot): unless the policy blocks it, an icon that opens the phone's hotspot screen for a few
+        // minutes (turn it on or off there; Android does not let the MDM switch it on by itself).
+        if (com.dallycontrol.agent.policy.DeviceRules.tetheringOffered(this)) {
+            grid.addView(
+                appCell(TETHER_TILE, getString(R.string.tether_tile), ContextCompat.getDrawable(this, R.drawable.ic_kiosk_hotspot)!!, cell, fg),
+            )
+        }
+        // Split screen: two of the kiosk's apps side by side, through Android's own split action.
+        if (shownApps.size >= 2 && p.features.recents != false) {
+            grid.addView(
+                appCell(SPLIT_TILE, getString(R.string.split_tile), ContextCompat.getDrawable(this, R.drawable.ic_kiosk_split)!!, cell, fg),
             )
         }
         // (Quick settings are the strip at the top of the page, not a tile.)
@@ -433,6 +450,11 @@ class KioskLauncherActivity : ComponentActivity() {
                     callSupport(pkg.removePrefix(SUPPORT_TILE))
                 } else if (pkg == ANNOUNCEMENTS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.announce.AnnouncementsActivity::class.java))
+                } else if (pkg == TETHER_TILE) {
+                    com.dallycontrol.agent.kiosk.TimedAllow.open(this@KioskLauncherActivity, Intent("android.settings.TETHER_SETTINGS"))
+                        ?.let { android.widget.Toast.makeText(this@KioskLauncherActivity, it, android.widget.Toast.LENGTH_LONG).show() }
+                } else if (pkg == SPLIT_TILE) {
+                    chooseSplit()
                 } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
                 } else {
@@ -440,6 +462,39 @@ class KioskLauncherActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** The apps on the kiosk home (package, label), offered for split screen. */
+    private var splitChoices: List<Pair<String, String>> = emptyList()
+
+    /** Pick the app on top, then the one below; Android then shows both. */
+    private fun chooseSplit() {
+        val apps = splitChoices
+        if (apps.size < 2) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.split_first)
+            .setItems(apps.map { it.second }.toTypedArray()) { _, i ->
+                val first = apps[i]
+                val rest = apps.filter { it.first != first.first }
+                android.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.split_second)
+                    .setItems(rest.map { it.second }.toTypedArray()) { _, j -> startSplit(first.first, rest[j].first) }
+                    .show()
+            }
+            .show()
+    }
+
+    private fun startSplit(first: String, second: String) {
+        if (com.dallycontrol.agent.kiosk.SplitScreen.open(this, first, second)) return
+        // The service is off and the agent cannot switch it on by itself (enrolled by QR): Accessibility, once.
+        android.app.AlertDialog.Builder(this)
+            .setMessage(R.string.split_needs_service)
+            .setPositiveButton(R.string.split_enable) { _, _ ->
+                com.dallycontrol.agent.kiosk.TimedAllow.open(this, Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    ?.let { android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show() }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun idleView(): View = frame(INK).apply {
@@ -595,6 +650,8 @@ class KioskLauncherActivity : ComponentActivity() {
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"
         const val SUPPORT_TILE = "dallycontrol.support:"
+        const val TETHER_TILE = "dallycontrol.tether"
+        const val SPLIT_TILE = "dallycontrol.split"
         @Volatile var lastAutoLaunch = 0L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7

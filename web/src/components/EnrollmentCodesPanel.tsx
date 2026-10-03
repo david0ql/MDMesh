@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../ui/toast';
 import { fmtDateTime } from '../ui/format';
-import { QrCanvas } from './QrCanvas';
+import { QrCanvas, downloadQrPng } from './QrCanvas';
 import { buildProvisioningPayload, serverBaseUrl } from '../enroll/provisioning';
 import { groupTree, type FleetGroup } from '../api/fleet';
 import {
@@ -146,7 +146,20 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
                 {(shown.groupId != null && pathOf.get(shown.groupId)) || shown.groupName}
                 {shown.label ? ` · ${shown.label}` : ''}{shown.wifiSsid ? ` · Wi‑Fi ${shown.wifiSsid}` : ''}. Reutilizable: imprímelo para el equipo que inscribe estos teléfonos.
               </p>
-              <button className="btn btn-sm" onClick={() => setShown(null)}>Cerrar</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-sm" data-testid="code-qr-download" onClick={() => {
+                  const folder = (shown.groupId != null && pathOf.get(shown.groupId)) || shown.groupName || '';
+                  void downloadQrPng(
+                    buildProvisioningPayload(shown.code, shown.wifiSsid
+                      ? { ssid: shown.wifiSsid, password: shown.wifiPassword ?? '', security: (shown.wifiSecurity ?? 'WPA') as 'WPA' | 'WEP' | 'NONE' }
+                      : undefined),
+                    `qr-${folder || 'carpeta'}-${shown.code}.png`,
+                    [folder ? `Carpeta: ${folder}` : 'Inscripción DallyControl', `Código ${displayCode(shown.code)}${shown.label ? ` · ${shown.label}` : ''}`,
+                      shown.wifiSsid ? `Wi‑Fi: ${shown.wifiSsid}` : ''],
+                  );
+                }}>Descargar QR</button>
+                <button className="btn btn-sm" onClick={() => setShown(null)}>Cerrar</button>
+              </div>
             </div>
           </div>
         )}

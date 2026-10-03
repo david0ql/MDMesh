@@ -161,11 +161,11 @@ export async function uploadBundle(file: File): Promise<BundleUploadResult> {
 }
 
 /** Commit a just-uploaded temp file into the served files area; returns its url. */
-export async function commitUpload(serverPath: string): Promise<UploadedFileView> {
+export async function commitUpload(serverPath: string, fileName = ''): Promise<UploadedFileView> {
   return apiClient.post<UploadedFileView>('/private/web-ui-files/update', {
     tmpPath: serverPath,
-    fileName: '',
-    filePath: '',
+    fileName,
+    filePath: fileName,
     external: false,
   });
 }
@@ -174,4 +174,27 @@ export async function commitUpload(serverPath: string): Promise<UploadedFileView
 export interface PlayApp { packageName: string; name: string; icon?: string | null }
 export async function lookupPlayApp(q: string): Promise<PlayApp> {
   return apiClient.get<PlayApp>(`/private/applications/play?q=${encodeURIComponent(q)}`);
+}
+
+/**
+ * A hosting name no other upload has: APKs are often all called app-release.apk, and the server refuses a name it
+ * already hosts. Package and version first, so the files stay readable on the server.
+ */
+export function uniqueApkName(pkg: string | undefined, version: string | undefined, original: string): string {
+  const clean = (v: string) => v.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+  const base = clean(pkg || original.replace(/\.apk$/i, '')) || 'app';
+  const ver = version ? `-${clean(version)}` : '';
+  return `${base}${ver}-${Date.now().toString(36)}.apk`;
+}
+
+/**
+ * Whether an uploaded APK is a new version of a Library app: a higher versionCode, or the same versionCode under a
+ * version name the Library does not have yet (apps that only change the name between builds; the agent installs
+ * those again by name).
+ */
+export function isNewVersion(versions: ApplicationVersion[], versionCode: number, versionName: string | undefined): boolean {
+  const current = versions.reduce((m, v) => Math.max(m, v.versionCode ?? 0), 0);
+  if (versionCode > current) return true;
+  if (versionCode < current || !versionName) return false;
+  return !versions.some((v) => (v.versionCode ?? 0) === versionCode && (v.version ?? '').trim() === versionName.trim());
 }

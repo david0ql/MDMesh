@@ -45,8 +45,12 @@ class AndroidRoleResolver(private val context: Context) : RoleResolver {
                     activities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MESSAGING)).forEach(found::add)
                 }
                 KioskRoles.BROWSER -> {
-                    activities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER)).forEach(found::add)
-                    activities(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))).forEach(found::add)
+                    // Real browsers only: every app that opens some web links (the Google app, YouTube…) also answers a
+                    // generic https link, so that query alone filled the kiosk with apps nobody asked for.
+                    val browsers = activities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER))
+                    browsers.forEach(found::add)
+                    defaultBrowser()?.let(found::add)
+                    if (browsers.isEmpty()) found.addAll(listOf("com.android.chrome").filter(::installed))
                 }
                 KioskRoles.CAMERA -> {
                     activities(Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)).forEach(found::add)
@@ -63,6 +67,13 @@ class AndroidRoleResolver(private val context: Context) : RoleResolver {
         val launchable = all.filter { pm.getLaunchIntentForPackage(it) != null }
         return ResolvedRoles(launchable = launchable, support = all - launchable.toSet())
     }
+
+    /** The app that opens a plain web link by default (null when the phone would ask, or none). */
+    @Suppress("DEPRECATION")
+    private fun defaultBrowser(): String? = runCatching {
+        val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+        pm.resolveActivity(web, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+    }.getOrNull()?.takeIf { it != "android" && !it.contains("resolver") }
 
     @Suppress("DEPRECATION")
     private fun activities(intent: Intent): List<String> = runCatching {

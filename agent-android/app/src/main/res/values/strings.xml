@@ -69,4 +69,12 @@
     <string name="cache_button">Clear the cache of all apps</string>
     <string name="cache_unavailable">Not available on this phone: the agent needs the all-files access.</string>
     <string name="cache_done">Cached files cleared.</string>
+    <string name="split_service_label">DallyControl split screen</string>
+    <string name="split_service_description">Lets the kiosk open two apps side by side. It does not read the screen or what you type.</string>
+    <string name="split_tile">Split screen</string>
+    <string name="split_first">Choose the app on top</string>
+    <string name="split_second">Choose the app below</string>
+    <string name="split_needs_service">Split screen needs the “DallyControl split screen” service: turn it on in Accessibility (once).</string>
+    <string name="split_enable">Turn on</string>
+    <string name="tether_tile">Share data</string>
 </resources>

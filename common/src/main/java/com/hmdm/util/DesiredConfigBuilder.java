@@ -74,6 +74,7 @@ public final class DesiredConfigBuilder {
             d.getKiosk().getFeatures().setLockButtons(Boolean.TRUE);
             d.getKiosk().setQuickSettings(Boolean.TRUE);
         }
+        if (d.getKiosk() != null) d.getKiosk().setHidden(dc.getKioskHidden());
         if (d.getKiosk() != null) {
             KioskBrand brand = KioskBrand.effective(dc.getKioskBrand(), folderBrands);
             if (brand != null) {
@@ -102,7 +103,8 @@ public final class DesiredConfigBuilder {
             com.hmdm.rest.json.agent.DesiredDevice r = new com.hmdm.rest.json.agent.DesiredDevice();
             if (rules != null) {
                 r.setTethering(rules.getTethering()); r.setGoogleAccounts(rules.getGoogleAccounts());
-                r.setAccountDomain(rules.getAccountDomain()); r.setFrpAccounts(rules.getFrpAccounts());
+                r.setAccountDomain(rules.getAccountDomain()); r.setAccountDomains(rules.getAccountDomains());
+                r.setFrpAccounts(rules.getFrpAccounts());
             }
             r.setFactoryReset("block");
             rules = r;

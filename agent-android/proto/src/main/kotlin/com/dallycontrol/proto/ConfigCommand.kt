@@ -34,8 +34,8 @@ data class ConfigApplyPayload(
 )
 
 /**
- * [tethering]: `allow` | `block`. [googleAccounts]: `block` = no Google account can be added. [accountDomain]: only
- * Google accounts of this domain stay on the phone. [factoryReset]: `block` = not from Settings. [frpAccounts]: Google
+ * [tethering]: `allow` | `block`. [googleAccounts]: `block` = no Google account can be added. [accountDomains]: only
+ * Google accounts of these domains stay on the phone ([accountDomain]: the one-domain form older servers send). [factoryReset]: `block` = not from Settings. [frpAccounts]: Google
  * account ids allowed to set the phone up again after a reset from recovery (Android 11+).
  */
 @Serializable
@@ -43,6 +43,7 @@ data class ConfigDevice(
     val tethering: String? = null,
     val googleAccounts: String? = null,
     val accountDomain: String? = null,
+    val accountDomains: List<String>? = null,
     val factoryReset: String? = null,
     val frpAccounts: List<String>? = null,
 )

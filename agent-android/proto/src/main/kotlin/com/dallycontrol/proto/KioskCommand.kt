@@ -32,6 +32,8 @@ data class KioskApplyPayload(
     val quickSettings: Boolean = false,
     /** Anti-theft: the power menu stays closed and switching off / restarting asks for this PIN (null = off). */
     val powerPin: String? = null,
+    /** Allowed but never shown as icons on the kiosk home (e.g. the Google app a function brings along). */
+    val hidden: List<String> = emptyList(),
 )
 
 /** Device functions a configuration can allow by name instead of by package (resolved on the device). */

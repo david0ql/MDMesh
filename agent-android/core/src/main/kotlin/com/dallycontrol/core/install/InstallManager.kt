@@ -42,6 +42,11 @@ data class InstallRequest(
     val packageName: String,
     /** Requested version code; `null`/`0` means "any" (see [VersionPolicy]). */
     val versionCode: Long? = null,
+    /**
+     * The version's name. Some apps ship each build under the same version code and change only the name: with the
+     * same code installed under another name, the app is installed again (once per name, see [VersionPolicy]).
+     */
+    val versionName: String? = null,
     /** Optional lowercase hex SHA-256 of the APK; verified after download if present. */
     val sha256: String? = null,
     /** When true and the install succeeds, launch the app's main activity. */
@@ -104,8 +109,16 @@ class InstallManager @Inject constructor(
      */
     suspend fun install(req: InstallRequest): InstallOutcome {
         // 1. Version gate (pure) — skip / block before touching the network.
-        when (val decision = VersionPolicy.shouldInstall(installedVersionCode(req.packageName), req.versionCode)) {
-            VersionPolicy.Decision.Install -> Unit
+        val installed = installedVersion(req.packageName)
+        val triedKey = "name:${req.packageName}"
+        val tried = req.versionName != null && names.getString(triedKey, null) == req.versionName
+        when (val decision = VersionPolicy.shouldInstall(installed?.first, req.versionCode, installed?.second, req.versionName, tried)) {
+            VersionPolicy.Decision.Install -> {
+                // Same code under a new name: remember the name now, so a build Android refuses is not retried forever.
+                if (installed != null && installed.first == req.versionCode && req.versionName != null) {
+                    names.edit().putString(triedKey, req.versionName).apply()
+                }
+            }
             is VersionPolicy.Decision.Skip -> return InstallOutcome.Skipped(decision.reason)
             VersionPolicy.Decision.DowngradeBlocked ->
                 return InstallOutcome.Failure(
@@ -163,7 +176,7 @@ class InstallManager @Inject constructor(
     /** Silently uninstalls [packageName], awaiting the platform's result. */
     @SuppressLint("MissingPermission") // Device Owner holds DELETE_PACKAGES (declared in the app)
     suspend fun uninstall(packageName: String): InstallOutcome {
-        if (installedVersionCode(packageName) == null) {
+        if (installedVersion(packageName) == null) {
             return InstallOutcome.Skipped("not installed: $packageName")
         }
         // Reuse a stable session id derived from the package so the PendingIntent is unique.
@@ -267,15 +280,21 @@ class InstallManager @Inject constructor(
         return dest
     }
 
-    private fun installedVersionCode(packageName: String): Long? = runCatching {
+    /** The installed version code and name, or null when the package is not installed. */
+    private fun installedVersion(packageName: String): Pair<Long, String?>? = runCatching {
         @Suppress("DEPRECATION")
         val info: PackageInfo = context.packageManager.getPackageInfo(packageName, 0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             info.longVersionCode
         } else {
+            @Suppress("DEPRECATION")
             info.versionCode.toLong()
         }
+        code to info.versionName
     }.getOrNull()
+
+    /** The version names already installed over the same version code (one try per name). */
+    private val names by lazy { context.getSharedPreferences("mdm_install_names", Context.MODE_PRIVATE) }
 
     private fun launchApp(packageName: String) {
         context.packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->

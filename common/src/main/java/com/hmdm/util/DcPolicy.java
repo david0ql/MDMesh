@@ -55,6 +55,8 @@ public class DcPolicy {
     private List<AppGroupRef> appGroups;
     /** Packages of this policy's own apps that are installed and allowed but NOT shown in the kiosk. */
     private List<String> notInKiosk;
+    /** Packages never shown as kiosk icons, whatever brings them (a function such as the browser, a group…). */
+    private List<String> kioskHidden;
     /** Kiosk branding: logo above the apps, logo below, serial at the bottom (folders may override the logos). */
     private KioskBrand kioskBrand;
     /** Anti-theft in the kiosk: 4-12 digits asked before switching the phone off or restarting it. */
@@ -143,7 +145,7 @@ public class DcPolicy {
     @JsonIgnore
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
-                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskBrand == null
+                && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
                 && powerPin == null && device == null;
     }
 
@@ -210,6 +212,7 @@ public class DcPolicy {
             c.appGroups = out.isEmpty() ? null : out;
         }
         c.notInKiosk = packages(notInKiosk);
+        c.kioskHidden = packages(kioskHidden);
         c.kioskBrand = kioskBrand == null ? null : kioskBrand.cleaned();
         c.powerPin = powerPin != null && powerPin.trim().matches("^[0-9]{4,12}$") ? powerPin.trim() : null;
         if (device != null) {
@@ -217,8 +220,17 @@ public class DcPolicy {
             String t = lower(device.getTethering());
             d.setTethering("allow".equals(t) || "block".equals(t) ? t : null);
             d.setGoogleAccounts("block".equals(lower(device.getGoogleAccounts())) ? "block" : null);
-            String dom = device.getAccountDomain() == null ? "" : device.getAccountDomain().trim().toLowerCase(Locale.ROOT).replaceFirst("^@", "");
-            d.setAccountDomain(dom.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$") && dom.length() <= 100 ? dom : null);
+            List<String> doms = new ArrayList<String>();
+            List<String> asked = new ArrayList<String>();
+            if (device.getAccountDomains() != null) asked.addAll(device.getAccountDomains());
+            if (device.getAccountDomain() != null) asked.add(device.getAccountDomain());
+            for (String a : asked) {
+                String dom = a == null ? "" : a.trim().toLowerCase(Locale.ROOT).replaceFirst("^.*@", "");
+                if (dom.matches("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$") && dom.length() <= 100
+                        && !doms.contains(dom) && doms.size() < 20) doms.add(dom);
+            }
+            d.setAccountDomains(doms.isEmpty() ? null : doms);
+            d.setAccountDomain(doms.size() == 1 ? doms.get(0) : null);
             d.setFactoryReset("block".equals(lower(device.getFactoryReset())) ? "block" : null);
             if (device.getFrpAccounts() != null) {
                 List<String> ids = new ArrayList<String>();
@@ -227,7 +239,7 @@ public class DcPolicy {
                 }
                 d.setFrpAccounts(ids.isEmpty() ? null : ids);
             }
-            c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomain() == null
+            c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
                     && d.getFactoryReset() == null && d.getFrpAccounts() == null ? null : d;
         }
         return c;

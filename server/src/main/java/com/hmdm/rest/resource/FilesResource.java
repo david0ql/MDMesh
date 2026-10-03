@@ -551,18 +551,9 @@ public class FilesResource {
                 apkFileDetails = this.apkFileAnalyzer.analyzeFile(uploadFile.getAbsolutePath());
                 result.setFileDetails(apkFileDetails);
 
+                // The same version code under a new version name is accepted: some apps (Amovil's) ship each build
+                // with the same code and only change the name. The agent installs it again by that name.
                 ApplicationVersion version;
-                if (apkFileDetails.getVersionCode() != 0) {
-                    version = this.applicationDAO.findApplicationVersionByCode(apkFileDetails.getPkg(), apkFileDetails.getVersionCode());
-                    if (version != null && !version.getVersion().equals(apkFileDetails.getVersion())) {
-                        logger.warn("Version of {} with code {} already exists, name {}", apkFileDetails.getPkg(),
-                                apkFileDetails.getVersionCode(), version.getVersion());
-                        // Version with the same version code but different version name exists
-                        // This is a violation of Android versioning guidelines - disable upload
-                        return Response.DUPLICATE_ENTITY("form.application.version.code.exists");
-                    }
-                }
-
                 version = this.applicationDAO.findApplicationVersion(apkFileDetails.getPkg(), apkFileDetails.getVersion());
                 if (StringUtil.isEmpty(apkFileDetails.getArch())){
                     if (version != null) {

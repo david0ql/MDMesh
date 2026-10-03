@@ -9,7 +9,9 @@ package com.dallycontrol.core.install
  *  - A `null` or `0` requested version code means **"any"**: install only if the app
  *    is not already present; otherwise skip (we don't reinstall an arbitrary version).
  *  - Requested **greater than** installed -> [Decision.Install] (an upgrade).
- *  - Requested **equal to** installed -> [Decision.Skip] (already at the target).
+ *  - Requested **equal to** installed -> [Decision.Skip] (already at the target), unless a version name was asked
+ *    that differs from the installed one and was not tried yet: some apps ship new builds under the same code and
+ *    only change the name, and Android accepts the same code again.
  *  - Requested **less than** installed -> [Decision.DowngradeBlocked]. PackageInstaller
  *    refuses downgrades, so retrying would loop on download+install forever; the caller
  *    must explicitly uninstall the higher version first.
@@ -36,7 +38,13 @@ object VersionPolicy {
      * @param requestedVersionCode the version code the server asked for, or `null`/`0`
      *   to mean "any version".
      */
-    fun shouldInstall(installedVersionCode: Long?, requestedVersionCode: Long?): Decision {
+    fun shouldInstall(
+        installedVersionCode: Long?,
+        requestedVersionCode: Long?,
+        installedVersionName: String? = null,
+        requestedVersionName: String? = null,
+        nameAlreadyTried: Boolean = false,
+    ): Decision {
         val installed = installedVersionCode
 
         // "Any version" request: install only if missing.
@@ -53,6 +61,8 @@ object VersionPolicy {
 
         return when {
             requestedVersionCode > installed -> Decision.Install
+            requestedVersionCode == installed && requestedVersionName != null && !nameAlreadyTried &&
+                requestedVersionName.trim() != installedVersionName?.trim() -> Decision.Install
             requestedVersionCode == installed ->
                 Decision.Skip("already at requested version code $requestedVersionCode")
             else -> Decision.DowngradeBlocked

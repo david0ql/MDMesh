@@ -24,15 +24,19 @@ export interface DcPolicy {
   appGroups?: { id: number; kiosk?: boolean }[];
   /** The policy's own apps installed and allowed but kept out of the kiosk. */
   notInKiosk?: string[];
+  /** Packages never shown as kiosk icons, whatever brings them (functions such as the browser, groups…). */
+  kioskHidden?: string[];
   /** Kiosk branding: logos, wallpaper, serial, support line (folders may override). */
   kioskBrand?: import('../api/fleet').KioskBrand;
   /** Anti-theft: 4-12 digits asked in the kiosk before switching off or restarting. */
   powerPin?: string;
   /** Device security rules: data sharing, Google accounts, factory reset. */
   device?: {
-    tethering?: 'allow' | 'block';
+    tethering?: 'allow' | 'block'; // 'allow' = the default (kept for older policies)
     googleAccounts?: 'block';
+    /** @deprecated one domain; accountDomains replaces it. */
     accountDomain?: string;
+    accountDomains?: string[];
     factoryReset?: 'block';
     frpAccounts?: string[];
   };
@@ -60,20 +64,30 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
   if (p.appGroups?.length) out.appGroups = p.appGroups;
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
+  if (p.kioskHidden?.length) out.kioskHidden = p.kioskHidden;
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
+/** The allowed Google account domains (older policies kept one in accountDomain). */
+const domainsOf = (d: DcPolicy['device']): string[] =>
+  Array.from(new Set([...(d?.accountDomains ?? []), ...(d?.accountDomain ? [d.accountDomain] : [])]));
+
 const lines = (s: string) => s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
 
 /** A list of sites edited one at a time: type one and add it (Enter or the button); remove with ✕. */
-function SiteList({ label, value, disabled, onChange }: { label: string; value: string[]; disabled?: boolean; onChange: (v: string[]) => void }) {
+function SiteList({ label, value, disabled, onChange, placeholder = 'amovil.com.co', empty = 'Aún no hay sitios en la lista.', clean = (x: string) => x, suggestions }: {
+  label: string; value: string[]; disabled?: boolean; onChange: (v: string[]) => void;
+  placeholder?: string; empty?: string; clean?: (x: string) => string;
+  /** One-tap additions shown under the input (value + label). */
+  suggestions?: { value: string; label: string }[];
+}) {
   const [draft, setDraft] = useState('');
   // A pasted batch (commas, spaces or lines) becomes one item each; repeats are skipped.
   const add = () => {
-    const fresh = draft.split(/[\s,]+/).map((x) => x.trim()).filter((x) => x && !value.includes(x));
+    const fresh = draft.split(/[\s,]+/).map((x) => clean(x.trim())).filter((x) => x && !value.includes(x));
     if (fresh.length) onChange([...value, ...Array.from(new Set(fresh))]);
     setDraft('');
   };
@@ -84,7 +98,7 @@ function SiteList({ label, value, disabled, onChange }: { label: string; value: 
           <input
             className="mono"
             aria-label={`Agregar a ${label.toLowerCase()}`}
-            placeholder="amovil.com.co"
+            placeholder={placeholder}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
@@ -92,8 +106,15 @@ function SiteList({ label, value, disabled, onChange }: { label: string; value: 
           <button type="button" className="btn btn-sm" disabled={!draft.trim()} onClick={add}>Agregar</button>
         </div>
       )}
+      {!disabled && suggestions?.some((x) => !value.includes(x.value)) && (
+        <div className="dcp-sites-add" style={{ flexWrap: 'wrap' }}>
+          {suggestions.filter((x) => !value.includes(x.value)).map((x) => (
+            <button key={x.value} type="button" className="btn btn-sm btn-ghost" onClick={() => onChange([...value, x.value])}>+ {x.label}</button>
+          ))}
+        </div>
+      )}
       {value.length === 0 ? (
-        <div className="cfg-empty">Aún no hay sitios en la lista.</div>
+        <div className="cfg-empty">{empty}</div>
       ) : (
         <ul className="dcp-sites-list" aria-label={label}>
           {value.map((site) => (
@@ -155,18 +176,40 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
 
       <div className="cfg-field">
         <div className="cfg-field-label">
-          <label>Compartir datos (zona Wi‑Fi)</label>
+          <label>Ocultar del quiosco</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            «Permitir»: los ajustes rápidos del quiosco muestran un botón que abre la pantalla de zona Wi‑Fi del teléfono por unos
-            minutos (Android no deja que el MDM la encienda por su cuenta). «Bloquear»: nadie puede compartir la conexión.
+            Apps que no se muestran como ícono en el quiosco aunque una función o un grupo las traiga (por ejemplo la app de Google).
+            Siguen permitidas: si otra app las abre, funcionan. Se escribe el nombre del paquete.
           </span>
         </div>
         <div className="cfg-field-ctl">
-          <select className="sel" aria-label="Compartir datos" disabled={disabled} value={p.device?.tethering ?? ''}
-            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), tethering: (e.target.value || undefined) as 'allow' | 'block' | undefined } })}>
-            <option value="">Sin administrar</option>
-            <option value="allow">Permitir (botón en el quiosco)</option>
+          <SiteList label="Ocultas del quiosco" value={p.kioskHidden ?? []} disabled={disabled}
+            placeholder="com.google.android.googlequicksearchbox" empty="Ninguna app oculta."
+            clean={(x) => x.toLowerCase()}
+            suggestions={[
+              { value: 'com.google.android.googlequicksearchbox', label: 'App de Google' },
+              { value: 'com.google.android.apps.messaging', label: 'Mensajes de Google' },
+              { value: 'com.google.android.contacts', label: 'Contactos de Google' },
+            ]}
+            onChange={(v) => update({ ...p, kioskHidden: v })} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Compartir datos (zona Wi‑Fi)</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Permitir» (por defecto): el quiosco muestra el ícono «Compartir datos», que abre la pantalla de zona Wi‑Fi del teléfono
+            para encenderla o apagarla (Android no deja que el MDM la encienda por su cuenta). «Bloquear»: nadie puede compartir la
+            conexión y el ícono no aparece.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Compartir datos" disabled={disabled} value={p.device?.tethering === 'block' ? 'block' : ''}
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), tethering: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Permitir (ícono en el quiosco)</option>
             <option value="block">Bloquear</option>
           </select>
         </div>
@@ -177,9 +220,10 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <label>Cuentas de Google</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            «No permitir agregar»: nadie agrega cuentas de Google al teléfono (deja puesta antes la corporativa). «Solo del dominio»:
-            cualquier cuenta de Google que no sea de ese dominio se quita sola del teléfono, y Chrome solo deja iniciar sesión con ese
-            dominio. Así Gmail y las demás apps de Google solo funcionan con cuentas de la empresa.
+            «No permitir agregar»: nadie agrega cuentas de Google al teléfono (deja puesta antes la corporativa). «Solo de estos
+            dominios»: en cuanto se agrega una cuenta de Google de otro dominio (en Gmail o en Ajustes), el teléfono la quita, y Chrome
+            solo deja iniciar sesión con esos dominios. Así Gmail y las demás apps de Google solo funcionan con cuentas de la empresa.
+            Sin dominios, se acepta cualquiera.
           </span>
         </div>
         <div className="cfg-field-ctl" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
@@ -188,9 +232,10 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
             <option value="">Se pueden agregar</option>
             <option value="block">No permitir agregar</option>
           </select>
-          <input className="input mono" aria-label="Dominio permitido" placeholder="Solo del dominio, p. ej. amovil.com.co" disabled={disabled}
-            value={p.device?.accountDomain ?? ''} data-testid="policy-account-domain"
-            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), accountDomain: e.target.value.trim().toLowerCase().replace(/^@/, '') || undefined } })} />
+          <SiteList label="Dominios permitidos" disabled={disabled}
+            value={domainsOf(p.device)} placeholder="amovil.co" empty="Cualquier dominio."
+            clean={(x) => x.toLowerCase().replace(/^.*@/, '').replace(/^@/, '')}
+            onChange={(v) => update({ ...p, device: { ...(p.device ?? {}), accountDomain: undefined, accountDomains: v.length ? v : undefined } })} />
         </div>
       </div>
 

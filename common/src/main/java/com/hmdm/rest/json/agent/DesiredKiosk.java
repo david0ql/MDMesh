@@ -48,4 +48,6 @@ public class DesiredKiosk {
     private Boolean quickSettings;
     /** Anti-theft: the power menu stays closed and switching off / restarting asks for this PIN. */
     private String powerPin;
+    /** Packages allowed but never shown as icons (the kiosk home skips them). */
+    private List<String> hidden;
 }

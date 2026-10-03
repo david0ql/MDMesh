@@ -100,7 +100,7 @@ public class ConfigAppInstaller {
                     // Catalog placeholder / web app / seed leftover — nothing downloadable.
                     continue;
                 }
-                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), url, app.getParts());
+                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), app.getVersion(), url, app.getParts());
                 // Re-queued on every configuration save: skip one already on its way. The agent itself skips an
                 // app already at that version before downloading anything, so a repeat costs one tiny command.
                 if (commandDAO.hasOpenIdentical(device.getNumber(), "app.install", payload)) {

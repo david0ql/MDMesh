@@ -134,19 +134,7 @@ class QuickSettingsActivity : ComponentActivity() {
             })
             col.addView(space())
         }
-        // Sharing data (hotspot): the system screen, opened for a few minutes, when the policy allows it.
-        if (getSharedPreferences("mdm_device_rules", Context.MODE_PRIVATE).getBoolean("tether_offered", false)) {
-            col.addView(label(getString(R.string.tether_title)))
-            col.addView(Button(this).apply {
-                text = getString(R.string.tether_button)
-                contentDescription = "qs-tether"
-                setOnClickListener {
-                    TimedAllow.open(this@QuickSettingsActivity, android.content.Intent("android.settings.TETHER_SETTINGS"))
-                        ?.let { android.widget.Toast.makeText(this@QuickSettingsActivity, it, android.widget.Toast.LENGTH_LONG).show() }
-                }
-            })
-            col.addView(space())
-        }
+        // (Sharing data is an icon on the kiosk home.)
         // Free space: Android's own "clear every app's cache" confirmation (Android 11+).
         if (Build.VERSION.SDK_INT >= 30) {
             col.addView(label(getString(R.string.cache_title)))

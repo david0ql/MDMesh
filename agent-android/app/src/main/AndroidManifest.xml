@@ -272,6 +272,20 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- Split screen from the kiosk: Android's own split action, asked for directly (see kiosk/SplitScreen.kt). -->
+        <service
+            android:name=".kiosk.SplitScreenService"
+            android:exported="false"
+            android:label="@string/split_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/split_screen_service" />
+        </service>
+
     </application>
 
 </manifest>

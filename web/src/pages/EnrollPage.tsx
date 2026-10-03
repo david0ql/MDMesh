@@ -6,7 +6,7 @@ import { mintEnrollToken } from '../api/enroll';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
 import { ApiError } from '../api/client';
 import { fmtDateTime } from '../ui/format';
-import { QrCanvas } from '../components/QrCanvas';
+import { QrCanvas, downloadQrPng } from '../components/QrCanvas';
 import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
 import { NoResetEnrollPanel } from '../components/NoResetEnrollPanel';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
@@ -150,6 +150,17 @@ export function EnrollPage() {
                   Un solo uso{expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}
                   {wifiSsid.trim() ? ` · se conecta al Wi‑Fi “${wifiSsid.trim()}”` : ''}
                 </div>
+                {token && (
+                  <button className="btn btn-sm" data-testid="qr-download"
+                    onClick={() => void downloadQrPng(
+                      buildProvisioningPayload(token, wifiSsid.trim() ? { ssid: wifiSsid, password: wifiPass, security: wifiSec } : undefined),
+                      `qr-inscripcion-${new Date().toISOString().slice(0, 10)}.png`,
+                      ['Inscripción DallyControl', `Un solo uso${expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}`,
+                        wifiSsid.trim() ? `Wi‑Fi: ${wifiSsid.trim()}` : ''],
+                    )}>
+                    Descargar QR
+                  </button>
+                )}
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
                   <summary>Conectar a Wi‑Fi durante la puesta en marcha (opcional)</summary>
                   <div className="wifi-fields">

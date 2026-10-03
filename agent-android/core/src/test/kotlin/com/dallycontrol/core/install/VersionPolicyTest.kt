@@ -44,4 +44,21 @@ class VersionPolicyTest {
             VersionPolicy.shouldInstall(installedVersionCode = 11L, requestedVersionCode = 10L),
         )
     }
+
+    @Test
+    fun `installs the same code again under a new version name`() {
+        assertEquals(Decision.Install, VersionPolicy.shouldInstall(10L, 10L, installedVersionName = "9.3.3.3", requestedVersionName = "9.3.3.4"))
+    }
+
+    @Test
+    fun `skips the same code and name, and a name already tried`() {
+        assertTrue(VersionPolicy.shouldInstall(10L, 10L, "9.3.3.4", "9.3.3.4") is Decision.Skip)
+        assertTrue(VersionPolicy.shouldInstall(10L, 10L, "9.3.3.3", "9.3.3.4", nameAlreadyTried = true) is Decision.Skip)
+        assertTrue(VersionPolicy.shouldInstall(10L, 10L, "9.3.3.3", null) is Decision.Skip)
+    }
+
+    @Test
+    fun `a version name never turns a downgrade into an install`() {
+        assertEquals(Decision.DowngradeBlocked, VersionPolicy.shouldInstall(11L, 10L, "1", "2"))
+    }
 }
