@@ -148,9 +148,12 @@ class QuickSettingsActivity : ComponentActivity() {
             })
             col.addView(space())
         }
-        col.addView(label(getString(R.string.split_title)))
-        col.addView(text(getString(R.string.split_help), 13f, MUTED))
-        col.addView(space())
+        // Split screen from Recents: Android 11 and older refuse it while the phone is locked to the kiosk.
+        if (Build.VERSION.SDK_INT >= 31) {
+            col.addView(label(getString(R.string.split_title)))
+            col.addView(text(getString(R.string.split_help), 13f, MUTED))
+            col.addView(space())
+        }
 
         col.addView(Button(this).apply {
             text = getString(R.string.qs_close)

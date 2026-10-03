@@ -61,20 +61,13 @@
     <string name="at_restart">Restart now</string>
     <string name="at_poweroff">Switch off (opens the power menu for 30 seconds)</string>
     <string name="at_poweroff_hint">Hold the power button now and choose Power off. The menu closes again in 30 seconds.</string>
-    <string name="split_title">Split screen</string>
-    <string name="split_help">To use two apps at once: open Recents (the square button), tap the icon above an app and choose Split screen, then pick the second app.</string>
     <string name="tether_title">Share data</string>
     <string name="tether_button">Hotspot and tethering</string>
     <string name="cache_title">Free up space</string>
     <string name="cache_button">Clear the cache of all apps</string>
     <string name="cache_unavailable">Not available on this phone: the agent needs the all-files access.</string>
     <string name="cache_done">Cached files cleared.</string>
-    <string name="split_service_label">DallyControl split screen</string>
-    <string name="split_service_description">Lets the kiosk open two apps side by side. It does not read the screen or what you type.</string>
-    <string name="split_tile">Split screen</string>
-    <string name="split_first">Choose the app on top</string>
-    <string name="split_second">Choose the app below</string>
-    <string name="split_needs_service">Split screen needs the “DallyControl split screen” service: turn it on in Accessibility (once).</string>
-    <string name="split_enable">Turn on</string>
     <string name="tether_tile">Share data</string>
+    <string name="split_title">Split screen</string>
+    <string name="split_help">To use two apps at once: open Recents (the square button), tap the icon above an app and choose Split screen, then pick the second app.</string>
 </resources>

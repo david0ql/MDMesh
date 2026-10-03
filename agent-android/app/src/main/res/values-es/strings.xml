@@ -59,20 +59,13 @@
     <string name="at_restart">Reiniciar ahora</string>
     <string name="at_poweroff">Apagar (abre el menú de apagado durante 30 segundos)</string>
     <string name="at_poweroff_hint">Mantén presionado el botón de encendido ahora y elige Apagar. El menú se vuelve a cerrar en 30 segundos.</string>
-    <string name="split_title">Pantalla dividida</string>
-    <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
     <string name="tether_title">Compartir datos</string>
     <string name="tether_button">Zona Wi‑Fi y compartir conexión</string>
     <string name="cache_title">Liberar espacio</string>
     <string name="cache_button">Borrar la caché de todas las apps</string>
     <string name="cache_unavailable">No disponible en este teléfono: el agente necesita el acceso a todos los archivos.</string>
     <string name="cache_done">Se borró la caché de las apps.</string>
-    <string name="split_service_label">Pantalla dividida DallyControl</string>
-    <string name="split_service_description">Permite que el quiosco abra dos apps a la vez. No lee la pantalla ni lo que escribes.</string>
-    <string name="split_tile">Pantalla dividida</string>
-    <string name="split_first">Elige la app de arriba</string>
-    <string name="split_second">Elige la app de abajo</string>
-    <string name="split_needs_service">La pantalla dividida necesita el servicio «Pantalla dividida DallyControl»: actívalo en Accesibilidad (una sola vez).</string>
-    <string name="split_enable">Activar</string>
     <string name="tether_tile">Compartir datos</string>
+    <string name="split_title">Pantalla dividida</string>
+    <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
 </resources>
