@@ -217,7 +217,7 @@ export function EnrollPage() {
         )}
 
         {mode === 'codes' && <EnrollmentCodesPanel groups={groups} />}
-        {mode === 'noreset' && <NoResetEnrollPanel token={token ?? undefined} />}
+        {mode === 'noreset' && <NoResetEnrollPanel token={token ?? undefined} groups={groups} />}
 
         {mode === 'token' && (
           <section className="panel enroll-wrap">
