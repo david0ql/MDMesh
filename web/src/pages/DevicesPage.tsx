@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLiveDevices } from '../ui/live';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -32,7 +33,7 @@ const groupOf = (d: DeviceView) => d.groups?.[0] ?? null;
 
 // Online = checked in recently. statusCode is config-compliance colour (green even for a device
 // that was factory-reset and stopped reporting), so it must NOT drive the online/offline dot.
-const isOnline = (d: DeviceView, now?: number) => isOnlineByRecency(d.lastUpdate, now);
+const isOnline = (d: DeviceView, now?: number) => isOnlineByRecency(d.lastUpdate, now, d.number);
 
 function IconSearch() {
   return (
@@ -68,6 +69,7 @@ const ROW_GAP = 16;
 const NAME_MIN = 230;
 
 export function DevicesPage() {
+  useLiveDevices(); // a device with its live channel open shows connected
   const navigate = useNavigate();
   const toast = useToast();
   const [exporting, setExporting] = useState(false);

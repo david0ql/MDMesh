@@ -25,6 +25,8 @@ const LABELS: Record<string, string> = {
   systemUpdated: 'Android actualizado',
   systemUpdatePending: 'Actualización de Android disponible',
   kioskCrashLoop: 'La app del quiosco se cerró varias veces',
+  soundAlert: 'Está sonando (alarma o timbre)',
+  soundEnded: 'Dejó de sonar',
 };
 
 export function EventTimeline({ device }: { device: Device }) {

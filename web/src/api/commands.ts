@@ -168,7 +168,7 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
   },
   {
     key: 'ring-stop', label: 'Dejar de sonar', group: 'safe',
-    description: 'Silencia el tono de localización activo.',
+    description: 'Detiene el tono de localización y, sea lo que sea que esté sonando (alarma, timbre, «Encontrar mi dispositivo»), silencia el teléfono 5 minutos (agente 0.7.4+).',
     request: { type: 'device.ringStop', requiresCapability: 'device.ringStop' },
   },
   {

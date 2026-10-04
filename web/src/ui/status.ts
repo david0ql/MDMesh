@@ -1,3 +1,4 @@
+import { isLive } from './live';
 // Maps the server's device statusCode colour (green/red/yellow/brown/grey)
 // onto our instrument status tones (ok/warn/alert/idle) + a human label.
 // Brand amber is never used for status — only ok/warn/alert/idle.
@@ -24,7 +25,9 @@ export function statusMeta(code?: string): StatusMeta {
 /** Online if the last report is within this window (ms): 20 min, the server's connection gap. A locked phone in battery-saving mode reports about every 10-15 min (Android Doze), so a shorter window showed it offline while it was on. */
 export const ONLINE_WINDOW_MS = 20 * 60 * 1000;
 
-export function isOnline(lastUpdate?: number, now: number = Date.now()): boolean {
+/** Online: its live channel is open now (see ui/live), or it reported within the window. */
+export function isOnline(lastUpdate?: number, now: number = Date.now(), number?: string): boolean {
+  if (isLive(number)) return true;
   if (!lastUpdate) return false;
   return now - lastUpdate <= ONLINE_WINDOW_MS;
 }

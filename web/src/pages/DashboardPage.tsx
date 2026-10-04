@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLiveDevices } from '../ui/live';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { useDevices } from '../data/useDevices';
@@ -35,7 +36,7 @@ function configName(
 function bucketOf(d: DeviceView, now?: number): Bucket {
   // Offline first (recency of last check-in); a still-reporting device with a config issue is
   // "attention". statusCode alone can't say offline — it stays green after a factory reset.
-  if (!isOnlineByRecency(d.lastUpdate, now)) return 'offline';
+  if (!isOnlineByRecency(d.lastUpdate, now, d.number)) return 'offline';
   return statusMeta(d.statusCode).tone === 'warn' ? 'attention' : 'online';
 }
 
@@ -101,6 +102,7 @@ function ActivityIcon({ type }: { type: string }) {
 }
 
 export function DashboardPage() {
+  useLiveDevices(); // a device with its live channel open shows connected
   const navigate = useNavigate();
   const { devices, total, configurations, loading, error } = useDevices();
   const [activity, setActivity] = useState<ActivityItem[] | null>(null);

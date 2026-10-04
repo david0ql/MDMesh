@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLiveDevices } from '../ui/live';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -9,6 +10,7 @@ import { ActionConsole } from '../components/ActionConsole';
 import { TelemetryCard } from '../components/TelemetryCard';
 import { DeviceHistory } from '../components/DeviceHistory';
 import { AppUsagePanel } from '../components/AppUsagePanel';
+import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import { StoragePanel } from '../components/StoragePanel';
 import { UpdateTrail } from '../components/UpdateTrail';
 import { EventTimeline } from '../components/EventTimeline';
@@ -27,7 +29,7 @@ import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 
-type Tab = 'control' | 'remote' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
 
 interface Row {
   k: string;
@@ -129,6 +131,7 @@ function freeOf(free: unknown, total: unknown): string {
 }
 
 export function DeviceDetailPage() {
+  useLiveDevices(); // a device with its live channel open shows connected
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
@@ -280,7 +283,7 @@ export function DeviceDetailPage() {
 
   // Online/offline is recency of last check-in — NOT statusCode (which is config compliance and
   // stays green for a device that was factory-reset and stopped reporting).
-  const online = isOnlineByRecency(device.lastUpdate);
+  const online = isOnlineByRecency(device.lastUpdate, undefined, device.number);
   const statusLabel = online ? 'En línea' : 'Sin conexión';
 
   const statusRows: Row[] = [
@@ -433,6 +436,9 @@ export function DeviceDetailPage() {
             <button className={tab === 'remote' ? 'on' : ''} onClick={() => setTab('remote')}>
               Remoto
             </button>
+            <button className={tab === 'diag' ? 'on' : ''} onClick={() => setTab('diag')}>
+              Diagnóstico
+            </button>
             <button className={tab === 'apps' ? 'on' : ''} onClick={() => setTab('apps')}>
               Aplicaciones
             </button>
@@ -462,6 +468,7 @@ export function DeviceDetailPage() {
           <div className="tabbody">
             {tab === 'control' && <ActionConsole device={device} />}
             {tab === 'remote' && <RemotePanel device={device} />}
+            {tab === 'diag' && <DiagnosticsPanel device={device} />}
             {tab === 'apps' && <AppsPanel device={device} />}
             {tab === 'updates' && (
               <UpdateTrail

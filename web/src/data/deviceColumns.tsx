@@ -32,7 +32,7 @@ export function NetworkCell({ s }: { s?: DeviceSummary }) {
   );
 }
 
-/** On/off icon: a lit power symbol when the device reported in the last 20 minutes (ONLINE_WINDOW_MS). */
+/** On/off icon: lit when the device is online (live channel open, or reported in the last 20 minutes). */
 export function PowerIcon({ online }: { online: boolean }) {
   return (
     <span className={`pwr ${online ? 'on' : 'off'}`} title={online ? 'En línea' : 'Sin conexión'} aria-label={online ? 'En línea' : 'Sin conexión'}>

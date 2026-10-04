@@ -64,6 +64,15 @@ public class AgentWakeHub {
         sessions.remove(deviceNumber, session);
     }
 
+    /** Device numbers whose live wake socket is open right now. */
+    public java.util.List<String> liveNumbers() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (Map.Entry<String, Session> e : sessions.entrySet()) {
+            if (e.getValue() != null && e.getValue().isOpen()) out.add(e.getKey());
+        }
+        return out;
+    }
+
     public boolean isOnline(String deviceNumber) {
         Session s = sessions.get(deviceNumber);
         return s != null && s.isOpen();

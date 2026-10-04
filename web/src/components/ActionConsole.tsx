@@ -222,7 +222,7 @@ const STATUS_LABELS: Record<string, string> = {
 const COMMAND_LABELS: Record<string, string> = {
   'kiosk.enter': 'Entrar en quiosco', 'kiosk.exit': 'Salir del quiosco', 'config.apply': 'Aplicar política',
   'app.install': 'Instalar app', 'app.uninstall': 'Desinstalar app', 'agent.update': 'Actualizar agente',
-  'device.lock': 'Bloquear', 'device.reboot': 'Reiniciar', 'device.ring': 'Hacer sonar', 'device.ringStop': 'Dejar de sonar',
+  'device.lock': 'Bloquear', 'device.reboot': 'Reiniciar', 'device.ring': 'Hacer sonar', 'device.ringStop': 'Dejar de sonar', 'device.diagnose': 'Diagnóstico', 'device.silence': 'Silenciar', 'device.notificationAction': 'Botón de notificación',
   'device.alert': 'Mensaje', 'device.lockscreenMessage': 'Mensaje en pantalla de bloqueo', 'device.passcodeReset': 'Cambiar código',
   'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación',
   'device.appLaunch': 'Abrir app', 'device.openStore': 'Abrir en Play Store', 'apps.scan': 'Escanear apps', 'apps.icons': 'Leer íconos', 'policy.apply': 'Aplicar restricción',

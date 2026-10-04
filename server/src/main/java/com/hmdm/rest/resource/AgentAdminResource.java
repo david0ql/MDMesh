@@ -420,6 +420,25 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "Live devices", notes = "Numbers of this customer's devices whose live channel (wake socket) is "
+            + "open now: connected even when their last report is older than the report window.")
+    @GET
+    @Path("/live")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response liveDevices() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.List<String> mine = new java.util.ArrayList<>();
+        for (String number : wakeHub.liveNumbers()) {
+            Device device = unsecureDAO.getDeviceByNumber(number);
+            if (device != null && device.getCustomerId() == customerId.get()) mine.add(number);
+        }
+        return Response.OK(mine);
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Device state", notes = "Latest agent-reported device-state snapshot.")
     @GET
     @Path("/devices/{deviceId}/state")
