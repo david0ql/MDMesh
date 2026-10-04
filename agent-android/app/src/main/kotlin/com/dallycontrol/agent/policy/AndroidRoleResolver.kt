@@ -63,8 +63,10 @@ class AndroidRoleResolver(private val context: Context) : RoleResolver {
             }
         }
         val own = setOf(context.packageName, "android")
+        // Only what serves a function is an icon. The call-screen helpers ("support": every system InCallService, which
+        // on many phones includes the Google app) are allowed so calls show, never shown — the Google app came in so.
+        val launchable = found.filterNot { it in own }.filter { pm.getLaunchIntentForPackage(it) != null }
         val all = (found + support).filterNot { it in own }
-        val launchable = all.filter { pm.getLaunchIntentForPackage(it) != null }
         return ResolvedRoles(launchable = launchable, support = all - launchable.toSet())
     }
 

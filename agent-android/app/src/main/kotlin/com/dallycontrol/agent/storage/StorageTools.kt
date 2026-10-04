@@ -197,8 +197,8 @@ class StorageCleanHandler(private val tools: StorageTools) : CommandHandler {
 }
 
 /**
- * `device.storageAccess` — payload `{ "kind": "usage" | "files" }`: opens that setting on the phone for the person
- * holding it (a Device Owner cannot turn these on). In kiosk, Settings is let through for at most 5 minutes.
+ * `device.storageAccess` — payload `{ "kind": "usage" | "files" | "notifications" }`: opens that setting on the phone for
+ * the person holding it (a Device Owner cannot turn these on). In kiosk, Settings is let through for at most 5 minutes.
  */
 class StorageAccessHandler(private val context: Context, private val handle: DpmHandle, private val tools: StorageTools) : CommandHandler {
     override val type: String = DeviceAction.STORAGE_ACCESS
@@ -209,11 +209,18 @@ class StorageAccessHandler(private val context: Context, private val handle: Dpm
 
     override suspend fun handle(command: CommandEnvelope): CommandResult {
         val kind = command.payload?.let { runCatching { ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), it) }.getOrNull() }?.kind ?: "usage"
-        val granted = if (kind == "files") tools.filesAccess() else tools.usageAccess()
-        if (granted) return CommandResults.done(command, "already granted")
+        val granted = { granted(kind) }
+        if (granted()) return CommandResults.done(command, "already granted")
         if (kind == "files" && Build.VERSION.SDK_INT < 30) return CommandResults.done(command, "not needed before Android 11")
-        val intent = if (kind == "files") Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-        else Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        val listener = com.dallycontrol.agent.diag.NotificationWatch.component(context)
+        val intent = when (kind) {
+            "files" -> Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
+            "notifications" -> if (Build.VERSION.SDK_INT >= 30) {
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                    .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, listener.flattenToString())
+            } else Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+            else -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        }
         val am = context.getSystemService(ActivityManager::class.java)
         if (am?.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE && Build.VERSION.SDK_INT >= 26) runCatching {
             val current = handle.dpm.getLockTaskPackages(handle.admin)
@@ -221,7 +228,7 @@ class StorageAccessHandler(private val context: Context, private val handle: Dpm
                 handle.dpm.setLockTaskPackages(handle.admin, current + SETTINGS)
                 scope.launch {
                     val until = System.currentTimeMillis() + 5 * 60_000L
-                    while (System.currentTimeMillis() < until && !(if (kind == "files") tools.filesAccess() else tools.usageAccess())) delay(2_000)
+                    while (System.currentTimeMillis() < until && !granted()) delay(2_000)
                     runCatching { handle.dpm.setLockTaskPackages(handle.admin, handle.dpm.getLockTaskPackages(handle.admin).filter { it != SETTINGS }.toTypedArray()) }
                 }
             }
@@ -230,6 +237,15 @@ class StorageAccessHandler(private val context: Context, private val handle: Dpm
             onSuccess = { CommandResults.done(command, "setting opened on the phone: turn on DallyControl") },
             onFailure = { CommandResults.failed(command, it.message ?: "could not open settings") },
         )
+    }
+
+    private fun granted(kind: String): Boolean = when (kind) {
+        "files" -> tools.filesAccess()
+        "notifications" -> com.dallycontrol.agent.diag.NotificationWatch.connected() || (Build.VERSION.SDK_INT >= 27 && runCatching {
+            context.getSystemService(android.app.NotificationManager::class.java)
+                .isNotificationListenerAccessGranted(com.dallycontrol.agent.diag.NotificationWatch.component(context))
+        }.getOrDefault(false))
+        else -> tools.usageAccess()
     }
 
     private companion object { const val SETTINGS = "com.android.settings" }

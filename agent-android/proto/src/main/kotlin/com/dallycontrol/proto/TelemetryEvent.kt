@@ -31,4 +31,8 @@ object EventType {
     const val SYSTEM_UPDATED = "systemUpdated"
     const val SYSTEM_UPDATE_PENDING = "systemUpdatePending"
     const val KIOSK_CRASH_LOOP = "kioskCrashLoop"
+    /** Something loud is playing (alarm, ringtone…) for a while: what and its likely source. */
+    const val SOUND_ALERT = "soundAlert"
+    /** That sound stopped: how long it played and what stopped it. */
+    const val SOUND_ENDED = "soundEnded"
 }

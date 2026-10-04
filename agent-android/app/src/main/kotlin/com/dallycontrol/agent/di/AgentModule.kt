@@ -26,7 +26,6 @@ import com.dallycontrol.core.command.handlers.DeviceRebootHandler
 import com.dallycontrol.core.command.handlers.DeviceRingHandler
 import com.dallycontrol.core.command.handlers.DeviceLocationModeHandler
 import com.dallycontrol.core.command.handlers.DevicePowerModeHandler
-import com.dallycontrol.core.command.handlers.DeviceRingStopHandler
 import com.dallycontrol.core.command.handlers.DeviceWipeHandler
 import com.dallycontrol.core.config.ConfigApplier
 import com.dallycontrol.core.location.LocationModeStore
@@ -400,8 +399,26 @@ object AgentModule {
 
     @Provides
     @IntoSet
-    fun provideRingStopHandler(ring: RingController): CommandHandler =
-        DeviceRingStopHandler(ring)
+    fun provideRingStopHandler(@ApplicationContext context: Context, ring: RingController): CommandHandler =
+        com.dallycontrol.agent.diag.RingStopHandler(context, ring)
+
+    @Provides
+    @IntoSet
+    fun provideDiagnoseHandler(
+        @ApplicationContext context: Context,
+        sounds: com.dallycontrol.agent.diag.SoundWatch,
+        handle: DpmHandle,
+    ): CommandHandler = com.dallycontrol.agent.diag.DiagnoseHandler(context, sounds, handle)
+
+    @Provides
+    @IntoSet
+    fun provideNotificationActionHandler(@ApplicationContext context: Context): CommandHandler =
+        com.dallycontrol.agent.diag.NotificationActionHandler(context)
+
+    @Provides
+    @IntoSet
+    fun provideSilenceHandler(@ApplicationContext context: Context, ring: RingController): CommandHandler =
+        com.dallycontrol.agent.diag.SilenceHandler(context, ring)
 
     @Provides
     @IntoSet

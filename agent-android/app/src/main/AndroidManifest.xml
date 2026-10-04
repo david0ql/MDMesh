@@ -272,6 +272,17 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- Diagnosis: sees notifications (which app is ringing, and its buttons). See diag/NotificationWatch.kt. -->
+        <service
+            android:name=".diag.DcNotificationListener"
+            android:exported="false"
+            android:label="@string/notif_listener_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>

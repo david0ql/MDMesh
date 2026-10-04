@@ -31,6 +31,7 @@ import javax.inject.Singleton
  *    re-enforcing the app policy on every install;
  *  - the SIM card (removed / inserted / swapped → event + immediate check-in);
  *  - Google accounts: one of a domain the policy does not allow is removed as soon as it is added;
+ *  - loud sounds (alarms, ringtones) that keep playing: recorded with their likely source;
  *  - the location trail: a fresh fix every ConfigTracking interval, buffered and sent right away;
  *  - incoming calls in kiosk: lock task hides heads-up notifications, so a ringing call would be invisible and
  *    could not be answered; when the kiosk allows the dialer, its in-call screen is brought to the front instead
@@ -46,6 +47,7 @@ class DeviceWatch @Inject constructor(
     private val dpm: DpmHandle,
     private val vnc: com.dallycontrol.agent.remote.DroidVncController,
     private val deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+    private val sounds: com.dallycontrol.agent.diag.SoundWatch,
 ) {
     private var trailJob: Job? = null
     private var registered: Context? = null
@@ -153,6 +155,8 @@ class DeviceWatch @Inject constructor(
             registered = context
             // A Google account of another domain goes the moment it is added, not at the next check-in.
             deviceRules.watchAccounts()
+            // Alarms / ringtones that keep sounding: recorded with their likely source (see SoundWatch).
+            sounds.start()
             runCatching { com.dallycontrol.agent.announce.Announcements.showNextMandatory(context) }
             scope.launch(Dispatchers.IO) {
                 runCatching { appPolicy.reenforce() }
@@ -171,6 +175,7 @@ class DeviceWatch @Inject constructor(
             runCatching { c.unregisterReceiver(unlocked) }
         }
         deviceRules.unwatchAccounts()
+        sounds.stop()
         registered = null
         trailJob?.cancel()
     }

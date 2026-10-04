@@ -15,6 +15,12 @@ object DeviceAction {
     const val ALERT = "device.alert"
     const val RING = "device.ring"
     const val RING_STOP = "device.ringStop"
+    /** A diagnosis snapshot (sounds, notifications, alarms, volumes, kiosk…) as JSON in the result. */
+    const val DIAGNOSE = "device.diagnose"
+    /** Press a notification's button / open it / dismiss it: `{key, action}`. */
+    const val NOTIFICATION_ACTION = "device.notificationAction"
+    /** Silence every volume for `{minutes}`. */
+    const val SILENCE = "device.silence"
     const val PASSCODE_RESET = "device.passcodeReset"
     const val WIPE = "device.wipe"
 
@@ -61,5 +67,6 @@ object DeviceAction {
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
+        "diagnose", "notificationAction", "silence",
     )
 }

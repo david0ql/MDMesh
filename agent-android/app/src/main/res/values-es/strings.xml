@@ -68,4 +68,5 @@
     <string name="tether_tile">Compartir datos</string>
     <string name="split_title">Pantalla dividida</string>
     <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
+    <string name="notif_listener_label">Diagnóstico DallyControl</string>
 </resources>

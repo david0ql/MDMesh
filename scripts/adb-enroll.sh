@@ -139,6 +139,8 @@ fi
 # --- 2b. storage tools: per-app sizes (usage access) and deleting large files (all-files access, Android 11+) ---------
 # Only adb (or the person, in Settings) can turn these on; the console's Almacenamiento panel works without them but sees less.
 "${A[@]}" shell appops set "$PKG" GET_USAGE_STATS allow >/dev/null 2>&1 || echo "  warn: usage access not granted"
+# Notification access (diagnosis: which app is ringing, and its buttons). Android 11+ only takes it from here.
+"${A[@]}" shell cmd notification allow_listener "$PKG/com.dallycontrol.agent.diag.DcNotificationListener" >/dev/null 2>&1 || echo "  warn: notification access not granted"
 if [ "$SDK" -ge 30 ]; then
   "${A[@]}" shell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE allow >/dev/null 2>&1 || echo "  warn: all-files access not granted"
 fi

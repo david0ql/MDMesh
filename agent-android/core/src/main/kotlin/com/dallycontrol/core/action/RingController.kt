@@ -20,6 +20,9 @@ class RingController @Inject constructor(@ApplicationContext private val context
     private val main = Handler(Looper.getMainLooper())
     private val autoStop = Runnable { stop() }
 
+    /** The locate tone is playing (diagnosis tells it apart from other sounds). */
+    fun isRinging(): Boolean = ringtone != null
+
     @Synchronized
     fun start(durationMs: Long) {
         stop()
