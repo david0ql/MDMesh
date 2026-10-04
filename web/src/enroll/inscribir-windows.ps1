@@ -57,6 +57,33 @@ function Adb {
   return $out.Replace("`r", '').Trim()
 }
 
+# Network adb commands (pair, connect, mdns) can hang with no answer: run them with a time limit.
+function AdbT([int]$seconds) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $script:AdbExe
+  $psi.Arguments = (($args | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $p = [System.Diagnostics.Process]::Start($psi)
+  $out = $p.StandardOutput.ReadToEndAsync()
+  $err = $p.StandardError.ReadToEndAsync()
+  if (-not $p.WaitForExit($seconds * 1000)) {
+    try { $p.Kill() } catch { }
+    return 'TIMEOUT'
+  }
+  return ($out.Result + $err.Result).Replace("`r", '').Trim()
+}
+
+# The phone's "connect" address from `adb mdns services` (never the pairing one, which also shows while pairing).
+function Find-ConnectAddress([string]$mdns, [string]$ip) {
+  foreach ($l in $mdns.Split("`n")) {
+    if ($l -match '_adb-tls-connect' -and $l -match ('(' + [regex]::Escape($ip) + ':[0-9]+)')) { return $Matches[1] }
+  }
+  return $null
+}
+
 function Get-Devices {
   $lines = (& $script:AdbExe devices 2>&1 | Out-String).Replace("`r", '').Split("`n")
   $list = @()
@@ -133,29 +160,38 @@ if ($modo -eq '1') {
     $pin = (Pregunta 'Escribe el código de 6 números (Código de vinculación de Wi-Fi)').Trim()
     $addr = (Pregunta 'Escribe la "Dirección IP y puerto" de ese mismo cuadro (ej. 192.168.1.5:41797)').Trim()
     if ($addr -notmatch '^[0-9.]+:[0-9]+$' -or $pin -notmatch '^[0-9]{6}$') { Aviso 'La dirección o el código no tienen el formato esperado. Intenta de nuevo.'; continue }
-    $r = & $script:AdbExe pair $addr $pin 2>&1 | Out-String
+    Paso 'Vinculando...'
+    $r = AdbT 30 pair $addr $pin
     if ($r -match 'Successfully paired') { $paired = $true; Ok 'Vinculado.' }
+    elseif ($r -eq 'TIMEOUT') { Aviso 'El teléfono no respondió. Revisa que el computador y el teléfono estén en la misma red Wi-Fi y que el cuadro del código siga abierto.'; continue }
     else { Aviso ('No se pudo vincular: ' + $r.Trim() + '. El código cambia cada vez: vuelve a tocar "Vincular dispositivo con código de sincronización".') }
   }
   if (-not $paired) { Falla 'No se pudo vincular por Wi-Fi. Revisa que el teléfono y el computador estén en la misma red Wi-Fi.' }
   $ip = $addr.Split(':')[0]
   # Después de vincular, el teléfono se anuncia en la red: buscarlo; si no aparece, pedir la dirección de conexión.
+  Paso 'Buscando el teléfono en la red (hasta 20 segundos)...'
   $s = $null
-  for ($i = 0; $i -lt 6 -and -not $s; $i++) {
+  for ($i = 0; $i -lt 8 -and -not $s; $i++) {
     Start-Sleep -Seconds 2
     $s = (@(Get-Devices) | Where-Object { $_.State -eq 'device' -and $_.Serial -like ($ip + ':*') } | Select-Object -First 1).Serial
     if (-not $s) {
-      $m = (& $script:AdbExe mdns services 2>&1 | Out-String)
-      if ($m -match ('(' + [regex]::Escape($ip) + ':[0-9]+)')) { & $script:AdbExe connect $Matches[1] 2>&1 | Out-Null }
+      $c = Find-ConnectAddress (AdbT 8 mdns services) $ip
+      if ($c) { [void](AdbT 10 connect $c) }
     }
   }
+  # newer adb names a phone found on the network "adb-<serial>._adb-tls-connect._tcp": take it too
+  if (-not $s) { $s = (@(Get-Devices) | Where-Object { $_.State -eq 'device' -and $_.Serial -like '*_adb-tls-connect*' } | Select-Object -First 1).Serial }
   while (-not $s) {
     Write-Host ''
     Write-Host '  Cierra el cuadro del código. En la pantalla "Depuración inalámbrica", debajo de "Nombre del dispositivo",'
     Write-Host '  aparece otra "Dirección IP y puerto" (el puerto es distinto al del código).'
     $conn = (Pregunta 'Escribe esa dirección (ej. 192.168.1.5:37215)').Trim()
-    $r = & $script:AdbExe connect $conn 2>&1 | Out-String
-    if ($r -match 'connected to') { $s = Wait-Phone $conn } else { Aviso ('No se pudo conectar: ' + $r.Trim()) }
+    if ($conn -notmatch '^[0-9.]+:[0-9]+$') { Aviso 'La dirección no tiene el formato esperado (ej. 192.168.1.5:37215).'; continue }
+    Paso 'Conectando...'
+    $r = AdbT 15 connect $conn
+    if ($r -match 'connected to') { $s = Wait-Phone $conn }
+    elseif ($r -eq 'TIMEOUT') { Aviso 'El teléfono no respondió en esa dirección. Revisa que sea la de la pantalla "Depuración inalámbrica" (no la del cuadro del código).' }
+    else { Aviso ('No se pudo conectar: ' + $r) }
   }
   $script:Serial = $s
 }
