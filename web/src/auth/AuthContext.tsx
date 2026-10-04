@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -11,6 +12,7 @@ import {
   logout as apiLogout,
   type AuthUser,
 } from '../api/auth';
+import { apiClient } from '../api/client';
 
 // Auth is session based on the server, but the SPA still needs to remember
 // "am I logged in" across reloads. The session cookie is HttpOnly and not
@@ -50,6 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* storage may be unavailable; non-fatal */
     }
     return u;
+  }, []);
+
+  // The stored copy may be old (an administrator changed this user's role): refresh it once from the server.
+  useEffect(() => {
+    if (!user) return;
+    apiClient.get<AuthUser>('/private/users/current').then((fresh) => {
+      if (!fresh) return;
+      setUser((u) => (u ? { ...u, ...fresh } : u));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...user, ...fresh })); } catch { /* non-fatal */ }
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signOut = useCallback(async () => {

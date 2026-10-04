@@ -87,6 +87,8 @@ public class AgentAdminResource {
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private ConfigReconciler configReconciler;
     private String baseUrl;
+    /** Folder administrators: their folders' devices only. */
+    private com.hmdm.rest.resource.support.UserScope scope;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -101,7 +103,9 @@ public class AgentAdminResource {
                               AgentWakeHub wakeHub,
                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
                               ConfigReconciler configReconciler,
-                              @javax.inject.Named("base.url") String baseUrl) {
+                              @javax.inject.Named("base.url") String baseUrl,
+                              com.hmdm.rest.resource.support.UserScope scope) {
+        this.scope = scope;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
@@ -157,6 +161,10 @@ public class AgentAdminResource {
         if (groupId != null && commandDAO.findGroup(customerId.get(), groupId) == null) {
             return Response.ERROR("error.group.not.found");
         }
+        // A folder administrator enrolls only into their folders (and cannot pin a policy).
+        if (scope.restricted() && (groupId == null || !scope.canGroup(groupId) || configurationId != null)) {
+            return Response.PERMISSION_DENIED();
+        }
 
         long now = System.currentTimeMillis();
         AgentEnrollmentToken token = new AgentEnrollmentToken();
@@ -203,6 +211,9 @@ public class AgentAdminResource {
         }
         if (body == null || body.groupId == null || commandDAO.findGroup(customerId.get(), body.groupId) == null) {
             return Response.ERROR("error.group.not.found");
+        }
+        if (!scope.canGroup(body.groupId)) {
+            return Response.PERMISSION_DENIED();
         }
         long now = System.currentTimeMillis();
         if (body.expiresAt != null && body.expiresAt <= now) {
@@ -258,7 +269,13 @@ public class AgentAdminResource {
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
         }
-        return Response.OK(tokenDAO.listCodes(customerId.get()));
+        java.util.Set<Integer> mine = scope.groups();
+        if (mine == null) {
+            return Response.OK(tokenDAO.listCodes(customerId.get()));
+        }
+        return Response.OK(tokenDAO.listCodes(customerId.get()).stream()
+                .filter(c -> c.getGroupId() != null && mine.contains(c.getGroupId()))
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @ApiOperation(value = "Revoke a reusable enrollment code", notes = "Devices already enrolled stay; the code stops working. "
@@ -272,6 +289,10 @@ public class AgentAdminResource {
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (scope.restricted() && tokenDAO.listCodes(customerId.get()).stream()
+                .noneMatch(c -> c.getId() != null && c.getId() == id && scope.canGroup(c.getGroupId()))) {
             return Response.PERMISSION_DENIED();
         }
         if (purge) {
@@ -396,7 +417,7 @@ public class AgentAdminResource {
         for (Integer id : req.getDeviceIds()) {
             if (id == null) { continue; }
             Device device = unsecureDAO.getDeviceById(id);
-            if (device == null || device.getCustomerId() != customerId.get()) {
+            if (device == null || device.getCustomerId() != customerId.get() || !scope.canDeviceId(customerId.get(), id)) {
                 skipped.add(id);
                 continue;
             }
@@ -431,7 +452,9 @@ public class AgentAdminResource {
             return Response.PERMISSION_DENIED();
         }
         java.util.List<String> mine = new java.util.ArrayList<>();
+        java.util.Set<String> visible = scope.deviceNumbers();
         for (String number : wakeHub.liveNumbers()) {
+            if (visible != null && !visible.contains(number)) continue;
             Device device = unsecureDAO.getDeviceByNumber(number);
             if (device != null && device.getCustomerId() == customerId.get()) mine.add(number);
         }
@@ -689,7 +712,9 @@ public class AgentAdminResource {
             fixes = fixes.subList(0, FLEET_MAP_MAX_FIXES);
         }
         Map<String, Map<String, Object>> byDevice = new LinkedHashMap<>();
+        java.util.Set<String> visible = scope.deviceNumbers();
         for (com.hmdm.persistence.domain.DeviceLocation f : fixes) {
+            if (visible != null && !visible.contains(f.getDeviceNumber())) continue;
             Map<String, Object> entry = byDevice.computeIfAbsent(f.getDeviceNumber(), n -> {
                 Map<String, Object> e = new LinkedHashMap<>();
                 Device d = unsecureDAO.getDeviceByNumber(n);

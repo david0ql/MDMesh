@@ -65,6 +65,8 @@ public class FleetResource {
     private ConfigurationScopeApplier scopes;
     private String baseUrl = "";
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
+    /** Folder administrators: their folders only (and the folder tree's changes reach their access). */
+    private com.hmdm.rest.resource.support.UserScope scope;
 
     /** A constructor required by Swagger. */
     public FleetResource() {
@@ -74,7 +76,9 @@ public class FleetResource {
     public FleetResource(AgentCommandDAO commandDAO, UnsecureDAO unsecureDAO, AgentWakeHub wakeHub,
                          ConfigurationScopeApplier scopes,
                          @javax.inject.Named("base.url") String baseUrl,
-                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller) {
+                         com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
+                         com.hmdm.rest.resource.support.UserScope scope) {
+        this.scope = scope;
         this.configAppInstaller = configAppInstaller;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.commandDAO = commandDAO;
@@ -125,7 +129,9 @@ public class FleetResource {
             return Response.PERMISSION_DENIED();
         }
         List<Map<String, Object>> out = new ArrayList<>();
+        Set<String> visible = scope.deviceNumbers();
         for (Map<String, Object> d : commandDAO.listDeviceExportRows(customerId.get())) {
+            if (visible != null && !visible.contains(String.valueOf(d.get("number")))) continue;
             out.add(com.hmdm.util.DeviceSummary.of(d));
         }
         return Response.OK(out);
@@ -195,7 +201,20 @@ public class FleetResource {
         int c = customerId.get();
         long ungrouped = commandDAO.listDeviceScopes(c).stream().filter(r -> r.getGroupId() == null).count();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("groups", commandDAO.listGroups(c));
+        Set<Integer> mine = scope.groups();
+        if (mine == null) {
+            out.put("groups", commandDAO.listGroups(c));
+        } else {
+            // A folder administrator sees their folders; theirs whose parent they cannot see show at the top.
+            List<DeviceGroupView> visible = new ArrayList<>();
+            for (DeviceGroupView g : commandDAO.listGroups(c)) {
+                if (!mine.contains(g.getId())) continue;
+                if (g.getParentId() != null && !mine.contains(g.getParentId())) g.setParentId(null);
+                visible.add(g);
+            }
+            out.put("groups", visible);
+            ungrouped = 0;
+        }
         out.put("ungroupedDevices", ungrouped);
         out.put("global", globalView(c));
         return Response.OK(out);
@@ -219,6 +238,9 @@ public class FleetResource {
         if (body.parentId != null && commandDAO.findGroup(c, body.parentId) == null) {
             return Response.ERROR("error.group.parent.invalid");
         }
+        if (scope.restricted() && (body.parentId == null || !scope.canGroup(body.parentId))) {
+            return Response.PERMISSION_DENIED(); // a folder administrator creates folders only inside theirs
+        }
         if (commandDAO.groupNameTaken(c, name, body.parentId, null)) {
             return Response.ERROR("error.group.name.taken");
         }
@@ -226,6 +248,7 @@ public class FleetResource {
             return Response.ERROR("error.configuration.not.found");
         }
         int id = commandDAO.insertGroup(c, name, body.configurationId, body.parentId);
+        scope.refresh(c); // a folder created inside someone's folders is theirs too
         logger.info("Group {} '{}' created (customer {}, parent {}, configuration {})", id, name, c, body.parentId,
                 body.configurationId);
         return Response.OK(commandDAO.findGroup(c, id));
@@ -250,6 +273,15 @@ public class FleetResource {
         if (name == null) {
             return Response.ERROR("error.group.name.invalid");
         }
+        if (scope.restricted()) {
+            DeviceGroupView current = commandDAO.findGroup(c, id);
+            boolean parentVisible = current.getParentId() != null && scope.canGroup(current.getParentId());
+            // Their top folders stay where the administrator put them; other folders move only inside theirs.
+            boolean sameParent = java.util.Objects.equals(current.getParentId(), body.parentId);
+            if (!(parentVisible ? (body.parentId != null && scope.canGroup(body.parentId)) : sameParent)) {
+                return Response.PERMISSION_DENIED();
+            }
+        }
         // A folder cannot move under itself or one of its descendants (that would detach a loop from the tree).
         if (body.parentId != null && (commandDAO.findGroup(c, body.parentId) == null
                 || commandDAO.groupSubtree(c, id).contains(body.parentId))) {
@@ -262,6 +294,7 @@ public class FleetResource {
             return Response.ERROR("error.configuration.not.found");
         }
         commandDAO.updateGroup(c, id, name, body.configurationId, body.parentId);
+        scope.refresh(c);
         // The whole branch may inherit the change (or a new ancestor's configuration after a move).
         Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
         int changed = scopes.apply(c, r -> r.getGroupId() != null && branch.contains(r.getGroupId()));
@@ -318,6 +351,9 @@ public class FleetResource {
         if (group == null) {
             return Response.ERROR("error.group.not.found");
         }
+        if (scope.restricted() && (group.getParentId() == null || !scope.canGroup(group.getParentId()))) {
+            return Response.PERMISSION_DENIED(); // a folder administrator cannot delete a folder they were given
+        }
         // A folder with devices of its own is not deleted: they would silently lose their folder and policy.
         if (group.getDeviceCount() > 0) {
             return Response.ERROR("La carpeta tiene " + group.getDeviceCount() + " dispositivo"
@@ -336,6 +372,7 @@ public class FleetResource {
             return Response.ERROR("error.group.not.found");
         }
         int changed = scopes.apply(c, r -> members.contains(r.getId()));
+        scope.refresh(c);
         logger.info("Group {} deleted (customer {}); {} device(s) reconfigured", id, c, changed);
         return Response.OK();
     }
@@ -420,6 +457,10 @@ public class FleetResource {
         if (body.groupId != null && commandDAO.findGroup(c, body.groupId) == null) {
             return Response.ERROR("error.group.not.found");
         }
+        // A folder administrator moves only their devices, and only into their folders.
+        if (scope.restricted() && (body.groupId == null || !scope.canGroup(body.groupId) || !scope.canDeviceIds(c, body.deviceIds))) {
+            return Response.PERMISSION_DENIED();
+        }
         Set<Integer> moved = new HashSet<>();
         List<Integer> skipped = new ArrayList<>();
         for (Integer deviceId : body.deviceIds) {
@@ -455,6 +496,9 @@ public class FleetResource {
         }
         if (body.configurationId != null && !ownsConfiguration(c, body.configurationId)) {
             return Response.ERROR("error.configuration.not.found");
+        }
+        if (!scope.canDeviceIds(c, body.deviceIds)) {
+            return Response.PERMISSION_DENIED();
         }
         Set<Integer> touched = new HashSet<>();
         int changed = 0;

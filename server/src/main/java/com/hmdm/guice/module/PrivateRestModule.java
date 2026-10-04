@@ -36,6 +36,8 @@ public class PrivateRestModule extends ServletModule {
         this.filter("/rest/private/*").through(JWTFilter.class);
         this.filter("/rest/private/*").through(AuthFilter.class);
         this.filter("/rest/private/*").through(PrivateIPFilter.class);
+        // Folder administrators: only their folders' devices and an explicit list of routes (after authentication).
+        this.filter("/rest/private/*").through(com.hmdm.rest.filter.UserScopeFilter.class);
         this.bind(DeviceResource.class);
         this.bind(GroupResource.class);
         this.bind(ConfigurationResource.class);
@@ -49,6 +51,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(HintResource.class);
         this.bind(UserRoleResource.class);
         this.bind(AgentAdminResource.class);
+        this.bind(DcUserResource.class);
         this.bind(com.hmdm.rest.resource.FleetResource.class);
         this.bind(com.hmdm.rest.resource.AnnouncementResource.class);
         this.bind(com.hmdm.rest.resource.AgentPackageResource.class);

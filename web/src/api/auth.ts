@@ -27,6 +27,8 @@ export interface AuthUser {
   twoFactor?: boolean;
   superAdmin?: boolean;
   singleCustomer?: boolean;
+  /** false = a folder administrator: only the devices of their folders (see isFolderAdmin). */
+  allDevicesAvailable?: boolean;
   userRole?: {
     superAdmin?: boolean;
     permissions?: { name: string }[];
@@ -85,3 +87,7 @@ export async function submitForcedPasswordReset(
     newPassword: hashPassword(newPassword),
   });
 }
+
+/** A folder administrator: manages only the devices of the folders an administrator gave them. */
+export const isFolderAdmin = (u: AuthUser | null | undefined) =>
+  !!u && u.allDevicesAvailable === false && !u.superAdmin && !u.userRole?.superAdmin;

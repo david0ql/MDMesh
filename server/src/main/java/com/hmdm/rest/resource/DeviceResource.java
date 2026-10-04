@@ -212,6 +212,12 @@ public class DeviceResource {
                         SecurityException.onCustomerDataAccessViolation(device.getId(), "device"));
                 return Response.PERMISSION_DENIED();
             }
+            // Folder administrators: only devices of their folders, and no devices created by hand.
+            if (device.getId() == null ? com.hmdm.rest.resource.support.UserScope.INSTANCE != null
+                    && com.hmdm.rest.resource.support.UserScope.INSTANCE.restricted()
+                    : !com.hmdm.rest.resource.support.UserScope.allowsDevices(java.util.Collections.singletonList(device.getId()))) {
+                return Response.PERMISSION_DENIED();
+            }
 
             Device dbDevice;
             try {
@@ -307,6 +313,9 @@ public class DeviceResource {
             log.error("Unauthorized attempt to delete devices",
                     SecurityException.onCustomerDataAccessViolation(0, "device"));
             return Response.PERMISSION_DENIED();
+        }
+        if (device.getIds() != null && !com.hmdm.rest.resource.support.UserScope.allowsDevices(device.getIds())) {
+            return Response.PERMISSION_DENIED(); // a folder administrator deletes only devices of their folders
         }
 
         if (device.getIds() != null) {

@@ -3094,3 +3094,10 @@ a {
 /* Inscribir sin formatear */
 .noreset-easy { border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
 .noreset-tech summary { cursor: pointer; font-weight: 600; font-size: 13px; margin: 6px 0 10px; }
+
+/* Usuarios */
+.user-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding: 0 16px; }
+.user-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
+.user-folders { padding: 0 16px; }
+.user-folders ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 320px; overflow: auto; }
+.user-folders li { padding: 3px 0; font-size: 14px; }

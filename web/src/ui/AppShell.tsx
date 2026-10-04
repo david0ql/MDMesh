@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin } from '../api/auth';
 import { useTheme } from './theme';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { ReloadPrompt } from '../components/ReloadPrompt';
@@ -14,6 +15,7 @@ import {
   IconEnroll,
   IconAnnounce,
   IconSettings,
+  IconUsers,
   IconSignOut,
   IconMenu,
   IconSun,
@@ -24,6 +26,8 @@ interface NavEntry {
   to: string;
   label: string;
   Icon: (p: { className?: string }) => ReactNode;
+  /** Hidden for folder administrators (they manage only their folders' devices). */
+  adminOnly?: boolean;
 }
 
 const NAV: NavEntry[] = [
@@ -31,11 +35,12 @@ const NAV: NavEntry[] = [
   { to: '/groups', label: 'Carpetas', Icon: IconGroups },
   { to: '/devices', label: 'Dispositivos', Icon: IconDevices },
   { to: '/map', label: 'Mapa', Icon: IconMap },
-  { to: '/configs', label: 'Políticas', Icon: IconConfig },
-  { to: '/apps', label: 'Aplicaciones', Icon: IconApps },
-  { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce },
+  { to: '/configs', label: 'Políticas', Icon: IconConfig, adminOnly: true },
+  { to: '/apps', label: 'Aplicaciones', Icon: IconApps, adminOnly: true },
+  { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce, adminOnly: true },
   { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
-  { to: '/settings', label: 'Ajustes', Icon: IconSettings },
+  { to: '/users', label: 'Usuarios', Icon: IconUsers, adminOnly: true },
+  { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true },
 ];
 
 export function AppShell({
@@ -69,7 +74,7 @@ export function AppShell({
           </span>
         </div>
         <nav className="nav">
-          {NAV.map(({ to, label, Icon }) => (
+          {NAV.filter((n) => !n.adminOnly || !isFolderAdmin(user)).map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}

@@ -3202,4 +3202,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.04-user-folder-roots" author="dallycontrol">
+        <comment>Folders assigned to a folder administrator (the roots; their subfolders are expanded into userDeviceGroupsAccess)</comment>
+        <sql>
+            CREATE TABLE userFolderRoots (
+                userId INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                groupId INT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                PRIMARY KEY (userId, groupId)
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS userFolderRoots;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
