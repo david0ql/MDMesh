@@ -46,7 +46,6 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("PUT", "/rest/private/applications/android", 1));
         assertFalse(f.allowed("POST", "/rest/private/web-ui-files", 1));
         assertFalse(f.allowed("GET", "/rest/private/settings", 1));
-        assertFalse(f.allowed("GET", "/rest/private/fleet/v1/export.xlsx", 1));
         assertFalse(f.allowed("POST", "/rest/private/agent/v1/rollout", 1));
     }
 
@@ -56,6 +55,7 @@ public class UserScopeFilterTest {
         assertTrue(f.allowed("POST", "/rest/private/devices/search", 1));
         assertTrue(f.allowed("GET", "/rest/private/fleet/v1/groups", 1));
         assertTrue(f.allowed("GET", "/rest/private/agent/v1/live", 1));
+        assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.xlsx", 1));
         assertTrue(f.allowed("GET", "/rest/private/configurations/search", 1));
         assertFalse(f.allowed("PUT", "/rest/private/configurations/search", 1));
     }

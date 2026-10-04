@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin } from '../api/auth';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -27,6 +29,8 @@ type Dialog =
  */
 export function GroupsPage() {
   const toast = useToast();
+  // A folder administrator: no global settings, no top-level folders, and the folders they were given stay.
+  const folderAdmin = isFolderAdmin(useAuth().user);
   const [data, setData] = useState<GroupsOverview | null>(null);
   const [configs, setConfigs] = useState<ConfigurationSummary[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -166,12 +170,12 @@ export function GroupsPage() {
           {data ? `${plural(data.groups.length, 'carpeta')} · ${plural(total, 'dispositivo')}` : 'Cargando…'}
         </span>
         <div className="dv-spacer" />
-        <button className="btn btn-dark" onClick={() => openCreate(null)}>Nueva carpeta</button>
+        {!folderAdmin && <button className="btn btn-dark" onClick={() => openCreate(null)}>Nueva carpeta</button>}
       </div>
 
       {err && <div className="banner banner-alert">{err}</div>}
 
-      <section className="panel gr-global">
+      {!folderAdmin && <section className="panel gr-global">
         <div className="gr-global-head">
           <div>
             <h2 className="panel-title">Global</h2>
@@ -193,7 +197,7 @@ export function GroupsPage() {
             {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
           </select>
         </label>
-      </section>
+      </section>}
 
       <section className="panel gr-list">
         {data && data.groups.length === 0 && (
@@ -246,11 +250,11 @@ export function GroupsPage() {
                             onClick={() => { setBrand(g.brand ?? {}); setBrandFor(g); }}>
                       Marca{g.brand ? ' ●' : ''}
                     </button>
-                    <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
+                    {!(folderAdmin && g.parentId == null) && <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
                             title={g.deviceCount > 0 ? 'Tiene dispositivos: muévelos a otra carpeta antes de eliminarla' : undefined}
                             onClick={() => setDialog({ kind: 'delete', group: g })}>
                       Eliminar
-                    </button>
+                    </button>}
                     </div>
                   </td>
                 </tr>

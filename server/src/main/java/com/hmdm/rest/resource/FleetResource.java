@@ -167,6 +167,14 @@ public class FleetResource {
         in.groups = commandDAO.listGroups(c);
         in.devices = commandDAO.listDeviceExportRows(c);
         in.connections = commandDAO.listConnections(c, in.from, in.to);
+        // A folder administrator exports only their folders' devices.
+        Set<String> visible = scope.deviceNumbers();
+        Set<Integer> mine = scope.groups();
+        if (visible != null) {
+            in.devices.removeIf(r -> !visible.contains(String.valueOf(r.get("number"))));
+            in.connections.removeIf(r -> !visible.contains(String.valueOf(r.get("devicenumber") != null ? r.get("devicenumber") : r.get("deviceNumber"))));
+            in.groups.removeIf(g -> !mine.contains(g.getId()));
+        }
         String fileName = "dispositivos";
         if (groupId != null) {
             DeviceGroupView g = commandDAO.findGroup(c, groupId);
