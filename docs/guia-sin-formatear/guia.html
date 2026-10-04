@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Inscribir un teléfono sin formatear</title>
+<style>
+  @page { size: A4; margin: 14mm 14mm 16mm; }
+  :root { --ink:#16202a; --muted:#5b6876; --line:#d9e0e7; --accent:#0f5fa8; --soft:#eef4fb; --warn:#fff4e0; --warnline:#e8b25b; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); font-size: 10.5pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 21pt; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); font-size: 11pt; margin: 0 0 14px; }
+  h2 { font-size: 13.5pt; margin: 18px 0 6px; display: flex; align-items: center; gap: 9px; break-after: avoid; }
+  h2 .n { background: var(--accent); color: #fff; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 11pt; flex: none; }
+  h3 { font-size: 11pt; margin: 10px 0 4px; }
+  p { margin: 4px 0 6px; }
+  .box { background: var(--soft); border-radius: 8px; padding: 10px 13px; margin: 8px 0; }
+  .warn { background: var(--warn); border-left: 4px solid var(--warnline); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+  ol, ul { margin: 4px 0 6px; padding-left: 20px; } li { margin: 2px 0; }
+  .row { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0; break-inside: avoid; }
+  .shot { flex: none; width: 46mm; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .shot img { width: 100%; display: block; }
+  .shot.crop { height: 64mm; } .shot.crop img { object-fit: cover; object-position: top; height: 100%; }
+  .cap { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 3px; }
+  .figs { display: flex; gap: 8px; flex-wrap: nowrap; break-inside: avoid; flex: none; }
+  .figs .shot { width: 40mm; }
+  .shot.short { height: 40mm; } .shot.short img { object-fit: cover; height: 100%; }
+  .figs figure { margin: 0; }
+  .term { background: #0c1117; color: #d7e3ee; font-family: Consolas, "SF Mono", Menlo, monospace; font-size: 8.4pt; line-height: 1.35; border-radius: 8px; padding: 10px 12px; white-space: pre; break-inside: avoid; }
+  .term .c { color: #6cc3ff; } .term .g { color: #6fdc8c; } .term .y { color: #f2c94c; }
+  table { border-collapse: collapse; width: 100%; font-size: 9.6pt; break-inside: auto; }
+  td, th { border-bottom: 1px solid var(--line); padding: 5px 6px; vertical-align: top; text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 8.8pt; }
+  tr { break-inside: avoid; }
+  .page { break-before: page; }
+  b.k { background: #eef1f4; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-weight: 600; }
+  .foot { color: var(--muted); font-size: 8.5pt; margin-top: 14px; }
+</style></head><body>
+
+<h1>Inscribir un teléfono sin formatearlo</h1>
+<p class="sub">Guía para dejar un teléfono Android administrado por DallyControl, conservando sus fotos, archivos y WhatsApp.</p>
+
+<div class="box">
+  <b>Qué necesitas</b>
+  <ul>
+    <li>El teléfono Android, con batería, y su clave de desbloqueo.</li>
+    <li>Un computador con <b>Windows 10 u 11</b> conectado a Internet. No hay que instalar nada.</li>
+    <li>El archivo <b>Inscribir-DallyControl-…cmd</b> que te envió el administrador (sirve para varios teléfonos).</li>
+    <li>Para conectar: un <b>cable USB de datos</b>, o bien <b>Wi‑Fi</b> si el teléfono tiene Android 11 o superior (el teléfono y el computador en la misma red Wi‑Fi).</li>
+    <li>Unos 10 minutos por teléfono.</li>
+  </ul>
+</div>
+<p><b>En resumen:</b> (1) quitar las cuentas del teléfono, (2) activar las opciones de desarrollador, (3) activar la depuración (cable o Wi‑Fi), (4) abrir el programa en el computador y seguir lo que dice, (5) volver a agregar las cuentas.</p>
+<div class="warn">Los nombres de los menús cambian un poco según la marca (Motorola, Samsung, Xiaomi…). Si no encuentras una opción, usa la <b>lupa de búsqueda</b> de Ajustes y escribe su nombre (por ejemplo «compilación» o «depuración»).</div>
+
+<h2><span class="n">1</span>Quitar las cuentas del teléfono</h2>
+<div class="row">
+  <div><div class="shot crop"><img src="08-cuentas.png"></div><div class="cap">Ajustes → Cuentas</div></div>
+  <div>
+    <p>Android solo deja que DallyControl administre un teléfono que <b>no tenga cuentas</b> mientras se inscribe.</p>
+    <ol>
+      <li>Abre <b>Ajustes → Cuentas</b> (en algunos teléfonos: «Contraseñas y cuentas» o «Usuarios y cuentas»).</li>
+      <li>Toca cada cuenta (Google, Samsung, Xiaomi, WhatsApp Business…) → <b>Quitar cuenta</b>.</li>
+    </ol>
+    <p><b>No se borra nada del teléfono</b>: fotos, contactos guardados en el teléfono y chats de WhatsApp se quedan. Ten a la mano el correo y la contraseña para volver a agregar la cuenta al final.</p>
+    <p>Si te equivocas y queda alguna, el programa te dice cuál falta y espera a que la quites.</p>
+  </div>
+</div>
+
+<h2 class="page"><span class="n">2</span>Activar las opciones de desarrollador</h2>
+<div class="row">
+  <div class="figs">
+    <figure><div class="shot short"><img src="02-toques.png" style="object-position: 0 100%"></div><div class="cap">Tocar «Número de compilación»</div></figure>
+    <figure><div class="shot short"><img src="03-desarrollador.png" style="object-position: 0 100%"></div><div class="cap">Listo a los 7 toques</div></figure>
+  </div>
+  <div>
+    <ol>
+      <li>Abre <b>Ajustes → Acerca del teléfono</b> (o «Información del teléfono»). En algunos va dentro de «Información de software».</li>
+      <li>Busca <b>Número de compilación</b> y tócalo <b>7 veces</b> seguidas. Va diciendo «Estás a 3 pasos…».</li>
+      <li>Si pide la clave del teléfono, escríbela.</li>
+      <li>Aparece: <b>«¡Ahora están activadas las opciones para desarrolladores!»</b></li>
+    </ol>
+    <p>Las opciones quedan en <b>Ajustes → Sistema → Opciones para desarrolladores</b> (Samsung: al final de Ajustes).</p>
+  </div>
+</div>
+
+<h2><span class="n">3</span>Activar la depuración: elige cable <u>o</u> Wi‑Fi</h2>
+<h3>A. Con cable USB</h3>
+<div class="row">
+  <div><div class="shot crop"><img src="04-depuracion.png" style="object-position: 0 40%"></div><div class="cap">Opciones para desarrolladores</div></div>
+  <div>
+    <ol>
+      <li>En <b>Opciones para desarrolladores</b>, activa <b>Depuración por USB</b> (o «Depuración USB») y acepta.</li>
+      <li>Conecta el teléfono al computador con el cable. Si el teléfono pregunta qué hacer con la conexión USB, elige «Transferir archivos».</li>
+      <li>Cuando el programa lo pida, aparecerá en el teléfono <b>«¿Permitir depuración USB?»</b>: marca «Permitir siempre desde este computador» y toca <b>Permitir</b>.</li>
+    </ol>
+    <p>Si el computador no reconoce el teléfono por cable (pasa en algunos computadores por falta del controlador de la marca), usa <b>Wi‑Fi</b>.</p>
+  </div>
+</div>
+<h3 class="page">B. Sin cable, por Wi‑Fi (Android 11 o superior)</h3>
+<div class="row">
+  <div class="figs">
+    <figure><div class="shot short"><img src="05b-permitir.png" style="object-position: 0 47%"></div><div class="cap">Permitir en esta red</div></figure>
+    <figure><div class="shot short"><img src="07-codigo.png" style="object-position: 0 51%"></div><div class="cap">Código y dirección</div></figure>
+  </div>
+  <div>
+    <ol>
+      <li>El teléfono y el computador conectados a la <b>misma red Wi‑Fi</b>.</li>
+      <li>En <b>Opciones para desarrolladores</b>, toca el <b>nombre</b> «Depuración inalámbrica» (no solo el interruptor) y actívala → <b>Permitir</b>.</li>
+      <li>Toca <b>«Vincular dispositivo con código de sincronización»</b> (o «…con código de vinculación»).</li>
+      <li>Aparece un <b>código de 6 números</b> y una <b>Dirección IP y puerto</b>. Déjalo abierto: el programa te pedirá los dos.</li>
+      <li>Luego el programa puede pedir la otra <b>Dirección IP y puerto</b>: la que se ve en la pantalla «Depuración inalámbrica» debajo de «Nombre del dispositivo».</li>
+    </ol>
+  </div>
+</div>
+
+<h2><span class="n">4</span>Abrir el programa en el computador</h2>
+<ol>
+  <li>Haz <b>doble clic</b> en el archivo <b>Inscribir-DallyControl-…cmd</b>.</li>
+  <li>Si Windows muestra <b>«Windows protegió su PC»</b>: toca <b>Más información</b> → <b>Ejecutar de todas formas</b>. (Es normal con archivos descargados.)</li>
+  <li>Se abre una ventana negra que va diciendo qué hacer. La primera vez descarga sola las herramientas de Android (unos 7 MB).</li>
+  <li>Cuando pregunte cómo conectar, escribe <b class="k">1</b> (cable) o <b class="k">2</b> (Wi‑Fi) y presiona <b class="k">Enter</b>. Sigue las indicaciones.</li>
+</ol>
+<p>Así se ve cuando todo sale bien:</p>
+<div class="term"><span class="c">  DallyControl - Inscribir un teléfono sin formatear</span>
+  Carpeta:  Preventa Bogotá
+
+<span class="c">=== Paso 1 de 5: preparar este computador ===</span>
+<span class="g">  OK  Herramientas de Android listas.</span>
+<span class="c">=== Paso 2 de 5: conectar el teléfono ===</span>
+  Escribe 1 o 2 y presiona Enter: 1
+<span class="g">  OK  Conectado: motorola moto e40 (Android 11)</span>
+<span class="c">=== Paso 3 de 5: revisar las cuentas del teléfono ===</span>
+<span class="g">  OK  El teléfono no tiene cuentas: se puede inscribir.</span>
+<span class="c">=== Paso 4 de 5: instalar DallyControl ===</span>
+<span class="g">  OK  DallyControl instalado.
+  OK  Soporte remoto instalado.
+  OK  DallyControl administra el teléfono.</span>
+<span class="c">=== Paso 5 de 5: conectar con la consola ===</span>
+<span class="g">  OK  Inscrito. En unos segundos aparece en la consola.</span>
+<span class="c">=== Listo ===</span>
+  ¿La apago ahora en el teléfono? Escribe S y Enter (o solo Enter para dejarla): S
+<span class="g">  OK  Depuración apagada.</span></div>
+
+<h2 class="page"><span class="n">5</span>Al terminar</h2>
+<ul>
+  <li>Vuelve a agregar las cuentas: <b>Ajustes → Cuentas → Agregar cuenta</b>.</li>
+  <li>Si al final escribiste <b class="k">S</b>, la depuración ya quedó apagada. Si no, apágala en Opciones para desarrolladores.</li>
+  <li>El teléfono aparece en la consola de DallyControl en la carpeta que eligió el administrador, con su política.</li>
+  <li>Para el siguiente teléfono, usa el mismo archivo.</li>
+</ul>
+
+<h2>Si algo sale mal</h2>
+<table>
+  <tr><th style="width:38%">Lo que dice el programa</th><th>Qué hacer</th></tr>
+  <tr><td>«El teléfono tiene estas cuentas…»</td><td>Quita las cuentas que muestra (también las de Samsung, Xiaomi o WhatsApp Business) y presiona Enter en el programa.</td></tr>
+  <tr><td>«Todavía no veo el teléfono» (cable)</td><td>Usa un cable de datos (algunos solo cargan), prueba otro puerto USB, revisa que «Depuración por USB» esté activa y acepta «¿Permitir depuración USB?» en el teléfono. Si sigue igual, cierra y vuelve a abrir el programa y elige <b>2 (Wi‑Fi)</b>.</td></tr>
+  <tr><td>«No se pudo vincular»</td><td>El código cambia cada vez: vuelve a tocar «Vincular dispositivo con código…» y escribe el código nuevo. Revisa que el teléfono y el computador estén en la misma red Wi‑Fi (no la de invitados).</td></tr>
+  <tr><td>«Android dice que el teléfono todavía tiene cuentas»</td><td>Queda alguna cuenta oculta: revisa de nuevo Ajustes → Cuentas y quítalas todas.</td></tr>
+  <tr><td>«otro usuario o un perfil de trabajo»</td><td>Quita el usuario adicional o el perfil de trabajo (Ajustes → Sistema → Varios usuarios, o Cuentas → Trabajo).</td></tr>
+  <tr><td>«Otro programa ya administra este teléfono»</td><td>El teléfono ya tiene otro sistema de administración (otro MDM). Contacta a soporte.</td></tr>
+  <tr><td>«No se pudieron descargar…»</td><td>El computador no tiene Internet o una red que bloquea descargas. Prueba otra red.</td></tr>
+  <tr><td>Windows no deja abrir el archivo</td><td>«Más información» → «Ejecutar de todas formas». Si el antivirus lo bloquea, pide al administrador que lo permita.</td></tr>
+</table>
+<div class="box"><b>Para soporte:</b> cada inscripción guarda un registro en <b>%LOCALAPPDATA%\DallyControl</b> (el programa muestra la ruta al final). Envíalo junto con la marca y modelo del teléfono.</div>
+<p class="foot">DallyControl · Inscripción sin formatear · El programa no instala nada en el computador: las herramientas de Android que descarga quedan en la carpeta %LOCALAPPDATA%\DallyControl y se pueden borrar cuando quieras.</p>
+</body></html>

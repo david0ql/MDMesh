@@ -12,8 +12,7 @@ $VncPkg = 'net.christianbeier.droidvnc_ng'
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch { }
-$Work = Join-Path $env:LOCALAPPDATA 'DallyControl'
-if (-not $env:LOCALAPPDATA) { $Work = Join-Path ([IO.Path]::GetTempPath()) 'DallyControl' }
+if ($env:LOCALAPPDATA) { $Work = Join-Path $env:LOCALAPPDATA 'DallyControl' } else { $Work = Join-Path ([IO.Path]::GetTempPath()) 'DallyControl' }
 New-Item -ItemType Directory -Force -Path $Work | Out-Null
 $Log = Join-Path $Work ('inscripcion-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
 try { Start-Transcript -Path $Log -Append | Out-Null } catch { }
