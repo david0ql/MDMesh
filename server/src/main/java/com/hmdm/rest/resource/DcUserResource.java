@@ -98,7 +98,7 @@ public class DcUserResource {
         Optional<User> me = admin();
         if (!me.isPresent()) return Response.PERMISSION_DENIED();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (User u : userDAO.findAllCustomerUsers(me.get().getCustomerId())) out.add(view(u, me.get().getId()));
+        for (User u : userDAO.findAllUsers()) out.add(view(u, me.get().getId()));
         return Response.OK(out);
     }
 
@@ -144,7 +144,7 @@ public class DcUserResource {
             u = new User();
             u.setCustomerId(c);
         } else {
-            u = userDAO.findAllCustomerUsers(c).stream().filter(x -> x.getId().equals(body.id)).findFirst().orElse(null);
+            u = userDAO.findAllUsers().stream().filter(x -> x.getId().equals(body.id)).findFirst().orElse(null);
             if (u == null) return Response.ERROR("El usuario no existe.");
             if (u.getId().equals(me.get().getId()) && folders) return Response.ERROR("No puedes quitarte a ti mismo el rol de administrador.");
             if (!folders || !UserScope.isRestricted(u)) { /* fine */ }
@@ -184,7 +184,7 @@ public class DcUserResource {
         if (!me.isPresent()) return Response.PERMISSION_DENIED();
         if (id == me.get().getId()) return Response.ERROR("No puedes eliminar tu propio usuario.");
         int c = me.get().getCustomerId();
-        User u = userDAO.findAllCustomerUsers(c).stream().filter(x -> x.getId() == id).findFirst().orElse(null);
+        User u = userDAO.findAllUsers().stream().filter(x -> x.getId() == id).findFirst().orElse(null);
         if (u == null) return Response.ERROR("El usuario no existe.");
         if (!UserScope.isRestricted(u) && admins(c) <= 1) return Response.ERROR("Debe quedar al menos un administrador.");
         userDAO.deleteUser(id);
@@ -194,7 +194,7 @@ public class DcUserResource {
 
     private int admins(int customerId) {
         int n = 0;
-        for (User u : userDAO.findAllCustomerUsers(customerId)) if (!UserScope.isRestricted(u)) n++;
+        for (User u : userDAO.findAllUsers()) if (!UserScope.isRestricted(u)) n++;
         return n;
     }
 
