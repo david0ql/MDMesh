@@ -71,7 +71,7 @@ export function DiagnosticsPanel({ device }: { device: Device }) {
   const s = snap?.sound;
   return (
     <section className="panel" data-testid="diagnostics">
-      <div className="panel-head">
+      <div className="panel-head keep">
         <h2 className="panel-title">Diagnóstico</h2>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-sm" disabled={!!busy} onClick={() => void act('Silenciado', 'device.silence', { minutes: 10 })}>
@@ -98,7 +98,12 @@ export function DiagnosticsPanel({ device }: { device: Device }) {
               <tr><th>Modo de sonido</th><td>{s?.ringerMode} · {Object.entries(s?.volumes ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}</td></tr>
               <tr><th>Próxima alarma</th><td>{snap.nextAlarm ? `${time(snap.nextAlarm.at)} (puesta por ${snap.nextAlarm.setBy ?? '?'})` : 'ninguna'}</td></tr>
               <tr><th>Quiosco</th><td>{snap.kiosk?.locked} · {snap.kiosk?.allowedApps?.length ?? 0} apps permitidas</td></tr>
-              <tr><th>Notificaciones</th><td>{snap.notificationAccess ? 'con acceso' : 'sin acceso (el agente no las ve: el teléfono no se inscribió por cable)'}</td></tr>
+              <tr><th>Notificaciones</th><td>{snap.notificationAccess ? 'con acceso' : (
+                <>
+                  sin acceso: el agente no ve qué app suena.{' '}
+                  <button className="btn btn-sm" disabled={!!busy} onClick={() => void act('Se abrió el ajuste en el teléfono: quien lo tenga debe tocar «Permitir» para Diagnóstico DallyControl', 'device.storageAccess', { kind: 'notifications' })}>Pedir acceso a notificaciones</button>
+                </>
+              )}</td></tr>
             </tbody>
           </table>
 
