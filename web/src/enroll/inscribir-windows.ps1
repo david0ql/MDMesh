@@ -29,7 +29,12 @@ function Falla($t) {
   try { Stop-Transcript | Out-Null } catch { }
   exit 1
 }
-function Pregunta($t) { Write-Host ''; return (Read-Host ('  ' + $t)) }
+function Pregunta($t) {
+  Write-Host ''
+  $a = Read-Host ('  ' + $t)
+  if ($null -eq $a) { Falla 'Se cerró la entrada del teclado.' }  # never loop on a closed console
+  return $a
+}
 function Espera($t) { Write-Host ''; [void](Read-Host ('  ' + $t + ' y luego presiona Enter')) }
 
 # --- adb -------------------------------------------------------------------------------------------------------------
