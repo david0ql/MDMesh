@@ -331,6 +331,10 @@ export interface AppInstallSpec {
   versionCode?: number;
   sha256?: string;
   runAfterInstall?: boolean;
+  /** The version's name (builds that share a code are told apart by it). */
+  versionName?: string;
+  /** Going back to an older version: a phone with a newer one uninstalls it first (its data in the app is lost). */
+  allowDowngrade?: boolean;
   /** Split-APK bundle: when present the agent installs all parts in one session
    *  and `url`/`sha256` are ignored. */
   parts?: { url: string; sha256?: string }[];
@@ -343,6 +347,8 @@ export function buildInstallCommand(spec: AppInstallSpec): QueueCommandRequest {
     ? {
         packageName: spec.packageName,
         versionCode: spec.versionCode,
+        versionName: spec.versionName,
+        allowDowngrade: spec.allowDowngrade || undefined,
         runAfterInstall: spec.runAfterInstall ?? false,
         parts: spec.parts,
       }
@@ -350,6 +356,8 @@ export function buildInstallCommand(spec: AppInstallSpec): QueueCommandRequest {
         url: spec.url,
         packageName: spec.packageName,
         versionCode: spec.versionCode,
+        versionName: spec.versionName,
+        allowDowngrade: spec.allowDowngrade || undefined,
         sha256: spec.sha256,
         runAfterInstall: spec.runAfterInstall ?? false,
       };

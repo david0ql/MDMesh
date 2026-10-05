@@ -63,6 +63,7 @@ public class DcVersionResource {
             m.put("version", v.get("version"));
             m.put("versionCode", v.get("versioncode"));
             m.put("url", v.get("url"));
+            m.put("parts", v.get("parts"));
             m.put("label", v.get("label"));
             List<Map<String, Object>> used = new ArrayList<>();
             for (Map<String, Object> p : policies) {
@@ -103,6 +104,35 @@ public class DcVersionResource {
         String label = body == null || body.label == null ? "" : body.label.trim();
         if (label.length() > 80) return Response.ERROR("El nombre puede tener hasta 80 caracteres.");
         if (label.isEmpty()) mapper.clearLabel(versionId); else mapper.setLabel(versionId, label);
+        return Response.OK();
+    }
+
+    public static class DowngradeBody {
+        public boolean allow;
+    }
+
+    @ApiOperation(value = "Apps this policy may take back to an older version (the phone reinstalls them)")
+    @GET
+    @Path("/policy/{configurationId}/downgrades")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response downgrades(@PathParam("configurationId") int configurationId) {
+        Optional<Integer> c = customer();
+        if (!c.isPresent()) return Response.PERMISSION_DENIED();
+        return Response.OK(mapper.downgrades(c.get(), configurationId));
+    }
+
+    @ApiOperation(value = "Allow or forbid a policy to take an app back to an older version")
+    @PUT
+    @Path("/policy/{configurationId}/downgrade/{applicationId}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setDowngrade(@PathParam("configurationId") int configurationId, @PathParam("applicationId") int applicationId,
+                                 DowngradeBody body) {
+        Optional<Integer> c = customer();
+        if (!c.isPresent() || !SecurityContext.get().hasPermission("configurations")) return Response.PERMISSION_DENIED();
+        if (mapper.ownsConfiguration(c.get(), configurationId) == 0) return Response.ERROR("La política no existe.");
+        if (body != null && body.allow) mapper.allowDowngrade(configurationId, applicationId);
+        else mapper.forbidDowngrade(configurationId, applicationId);
         return Response.OK();
     }
 }

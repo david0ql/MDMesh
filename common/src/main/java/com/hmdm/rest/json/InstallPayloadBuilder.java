@@ -23,6 +23,12 @@ public final class InstallPayloadBuilder {
      * then installed again by the agent instead of being taken as "already at that version".
      */
     public static String build(String packageName, int versionCode, String versionName, String url, String partsJson) {
+        return build(packageName, versionCode, versionName, url, partsJson, false);
+    }
+
+    /** [allowDowngrade]: the policy may take the app back to this older version (the phone reinstalls it). */
+    public static String build(String packageName, int versionCode, String versionName, String url, String partsJson,
+                               boolean allowDowngrade) {
         try {
             ObjectNode p = MAPPER.createObjectNode();
             if (partsJson != null && !partsJson.trim().isEmpty()) {
@@ -39,6 +45,9 @@ public final class InstallPayloadBuilder {
                     p.put("versionCode", versionCode);
                 }
                 putName(p, versionName);
+            }
+            if (allowDowngrade) {
+                p.put("allowDowngrade", true);
             }
             return p.toString();
         } catch (Exception e) {

@@ -7,6 +7,7 @@ import {
   type AppConfigLink,
 } from '../api/applications';
 import { installApp, buildInstallCommand, queueCommand } from '../api/commands';
+import { listAppVersions, topCode, type LabeledVersion } from '../api/versions';
 import { groupTree, listGroups, queueForTarget, type FleetGroup } from '../api/fleet';
 import { statusMeta } from '../ui/status';
 import { fmtRelative, orDash } from '../ui/format';
@@ -37,6 +38,30 @@ export function DeployModal({
 }) {
   const toast = useToast();
   const canAssign = subject.applicationId != null;
+  // Which library version to install (an app can have several builds; asked before deploying).
+  const [versions, setVersions] = useState<LabeledVersion[]>([]);
+  const [versionId, setVersionId] = useState<number | null>(null);
+  const [reinstall, setReinstall] = useState(true);
+  useEffect(() => {
+    if (subject.applicationId == null) return;
+    listAppVersions(subject.applicationId).then((list) => {
+      setVersions(list);
+      const cur = list.find((v) => (v.versionCode ?? 0) === (subject.versionCode ?? -1) && v.url === subject.url) ?? list[0];
+      if (cur) setVersionId(cur.id);
+    }).catch(() => undefined);
+  }, [subject.applicationId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const chosen = versions.find((v) => v.id === versionId);
+  /** An older version than another one in the Library: phones with the newer one would have to reinstall. */
+  const older = !!chosen && (chosen.versionCode ?? 0) < topCode(versions);
+  const spec = chosen ? {
+    url: chosen.url ?? subject.url,
+    packageName: subject.packageName,
+    versionCode: chosen.versionCode ?? subject.versionCode,
+    versionName: chosen.version ?? undefined,
+    sha256: chosen.url === subject.url ? subject.sha256 : undefined,
+    parts: (() => { try { return chosen.parts ? JSON.parse(chosen.parts) : undefined; } catch { return undefined; } })() ?? (chosen.url === subject.url ? subject.parts : undefined),
+    allowDowngrade: older && reinstall,
+  } : { url: subject.url, packageName: subject.packageName, versionCode: subject.versionCode, sha256: subject.sha256, parts: subject.parts };
   const [tab, setTab] = useState<Tab>('device');
   const [devices, setDevices] = useState<DeviceView[]>([]);
   // Folders: install now on every device of the chosen folders and their sub-folders.
@@ -90,14 +115,7 @@ export function DeployModal({
     for (const num of picked) {
       try {
         if (!installable) { await queueCommand(num, openStoreCmd); ok++; continue; }
-        await installApp(num, {
-          url: subject.url,
-          packageName: subject.packageName,
-          versionCode: subject.versionCode,
-          sha256: subject.sha256,
-          runAfterInstall: runAfter,
-          parts: subject.parts,
-        });
+        await installApp(num, { ...spec, runAfterInstall: runAfter });
         ok++;
       } catch {
         fail++;
@@ -116,10 +134,7 @@ export function DeployModal({
     if (folders.size === 0) return;
     // A folder already covers its sub-folders: send only the top-most chosen ones, so no device gets it twice.
     const top = [...folders].filter((id) => !tree.some((n) => n.group.id !== id && folders.has(n.group.id) && n.subtree.has(id)));
-    const cmd = installable ? buildInstallCommand({
-      url: subject.url, packageName: subject.packageName, versionCode: subject.versionCode,
-      sha256: subject.sha256, runAfterInstall: runAfter, parts: subject.parts,
-    }) : openStoreCmd;
+    const cmd = installable ? buildInstallCommand({ ...spec, runAfterInstall: runAfter }) : openStoreCmd;
     setBusy(true);
     let queued = 0;
     try {
@@ -208,6 +223,31 @@ export function DeployModal({
             Play Store para que la persona toque <b>Instalar</b>. Agrégala también a una política para permitirla en el
             quiosco y en la política de apps.
           </div>
+        )}
+        {versions.length > 1 && tab !== 'config' && (
+          <div className="deploy-version" data-testid="deploy-version">
+            <label className="field">
+              <span>Versión a instalar</span>
+              <select className="sel" value={versionId ?? ''} onChange={(e) => setVersionId(Number(e.target.value))}>
+                {versions.map((v) => (
+                  <option key={v.id} value={v.id}>{v.version ?? '—'} (código {v.versionCode ?? '?'}){v.label ? ` · ${v.label}` : ''}</option>
+                ))}
+              </select>
+            </label>
+            {older && (
+              <label className="deploy-reinstall">
+                <input type="checkbox" checked={reinstall} onChange={(e) => setReinstall(e.target.checked)} />
+                <span>
+                  Es más vieja que otra de la Biblioteca (código {chosen?.versionCode} &lt; {topCode(versions)}). En los teléfonos que tengan una más
+                  nueva, <b>desinstalar e instalar esta</b>: se borran los datos de la app en ese teléfono (sesión, lo que no se haya
+                  sincronizado). Sin marcar, esos teléfonos se quedan con la que tienen.
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+        {tab === 'config' && versions.length > 1 && (
+          <p className="muted small">La política usa la versión que elijas en su lista de apps (selector de versión de cada app).</p>
         )}
         {tab === 'folder' ? (
           <>

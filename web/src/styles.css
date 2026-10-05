@@ -3103,3 +3103,7 @@ a {
 .user-folders li { padding: 3px 0; font-size: 14px; }
 
 .diag-trace { white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; max-height: 220px; overflow: auto; background: var(--surface-2, rgba(127,127,127,.08)); padding: 6px 8px; border-radius: 6px; }
+
+/* Desplegar: versión a instalar */
+.deploy-version { margin: 4px 0 12px; }
+.deploy-reinstall { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg, rgba(232,178,91,.15)); }

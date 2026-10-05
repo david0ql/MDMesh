@@ -1,5 +1,5 @@
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
-import { listAppVersions, listVersionLabels, type LabeledVersion } from '../api/versions';
+import { listAppVersions, listPolicyDowngrades, listVersionLabels, setPolicyDowngrade, topCode, type LabeledVersion } from '../api/versions';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
 import { KioskBrandEditor } from '../components/KioskBrandEditor';
 import { listAppGroups, type AppGroup } from '../api/appGroups';
@@ -407,6 +407,13 @@ function ConfigEditor({
   const [versions, setVersions] = useState<Record<number, LabeledVersion[]>>({});
   const [labels, setLabels] = useState<Record<string, string>>({});
   const [uploadLabel, setUploadLabel] = useState('');
+  /** Apps this policy may take back to an older version (phones with a newer one reinstall it), as saved and as edited. */
+  const [downgradeSaved, setDowngradeSaved] = useState<Set<number>>(new Set());
+  const [downgrade, setDowngrade] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (initial.id == null) return;
+    listPolicyDowngrades(initial.id as number).then((ids) => { setDowngradeSaved(new Set(ids)); setDowngrade(new Set(ids)); }).catch(() => undefined);
+  }, [initial.id]);
   useEffect(() => { listVersionLabels().then(setLabels).catch(() => undefined); }, []);
   async function loadVersions(appId: number, force = false) {
     if (!force && versions[appId]) return;
@@ -481,6 +488,12 @@ function ConfigEditor({
     try {
       const saved = await saveConfiguration(draft);
       const policyId = (saved?.id ?? draft.id) as number | undefined;
+      // Going back to older versions: what the version pickers allowed (after the warning), saved with the policy.
+      if (policyId != null) {
+        for (const id of new Set([...downgrade, ...downgradeSaved])) {
+          if (downgrade.has(id) !== downgradeSaved.has(id)) await setPolicyDowngrade(policyId, id, downgrade.has(id)).catch(() => undefined);
+        }
+      }
       if (policyId != null && folders !== null) {
         const n = await applyPolicyFolders(policyId, folders);
         if (n) toast.push('ok', 'Carpetas actualizadas', `${n} dispositivo${n === 1 ? '' : 's'} toman esta política.`);
@@ -594,8 +607,16 @@ function ConfigEditor({
             <select className="sel" aria-label={`Versión de ${a.name ?? a.pkg}`} disabled={readOnly}
               value={a.usedVersionId ?? ''} onFocus={() => void loadVersions(a.id)}
               onChange={(e) => {
-                const v = (versions[a.id] ?? []).find((x) => x.id === Number(e.target.value));
-                if (v) set('applications', allowed.map((x) => (x.id === a.id ? { ...x, usedVersionId: v.id, version: v.version ?? x.version } : x)));
+                const list = versions[a.id] ?? [];
+                const v = list.find((x) => x.id === Number(e.target.value));
+                if (!v) return;
+                const isOlder = (v.versionCode ?? 0) < topCode(list);
+                if (isOlder && !window.confirm(
+                  `${v.version} (código ${v.versionCode}) es más vieja que otra versión de la Biblioteca (código ${topCode(list)}).\n\n` +
+                  'Los teléfonos de esta política que tengan una versión más nueva la desinstalarán e instalarán esta: se borran los datos ' +
+                  'de la app en esos teléfonos (sesión, lo que no se haya sincronizado).\n\n¿Usar esta versión?')) return;
+                setDowngrade((d) => { const n = new Set(d); if (isOlder) n.add(a.id); else n.delete(a.id); return n; });
+                set('applications', allowed.map((x) => (x.id === a.id ? { ...x, usedVersionId: v.id, version: v.version ?? x.version } : x)));
               }}>
               {!(versions[a.id] ?? []).some((v) => v.id === a.usedVersionId) && (
                 <option value={a.usedVersionId ?? ''}>{a.version ?? '—'}{a.usedVersionId && labels[String(a.usedVersionId)] ? ` · ${labels[String(a.usedVersionId)]}` : ''}</option>

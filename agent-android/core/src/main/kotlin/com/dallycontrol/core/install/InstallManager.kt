@@ -47,6 +47,11 @@ data class InstallRequest(
      * same code installed under another name, the app is installed again (once per name, see [VersionPolicy]).
      */
     val versionName: String? = null,
+    /**
+     * The console allowed going back to an older version: when the phone has a newer one, it is uninstalled first
+     * (Android installs nothing older over a newer one) — the app's data on the phone is lost; the console warned.
+     */
+    val allowDowngrade: Boolean = false,
     /** Optional lowercase hex SHA-256 of the APK; verified after download if present. */
     val sha256: String? = null,
     /** When true and the install succeeds, launch the app's main activity. */
@@ -120,11 +125,20 @@ class InstallManager @Inject constructor(
                 }
             }
             is VersionPolicy.Decision.Skip -> return InstallOutcome.Skipped(decision.reason)
-            VersionPolicy.Decision.DowngradeBlocked ->
-                return InstallOutcome.Failure(
-                    status = null,
-                    reason = "downgrade blocked for ${req.packageName}: uninstall the current version first",
-                )
+            VersionPolicy.Decision.DowngradeBlocked -> {
+                // Never for the agent itself: uninstalling it would end the management of the phone.
+                if (!req.allowDowngrade || req.packageName == context.packageName || req.packageName.startsWith("com.dallycontrol.agent")) {
+                    return InstallOutcome.Failure(
+                        status = null,
+                        reason = "downgrade blocked for ${req.packageName}: uninstall the current version first",
+                    )
+                }
+                // Allowed by the console: take the newer one off, then install the chosen older version below.
+                when (val removed = uninstall(req.packageName)) {
+                    is InstallOutcome.Failure -> return InstallOutcome.Failure(removed.status, "could not uninstall the newer version: ${removed.reason}")
+                    else -> Unit
+                }
+            }
         }
 
         // The phone's system refused this very version before (e.g. Xiaomi HyperOS lets only its own store update Google

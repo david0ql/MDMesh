@@ -11,7 +11,7 @@ import java.util.Map;
 /** Names customers give their library versions (dc_version_label), and which policies use each version. */
 public interface DcVersionMapper {
 
-    @Select({"SELECT v.id, v.version, v.versionCode, v.url, l.label FROM applicationVersions v " +
+    @Select({"SELECT v.id, v.version, v.versionCode, v.url, v.parts, l.label FROM applicationVersions v " +
             "INNER JOIN applications a ON a.id = v.applicationId " +
             "LEFT JOIN dc_version_label l ON l.versionId = v.id " +
             "WHERE v.applicationId = #{applicationId} AND a.customerId = #{customerId} ORDER BY v.versionCode DESC, v.id DESC"})
@@ -37,4 +37,20 @@ public interface DcVersionMapper {
 
     @Delete({"DELETE FROM dc_version_label WHERE versionId = #{versionId}"})
     void clearLabel(@Param("versionId") int versionId);
+
+    @Select({"SELECT d.applicationId FROM dc_policy_app_downgrade d INNER JOIN configurations c ON c.id = d.configurationId " +
+            "WHERE d.configurationId = #{configurationId} AND c.customerId = #{customerId}"})
+    List<Integer> downgrades(@Param("customerId") int customerId, @Param("configurationId") int configurationId);
+
+    @Select({"SELECT COUNT(*) FROM dc_policy_app_downgrade WHERE configurationId = #{configurationId} AND applicationId = #{applicationId}"})
+    int allowsDowngrade(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId);
+
+    @Select({"SELECT COUNT(*) FROM configurations WHERE id = #{configurationId} AND customerId = #{customerId}"})
+    int ownsConfiguration(@Param("customerId") int customerId, @Param("configurationId") int configurationId);
+
+    @Insert({"INSERT INTO dc_policy_app_downgrade (configurationId, applicationId) VALUES (#{configurationId}, #{applicationId}) ON CONFLICT DO NOTHING"})
+    void allowDowngrade(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId);
+
+    @Delete({"DELETE FROM dc_policy_app_downgrade WHERE configurationId = #{configurationId} AND applicationId = #{applicationId}"})
+    void forbidDowngrade(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId);
 }

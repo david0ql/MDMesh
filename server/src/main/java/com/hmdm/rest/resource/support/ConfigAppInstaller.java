@@ -46,9 +46,12 @@ public class ConfigAppInstaller {
     private final PolicyApps policyApps;
     private final AgentCommandDAO commandDAO;
     private final AgentWakeHub wakeHub;
+    private final com.hmdm.persistence.mapper.DcVersionMapper versions;
 
     @Inject
-    public ConfigAppInstaller(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, AgentWakeHub wakeHub, PolicyApps policyApps) {
+    public ConfigAppInstaller(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, AgentWakeHub wakeHub, PolicyApps policyApps,
+                              com.hmdm.persistence.mapper.DcVersionMapper versions) {
+        this.versions = versions;
         this.policyApps = policyApps;
         this.unsecureDAO = unsecureDAO;
         this.commandDAO = commandDAO;
@@ -100,7 +103,15 @@ public class ConfigAppInstaller {
                     // Catalog placeholder / web app / seed leftover — nothing downloadable.
                     continue;
                 }
-                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), app.getVersion(), url, app.getParts());
+                // A policy that was allowed to go back to an older version (the console warned: the phone reinstalls it).
+                boolean downgrade = false;
+                try {
+                    downgrade = app.getId() != null && versions.allowsDowngrade(device.getConfigurationId(), app.getId()) > 0;
+                } catch (Exception ignored) {
+                    // no table yet / not this customer: plain install
+                }
+                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), app.getVersion(), url,
+                        app.getParts(), downgrade);
                 // Re-queued on every configuration save: skip one already on its way. The agent itself skips an
                 // app already at that version before downloading anything, so a repeat costs one tiny command.
                 if (commandDAO.hasOpenIdentical(device.getNumber(), "app.install", payload)) {

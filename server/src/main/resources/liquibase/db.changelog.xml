@@ -3229,4 +3229,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.05-policy-app-downgrade" author="dallycontrol">
+        <comment>A policy that may take an app back to an older version (the phone reinstalls it; the console warned)</comment>
+        <sql>
+            CREATE TABLE dc_policy_app_downgrade (
+                configurationId INT NOT NULL REFERENCES configurations(id) ON DELETE CASCADE,
+                applicationId INT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+                PRIMARY KEY (configurationId, applicationId)
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS dc_policy_app_downgrade;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
