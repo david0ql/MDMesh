@@ -3101,3 +3101,5 @@ a {
 .user-folders { padding: 0 16px; }
 .user-folders ul { list-style: none; margin: 6px 0 0; padding: 0; max-height: 320px; overflow: auto; }
 .user-folders li { padding: 3px 0; font-size: 14px; }
+
+.diag-trace { white-space: pre-wrap; font-size: 11px; margin: 4px 0 0; max-height: 220px; overflow: auto; background: var(--surface-2, rgba(127,127,127,.08)); padding: 6px 8px; border-radius: 6px; }

@@ -1,4 +1,5 @@
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
+import { listAppVersions, listVersionLabels, type LabeledVersion } from '../api/versions';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
 import { KioskBrandEditor } from '../components/KioskBrandEditor';
 import { listAppGroups, type AppGroup } from '../api/appGroups';
@@ -401,6 +402,17 @@ function ConfigEditor({
 
   const allowed: ConfigApp[] = (draft.applications as ConfigApp[] | undefined) ?? [];
   const allowedIds = useMemo(() => new Set(allowed.map((a) => a.id)), [allowed]);
+  // The Library versions of each app (loaded when its selector opens) and every version name: each policy can use its
+  // own version of an app, and names tell builds apart.
+  const [versions, setVersions] = useState<Record<number, LabeledVersion[]>>({});
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  const [uploadLabel, setUploadLabel] = useState('');
+  useEffect(() => { listVersionLabels().then(setLabels).catch(() => undefined); }, []);
+  async function loadVersions(appId: number, force = false) {
+    if (!force && versions[appId]) return;
+    const list = await listAppVersions(appId).catch(() => [] as LabeledVersion[]);
+    setVersions((v) => ({ ...v, [appId]: list }));
+  }
 
   function addApps(chosen: Application[]) {
     const entries: ConfigApp[] = chosen.map((app) => ({
@@ -441,11 +453,22 @@ function ConfigEditor({
   async function uploadIntoPolicy(file: File) {
     setUploadingApk(true);
     try {
-      const r = await uploadApkToLibrary(file);
+      const r = await uploadApkToLibrary(file, uploadLabel);
       if (r.kind === 'error') { toast.push('err', 'No se agregó el APK', r.note); return; }
-      // In the policy (install), or already there: a new version reaches its phones through the Library version.
-      if (!allowed.some((a) => a.id === r.app.id)) addApps([r.app]);
-      toast.push('ok', r.kind === 'new' ? 'APK agregado a la política' : 'Nueva versión', `${r.note} Guarda la política para aplicarla.`);
+      // This policy uses exactly the uploaded version (new, or the one already in the Library).
+      const pin = (list: ConfigApp[]) => list.map((a) => (a.id === r.app.id && r.versionId
+        ? { ...a, usedVersionId: r.versionId, version: r.version ?? a.version } : a));
+      if (!allowed.some((a) => a.id === r.app.id)) {
+        const base: ConfigApp = { id: r.app.id, name: r.app.name, pkg: r.app.pkg, version: r.version ?? r.app.version,
+          usedVersionId: r.versionId ?? r.app.latestVersion, action: 1, showIcon: true, remove: false };
+        set('applications', [...allowed, base]);
+      } else {
+        set('applications', pin(allowed));
+      }
+      setUploadLabel('');
+      void loadVersions(r.app.id, true);
+      toast.push('ok', r.kind === 'new' ? 'APK agregado a la política' : r.kind === 'existing' ? 'La política usará esa versión' : 'Nueva versión',
+        `${r.note} Guarda la política para aplicarla.`);
     } catch (e) {
       toast.push('err', 'Falló la subida', e instanceof Error ? e.message : '');
     } finally {
@@ -546,6 +569,8 @@ function ConfigEditor({
           <span>Apps permitidas</span>
           {!readOnly && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8 }}>
+              <input className="input" style={{ width: 200 }} placeholder="Nombre de la versión (opcional)" value={uploadLabel}
+                maxLength={80} onChange={(e) => setUploadLabel(e.target.value)} aria-label="Nombre de la versión" />
               <label className="btn btn-sm" data-testid="policy-upload-apk" style={{ cursor: uploadingApk ? 'wait' : 'pointer' }}>
                 {uploadingApk ? <span key="u">Subiendo…</span> : <span key="s">Subir APK</span>}
                 <input type="file" accept=".apk" hidden disabled={uploadingApk}
@@ -566,6 +591,19 @@ function ConfigEditor({
           <div className="cfg-app" key={a.id}>
             <span className="cfg-app-nm">{a.name ?? a.pkg ?? `#${a.id}`}</span>
             <span className="cfg-app-pkg mono">{a.pkg}</span>
+            <select className="sel" aria-label={`Versión de ${a.name ?? a.pkg}`} disabled={readOnly}
+              value={a.usedVersionId ?? ''} onFocus={() => void loadVersions(a.id)}
+              onChange={(e) => {
+                const v = (versions[a.id] ?? []).find((x) => x.id === Number(e.target.value));
+                if (v) set('applications', allowed.map((x) => (x.id === a.id ? { ...x, usedVersionId: v.id, version: v.version ?? x.version } : x)));
+              }}>
+              {!(versions[a.id] ?? []).some((v) => v.id === a.usedVersionId) && (
+                <option value={a.usedVersionId ?? ''}>{a.version ?? '—'}{a.usedVersionId && labels[String(a.usedVersionId)] ? ` · ${labels[String(a.usedVersionId)]}` : ''}</option>
+              )}
+              {(versions[a.id] ?? []).map((v) => (
+                <option key={v.id} value={v.id}>{v.version ?? '—'} ({v.versionCode ?? '?'}){v.label ? ` · ${v.label}` : ''}</option>
+              ))}
+            </select>
             <select
               className="sel"
               value={a.action ?? 1}

@@ -95,6 +95,34 @@ class QuickSettingsActivity : ComponentActivity() {
         }
         col.addView(space())
 
+        // Letter size (Android's font scale, every app at once).
+        col.addView(label(getString(R.string.qs_font)))
+        if (DisplayTools.canChangeFont(this)) {
+            val now = text("", 14f, MUTED)
+            val show = { now.text = getString(R.string.qs_font_now, (DisplayTools.fontScale(this) * 100).toInt()) }
+            show()
+            col.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(Button(this@QuickSettingsActivity).apply {
+                    text = "A−"; contentDescription = "qs-font-down"
+                    setOnClickListener { DisplayTools.step(this@QuickSettingsActivity, -1); show() }
+                })
+                addView(Button(this@QuickSettingsActivity).apply {
+                    text = "A+"; contentDescription = "qs-font-up"
+                    setOnClickListener { DisplayTools.step(this@QuickSettingsActivity, +1); show() }
+                })
+            })
+            col.addView(now)
+        } else {
+            col.addView(text(getString(R.string.qs_font_needs), 13f, MUTED))
+            col.addView(Button(this).apply {
+                text = getString(R.string.qs_font_allow)
+                contentDescription = "qs-font-allow"
+                setOnClickListener { TimedAllow.open(this@QuickSettingsActivity, DisplayTools.permissionIntent(this@QuickSettingsActivity)) }
+            })
+        }
+        col.addView(space())
+
         // Wi-Fi.
         col.addView(label("WI-FI"))
         wifiState = text("", 14f, MUTED)

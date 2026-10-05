@@ -69,4 +69,8 @@
     <string name="split_title">Pantalla dividida</string>
     <string name="split_help">Para usar dos apps a la vez: abre Recientes (el botón cuadrado), toca el ícono que está sobre una app y elige Pantalla dividida; luego elige la segunda app.</string>
     <string name="notif_listener_label">Diagnóstico DallyControl</string>
+    <string name="qs_font">Tamaño de letra</string>
+    <string name="qs_font_now">Ahora: %1$d %%</string>
+    <string name="qs_font_needs">Para cambiar el tamaño de letra, permite que DallyControl modifique ajustes del sistema (una vez).</string>
+    <string name="qs_font_allow">Permitir</string>
 </resources>

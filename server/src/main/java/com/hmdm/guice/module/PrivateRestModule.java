@@ -52,6 +52,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(UserRoleResource.class);
         this.bind(AgentAdminResource.class);
         this.bind(DcUserResource.class);
+        this.bind(DcVersionResource.class);
         this.bind(com.hmdm.rest.resource.FleetResource.class);
         this.bind(com.hmdm.rest.resource.AnnouncementResource.class);
         this.bind(com.hmdm.rest.resource.AgentPackageResource.class);

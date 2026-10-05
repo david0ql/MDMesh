@@ -265,11 +265,19 @@ if (-not $already) {
 }
 # Permisos que solo se dan desde el computador (uso de apps, notificaciones para el diagnóstico, archivos, remoto).
 Adb shell appops set $AgentPkg GET_USAGE_STATS allow | Out-Null
+Adb shell appops set $AgentPkg WRITE_SETTINGS allow | Out-Null   # tamaño de letra desde la consola y el quiosco
 Adb shell cmd notification allow_listener ($AgentPkg + '/com.dallycontrol.agent.diag.DcNotificationListener') | Out-Null
 if ($sdk -ge 30) { Adb shell appops set --uid $AgentPkg MANAGE_EXTERNAL_STORAGE allow | Out-Null }
 if ((Adb shell pm path $VncPkg) -match 'package:') {
   Adb shell appops set $VncPkg PROJECT_MEDIA allow | Out-Null
   Adb shell pm grant $AgentPkg android.permission.WRITE_SECURE_SETTINGS | Out-Null
+}
+
+# Que el agente y el soporte remoto sigan vivos en segundo plano (ahorro de batería; "Inicio automático" de Xiaomi).
+foreach ($p in @($AgentPkg, $VncPkg)) {
+  Adb shell cmd deviceidle whitelist ('+' + $p) | Out-Null
+  Adb shell cmd appops set $p RUN_ANY_IN_BACKGROUND allow | Out-Null
+  Adb shell cmd appops set $p 10008 allow | Out-Null
 }
 
 Titulo 'Paso 5 de 5: conectar con la consola'

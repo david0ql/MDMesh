@@ -21,6 +21,8 @@ object DeviceAction {
     const val NOTIFICATION_ACTION = "device.notificationAction"
     /** Silence every volume for `{minutes}`. */
     const val SILENCE = "device.silence"
+    /** Letter size `{fontScale}`, or open the display / permission screen `{open}`. */
+    const val DISPLAY = "device.display"
     const val PASSCODE_RESET = "device.passcodeReset"
     const val WIPE = "device.wipe"
 
@@ -67,6 +69,6 @@ object DeviceAction {
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
-        "diagnose", "notificationAction", "silence",
+        "diagnose", "notificationAction", "silence", "display",
     )
 }

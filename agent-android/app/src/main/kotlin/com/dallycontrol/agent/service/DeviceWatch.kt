@@ -159,6 +159,9 @@ class DeviceWatch @Inject constructor(
             sounds.start()
             runCatching { com.dallycontrol.agent.announce.Announcements.showNextMandatory(context) }
             scope.launch(Dispatchers.IO) {
+                // Why the agent stopped last time (a freeze "no responde", a crash…), once, for the console.
+                runCatching { com.dallycontrol.agent.diag.ExitReasons.reportNew(context, eventLog) }
+                runCatching { com.dallycontrol.agent.admin.AdminReceiver.protectProcesses(context) }
                 runCatching { appPolicy.reenforce() }
                 runCatching { sim.check() }
             }

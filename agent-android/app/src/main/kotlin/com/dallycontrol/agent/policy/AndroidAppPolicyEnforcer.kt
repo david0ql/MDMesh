@@ -63,9 +63,11 @@ class AndroidAppPolicyEnforcer(
         (plan.suspend - failedSuspend.toSet()).forEach { events.record(EventType.APP_BLOCKED, it) }
 
         val playHidden = runCatching { dpm.setApplicationHidden(admin, PLAY_STORE, policy.hidePlayStore) }
+        // Android refuses to pause some apps (e.g. its own "Android Device Policy", com.google.android.apps.work.clouddpc,
+        // or a maker's system app): the rest of the policy is in force, so that is a note, not a failure.
         return when {
-            failedSuspend.isNotEmpty() -> ConfigOutcome.failed("could not suspend ${failedSuspend.joinToString()}")
             playHidden.isFailure && policy.hidePlayStore -> ConfigOutcome.failed("could not hide the Play Store")
+            failedSuspend.isNotEmpty() -> "${ConfigOutcome.APPLIED} (Android no deja pausar: ${failedSuspend.joinToString()})"
             else -> ConfigOutcome.APPLIED
         }
     }

@@ -127,6 +127,14 @@ class InstallManager @Inject constructor(
                 )
         }
 
+        // The phone's system refused this very version before (e.g. Xiaomi HyperOS lets only its own store update Google
+        // apps it ships): do not download it again on every policy save.
+        val blockedKey = "blocked:${req.packageName}"
+        val blockedFor = osBlocked.getLong(blockedKey, -1L)
+        if (blockedFor >= 0 && blockedFor == (req.versionCode ?: 0L)) {
+            return InstallOutcome.Skipped("el sistema del teléfono no deja instalar esta app desde el MDM (${osBlocked.getString("$blockedKey:why", "")})")
+        }
+
         // 2. Obtain every part (single APK, or base + splits of a bundle), verifying each
         // part's optional checksum. All parts install together in one session (step 3).
         // Of a bundle, only the splits for this phone's processor, screen and languages (the rest are never downloaded).
@@ -158,6 +166,12 @@ class InstallManager @Inject constructor(
             // 3. Create + write EVERY part into ONE session + commit, awaiting the broadcast result.
             val outcome = runCatching { commitInstall(req.packageName, fetched.map { it.file }) }
                 .getOrElse { return InstallOutcome.Failure(null, "install session error: ${it.message}") }
+
+            if (outcome is InstallOutcome.Failure && OS_BLOCKS.any { outcome.reason.contains(it) }) {
+                osBlocked.edit().putLong(blockedKey, req.versionCode ?: 0L)
+                    .putString("$blockedKey:why", outcome.reason.substringBefore(':')).apply()
+                return InstallOutcome.Skipped("el sistema del teléfono no deja instalar esta app desde el MDM (${outcome.reason.substringBefore(':')})")
+            }
 
             // 4. Optionally launch the app on success.
             if (outcome is InstallOutcome.Success && req.runAfterInstall) {
@@ -267,17 +281,50 @@ class InstallManager @Inject constructor(
         return withContext(Dispatchers.IO) { download(url) }
     }
 
+    /**
+     * Big APKs over a shaky mobile link: HTTP/1.1 (an HTTP/2 stream reset — "stream was reset: INTERNAL_ERROR" — killed
+     * WhatsApp downloads), and up to [DOWNLOAD_TRIES] attempts that resume where the last one stopped (Range).
+     */
     private fun download(url: String): File {
         val dest = File(context.cacheDir, "mdm-install-${System.nanoTime()}.apk")
-        httpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
-            if (!response.isSuccessful) {
-                dest.delete()
-                error("HTTP ${response.code} for $url")
+        var lastError: Throwable? = null
+        for (attempt in 1..DOWNLOAD_TRIES) {
+            try {
+                val have = if (dest.exists()) dest.length() else 0L
+                val req = Request.Builder().url(url).apply { if (have > 0) header("Range", "bytes=$have-") }.build()
+                downloadClient.newCall(req).execute().use { response ->
+                    if (!response.isSuccessful) error("HTTP ${response.code} for $url")
+                    val resumed = have > 0 && response.code == 206
+                    val body = response.body ?: error("empty response body for $url")
+                    body.byteStream().use { input ->
+                        java.io.FileOutputStream(dest, resumed).use { input.copyTo(it) }
+                    }
+                }
+                return dest
+            } catch (e: Throwable) {
+                lastError = e
+                if (e is IllegalStateException && e.message?.startsWith("HTTP 4") == true) break // not found / forbidden: no retry
+                Thread.sleep(2_000L * attempt)
             }
-            val body = response.body ?: run { dest.delete(); error("empty response body for $url") }
-            body.byteStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
         }
-        return dest
+        dest.delete()
+        throw lastError ?: IllegalStateException("download failed")
+    }
+
+    private val downloadClient: OkHttpClient by lazy {
+        httpClient.newBuilder()
+            .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
+            .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+    }
+
+    /** Versions the phone's own system refused (see [OS_BLOCKS]). */
+    private val osBlocked by lazy { context.getSharedPreferences("mdm_install_os_blocked", Context.MODE_PRIVATE) }
+
+    private companion object {
+        const val DOWNLOAD_TRIES = 4
+        /** Install errors meaning "this phone's system will never let the MDM install this app" (not a transient fault). */
+        val OS_BLOCKS = listOf("ISOLATION_VIOLATION", "INSTALL_FAILED_USER_RESTRICTED")
     }
 
     /** The installed version code and name, or null when the package is not installed. */

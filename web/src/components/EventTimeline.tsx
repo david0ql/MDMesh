@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   systemUpdatePending: 'Actualización de Android disponible',
   kioskCrashLoop: 'La app del quiosco se cerró varias veces',
   soundAlert: 'Está sonando (alarma o timbre)',
+  agentExit: 'DallyControl se detuvo (no responde, error o cerrado por el sistema)',
   soundEnded: 'Dejó de sonar',
 };
 

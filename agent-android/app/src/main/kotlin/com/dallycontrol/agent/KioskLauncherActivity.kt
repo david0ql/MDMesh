@@ -239,8 +239,9 @@ class KioskLauncherActivity : ComponentActivity() {
         val fg = parseColor(p.theme.textColor, TEXT)
         val cell = iconCellPx(p.theme.iconSize)
         // Width left for the grid: the screen minus the page's side padding (2 x 24dp) and the grid's (2 x 12dp);
-        // each cell is the icon plus its own 2 x 12dp padding. Cells then share that width evenly.
-        val cols = maxOf(2, (resources.displayMetrics.widthPixels - dp(72)) / (cell + dp(24)))
+        // each cell is the icon plus its own 2 x 8dp padding. Cells then share that width evenly (4 small icons fit a
+        // 360dp phone).
+        val cols = maxOf(2, (resources.displayMetrics.widthPixels - dp(72)) / (cell + dp(16)))
 
         val grid = GridLayout(this).apply {
             columnCount = cols
@@ -590,9 +591,9 @@ class KioskLauncherActivity : ComponentActivity() {
         }
 
     private fun iconCellPx(size: String?): Int = when (size?.uppercase()) {
-        "LARGE" -> dp(96)
-        "MEDIUM" -> dp(72)
-        else -> dp(56)
+        "LARGE" -> dp(80)
+        "MEDIUM" -> dp(64)
+        else -> dp(48)
     }
 
     private fun parseColor(value: String?, fallback: Int): Int =

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { VersionsDialog } from '../components/VersionsDialog';
+import { listAppVersions, setVersionLabel } from '../api/versions';
 import { hasApk, obtainApk } from '../api/apkFetch';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -144,6 +146,7 @@ function AppIcon({ name, url }: { name: string; url?: string | null }) {
 
 function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   const toast = useToast();
+  const [versionsOf, setVersionsOf] = useState<Application | null>(null);
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -195,6 +198,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
 
   return (
     <>
+      {versionsOf && <VersionsDialog app={{ id: versionsOf.id!, name: versionsOf.name, pkg: versionsOf.pkg }} onClose={() => setVersionsOf(null)} />}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="dv-search" style={{ width: 260 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -253,9 +257,12 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
                       {busy ? (f >= 0 ? `Descargando ${Math.round(f * 100)} %` : 'Descargando…') : 'Obtener APK'}
                     </button>
                   ) : (
-                    <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
-                      Desplegar
-                    </button>
+                    <>
+                      <button className="btn btn-sm btn-ghost" onClick={() => setVersionsOf(a)} data-testid={`versions-${a.pkg}`}>Versiones</button>
+                      <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
+                        Desplegar
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -287,6 +294,13 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dropped, setDropped] = useState<string | null>(null);
+  /** Optional name for the uploaded version (to tell builds apart and see which one each policy uses). */
+  const [verLabel, setVerLabel] = useState('');
+  async function nameVersion(appId: number, version: string | undefined, code: number) {
+    if (!verLabel.trim()) return;
+    const v = (await listAppVersions(appId).catch(() => [])).find((x) => (x.versionCode ?? 0) === code && (x.version ?? '').trim() === (version ?? '').trim());
+    if (v) { await setVersionLabel(v.id, verLabel.trim()).catch(() => undefined); setVerLabel(''); }
+  }
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function onFile(file: File) {
@@ -331,13 +345,16 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         const fresh = isNewVersion(versions, vc, fd.version);
         if (fresh && committedUrl) {
           await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
+          await nameVersion(existing.id, fd.version, vc);
           toast.push('ok', 'Nueva versión agregada',
             `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las políticas que la usan ahora instalan esta versión.`);
         } else if (fresh) {
           toast.push('err', 'No se pudo alojar el archivo', 'El servidor no guardó el APK: inténtalo de nuevo.');
-        } else if (vc === current) {
-          toast.push('err', 'Esa versión ya está en la Biblioteca',
-            `${fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) ya está cargada. Si es otra compilación, cámbiale el nombre de versión.`);
+        } else if (vc === current || versions.some((v) => (v.versionCode ?? 0) === vc && (v.version ?? '').trim() === (fd.version ?? '').trim())) {
+          const named = verLabel.trim();
+          await nameVersion(existing.id, fd.version, vc);
+          toast.push(named ? 'ok' : 'err', 'Esa versión ya está en la Biblioteca',
+            `${fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) ya está cargada${named ? `; ahora se llama «${named}»` : ''}. Para que una política la use, elígela en la política (selector de versión) o súbela desde la política.`);
         } else {
           toast.push('err', 'Más antigua que la de la Biblioteca',
             `El versionCode ${vc} es menor que ${current}. Los teléfonos nunca bajan de versión; desinstálala primero si de verdad la necesitas.`);
@@ -354,6 +371,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             type: 'app', // applications.type is NOT NULL — send it explicitly so the save can't fail
           });
           setSavedAppId(saved.id); // enables the deploy dialog's "Add to a configuration" tab
+          if (saved.id) await nameVersion(saved.id, fd.version, fd.versionCode ?? 0);
           toast.push('ok', 'APK listo', 'Alojado y agregado a tu Biblioteca: revísalo y despliégalo.');
         } catch {
           toast.push('ok', 'APK listo', 'Alojado: revísalo y despliégalo. (No se pudo agregar a la Biblioteca).');
@@ -503,6 +521,8 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         </div>
       </div>
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <input className="input" style={{ marginBottom: 8, maxWidth: 360 }} placeholder="Nombre de esta versión (opcional), p. ej. Disay sept."
+          value={verLabel} maxLength={80} onChange={(e) => setVerLabel(e.target.value)} aria-label="Nombre de esta versión" />
         <div
           className={`dropzone ${dragging ? 'over' : ''} ${uploading ? 'busy' : ''}`}
           onClick={() => !uploading && fileRef.current?.click()}

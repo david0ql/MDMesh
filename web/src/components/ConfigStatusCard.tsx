@@ -35,7 +35,7 @@ export function ConfigStatusCard({ status }: { status: ConfigStatus | null }) {
       {outcomes ? (
         <ul className="cfg-outcomes">
           {Object.entries(outcomes.outcomes).map(([k, o]) => (
-            <li key={k} className={o === 'applied' ? 'ok' : o === 'unsupported' ? 'muted' : 'alert'}>
+            <li key={k} className={o.startsWith('applied') ? 'ok' : o === 'unsupported' ? 'muted' : 'alert'}>
               <span className="mono">{k}</span> <span>{OUTCOME_LABELS[o] ?? o}</span>
             </li>
           ))}

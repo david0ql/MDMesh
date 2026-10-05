@@ -417,6 +417,11 @@ object AgentModule {
 
     @Provides
     @IntoSet
+    fun provideDisplayHandler(@ApplicationContext context: Context): CommandHandler =
+        com.dallycontrol.agent.kiosk.DisplayHandler(context)
+
+    @Provides
+    @IntoSet
     fun provideSilenceHandler(@ApplicationContext context: Context, ring: RingController): CommandHandler =
         com.dallycontrol.agent.diag.SilenceHandler(context, ring)
 

@@ -132,15 +132,8 @@ class AdminReceiver : DeviceAdminReceiver() {
      * apps. A force-stopped app receives NO broadcasts — not even BOOT_COMPLETED — which severs
      * management permanently until someone taps the app. API 30+; idempotent.
      */
-    private fun protectAgentProcess(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
-        runCatching {
-            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
-                ?: return
-            if (!dpm.isDeviceOwnerApp(context.packageName)) return
-            dpm.setUserControlDisabledPackages(componentName(context), listOf(context.packageName))
-        }
-    }
+    private fun protectAgentProcess(context: Context) = protectProcesses(context)
+
 
     private fun setCreateWindowsRestriction(context: Context, restrict: Boolean) {
         runCatching {
@@ -166,6 +159,20 @@ class AdminReceiver : DeviceAdminReceiver() {
     }
 
     companion object {
+        /** Also applied on every agent start and before remote support (phones enrolled by older agents get it too). */
+        fun protectProcesses(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+            runCatching {
+                val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                    ?: return
+                if (!dpm.isDeviceOwnerApp(context.packageName)) return
+                // The agent and its remote-support app: the person cannot force-stop them, and Android (and makers' battery
+                // managers that honour it) leaves them running in the background — remote support dies otherwise on Xiaomi.
+                dpm.setUserControlDisabledPackages(componentName(context),
+                    listOf(context.packageName, com.dallycontrol.agent.remote.DroidVncController.PACKAGE))
+            }
+        }
+
         /** Key in the QR `PROVISIONING_ADMIN_EXTRAS_BUNDLE` carrying the enroll token. */
         const val EXTRA_ENROLL_TOKEN = "com.dallycontrol.ENROLL_TOKEN"
 

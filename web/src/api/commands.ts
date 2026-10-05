@@ -116,7 +116,9 @@ export async function bulkQueueCommand(
 export interface ActionParam {
   key: string;
   label: string;
-  kind: 'text' | 'password' | 'number';
+  kind: 'text' | 'password' | 'number' | 'select';
+  /** For kind 'select'. */
+  options?: { value: string; label: string }[];
   required?: boolean;
   placeholder?: string;
 }
@@ -170,6 +172,27 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     key: 'ring-stop', label: 'Dejar de sonar', group: 'safe',
     description: 'Detiene el tono de localización y, sea lo que sea que esté sonando (alarma, timbre, «Encontrar mi dispositivo»), silencia el teléfono 5 minutos (agente 0.7.4+).',
     request: { type: 'device.ringStop', requiresCapability: 'device.ringStop' },
+  },
+  {
+    key: 'font-size', label: 'Tamaño de letra', group: 'safe',
+    description: 'Cambia el tamaño de la letra en todo el teléfono (todas las apps, al instante). Necesita el permiso «Modificar ajustes del sistema» (lo da la inscripción por cable o Windows; si falta, usa «Permiso para cambiar la letra»). Agente 0.7.5+.',
+    params: [{ key: 'scale', label: 'Tamaño', kind: 'select', required: true, options: [
+      { value: '0.85', label: 'Pequeña (85 %)' }, { value: '1', label: 'Normal (100 %)' },
+      { value: '1.15', label: 'Grande (115 %)' }, { value: '1.3', label: 'Muy grande (130 %)' },
+    ] }],
+    request: { type: 'device.display', requiresCapability: 'device.display' },
+    validate: (v) => (v.scale ? null : 'Elige un tamaño.'),
+    build: (v) => ({ type: 'device.display', requiresCapability: 'device.display', payload: JSON.stringify({ fontScale: Number(v.scale) }) }),
+  },
+  {
+    key: 'display-size', label: 'Ajustar tamaño de pantalla (zoom)', group: 'safe',
+    description: 'Android no deja que un MDM cambie el tamaño de pantalla: esto abre ese ajuste en el teléfono por 5 minutos, para cambiarlo con el control remoto o en persona (Pantalla → Tamaño de pantalla / Tamaño de visualización).',
+    request: { type: 'device.display', requiresCapability: 'device.display', payload: JSON.stringify({ open: 'display' }) },
+  },
+  {
+    key: 'font-permission', label: 'Permiso para cambiar la letra', group: 'safe',
+    description: 'Abre en el teléfono «Modificar ajustes del sistema» para DallyControl: quien lo tenga activa el interruptor una vez (o hazlo con el control remoto).',
+    request: { type: 'device.display', requiresCapability: 'device.display', payload: JSON.stringify({ open: 'permission' }) },
   },
   {
     key: 'app-launch', label: 'Abrir app', group: 'safe',

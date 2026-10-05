@@ -71,4 +71,8 @@
     <string name="split_title">Split screen</string>
     <string name="split_help">To use two apps at once: open Recents (the square button), tap the icon above an app and choose Split screen, then pick the second app.</string>
     <string name="notif_listener_label">DallyControl diagnosis</string>
+    <string name="qs_font">Letter size</string>
+    <string name="qs_font_now">Now: %1$d %%</string>
+    <string name="qs_font_needs">To change the letter size, allow DallyControl to modify system settings (once).</string>
+    <string name="qs_font_allow">Allow</string>
 </resources>

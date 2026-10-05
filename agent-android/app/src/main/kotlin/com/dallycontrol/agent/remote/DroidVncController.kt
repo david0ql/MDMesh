@@ -69,6 +69,7 @@ class DroidVncController @Inject constructor(
      */
     fun prepare(): String? {
         if (!isInstalled()) return "droidVNC-NG ($PACKAGE) is not installed"
+        runCatching { com.dallycontrol.agent.admin.AdminReceiver.protectProcesses(context) }
         val dpm = handle.dpm
         val configured = runCatching {
             dpm.setApplicationRestrictions(handle.admin, PACKAGE, restrictions(accessKey()))
@@ -168,7 +169,11 @@ class DroidVncController @Inject constructor(
         if (!isInstalled()) return null
         context.startService(serviceIntent(ACTION_STOP))
         null
-    }.getOrElse { "could not stop droidVNC-NG: ${it.message}" }
+    }.getOrElse {
+        // Android refuses to start a service of an app that is not running: droidVNC-NG is already stopped.
+        if (it is IllegalStateException && it.message?.contains("Not allowed to start service") == true) null
+        else "could not stop droidVNC-NG: ${it.message}"
+    }
 
     private fun serviceIntent(action: String) = Intent(action).apply {
         component = ComponentName(PACKAGE, "$PACKAGE.MainService")

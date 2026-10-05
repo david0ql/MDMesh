@@ -139,6 +139,8 @@ fi
 # --- 2b. storage tools: per-app sizes (usage access) and deleting large files (all-files access, Android 11+) ---------
 # Only adb (or the person, in Settings) can turn these on; the console's Almacenamiento panel works without them but sees less.
 "${A[@]}" shell appops set "$PKG" GET_USAGE_STATS allow >/dev/null 2>&1 || echo "  warn: usage access not granted"
+# Letter size from the console and the kiosk (Android's font scale) needs "modify system settings".
+"${A[@]}" shell appops set "$PKG" WRITE_SETTINGS allow >/dev/null 2>&1 || echo "  warn: modify-system-settings not granted"
 # Notification access (diagnosis: which app is ringing, and its buttons). Android 11+ only takes it from here.
 "${A[@]}" shell cmd notification allow_listener "$PKG/com.dallycontrol.agent.diag.DcNotificationListener" >/dev/null 2>&1 || echo "  warn: notification access not granted"
 if [ "$SDK" -ge 30 ]; then
@@ -162,6 +164,13 @@ if [ "$REMOTE" = 1 ]; then
   # itself. Do NOT enable that service here first: it would start droidVNC-NG before it has the agent's key.
   "${A[@]}" shell pm grant "$PKG" android.permission.WRITE_SECURE_SETTINGS || echo "  warn: WRITE_SECURE_SETTINGS grant failed"
 fi
+
+# Keep the agent and remote support alive in the background (battery saving; Xiaomi/HyperOS "autostart" app-op 10008).
+for P in "$PKG" "$VNC_PKG"; do
+  "${A[@]}" shell cmd deviceidle whitelist "+$P" >/dev/null 2>&1 || true
+  "${A[@]}" shell cmd appops set "$P" RUN_ANY_IN_BACKGROUND allow >/dev/null 2>&1 || true
+  "${A[@]}" shell cmd appops set "$P" 10008 allow >/dev/null 2>&1 || true
+done
 
 # --- 4. hand over server URL + token -----------------------------------------------------------------
 say "provisioning server $SERVER"

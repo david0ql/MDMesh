@@ -61,6 +61,11 @@ class DiagnoseHandler(
         // Calls
         @Suppress("DEPRECATION")
         val call = runCatching { (context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager).callState }.getOrDefault(-1)
+        o.put("display", JSONObject()
+            .put("fontScale", com.dallycontrol.agent.kiosk.DisplayTools.fontScale(context))
+            .put("canChangeFont", com.dallycontrol.agent.kiosk.DisplayTools.canChangeFont(context))
+            .put("densityDpi", context.resources.displayMetrics.densityDpi)
+            .put("widthDp", (context.resources.displayMetrics.widthPixels / context.resources.displayMetrics.density).toInt()))
         o.put("call", when (call) { TelephonyManager.CALL_STATE_RINGING -> "timbrando"; TelephonyManager.CALL_STATE_OFFHOOK -> "en llamada"; TelephonyManager.CALL_STATE_IDLE -> "sin llamada"; else -> "?" })
         // Alarm clock
         val next = runCatching { (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).nextAlarmClock }.getOrNull()
@@ -82,6 +87,8 @@ class DiagnoseHandler(
         // Battery / network
         val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         o.put("battery", bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY))
+        // Why the agent stopped lately (freezes "no responde", crashes, killed by the system).
+        o.put("agentExits", ExitReasons.recent(context))
         return o
     }
 

@@ -3216,4 +3216,17 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.05-version-labels" author="dallycontrol">
+        <comment>A name the customer gives a library version (to tell builds apart and see which one each policy uses)</comment>
+        <sql>
+            CREATE TABLE dc_version_label (
+                versionId INT PRIMARY KEY REFERENCES applicationVersions(id) ON DELETE CASCADE,
+                label VARCHAR(80) NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS dc_version_label;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -18,6 +18,8 @@ interface Snapshot {
   notifications?: { key: string; app: string; at: number; category: string | null; alerting: boolean; title: string | null; text: string | null; ongoing: boolean; insistent: boolean; fullScreen: boolean; actions: string[] }[];
   kiosk?: { locked?: string; allowedApps?: string[] };
   foreground?: { at: number; app: string }[];
+  display?: { fontScale: number; canChangeFont: boolean; densityDpi: number; widthDp: number };
+  agentExits?: { at: number; reason: string; detail: string }[];
   battery?: number;
 }
 
@@ -97,6 +99,7 @@ export function DiagnosticsPanel({ device }: { device: Device }) {
               <tr><th>Llamada</th><td>{snap.call}</td></tr>
               <tr><th>Modo de sonido</th><td>{s?.ringerMode} · {Object.entries(s?.volumes ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}</td></tr>
               <tr><th>Próxima alarma</th><td>{snap.nextAlarm ? `${time(snap.nextAlarm.at)} (puesta por ${snap.nextAlarm.setBy ?? '?'})` : 'ninguna'}</td></tr>
+              {snap.display && <tr><th>Pantalla</th><td>letra al {Math.round(snap.display.fontScale * 100)} % ({snap.display.canChangeFont ? 'se puede cambiar desde la consola' : 'falta el permiso «Modificar ajustes del sistema»'}) · {snap.display.densityDpi} dpi · {snap.display.widthDp} dp de ancho</td></tr>}
               <tr><th>Quiosco</th><td>{snap.kiosk?.locked} · {snap.kiosk?.allowedApps?.length ?? 0} apps permitidas</td></tr>
               <tr><th>Notificaciones</th><td>{snap.notificationAccess ? 'con acceso' : (
                 <>
@@ -135,6 +138,11 @@ export function DiagnosticsPanel({ device }: { device: Device }) {
               ))}
             </ul>
           ) : <p className="muted small">{snap.notificationAccess ? 'Ninguna.' : 'Sin acceso a notificaciones.'}</p>}
+
+          <h3 className="sub-h">Cuándo se detuvo DallyControl</h3>
+          {snap.agentExits?.length ? (
+            <ul className="diag-sounds">{snap.agentExits.map((e) => <li key={e.at}><span className="muted small">{time(e.at)}</span> <b>{e.reason}</b><pre className="diag-trace">{e.detail}</pre></li>)}</ul>
+          ) : <p className="muted small">Sin registros (Android 11 o superior los guarda).</p>}
 
           <h3 className="sub-h">Apps que pasaron al frente (últimos 30 min)</h3>
           <p className="small">{snap.foreground?.length ? snap.foreground.map((f) => `${time(f.at)} ${f.app}`).join(' → ') : 'Ninguna (o sin acceso de uso).'}</p>
