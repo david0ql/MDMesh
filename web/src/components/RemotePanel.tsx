@@ -10,6 +10,24 @@ import { KioskToggle } from './KioskToggle';
 
 type Device = { number: string };
 
+/** Plain-language reasons for the device's remote-control errors, with what to do. */
+function explainRemote(detail?: string | null): string | undefined {
+  if (!detail) return undefined;
+  if (/screen-capture permission|did not confirm its start/i.test(detail)) {
+    return 'El teléfono no tiene autorizada la «Captura de pantalla» para el soporte remoto (droidVNC-NG la muestra como DENEGADO). '
+      + 'Android solo la autoriza sin preguntar por cable o depuración inalámbrica: vuelve a pasar el inscriptor de Windows por ese '
+      + 'teléfono (Inscribir → Sin formatear; no borra nada ni lo vuelve a inscribir) y queda autorizada para siempre.';
+  }
+  if (/Not allowed to start service/i.test(detail)) {
+    return 'El sistema del teléfono (Xiaomi/HyperOS) cerró el soporte remoto en segundo plano. Vuelve a pasar el inscriptor de Windows '
+      + '(activa «Inicio automático» y batería sin restricciones), o en el teléfono: Ajustes → Apps → droidVNC-NG → Inicio automático.';
+  }
+  if (/could not reach the repeater/i.test(detail)) {
+    return 'El teléfono no alcanzó el servidor de control remoto: revisa su conexión a internet e inténtalo de nuevo.';
+  }
+  return detail;
+}
+
 /** Where a session is: nothing yet, waiting for the device to pick up the command, live, or failed. */
 type Phase =
   | { kind: 'idle' }
@@ -104,7 +122,7 @@ export function RemotePanel({ device }: { device: Device }) {
         return;
       }
       if (cmd && ['failed', 'unsupported', 'expired'].includes(cmd.status)) {
-        setPhase({ kind: 'failed', message: cmd.detail || `El dispositivo respondió "${cmd.status}".` });
+        setPhase({ kind: 'failed', message: explainRemote(cmd.detail) || `El dispositivo respondió "${cmd.status}".` });
         return;
       }
       if (Date.now() - phase.since > WAIT_LIMIT_MS) {
