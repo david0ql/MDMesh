@@ -94,6 +94,10 @@ public interface ApplicationMapper {
                     "           GROUP BY 1) usageData ON usageData.id=applicationVersions.id ";
     ;
 
+    /** Named versions of an app: when it has any, it is a group of builds and policies keep the build they were given. */
+    @Select({"SELECT COUNT(*) FROM dc_version_label l INNER JOIN applicationVersions v ON v.id = l.versionId WHERE v.applicationId = #{applicationId}"})
+    int countNamedVersions(@Param("applicationId") int applicationId);
+
     @Select({SELECT_BASE +
             "WHERE customerId = #{customerId} " +
             "OR customers.master = TRUE " +

@@ -21,12 +21,16 @@ async function versionIdOf(appId: number, version: string | undefined, code: num
  * Upload an APK and put it in the Library the way the Apps page does: a new app becomes a Library entry; an app
  * already there takes a higher versionCode, or the same one under a new version name, as its new version (every policy
  * using it moves to it); a file that IS a version already there returns that version (so a policy can use it); an
- * older one that is not there is refused. [label] names the version. Returns the up-to-date Library app.
+ * older one that is not there is refused — unless it goes into a group of builds ([intoGroup]: each policy uses the
+ * build it is given, so an older code is just another build; the value is the group's package). [label] names the version. Returns the up-to-date Library app.
  */
-export async function uploadApkToLibrary(file: File, label?: string): Promise<UploadOutcome> {
+export async function uploadApkToLibrary(file: File, label?: string, intoGroup?: string): Promise<UploadOutcome> {
   const up = await uploadApk(file);
   const fd = up.fileDetails;
   if (!fd?.pkg) return { kind: 'error', note: 'No se pudo leer el paquete del APK.' };
+  if (intoGroup && fd.pkg !== intoGroup) {
+    return { kind: 'error', note: `Ese APK es de otra app (${fd.pkg}); este grupo es de ${intoGroup}.` };
+  }
   let url: string | undefined;
   try { url = (await commitUpload(up.serverPath, uniqueApkName(fd.pkg, fd.version, file.name))).url || undefined; } catch { url = undefined; }
   const find = async () => (await listApplications(fd.pkg).catch(() => [] as Application[])).find((a) => a.pkg === fd.pkg);
@@ -43,7 +47,7 @@ export async function uploadApkToLibrary(file: File, label?: string): Promise<Up
         return { kind: 'existing', app: existing, versionId: versionId ?? same.id, version: fd.version,
           note: `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}) ya estaba en la Biblioteca${label ? `; ahora se llama «${label.trim()}»` : ''}.` };
       }
-      return { kind: 'error', note: `El versionCode ${vc} es menor que ${current} y esa versión no está en la Biblioteca.` };
+      if (!intoGroup) return { kind: 'error', note: `El versionCode ${vc} es menor que ${current} y esa versión no está en la Biblioteca.` };
     }
     if (!url) return { kind: 'error', note: 'No se pudo alojar el archivo en el servidor.' };
     await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url });

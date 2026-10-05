@@ -30,3 +30,18 @@ export const setPolicyDowngrade = (configurationId: number, applicationId: numbe
 
 /** The highest version code among an app's library versions. */
 export const topCode = (list: LabeledVersion[]) => list.reduce((m, v) => Math.max(m, v.versionCode ?? 0), 0);
+
+/** A group of builds: an app with several versions (or named ones); each policy uses one of its builds. */
+export interface VersionGroup { applicationId: number; members: LabeledVersion[] }
+
+export const listVersionGroups = () => apiClient.get<VersionGroup[]>('/private/dc/versions/groups');
+
+/**
+ * Make exactly [configurationIds] use this build (policies that used it and are left out drop the app). Phones with
+ * another build of the group get this one; a newer one than this is reinstalled.
+ */
+export const assignVersion = (versionId: number, configurationIds: number[]) =>
+  apiClient.put<{ assigned: number; removed: number; queued: number }>(`/private/dc/versions/${versionId}/policies`, { configurationIds });
+
+/** Remove a build from the Library (and its APK file). */
+export const deleteVersion = (versionId: number) => apiClient.del<void>(`/private/applications/versions/${versionId}`);

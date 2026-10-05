@@ -114,6 +114,10 @@ class DroidVncController @Inject constructor(
             putExtra(EXTRA_VIEW_ONLY, viewOnly)
             if (!password.isNullOrEmpty()) putExtra(EXTRA_PASSWORD, password)
             putExtra(EXTRA_REQUEST_ID, "$sessionId-start")
+            // Capture through droidVNC-NG's accessibility service instead of waiting for the screen-capture
+            // consent, which a kiosk never lets show (or a HyperOS reboot resets). Where screen capture is
+            // allowed, droidVNC-NG upgrades to it by itself once the console connects.
+            putExtra(EXTRA_FALLBACK_SCREEN_CAPTURE, usesFallbackCapture())
         }
         val connect = serviceIntent(ACTION_CONNECT_REPEATER).apply {
             putExtra(EXTRA_HOST, host)
@@ -128,7 +132,9 @@ class DroidVncController @Inject constructor(
             "$sessionId-stop", STOP_TIMEOUT_MS, foreground = false)
         val started = request(start, ACTION_START, "$sessionId-start", START_TIMEOUT_MS)
         return when {
-            started == null -> "droidVNC-NG did not confirm its start (screen-capture permission missing?)"
+            started == null && !usesFallbackCapture() ->
+                "droidVNC-NG did not confirm its start (screen-capture permission missing and its input service is off)"
+            started == null -> "droidVNC-NG did not confirm its start"
             !started -> "droidVNC-NG failed to start"
             request(connect, ACTION_CONNECT_REPEATER, sessionId, CONNECT_TIMEOUT_MS) != true ->
                 "droidVNC-NG could not reach the repeater at $host:$port"
@@ -191,6 +197,21 @@ class DroidVncController @Inject constructor(
      * activity of its own. Kiosks applied by this agent already allowlist it; this also covers kiosks applied before
      * that (or by an older agent) without re-applying the configuration. No-op when not in kiosk.
      */
+    /**
+     * Accessibility-screenshot capture: Android 11+ with droidVNC-NG's input service on, and its screen-capture
+     * app-op not granted (granted, it captures silently at full speed; the fallback would ask on the phone to upgrade).
+     */
+    private fun usesFallbackCapture(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && isInputServiceEnabled() && !screenCaptureAllowed()
+
+    /** droidVNC-NG's PROJECT_MEDIA app-op is "allow" (set by the cable/Wi-Fi enroller). Unknown counts as not. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun screenCaptureAllowed(): Boolean = runCatching {
+        val uid = context.packageManager.getApplicationInfo(PACKAGE, 0).uid
+        val ops = context.getSystemService(android.app.AppOpsManager::class.java)
+        ops.unsafeCheckOpNoThrow(OP_PROJECT_MEDIA, uid, PACKAGE) == android.app.AppOpsManager.MODE_ALLOWED
+    }.onFailure { Log.i(TAG, "cannot read droidVNC-NG screen-capture app-op: ${it.message}") }.getOrDefault(false)
+
     private fun allowInKiosk() {
         if (android.os.Build.VERSION.SDK_INT < 26) return // getLockTaskPackages is API 26; older kiosks listed it at entry
         runCatching {
@@ -228,6 +249,8 @@ class DroidVncController @Inject constructor(
         private const val EXTRA_PORT = "$PACKAGE.EXTRA_PORT"
         private const val EXTRA_PASSWORD = "$PACKAGE.EXTRA_PASSWORD"
         private const val EXTRA_VIEW_ONLY = "$PACKAGE.EXTRA_VIEW_ONLY"
+        private const val EXTRA_FALLBACK_SCREEN_CAPTURE = "$PACKAGE.EXTRA_FALLBACK_SCREEN_CAPTURE"
+        private const val OP_PROJECT_MEDIA = "android:project_media"
         private const val EXTRA_HOST = "$PACKAGE.EXTRA_HOST"
         private const val EXTRA_REPEATER_ID = "$PACKAGE.EXTRA_REPEATER_ID"
         private const val EXTRA_RECONNECT_TRIES = "$PACKAGE.EXTRA_RECONNECT_TRIES"

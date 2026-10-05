@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { VersionsDialog } from '../components/VersionsDialog';
-import { listAppVersions, setVersionLabel } from '../api/versions';
+import { VersionGroupCard, type PolicyRef } from '../components/VersionGroupCard';
+import { listAppVersions, listVersionGroups, setVersionLabel, type VersionGroup } from '../api/versions';
+import { getConfigurations } from '../api/configurations';
 import { hasApk, obtainApk } from '../api/apkFetch';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -146,7 +147,9 @@ function AppIcon({ name, url }: { name: string; url?: string | null }) {
 
 function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   const toast = useToast();
-  const [versionsOf, setVersionsOf] = useState<Application | null>(null);
+  const [grouping, setGrouping] = useState<Application | null>(null);
+  const [groups, setGroups] = useState<Record<number, VersionGroup>>({});
+  const [policies, setPolicies] = useState<PolicyRef[]>([]);
   const [apps, setApps] = useState<Application[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -154,9 +157,15 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   const [fetching, setFetching] = useState<Record<string, number>>({});
   const [bulk, setBulk] = useState<string | null>(null);
 
-  const load = () => listApplications()
-    .then((list) => setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
-    .catch(() => (setApps([]), setError('No se pudo cargar la Biblioteca de apps.')));
+  const load = () => {
+    // Groups of builds (several versions of one package, each policy on one of them) show as a group card.
+    listVersionGroups().then((g) => setGroups(Object.fromEntries(g.map((x) => [x.applicationId, x])))).catch(() => setGroups({}));
+    getConfigurations().then((c) => setPolicies(c.map((x) => ({ id: x.id!, name: x.name })).sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => setPolicies([]));
+    return listApplications()
+      .then((list) => setApps(list.filter((a) => (a.type ?? 'app') !== 'web')))
+      .catch(() => (setApps([]), setError('No se pudo cargar la Biblioteca de apps.')));
+  };
   useEffect(() => { void load(); }, []);
 
   const shown = useMemo(() => {
@@ -198,7 +207,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
 
   return (
     <>
-      {versionsOf && <VersionsDialog app={{ id: versionsOf.id!, name: versionsOf.name, pkg: versionsOf.pkg }} onClose={() => setVersionsOf(null)} />}
+      {grouping && <MakeGroupDialog app={grouping} onClose={() => setGrouping(null)} onDone={() => { setGrouping(null); void load(); }} />}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="dv-search" style={{ width: 260 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -236,7 +245,10 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
         </div>
       ) : (
         <div className="app-grid">
-          {shown.map((a) => {
+          {shown.filter((a) => a.id != null && groups[a.id]).map((a) => (
+            <VersionGroupCard key={a.id} app={a} group={groups[a.id!]} policies={policies} onDeploy={onDeploy} onChanged={() => void load()} />
+          ))}
+          {shown.filter((a) => a.id == null || !groups[a.id]).map((a) => {
             const busy = a.pkg in fetching;
             const f = fetching[a.pkg];
             return (
@@ -258,7 +270,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
                     </button>
                   ) : (
                     <>
-                      <button className="btn btn-sm btn-ghost" onClick={() => setVersionsOf(a)} data-testid={`versions-${a.pkg}`}>Versiones</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => setGrouping(a)} data-testid={`versions-${a.pkg}`}
+                              title="Para tener varias versiones de esta app (por ejemplo una por cliente) y que cada política use la suya">Hacer grupo</button>
                       <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
                         Desplegar
                       </button>
@@ -271,6 +284,47 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
         </div>
       )}
     </>
+  );
+}
+
+/** Turn an app into a group of builds: name its current build; more builds are added from the group card. */
+function MakeGroupDialog({ app, onClose, onDone }: { app: Application; onClose: () => void; onDone: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    if (!name.trim() || app.id == null) return;
+    setBusy(true);
+    try {
+      const versions = await listAppVersions(app.id);
+      const current = versions.find((v) => (v.version ?? '') === (app.version ?? '')) ?? versions[0];
+      if (!current) { toast.push('err', 'Esta app no tiene versiones con APK', ''); return; }
+      await setVersionLabel(current.id, name.trim());
+      toast.push('ok', `${app.name} ahora es un grupo`, 'Agrégale más versiones y asigna cada una a sus políticas.');
+      onDone();
+    } catch (e) {
+      toast.push('err', 'No se pudo crear el grupo', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 520, width: '95vw' }} onClick={(e) => e.stopPropagation()} data-testid="make-group-dialog">
+        <h3>Hacer grupo con {app.name}</h3>
+        <p className="muted" style={{ marginTop: 0 }}>Un grupo guarda varias versiones de la misma app (por ejemplo una por cliente) y cada
+          política usa la que le asignes. Subir otra versión ya no cambia las políticas solas.</p>
+        <label className="field">
+          <span className="label">Nombre de la versión actual ({app.version ?? '—'})</span>
+          <input className="input" autoFocus maxLength={80} value={name} placeholder="Por ejemplo: El Sol"
+            onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save(); }} />
+        </label>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn" onClick={onClose} disabled={busy}>Cancelar</button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !name.trim()}>Crear grupo</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

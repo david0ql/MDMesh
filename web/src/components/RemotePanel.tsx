@@ -13,10 +13,13 @@ type Device = { number: string };
 /** Plain-language reasons for the device's remote-control errors, with what to do. */
 function explainRemote(detail?: string | null): string | undefined {
   if (!detail) return undefined;
-  if (/screen-capture permission|did not confirm its start/i.test(detail)) {
-    return 'El teléfono no tiene autorizada la «Captura de pantalla» para el soporte remoto (droidVNC-NG la muestra como DENEGADO). '
-      + 'Android solo la autoriza sin preguntar por cable o depuración inalámbrica: vuelve a pasar el inscriptor de Windows por ese '
-      + 'teléfono (Inscribir → Sin formatear; no borra nada ni lo vuelve a inscribir) y queda autorizada para siempre.';
+  if (/input service is off/i.test(detail)) {
+    return 'El teléfono no tiene activado el servicio de entrada de droidVNC-NG (accesibilidad) ni la «Captura de pantalla». '
+      + 'Vuelve a pasar el inscriptor de Windows por ese teléfono (Inscribir → Sin formatear; no borra nada ni lo vuelve a inscribir).';
+  }
+  if (/did not confirm its start/i.test(detail)) {
+    return 'droidVNC-NG no arrancó a tiempo en el teléfono. Si es un Xiaomi, el sistema pudo cerrarlo en segundo plano: '
+      + 'inténtalo de nuevo con el teléfono desbloqueado.';
   }
   if (/Not allowed to start service/i.test(detail)) {
     return 'El sistema del teléfono (Xiaomi/HyperOS) cerró el soporte remoto en segundo plano. Vuelve a pasar el inscriptor de Windows '

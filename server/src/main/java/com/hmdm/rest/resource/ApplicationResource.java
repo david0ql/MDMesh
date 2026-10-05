@@ -351,7 +351,10 @@ public class ApplicationResource {
             if (app == null || !version.getId().equals(app.getLatestVersion())) {
                 return;
             }
-            java.util.List<Integer> configs = agentCommandDAO.moveConfigurationsToAppVersion(app.getId(), version.getId());
+            // A group of named builds: policies keep the build they were assigned (Apps → the group → Asignar).
+            java.util.List<Integer> configs = applicationDAO.isVersionGroup(app.getId())
+                    ? new java.util.ArrayList<>()
+                    : agentCommandDAO.moveConfigurationsToAppVersion(app.getId(), version.getId());
             int queued = 0;
             for (Integer configurationId : configs) {
                 queued += configAppInstaller.enqueueForConfiguration(configurationId);

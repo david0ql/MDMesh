@@ -619,10 +619,10 @@ function ConfigEditor({
                 set('applications', allowed.map((x) => (x.id === a.id ? { ...x, usedVersionId: v.id, version: v.version ?? x.version } : x)));
               }}>
               {!(versions[a.id] ?? []).some((v) => v.id === a.usedVersionId) && (
-                <option value={a.usedVersionId ?? ''}>{a.version ?? '—'}{a.usedVersionId && labels[String(a.usedVersionId)] ? ` · ${labels[String(a.usedVersionId)]}` : ''}</option>
+                <option value={a.usedVersionId ?? ''}>{a.usedVersionId && labels[String(a.usedVersionId)] ? `${labels[String(a.usedVersionId)]} · ` : ''}{a.version ?? '—'}</option>
               )}
               {(versions[a.id] ?? []).map((v) => (
-                <option key={v.id} value={v.id}>{v.version ?? '—'} ({v.versionCode ?? '?'}){v.label ? ` · ${v.label}` : ''}</option>
+                <option key={v.id} value={v.id}>{v.label ? `${v.label} · ` : ''}{v.version ?? '—'} ({v.versionCode ?? '?'})</option>
               ))}
             </select>
             <select

@@ -55,6 +55,9 @@ class CheckInCoordinator @Inject constructor(
     // starved main-looper callbacks the cycle itself was waiting for.
     suspend fun runOnce(): Unit = withContext(workContext) { runLocked() }
 
+    /** True while a cycle is in flight (a heartbeat then skips instead of queueing behind it). */
+    val isBusy: Boolean get() = mutex.isLocked
+
     /** Where cycles run. Tests swap in EmptyCoroutineContext to stay on the test scheduler. */
     internal var workContext: kotlin.coroutines.CoroutineContext = Dispatchers.IO
 

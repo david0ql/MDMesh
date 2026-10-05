@@ -3107,3 +3107,26 @@ a {
 /* Desplegar: versión a instalar */
 .deploy-version { margin: 4px 0 12px; }
 .deploy-reinstall { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg, rgba(232,178,91,.15)); }
+
+/* Groups of builds in the Apps library (one package, several named builds; each policy uses one) */
+.vg-card { grid-column: 1 / -1; }
+.vg-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.vg-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.vg-list { list-style:none; margin:0; padding:0; border-top:1px solid var(--line-soft); }
+.vg-row { display:grid; grid-template-columns:minmax(200px, 1.1fr) minmax(160px, 1.4fr) auto; gap:12px; align-items:center;
+  padding:11px 0; border-bottom:1px solid var(--line-soft); }
+.vg-row:last-child { border-bottom:0; padding-bottom:0; }
+.vg-name { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.vg-label { font-weight:600; font-size:13.5px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vg-used { display:flex; gap:6px; flex-wrap:wrap; }
+.vg-row-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.vg-policies { list-style:none; margin:8px 0; padding:0; max-height:46vh; overflow:auto; border:1px solid var(--line-soft); border-radius:10px; }
+.vg-policies li { border-bottom:1px solid var(--line-soft); }
+.vg-policies li:last-child { border-bottom:0; }
+.vg-policies label { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:10px 12px; cursor:pointer; }
+@media (max-width: 720px) {
+  .vg-row { grid-template-columns:1fr; }
+  .vg-row-actions { justify-content:flex-start; }
+  .vg-policies label { grid-template-columns:auto 1fr; }
+  .vg-policies label .muted { grid-column:2; }
+}

@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.Map;
@@ -53,4 +54,32 @@ public interface DcVersionMapper {
 
     @Delete({"DELETE FROM dc_policy_app_downgrade WHERE configurationId = #{configurationId} AND applicationId = #{applicationId}"})
     void forbidDowngrade(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId);
+    // --- Groups of builds: an app with several versions (or named ones); each policy uses one of them ---
+
+    @Select({"SELECT a.id FROM applications a INNER JOIN applicationVersions v ON v.applicationId = a.id " +
+            "LEFT JOIN dc_version_label l ON l.versionId = v.id WHERE a.customerId = #{customerId} " +
+            "GROUP BY a.id HAVING COUNT(v.id) > 1 OR COUNT(l.versionId) > 0"})
+    List<Integer> groupApps(@Param("customerId") int customerId);
+
+    @Select({"SELECT v.applicationId AS applicationid, v.versionCode AS versioncode FROM applicationVersions v " +
+            "INNER JOIN applications a ON a.id = v.applicationId WHERE v.id = #{versionId} AND a.customerId = #{customerId}"})
+    Map<String, Object> versionOf(@Param("customerId") int customerId, @Param("versionId") int versionId);
+
+    @Select({"SELECT COALESCE(MAX(versionCode), 0) FROM applicationVersions WHERE applicationId = #{applicationId}"})
+    int topCode(@Param("applicationId") int applicationId);
+
+    @Update({"UPDATE configurationApplications SET applicationVersionId = #{versionId}, action = 1 " +
+            "WHERE configurationId = #{configurationId} AND applicationId = #{applicationId}"})
+    int pointPolicy(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId,
+                    @Param("versionId") int versionId);
+
+    @Insert({"INSERT INTO configurationApplications (configurationId, applicationId, applicationVersionId, remove, showIcon, action) " +
+            "VALUES (#{configurationId}, #{applicationId}, #{versionId}, false, true, 1)"})
+    void addToPolicy(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId,
+                     @Param("versionId") int versionId);
+
+    @Delete({"DELETE FROM configurationApplications WHERE configurationId = #{configurationId} AND applicationId = #{applicationId} " +
+            "AND applicationVersionId = #{versionId}"})
+    int removeFromPolicy(@Param("configurationId") int configurationId, @Param("applicationId") int applicationId,
+                         @Param("versionId") int versionId);
 }
