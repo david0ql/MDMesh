@@ -241,22 +241,6 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     request: { type: 'device.wipe', requiresCapability: 'device.wipe' },
   },
   {
-    key: 'power-adaptive', label: 'Conectividad: ahorro de batería', group: 'safe',
-    description: 'Mantiene la conexión en vivo solo con la pantalla encendida o cargando; en reposo usa el latido de bajo consumo. Opción por defecto, cuida la batería.',
-    request: {
-      type: 'device.powerMode', requiresCapability: 'device.powerMode',
-      payload: JSON.stringify({ mode: 'adaptive' }),
-    },
-  },
-  {
-    key: 'power-always', label: 'Conectividad: Siempre conectado', group: 'safe',
-    description: 'Mantiene la conexión en vivo 24/7 para que las órdenes y las sesiones remotas lleguen al instante, incluso bloqueado y sin cargar (gasta más batería). Úsalo en dispositivos que necesitan soporte inmediato.',
-    request: {
-      type: 'device.powerMode', requiresCapability: 'device.powerMode',
-      payload: JSON.stringify({ mode: 'alwaysOn' }),
-    },
-  },
-  {
     key: 'location-passive', label: 'Ubicación: ahorro de batería', group: 'safe',
     description: 'Reporta la última ubicación conocida en cada conexión — casi sin gasto de batería, sin GPS activo.',
     request: {
