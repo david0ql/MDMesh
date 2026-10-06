@@ -35,7 +35,17 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttp(serverConfig: ServerConfigStore): OkHttpClient {
+    fun provideOkHttp(
+        serverConfig: ServerConfigStore,
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+    ): OkHttpClient {
+        val dnsPrefs = context.getSharedPreferences("mdm_dns", android.content.Context.MODE_PRIVATE)
+        val dns = com.dallycontrol.core.net.RememberingDns(object : com.dallycontrol.core.net.RememberingDns.Store {
+            override fun get(host: String) = dnsPrefs.getString(host, null)?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+            override fun put(host: String, addresses: List<String>) {
+                if (addresses.isNotEmpty()) dnsPrefs.edit().putString(host, addresses.joinToString(",")).apply()
+            }
+        })
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
@@ -44,6 +54,8 @@ object NetworkModule {
             }
         }
         return OkHttpClient.Builder()
+            // A carrier DNS that fails now and then must not stop downloads: fall back to the last good answer.
+            .dns(dns)
             // Idle pooled connections live 30 s, not OkHttp's 5 min: carrier NATs (and the emulator's) drop
             // idle TCP silently, and a check-in written into such a dead socket hung until the read timeout,
             // leaving a woken device's commands for the next wake or the 15-minute floor.
