@@ -167,7 +167,7 @@ class InstallManager @Inject constructor(
         try {
             for (part in parts) {
                 val file = runCatching { obtainPart(part) }
-                    .getOrElse { return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}") }
+                    .getOrElse { rethrowCancel(it); return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}") }
                 fetched += FetchedApk(file, downloaded = part.url != null)
                 part.sha256?.let { expected ->
                     val actual = sha256Of(file)
@@ -179,7 +179,7 @@ class InstallManager @Inject constructor(
 
             // 3. Create + write EVERY part into ONE session + commit, awaiting the broadcast result.
             val outcome = runCatching { commitInstall(req.packageName, fetched.map { it.file }) }
-                .getOrElse { return InstallOutcome.Failure(null, "install session error: ${it.message}") }
+                .getOrElse { rethrowCancel(it); return InstallOutcome.Failure(null, "install session error: ${it.message}") }
 
             if (outcome is InstallOutcome.Failure && OS_BLOCKS.any { outcome.reason.contains(it) }) {
                 osBlocked.edit().putLong(blockedKey, req.versionCode ?: 0L)
@@ -196,6 +196,14 @@ class InstallManager @Inject constructor(
             // Only clean up files we downloaded; never delete a caller-provided APK.
             fetched.forEach { if (it.downloaded) it.file.delete() }
         }
+    }
+
+    /**
+     * A cancelled check-in (the worker stopped by a network change, a SIM inserted, the system) is not a failed install:
+     * let it propagate so no result is reported and the server hands the install out again.
+     */
+    private fun rethrowCancel(t: Throwable) {
+        if (t is kotlinx.coroutines.CancellationException) throw t
     }
 
     /** A fetched part plus whether we downloaded it (and therefore own its cleanup). */

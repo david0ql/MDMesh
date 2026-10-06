@@ -42,7 +42,13 @@ public interface AgentCommandMapper {
             before = false, resultType = int.class)
     void insert(AgentCommand command);
 
-    @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND status = 'pending' ORDER BY id"})
+    /**
+     * The phone runs them in this order. Installs of big public apps (Google's, WhatsApp…) go after everything else, so a
+     * slow download — or one HyperOS refuses — never holds up the company's own app (same rule as ConfigAppInstaller).
+     */
+    @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND status = 'pending' ORDER BY " +
+            "CASE WHEN type = 'app.install' AND payload ~ '\"packageName\"\\s*:\\s*\"(com\\.google\\.|com\\.android\\.|com\\.microsoft\\.|com\\.azure\\.|com\\.whatsapp\"|com\\.waze\")' " +
+            "THEN 1 ELSE 0 END, id"})
     List<AgentCommand> listPending(@Param("deviceNumber") String deviceNumber);
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND id = #{id}"})

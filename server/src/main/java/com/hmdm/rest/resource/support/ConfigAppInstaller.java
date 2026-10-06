@@ -76,6 +76,10 @@ public class ConfigAppInstaller {
                 com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
                 if (cfg != null) apps = policyApps.resolve(cfg, apps, device.getId()).apps;
             }
+            // The phone installs one by one: the company's own apps (Distribución, Preventa…) first, the big public ones
+            // (Google's Maps, Chrome… — which HyperOS may refuse anyway) last, so a slow download never holds them up.
+            apps = new java.util.ArrayList<>(apps);
+            apps.sort(java.util.Comparator.comparingInt(ConfigAppInstaller::installRank));
             long now = System.currentTimeMillis();
             for (Application app : apps) {
                 String uninstallPkg = uninstallTarget(app);
@@ -154,6 +158,13 @@ public class ConfigAppInstaller {
             wakeHub.wake(r.getNumber(), "commands"); // its policy document changed too (allowed apps / kiosk)
         }
         return queued;
+    }
+
+    /** 0 = the company's own app, 1 = a public one (Google, Android, WhatsApp…). Stable sort keeps the rest of the order. */
+    static int installRank(Application app) {
+        String pkg = app == null || app.getPkg() == null ? "" : app.getPkg();
+        return pkg.startsWith("com.google.") || pkg.startsWith("com.android.") || pkg.equals("com.whatsapp")
+                || pkg.equals("com.waze") || pkg.startsWith("com.microsoft.") || pkg.startsWith("com.azure.") ? 1 : 0;
     }
 
     public int enqueueForConfiguration(int configurationId) {

@@ -73,4 +73,29 @@ class CommandDispatcherTest {
         assertEquals(CommandStatus.FAILED, result.status)
         assertEquals("kaboom", result.detail)
     }
+
+    @Test
+    fun `a cancelled handler is not reported as failed`() = runTest {
+        val cancelled = object : CommandHandler {
+            override val type = "app.install"
+            override suspend fun handle(command: CommandEnvelope): CommandResult =
+                throw kotlinx.coroutines.CancellationException("Job was cancelled")
+        }
+        val dispatcher = CommandDispatcher(handlers = listOf(cancelled))
+
+        val thrown = runCatching { dispatcher.dispatch(envelope("app.install")) }.exceptionOrNull()
+
+        org.junit.Assert.assertTrue(thrown is kotlinx.coroutines.CancellationException)
+    }
+
+    @Test
+    fun `a handler error is still a failed result`() = runTest {
+        val broken = object : CommandHandler {
+            override val type = "app.install"
+            override suspend fun handle(command: CommandEnvelope): CommandResult = error("boom")
+        }
+        val result = CommandDispatcher(handlers = listOf(broken)).dispatch(envelope("app.install"))
+
+        assertEquals(CommandStatus.FAILED, result.status)
+    }
 }

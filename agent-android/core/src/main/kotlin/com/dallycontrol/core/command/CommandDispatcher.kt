@@ -38,7 +38,11 @@ class CommandDispatcher(
             ?: return CommandResults.unsupported(command, "unknown command type: ${command.type}")
 
         return runCatching { handler.handle(command) }
-            .getOrElse { CommandResults.failed(command, it.message ?: "handler threw") }
+            .getOrElse {
+                // Cancelled with the check-in (worker stopped): unanswered, so the server re-queues it — not a failure.
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                CommandResults.failed(command, it.message ?: "handler threw")
+            }
     }
 
     private fun isExpired(command: CommandEnvelope): Boolean {
