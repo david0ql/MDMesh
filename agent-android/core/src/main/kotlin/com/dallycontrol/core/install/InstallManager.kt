@@ -309,37 +309,7 @@ class InstallManager @Inject constructor(
     private suspend fun obtainPart(part: ApkPart): File {
         part.localPath?.let { return File(it) }
         val url = requireNotNull(part.url) { "install part needs either url or localPath" }
-        return withContext(Dispatchers.IO) { download(url) }
-    }
-
-    /**
-     * Big APKs over a shaky mobile link: HTTP/1.1 (an HTTP/2 stream reset — "stream was reset: INTERNAL_ERROR" — killed
-     * WhatsApp downloads), and up to [DOWNLOAD_TRIES] attempts that resume where the last one stopped (Range).
-     */
-    private fun download(url: String): File {
-        val dest = File(context.cacheDir, "mdm-install-${System.nanoTime()}.apk")
-        var lastError: Throwable? = null
-        for (attempt in 1..DOWNLOAD_TRIES) {
-            try {
-                val have = if (dest.exists()) dest.length() else 0L
-                val req = Request.Builder().url(url).apply { if (have > 0) header("Range", "bytes=$have-") }.build()
-                downloadClient.newCall(req).execute().use { response ->
-                    if (!response.isSuccessful) error("HTTP ${response.code} for $url")
-                    val resumed = have > 0 && response.code == 206
-                    val body = response.body ?: error("empty response body for $url")
-                    body.byteStream().use { input ->
-                        java.io.FileOutputStream(dest, resumed).use { input.copyTo(it) }
-                    }
-                }
-                return dest
-            } catch (e: Throwable) {
-                lastError = e
-                if (e is IllegalStateException && e.message?.startsWith("HTTP 4") == true) break // not found / forbidden: no retry
-                Thread.sleep(2_000L * attempt)
-            }
-        }
-        dest.delete()
-        throw lastError ?: IllegalStateException("download failed")
+        return withContext(Dispatchers.IO) { downloader.download(url, part.sha256.orEmpty()) }
     }
 
     private val downloadClient: OkHttpClient by lazy {
@@ -348,6 +318,8 @@ class InstallManager @Inject constructor(
             .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
             .build()
     }
+
+    private val downloader by lazy { ResumableDownloader(context.cacheDir, downloadClient, DOWNLOAD_TRIES) }
 
     /** Versions the phone's own system refused (see [OS_BLOCKS]). */
     private val osBlocked by lazy { context.getSharedPreferences("mdm_install_os_blocked", Context.MODE_PRIVATE) }
