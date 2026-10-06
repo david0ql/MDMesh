@@ -111,7 +111,14 @@ class CheckInCoordinator @Inject constructor(
         }
 
         telemetry?.let { runCatching { telemetrySource.delivered(it) } }
-        val results = data.commands.map { dispatcher.dispatch(it) }
+        // A command that must wait (no internet for its download) stays unanswered: the server re-queues it.
+        val results = data.commands.mapNotNull {
+            try {
+                dispatcher.dispatch(it)
+            } catch (e: com.dallycontrol.core.command.RetryLaterException) {
+                null
+            }
+        }
         pending.add(results)
         // Record each command outcome as a timeline event (flushed next cycle).
         results.forEach { eventSink.record(EventType.COMMAND_RESULT, "${it.commandId}:${it.status}") }

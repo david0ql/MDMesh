@@ -167,7 +167,12 @@ class InstallManager @Inject constructor(
         try {
             for (part in parts) {
                 val file = runCatching { obtainPart(part) }
-                    .getOrElse { rethrowCancel(it); return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}") }
+                    .getOrElse {
+                        rethrowCancel(it)
+                        // No internet / DNS / server hiccup: not this install's fault — leave it for a later check-in.
+                        if (isTransient(it)) throw com.dallycontrol.core.command.RetryLaterException("apk fetch: ${it.message}")
+                        return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}")
+                    }
                 fetched += FetchedApk(file, downloaded = part.url != null)
                 part.sha256?.let { expected ->
                     val actual = sha256Of(file)
@@ -205,6 +210,10 @@ class InstallManager @Inject constructor(
     private fun rethrowCancel(t: Throwable) {
         if (t is kotlinx.coroutines.CancellationException) throw t
     }
+
+    /** A network failure (no connection, DNS, timeout, TLS) or a server error (5xx) — worth trying again later. */
+    private fun isTransient(t: Throwable): Boolean =
+        t is java.io.IOException || (t is IllegalStateException && t.message?.startsWith("HTTP 5") == true)
 
     /** A fetched part plus whether we downloaded it (and therefore own its cleanup). */
     private data class FetchedApk(val file: File, val downloaded: Boolean)

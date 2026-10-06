@@ -40,7 +40,7 @@ class CommandDispatcher(
         return runCatching { handler.handle(command) }
             .getOrElse {
                 // Cancelled with the check-in (worker stopped): unanswered, so the server re-queues it — not a failure.
-                if (it is kotlinx.coroutines.CancellationException) throw it
+                if (it is kotlinx.coroutines.CancellationException || it is RetryLaterException) throw it
                 CommandResults.failed(command, it.message ?: "handler threw")
             }
     }
@@ -54,3 +54,9 @@ class CommandDispatcher(
         return nowEpochSeconds() - issuedAtEpoch > ttl
     }
 }
+
+/**
+ * The command could not run now for a passing reason (no internet while downloading an APK). The check-in leaves it
+ * unanswered; the server hands it out again on a later check-in instead of it ending as a failure nobody retries.
+ */
+class RetryLaterException(message: String) : Exception(message)

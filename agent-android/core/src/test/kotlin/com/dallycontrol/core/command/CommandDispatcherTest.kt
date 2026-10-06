@@ -98,4 +98,16 @@ class CommandDispatcherTest {
 
         assertEquals(CommandStatus.FAILED, result.status)
     }
+
+    @Test
+    fun `a command that must wait is left unanswered`() = runTest {
+        val offline = object : CommandHandler {
+            override val type = "app.install"
+            override suspend fun handle(command: CommandEnvelope): CommandResult =
+                throw RetryLaterException("apk fetch: Unable to resolve host")
+        }
+        val thrown = runCatching { CommandDispatcher(handlers = listOf(offline)).dispatch(envelope("app.install")) }.exceptionOrNull()
+
+        org.junit.Assert.assertTrue(thrown is RetryLaterException)
+    }
 }
