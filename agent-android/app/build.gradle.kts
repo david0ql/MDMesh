@@ -18,8 +18,8 @@ android {
         targetSdk = 35
         // Release CI overrides these from the git tag (see release/version.sh); the defaults are the
         // dev/debug values. versionCode must stay monotonic across the scheme switch (115 > 16).
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 42
-        versionName = (project.findProperty("versionName") as String?) ?: "0.8.1"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 43
+        versionName = (project.findProperty("versionName") as String?) ?: "0.8.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -40,7 +40,11 @@ class CommandDispatcher(
         return runCatching { handler.handle(command) }
             .getOrElse {
                 // Cancelled with the check-in (worker stopped): unanswered, so the server re-queues it — not a failure.
-                if (it is kotlinx.coroutines.CancellationException || it is RetryLaterException) throw it
+                // Not run to the end: forget it, so the server's re-delivery runs it again instead of "duplicate ignored".
+                if (it is kotlinx.coroutines.CancellationException || it is RetryLaterException) {
+                    executed.remove(command.commandId)
+                    throw it
+                }
                 CommandResults.failed(command, it.message ?: "handler threw")
             }
     }

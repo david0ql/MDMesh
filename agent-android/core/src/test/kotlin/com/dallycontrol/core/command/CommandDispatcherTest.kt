@@ -110,4 +110,24 @@ class CommandDispatcherTest {
 
         org.junit.Assert.assertTrue(thrown is RetryLaterException)
     }
+
+    @Test
+    fun `a command left for later runs again when re-delivered`() = runTest {
+        var calls = 0
+        val flaky = object : CommandHandler {
+            override val type = "app.install"
+            override suspend fun handle(command: CommandEnvelope): CommandResult {
+                calls++
+                if (calls == 1) throw RetryLaterException("no internet")
+                return CommandResults.done(command)
+            }
+        }
+        val dispatcher = CommandDispatcher(handlers = listOf(flaky))
+        runCatching { dispatcher.dispatch(envelope("app.install")) }
+
+        val again = dispatcher.dispatch(envelope("app.install"))
+
+        assertEquals(CommandStatus.DONE, again.status)
+        assertEquals(2, calls)
+    }
 }
