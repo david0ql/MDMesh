@@ -103,6 +103,7 @@ class InstallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val resultBus: InstallResultBus,
     private val httpClient: OkHttpClient,
+    private val kioskUnpin: KioskUnpin = KioskUnpin.NONE,
 ) {
 
     private val packageInstaller: PackageInstaller
@@ -134,7 +135,17 @@ class InstallManager @Inject constructor(
                     )
                 }
                 // Allowed by the console: take the newer one off, then install the chosen older version below.
-                when (val removed = uninstall(req.packageName)) {
+                // A kiosk pins its foreground app, so Android refuses to uninstall it (DELETE_FAILED_APP_PINNED).
+                // Bring the kiosk launcher forward so the target stops being the pinned task, then uninstall. The
+                // launcher taking the foreground is best-effort and racy, so retry while the pin is the only thing
+                // blocking us — each attempt re-asserts the launcher first (all a no-op off kiosk).
+                var removed: InstallOutcome = InstallOutcome.Failure(null, "not attempted")
+                for (attempt in 0 until UNINSTALL_PIN_RETRIES) {
+                    runCatching { kioskUnpin.releaseForUninstall(req.packageName) }
+                    removed = uninstall(req.packageName)
+                    if (removed !is InstallOutcome.Failure || !removed.reason.contains("PINNED")) break
+                }
+                when (removed) {
                     is InstallOutcome.Failure -> return InstallOutcome.Failure(removed.status, "could not uninstall the newer version: ${removed.reason}")
                     else -> Unit
                 }
@@ -326,6 +337,8 @@ class InstallManager @Inject constructor(
 
     private companion object {
         const val DOWNLOAD_TRIES = 4
+        /** Tries to uninstall a kiosk-pinned app for a downgrade, re-asserting the launcher before each (racy foreground). */
+        const val UNINSTALL_PIN_RETRIES = 3
         /** Install errors meaning "this phone's system will never let the MDM install this app" (not a transient fault). */
         val OS_BLOCKS = listOf("ISOLATION_VIOLATION", "INSTALL_FAILED_USER_RESTRICTED")
     }

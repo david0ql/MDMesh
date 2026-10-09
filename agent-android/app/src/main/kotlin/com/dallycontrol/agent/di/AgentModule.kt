@@ -39,6 +39,7 @@ import com.dallycontrol.core.device.AppInventoryCollector
 import com.dallycontrol.core.device.HardwareIdCollector
 import com.dallycontrol.core.sync.HardwareIdSource
 import com.dallycontrol.core.install.InstallManager
+import com.dallycontrol.core.install.KioskUnpin
 import com.dallycontrol.core.state.DeviceStateCollector
 import com.dallycontrol.core.state.DeviceStateSource
 import com.dallycontrol.core.store.ConfigStateStore
@@ -306,6 +307,23 @@ object AgentModule {
     ): KioskApplier {
         val home = kioskHomeAlias(context)
         return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles)
+    }
+
+    /**
+     * Lets a downgrade uninstall a kiosk-pinned app: on a kiosk device, bring the kiosk launcher forward so the
+     * app being replaced is no longer the pinned foreground task, then give the system a moment to settle before
+     * the uninstall runs. A no-op when the device is not in kiosk.
+     */
+    @Provides
+    @Singleton
+    fun provideKioskUnpin(@ApplicationContext context: Context, applier: KioskApplier): KioskUnpin {
+        val switch = AndroidKioskHomeSwitch(context, kioskHomeAlias(context))
+        return KioskUnpin {
+            if (applier.isPersisted()) {
+                switch.showLauncher()
+                kotlinx.coroutines.delay(2_000)
+            }
+        }
     }
 
     @Provides
