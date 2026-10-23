@@ -9,6 +9,7 @@ import { fmtDateTime } from '../ui/format';
 import { QrCanvas, downloadQrPng } from '../components/QrCanvas';
 import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
 import { NoResetEnrollPanel } from '../components/NoResetEnrollPanel';
+import { UsbEnrollPanel } from '../components/UsbEnrollPanel';
 import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
@@ -23,7 +24,7 @@ const STEPS = [
   { title: 'Espera la inscripción', sub: 'El dispositivo aparece en Dispositivos después de su primera conexión.' },
 ];
 
-type Mode = 'qr' | 'token' | 'codes' | 'noreset';
+type Mode = 'qr' | 'token' | 'codes' | 'noreset' | 'usb';
 
 export function EnrollPage() {
   const toast = useToast();
@@ -119,6 +120,7 @@ export function EnrollPage() {
             <button className={mode === 'token' ? 'on' : ''} onClick={() => setMode('token')}>Token</button>
             <button className={mode === 'codes' ? 'on' : ''} onClick={() => setMode('codes')}>Códigos de carpeta</button>
             <button className={mode === 'noreset' ? 'on' : ''} onClick={() => setMode('noreset')}>Sin formatear</button>
+            <button className={mode === 'usb' ? 'on' : ''} onClick={() => setMode('usb')}>Por cable (USB)</button>
           </span>
         </div>
 
@@ -218,6 +220,7 @@ export function EnrollPage() {
 
         {mode === 'codes' && <EnrollmentCodesPanel groups={groups} />}
         {mode === 'noreset' && <NoResetEnrollPanel token={token ?? undefined} groups={groups} />}
+        {mode === 'usb' && <UsbEnrollPanel />}
 
         {mode === 'token' && (
           <section className="panel enroll-wrap">
