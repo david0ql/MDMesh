@@ -138,6 +138,58 @@ export function RemotePanel({ device }: { device: Device }) {
     return () => { on = false; clearTimeout(t); };
   }, [phase, device.number]);
 
+  // --- Never leave a session (or droidVNC's capture dialog) lingering on the device ---
+  const sessionActive = phase.kind === 'live' || phase.kind === 'waiting';
+
+  // End the session if the operator leaves this panel (switches tab / device / closes the detail).
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => {
+    const num = device.number;
+    return () => {
+      if (phaseRef.current.kind === 'live' || phaseRef.current.kind === 'waiting') {
+        void stopRemoteSession(num).catch(() => undefined);
+      }
+    };
+  }, [device.number]);
+
+  // Force-end after 15 min of inactivity, and on tab/window close (best-effort keepalive POST).
+  useEffect(() => {
+    if (!sessionActive) return;
+    const num = device.number;
+    const IDLE_MS = 15 * 60 * 1000;
+    let idle: ReturnType<typeof setTimeout>;
+    const endIdle = () => {
+      void stopRemoteSession(num).catch(() => undefined);
+      setPhase({ kind: 'idle' });
+      toast.push('ok', 'Sesión remota finalizada', 'Se cerró sola tras 15 minutos de inactividad.');
+    };
+    const arm = () => { clearTimeout(idle); idle = setTimeout(endIdle, IDLE_MS); };
+    arm();
+    window.addEventListener('pointerdown', arm);
+    window.addEventListener('pointermove', arm, { passive: true });
+    window.addEventListener('keydown', arm);
+    const onUnload = () => {
+      try {
+        fetch(`/rest/private/agent/v1/devices/${encodeURIComponent(num)}/commands`, {
+          method: 'POST', keepalive: true, credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'remote.vnc.stop' }),
+        });
+      } catch { /* best effort */ }
+    };
+    window.addEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide', onUnload);
+    return () => {
+      clearTimeout(idle);
+      window.removeEventListener('pointerdown', arm);
+      window.removeEventListener('pointermove', arm);
+      window.removeEventListener('keydown', arm);
+      window.removeEventListener('beforeunload', onUnload);
+      window.removeEventListener('pagehide', onUnload);
+    };
+  }, [sessionActive, device.number, toast]);
+
   async function start(viewOnly: boolean) {
     setBusy(true);
     try {

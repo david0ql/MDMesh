@@ -6,8 +6,16 @@ import {
 } from '../api/commands';
 import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
+import { useAuth } from '../auth/AuthContext';
 
 type Device = { number: string };
+
+/** A view-only folder role lacks "disruptive_actions": it may run the safe actions but not lock/reboot/etc. */
+function canRunDisruptive(user: ReturnType<typeof useAuth>['user']): boolean {
+  if (!user) return false;
+  if (user.superAdmin || user.userRole?.superAdmin) return true;
+  return (user.userRole?.permissions ?? []).some((p) => p.name === 'disruptive_actions');
+}
 
 const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
   { id: 'safe', title: 'Seguras' },
@@ -17,6 +25,8 @@ const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }
 
 export function ActionConsole({ device }: { device: Device }) {
   const toast = useToast();
+  const { user } = useAuth();
+  const visibleGroups = canRunDisruptive(user) ? GROUPS : GROUPS.filter((g) => g.id === 'safe');
   const [state, setState] = useState<DeviceState | null>(null);
   const [history, setHistory] = useState<CommandHistoryItem[]>([]);
   const [active, setActive] = useState<CommandTemplateExt | null>(null);
@@ -107,7 +117,7 @@ export function ActionConsole({ device }: { device: Device }) {
       <DeviceStatePanel state={state} />
       <KioskToggle device={device} />
 
-      {GROUPS.map((g) => (
+      {visibleGroups.map((g) => (
         <section key={g.id} className="action-group">
           <h3 className="action-group-title">{g.title}</h3>
           <div className="action-grid">

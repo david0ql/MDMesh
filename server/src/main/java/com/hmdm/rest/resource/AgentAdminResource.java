@@ -348,6 +348,13 @@ public class AgentAdminResource {
         if (body == null || body.getType() == null || body.getType().trim().isEmpty()) {
             return Response.ERROR("error.agent.command.invalid");
         }
+        // Interrupting actions (lock/reboot/passcode/wipe) need the extra "disruptive_actions" permission,
+        // so a view-only folder role can run the safe actions but not these.
+        if (requiresDisruptivePermission(body.getType()) && !SecurityContext.get().hasPermission("disruptive_actions")) {
+            logger.warn("Permission denied: {} requires disruptive_actions (user {})",
+                    body.getType(), SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
 
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
@@ -384,6 +391,15 @@ public class AgentAdminResource {
     private static final Set<String> BULK_FORBIDDEN_TYPES =
             Set.of("device.wipe", "device.passcodereset");
 
+    /** Actions that interrupt the user (lock/reboot/change passcode/wipe). A role without the
+     *  "disruptive_actions" permission (e.g. a view-only folder role) runs everything else but not these. */
+    private static final Set<String> DISRUPTIVE_TYPES =
+            Set.of("device.lock", "device.reboot", "device.passcodereset", "device.wipe");
+
+    private static boolean requiresDisruptivePermission(String type) {
+        return type != null && DISRUPTIVE_TYPES.contains(type.trim().toLowerCase(java.util.Locale.ROOT));
+    }
+
     // =================================================================================================================
     @ApiOperation(value = "Queue agent command for many devices",
             notes = "Fans one opaque command out to a list of device ids (destructive types rejected).")
@@ -405,6 +421,11 @@ public class AgentAdminResource {
         final String type = req.getCommand().getType().trim();
         if (BULK_FORBIDDEN_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
             return Response.ERROR("error.agent.command.bulkForbidden");
+        }
+        if (requiresDisruptivePermission(type) && !SecurityContext.get().hasPermission("disruptive_actions")) {
+            logger.warn("Permission denied: bulk {} requires disruptive_actions (user {})",
+                    type, SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
         }
 
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();

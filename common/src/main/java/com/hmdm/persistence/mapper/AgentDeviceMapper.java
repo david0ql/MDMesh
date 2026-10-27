@@ -60,6 +60,16 @@ public interface AgentDeviceMapper {
                           @Param("hardwareId") String hardwareId);
 
     /**
+     * De-dup helper: the number of an already-enrolled device of this customer with the same stable
+     * hardware id (the agent's enrollment-specific id, stable across factory reset for our DPC), or
+     * null. Enroll reuses that row instead of minting a duplicate for the same physical phone.
+     */
+    @Select({"SELECT number FROM devices WHERE customerId = #{customerId} AND hardwareId = #{hardwareId} ",
+             "ORDER BY lastUpdate DESC LIMIT 1"})
+    String findDeviceNumberByHardwareId(@Param("customerId") int customerId,
+                                        @Param("hardwareId") String hardwareId);
+
+    /**
      * Store the Android version into infojson (the device list reads
      * {@code devices.infojson ->> 'androidVersion'}; our agent reports it via telemetry/state).
      */

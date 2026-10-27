@@ -3243,4 +3243,20 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.27-disruptive-actions-permission" author="dallycontrol">
+        <comment>Permission,new: disruptive_actions — gates lock/reboot/change-passcode/wipe so a view-only
+                 folder role can run the safe actions but not the interrupting ones. Granted to every
+                 existing role so no current user loses access; new roles omit it by default.</comment>
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                VALUES ('disruptive_actions', 'Permite acciones que interrumpen al usuario: bloquear, reiniciar, cambiar clave y borrar', FALSE);
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT id, CURRVAL('permissions_id_seq') FROM userRoles;
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions');
+            DELETE FROM permissions WHERE name = 'disruptive_actions';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

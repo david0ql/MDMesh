@@ -157,6 +157,11 @@ public class AgentCommandDAO {
         deviceMapper.updateHardwareId(deviceNumber, hardwareId);
     }
 
+    /** Number of an existing device of [customerId] with this stable hardware id, or null (enroll de-dup). */
+    public String findDeviceNumberByHardwareId(int customerId, String hardwareId) {
+        return deviceMapper.findDeviceNumberByHardwareId(customerId, hardwareId);
+    }
+
     public String getDeviceSecretHash(String deviceNumber) {
         return deviceMapper.getDeviceSecretHash(deviceNumber);
     }

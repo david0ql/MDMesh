@@ -161,27 +161,42 @@ public class AgentResource {
             return Response.ERROR(reusable ? "error.agent.token.invalid" : "error.agent.token.used");
         }
 
-        String deviceId = UUID.randomUUID().toString();
-        Device device = null;
+        // De-dup: if this exact physical phone (same stable hardware id) is already enrolled in this
+        // customer, reuse its row instead of minting a second one — the reported duplicate (two rows,
+        // one serial). hardwareId is the enrollment-specific id, stable across a factory reset for our DPC.
+        final String hwId = request.getHardwareId() == null ? null : request.getHardwareId().trim();
+        final String reuseNumber = (hwId != null && !hwId.isEmpty())
+                ? commandDAO.findDeviceNumberByHardwareId(token.getCustomerId(), hwId) : null;
+        final Device reuse = reuseNumber != null ? unsecureDAO.getDeviceByNumber(reuseNumber) : null;
+
+        String deviceId = reuse != null ? reuse.getNumber() : UUID.randomUUID().toString();
+        Device device = reuse;
         try {
-            // The device lands in the token's customer and group (company). Its configuration is the one the
-            // token pins, else its group's, else the global default (settings) — device > group > global.
-            Integer groupId = token.getGroupId();
-            com.hmdm.persistence.domain.DeviceGroupView group =
-                    groupId == null ? null : commandDAO.findGroup(token.getCustomerId(), groupId);
-            // Folders nest: a sub-folder without its own configuration runs its nearest ancestor's.
-            Integer inherited = group == null ? null : group.getEffectiveConfigurationId();
-            boolean pinned = token.getConfigurationId() != null;
-            device = unsecureDAO.createNewDeviceForToken(deviceId, token.getCustomerId(),
-                    pinned ? token.getConfigurationId() : inherited, group == null ? null : groupId);
-            if (device != null && pinned) {
-                commandDAO.updateDevicePinned(device.getId(), true);
-            }
-            if (device == null) {
-                // Named error (not a generic internal one) — this exact failure cost a debugging
-                // session: valid token, reachable server, no device row.
-                logger.warn("Agent enroll: on-demand device creation is disabled by settings (token {})", token.getId());
-                return Response.ERROR("error.agent.enrollment.disabled");
+            if (reuse != null) {
+                // Same device re-enrolling: keep its existing row (and its folder/policy); we only refresh
+                // its secret/capabilities/hardware id below. No new row, so no duplicate in the console.
+                logger.info("Agent enroll: reusing existing device {} for the same hardware id (de-dup, token {})",
+                        deviceId, token.getId());
+            } else {
+                // The device lands in the token's customer and group (company). Its configuration is the one the
+                // token pins, else its group's, else the global default (settings) — device > group > global.
+                Integer groupId = token.getGroupId();
+                com.hmdm.persistence.domain.DeviceGroupView group =
+                        groupId == null ? null : commandDAO.findGroup(token.getCustomerId(), groupId);
+                // Folders nest: a sub-folder without its own configuration runs its nearest ancestor's.
+                Integer inherited = group == null ? null : group.getEffectiveConfigurationId();
+                boolean pinned = token.getConfigurationId() != null;
+                device = unsecureDAO.createNewDeviceForToken(deviceId, token.getCustomerId(),
+                        pinned ? token.getConfigurationId() : inherited, group == null ? null : groupId);
+                if (device != null && pinned) {
+                    commandDAO.updateDevicePinned(device.getId(), true);
+                }
+                if (device == null) {
+                    // Named error (not a generic internal one) — this exact failure cost a debugging
+                    // session: valid token, reachable server, no device row.
+                    logger.warn("Agent enroll: on-demand device creation is disabled by settings (token {})", token.getId());
+                    return Response.ERROR("error.agent.enrollment.disabled");
+                }
             }
 
             // Mint a per-device secret; persist only its SHA-256 hash. The plaintext is
@@ -190,10 +205,10 @@ public class AgentResource {
                     + UUID.randomUUID().toString().replace("-", "");
             commandDAO.updateDeviceSecretHash(deviceId, CryptoUtil.getSHA256String(deviceSecret));
             commandDAO.updateDeviceCapabilities(deviceId, capabilitiesJson(request.getCapabilities()));
-            // Record the agent's stable hardware id so duplicate enrollments of the same physical
-            // device can be detected/flagged in the admin UI (we still create a fresh row per enroll).
-            if (request.getHardwareId() != null && !request.getHardwareId().trim().isEmpty()) {
-                commandDAO.updateHardwareId(deviceId, request.getHardwareId().trim());
+            // Record the agent's stable hardware id — the key the de-dup above matches on so the same
+            // physical device reuses its row instead of creating a second one.
+            if (hwId != null && !hwId.isEmpty()) {
+                commandDAO.updateHardwareId(deviceId, hwId);
             }
             commandDAO.touchLastUpdate(deviceId);
 
