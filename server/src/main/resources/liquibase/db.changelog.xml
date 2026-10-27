@@ -3259,4 +3259,24 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.27-folder-role-view-only" author="dallycontrol">
+        <comment>Folder administrators (the "User" role the console assigns to folder users) become view-only
+                 for device actions: they keep the safe actions but lose the interrupting ones (lock/reboot/
+                 change passcode/wipe). Full administrators (the "Admin" role) are unchanged.</comment>
+        <sql>
+            DELETE FROM userRolePermissions
+                WHERE roleId = (SELECT id FROM userRoles WHERE name = 'User')
+                  AND permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions');
+        </sql>
+        <rollback>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT (SELECT id FROM userRoles WHERE name = 'User'),
+                       (SELECT id FROM permissions WHERE name = 'disruptive_actions')
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM userRolePermissions
+                        WHERE roleId = (SELECT id FROM userRoles WHERE name = 'User')
+                          AND permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions'));
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
