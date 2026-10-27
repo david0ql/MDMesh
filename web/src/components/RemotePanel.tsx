@@ -257,6 +257,18 @@ export function RemotePanel({ device }: { device: Device }) {
   const available = tier === 'view' || tier === 'control';
   const sessionOpen = phase.kind === 'waiting' || phase.kind === 'live' || phase.kind === 'popped';
 
+  // #4: while the remote support installs, poll fast so it shows "listo" within seconds instead of up
+  // to the 15 s status poll — the install itself is small (~6.5 MB); the wait was mostly this lag.
+  useEffect(() => { if (available && setupSent) setSetupSent(false); }, [available, setupSent]);
+  useEffect(() => {
+    if (!setupSent || available) return;
+    let on = true;
+    let t: ReturnType<typeof setTimeout>;
+    const tick = async () => { await refreshStatus(); if (on) t = setTimeout(() => void tick(), 3000); };
+    t = setTimeout(() => void tick(), 3000);
+    return () => { on = false; clearTimeout(t); };
+  }, [setupSent, available, refreshStatus]);
+
   return (
     <div className="panel rp">
       {/* keep: tab bodies hide panel heads, but this one carries the encryption state */}
