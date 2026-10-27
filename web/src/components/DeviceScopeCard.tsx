@@ -6,6 +6,7 @@ import {
   type DeviceScope, type FleetGroup, groupTree,
 } from '../api/fleet';
 import { useToast } from '../ui/toast';
+import { useAuth } from '../auth/AuthContext';
 
 const SOURCE_LABEL: Record<DeviceScope['source'], string> = {
   device: 'Dispositivo',
@@ -20,6 +21,11 @@ const SOURCE_LABEL: Record<DeviceScope['source'], string> = {
  */
 export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onChanged?: () => void }) {
   const toast = useToast();
+  const authUser = useAuth().user;
+  // Only a fleet manager (admin / folder editor) may change a device's folder or pin a policy. A
+  // view-only folder role sees them read-only.
+  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
   const [scope, setScope] = useState<DeviceScope | null>(null);
   const [groups, setGroups] = useState<FleetGroup[]>([]);
   const [configs, setConfigs] = useState<ConfigurationSummary[]>([]);
@@ -63,14 +69,18 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
       <div className="grp">Carpeta y política</div>
       <div className="row">
         <span className="k">Carpeta</span>
-        <select className="sel v" value={scope.groupId ?? ''} disabled={busy} aria-label="Carpeta"
-                onChange={(e) => {
-                  const gid = e.target.value === '' ? null : Number(e.target.value);
-                  void change('Carpeta cambiada', () => moveDevicesToGroup([deviceId], gid));
-                }}>
-          <option value="">Sin carpeta</option>
-          {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
-        </select>
+        {canManage ? (
+          <select className="sel v" value={scope.groupId ?? ''} disabled={busy} aria-label="Carpeta"
+                  onChange={(e) => {
+                    const gid = e.target.value === '' ? null : Number(e.target.value);
+                    void change('Carpeta cambiada', () => moveDevicesToGroup([deviceId], gid));
+                  }}>
+            <option value="">Sin carpeta</option>
+            {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
+          </select>
+        ) : (
+          <span className="v">{scope.groupName ?? 'Sin carpeta'}</span>
+        )}
       </div>
       <div className="row">
         <span className="k">Política</span>
@@ -81,19 +91,21 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
           </span>
         </span>
       </div>
-      <div className="row">
-        <span className="k">Fijar en el dispositivo</span>
-        <select className="sel v" value={scope.pinned ? String(scope.configurationId) : ''} disabled={busy}
-                aria-label="Política del dispositivo"
-                onChange={(e) => {
-                  const cfg = e.target.value === '' ? null : Number(e.target.value);
-                  void change(cfg == null ? 'Política heredada' : 'Política fijada en el dispositivo',
-                    () => setDevicesConfiguration([deviceId], cfg));
-                }}>
-          <option value="">Heredar ({inheritName})</option>
-          {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
-        </select>
-      </div>
+      {canManage && (
+        <div className="row">
+          <span className="k">Fijar en el dispositivo</span>
+          <select className="sel v" value={scope.pinned ? String(scope.configurationId) : ''} disabled={busy}
+                  aria-label="Política del dispositivo"
+                  onChange={(e) => {
+                    const cfg = e.target.value === '' ? null : Number(e.target.value);
+                    void change(cfg == null ? 'Política heredada' : 'Política fijada en el dispositivo',
+                      () => setDevicesConfiguration([deviceId], cfg));
+                  }}>
+            <option value="">Heredar ({inheritName})</option>
+            {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+          </select>
+        </div>
+      )}
       {scope.groupId != null && (
         <p className="muted scope-note">
           <Link to={`/devices?group=${scope.groupId}`}>Otros dispositivos en {scope.groupName}</Link>

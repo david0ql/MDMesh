@@ -15,6 +15,7 @@ import {
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
 import { downloadDevicesExcel, groupTree, listDeviceSummaries, listGroups, moveDevicesToGroup, setDevicesConfiguration, type DeviceSummary, type FleetGroup } from '../api/fleet';
+import { useAuth } from '../auth/AuthContext';
 import { DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
 
 type View = 'grid' | 'list';
@@ -69,6 +70,11 @@ const ROW_GAP = 16;
 const NAME_MIN = 230;
 
 export function DevicesPage() {
+  const authUser = useAuth().user;
+  // Fleet management (move devices between folders, pin/change policy, delete) needs manage_fleet; a
+  // view-only folder role does not get those bulk controls.
+  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
   useLiveDevices(); // a device with its live channel open shows connected
   const navigate = useNavigate();
   const toast = useToast();
@@ -377,15 +383,15 @@ export function DevicesPage() {
           <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
             Acciones
           </button>
-          <button className="btn btn-sm" onClick={() => setGroupOpen(true)}>
+          {canManage && <button className="btn btn-sm" onClick={() => setGroupOpen(true)}>
             Mover a carpeta
-          </button>
-          <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
+          </button>}
+          {canManage && <button className="btn btn-sm" onClick={() => setMoveOpen(true)}>
             Cambiar política
-          </button>
-          <button className="btn btn-sm btn-danger" onClick={() => setDelOpen(true)}>
+          </button>}
+          {canManage && <button className="btn btn-sm btn-danger" onClick={() => setDelOpen(true)}>
             Eliminar
-          </button>
+          </button>}
           <div style={{ flex: 1 }} />
           {selected.size < filtered.length && (
             <button className="btn btn-sm btn-ghost" onClick={selectAllFiltered}>
