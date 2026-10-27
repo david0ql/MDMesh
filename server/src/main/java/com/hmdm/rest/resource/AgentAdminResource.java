@@ -355,6 +355,12 @@ public class AgentAdminResource {
                     body.getType(), SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
         }
+        // Installing/uninstalling apps modifies the device's software — needs manage_fleet (view-only roles cannot).
+        if (requiresFleetPermission(body.getType()) && !SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: {} requires manage_fleet (user {})",
+                    body.getType(), SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
 
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
@@ -398,6 +404,15 @@ public class AgentAdminResource {
 
     private static boolean requiresDisruptivePermission(String type) {
         return type != null && DISRUPTIVE_TYPES.contains(type.trim().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** App management (install/uninstall) modifies the device's software — fleet management, so it needs
+     *  manage_fleet. A view-only folder role can see the installed apps but not add or remove them. */
+    private static final Set<String> APP_MGMT_TYPES =
+            Set.of("app.install", "app.uninstall");
+
+    private static boolean requiresFleetPermission(String type) {
+        return type != null && APP_MGMT_TYPES.contains(type.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
     // =================================================================================================================

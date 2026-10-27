@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getLatestScan, scanApps, uninstallApp, type AppInfo } from '../api/deviceApps';
 import { useToast } from '../ui/toast';
 import { fmtRelative } from '../ui/format';
+import { useAuth } from '../auth/AuthContext';
 
 /** The agent's own packages: never offered for removal. */
 const AGENT_PREFIX = 'com.dallycontrol.agent';
@@ -12,6 +13,10 @@ const AGENT_PREFIX = 'com.dallycontrol.agent';
  */
 export function AppsPanel({ device }: { device: { number: string } }) {
   const toast = useToast();
+  const authUser = useAuth().user;
+  // Installing/removing apps is fleet management; a view-only folder role sees the inventory but no Uninstall.
+  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
   const [apps, setApps] = useState<AppInfo[] | null>(null);
   const [scannedAt, setScannedAt] = useState<number | undefined>();
   const [showSystem, setShowSystem] = useState(false);
@@ -114,7 +119,7 @@ export function AppsPanel({ device }: { device: { number: string } }) {
                   <td className="mono">{a.pkg}</td>
                   <td className="mono">{a.versionName ?? '—'}{a.versionCode != null ? ` (${a.versionCode})` : ''}</td>
                   <td style={{ textAlign: 'right' }}>
-                    {removable && (
+                    {removable && canManage && (
                       <button
                         className="btn btn-danger"
                         disabled={removing !== null}
