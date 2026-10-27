@@ -681,10 +681,12 @@ public class FleetResource {
         return n.isEmpty() || n.length() > MAX_GROUP_NAME ? null : n;
     }
 
-    /** The current customer, when the user may change devices (edit_devices), else empty. */
+    /** The current customer, when the user may MODIFY the fleet (manage_fleet: change folders/policies),
+     *  else empty. Device actions are gated separately by edit_devices, so a view-only folder role keeps
+     *  the safe actions but cannot change folders or assign policies. */
     private static Optional<Integer> editor(String action) {
-        if (!SecurityContext.get().hasPermission("edit_devices")) {
-            logger.warn("Permission denied: {} requires edit_devices (user {})", action,
+        if (!SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: {} requires manage_fleet (user {})", action,
                     SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
             return Optional.empty();
         }

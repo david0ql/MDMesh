@@ -30,7 +30,11 @@ type Dialog =
 export function GroupsPage() {
   const toast = useToast();
   // A folder administrator: no global settings, no top-level folders, and the folders they were given stay.
-  const folderAdmin = isFolderAdmin(useAuth().user);
+  const authUser = useAuth().user;
+  const folderAdmin = isFolderAdmin(authUser);
+  // View-only folder role (no manage_fleet) cannot modify folders or assign policies — hide those controls.
+  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
   const [data, setData] = useState<GroupsOverview | null>(null);
   const [configs, setConfigs] = useState<ConfigurationSummary[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -191,7 +195,7 @@ export function GroupsPage() {
         </div>
         <label className="field gr-field">
           <span>Política por defecto</span>
-          <select className="sel" value={data?.global.configurationId ?? ''} disabled={busy || !data}
+          <select className="sel" value={data?.global.configurationId ?? ''} disabled={busy || !data || !canManage}
                   onChange={(e) => changeGlobal(e.target.value)}>
             {data?.global.configurationId == null && <option value="">Seleccionar…</option>}
             {configs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
@@ -228,7 +232,7 @@ export function GroupsPage() {
                     )}
                   </td>
                   <td data-label="Política">
-                    <select className="sel" value={g.configurationId ?? ''} disabled={busy}
+                    <select className="sel" value={g.configurationId ?? ''} disabled={busy || !canManage}
                             onChange={(e) => changeGroupConfig(g, e.target.value)}
                             aria-label={`Política de ${g.name}`}>
                       <option value="">
@@ -243,14 +247,14 @@ export function GroupsPage() {
                             onClick={() => setAction({ kind: 'group', id: g.id, name: path, count: totalDevices })}>
                       Ejecutar acción
                     </button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>
-                    <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>
-                    <button className="btn btn-sm btn-ghost" data-testid={`group-brand-${g.id}`}
+                    {canManage && <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>}
+                    {canManage && <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>}
+                    {canManage && <button className="btn btn-sm btn-ghost" data-testid={`group-brand-${g.id}`}
                             title="Logos, fondo y número de soporte del quiosco para esta carpeta"
                             onClick={() => { setBrand(g.brand ?? {}); setBrandFor(g); }}>
                       Marca{g.brand ? ' ●' : ''}
-                    </button>
-                    {!(folderAdmin && g.parentId == null) && <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
+                    </button>}
+                    {canManage && !(folderAdmin && g.parentId == null) && <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
                             title={g.deviceCount > 0 ? 'Tiene dispositivos: muévelos a otra carpeta antes de eliminarla' : undefined}
                             onClick={() => setDialog({ kind: 'delete', group: g })}>
                       Eliminar

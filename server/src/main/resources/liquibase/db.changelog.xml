@@ -3279,4 +3279,38 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.27-fleet-roles" author="dallycontrol">
+        <comment>Three folder tiers: (a) new permission manage_fleet gates modifying folders/policies; (b) a
+                 view-only "Visor" role (view + safe device actions, no modify, no interrupting actions);
+                 (c) disruptive_actions restored to "User" since that is now the full folder-editor role.</comment>
+        <sql>
+            -- (a) permission to modify folders / assign policies (FleetResource); granted to every role that
+            --     can already edit devices, so current editors and admins keep modifying.
+            INSERT INTO permissions (name, description, superadmin)
+                VALUES ('manage_fleet', 'Modificar carpetas y asignar politicas (gestion de flota)', FALSE);
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT DISTINCT urp.roleId, (SELECT id FROM permissions WHERE name = 'manage_fleet')
+                FROM userRolePermissions urp JOIN permissions p ON p.id = urp.permissionId
+                WHERE p.name = 'edit_devices';
+            -- (c) the folder editor (User role) regains the interrupting actions (full folder admin).
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT (SELECT id FROM userRoles WHERE name = 'User'),
+                       (SELECT id FROM permissions WHERE name = 'disruptive_actions')
+                WHERE NOT EXISTS (SELECT 1 FROM userRolePermissions
+                    WHERE roleId = (SELECT id FROM userRoles WHERE name = 'User')
+                      AND permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions'));
+            -- (b) view-only folder role: can view and run the safe device actions, nothing else.
+            INSERT INTO userRoles (id, name, description, superadmin)
+                VALUES (200, 'Visor', 'Solo lectura a nivel de carpetas: ver y acciones seguras, sin modificar', FALSE);
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 200, id FROM permissions WHERE name IN ('edit_devices', 'edit_device_desc');
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE roleId = 200;
+            DELETE FROM userRoles WHERE id = 200;
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'manage_fleet');
+            DELETE FROM permissions WHERE name = 'manage_fleet';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -7,7 +7,7 @@ export interface ConsoleUser {
   login: string;
   name?: string | null;
   email?: string | null;
-  role: 'admin' | 'folders';
+  role: 'admin' | 'folders' | 'foldersView';
   folders: number[];
   me?: boolean;
 }
@@ -19,7 +19,7 @@ export interface SaveUser {
   email?: string;
   /** Plain; sent as MD5 like the login does. Empty keeps the current one. */
   password?: string;
-  role: 'admin' | 'folders';
+  role: 'admin' | 'folders' | 'foldersView';
   folders: number[];
 }
 

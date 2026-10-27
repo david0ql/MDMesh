@@ -85,7 +85,8 @@ public class DcUserResource {
         m.put("name", u.getName());
         m.put("email", u.getEmail());
         boolean folders = UserScope.isRestricted(u);
-        m.put("role", folders ? "folders" : "admin");
+        String roleName = u.getUserRole() == null ? null : u.getUserRole().getName();
+        m.put("role", !folders ? "admin" : ("Visor".equals(roleName) ? "foldersView" : "folders"));
         m.put("folders", folders ? scope.roots(u.getId()) : new ArrayList<Integer>());
         m.put("me", u.getId() != null && u.getId() == me);
         return m;
@@ -116,7 +117,8 @@ public class DcUserResource {
         String login = body.login.trim();
         String email = body.email == null || body.email.trim().isEmpty() ? null : body.email.trim();
         if (email != null && !EMAIL.matcher(email).matches()) return Response.ERROR("El correo no es válido.");
-        boolean folders = "folders".equals(body.role);
+        boolean viewOnly = "foldersView".equals(body.role);
+        boolean folders = "folders".equals(body.role) || viewOnly;
         if (!folders && !"admin".equals(body.role)) return Response.ERROR("Elige el tipo de usuario.");
         List<Integer> roots = new ArrayList<>();
         if (folders) {
@@ -135,8 +137,9 @@ public class DcUserResource {
             User sameEmail = unsecureDAO.findByEmail(email);
             if (sameEmail != null && (body.id == null || !sameEmail.getId().equals(body.id))) return Response.ERROR("Ya existe un usuario con ese correo.");
         }
-        UserRole role = role(folders ? "User" : "Admin");
-        if (role == null) return Response.ERROR("No se encontró el rol " + (folders ? "User" : "Admin") + ".");
+        String roleName = folders ? (viewOnly ? "Visor" : "User") : "Admin";
+        UserRole role = role(roleName);
+        if (role == null) return Response.ERROR("No se encontró el rol " + roleName + ".");
 
         User u;
         if (body.id == null) {

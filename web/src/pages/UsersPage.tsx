@@ -47,7 +47,7 @@ export function UsersPage() {
     if (!edit.id && !edit.password) return toast.push('err', 'Falta la contraseña', 'Escribe una contraseña para el usuario nuevo.');
     if (edit.password && edit.password.length < 8) return toast.push('err', 'Contraseña muy corta', 'Usa al menos 8 caracteres.');
     if (edit.password && edit.password !== repeat) return toast.push('err', 'Las contraseñas no coinciden', 'Escríbela igual en los dos campos.');
-    if (edit.role === 'folders' && edit.folders.length === 0) return toast.push('err', 'Faltan carpetas', 'Elige al menos una carpeta.');
+    if (edit.role !== 'admin' && edit.folders.length === 0) return toast.push('err', 'Faltan carpetas', 'Elige al menos una carpeta.');
     setBusy(true);
     try {
       await saveUser(edit);
@@ -89,13 +89,14 @@ export function UsersPage() {
             <label>{edit.id ? 'Contraseña nueva (vacía = no cambia)' : 'Contraseña'}<input className="input" type="password" value={edit.password ?? ''} onChange={(e) => setEdit({ ...edit, password: e.target.value })} autoComplete="new-password" /></label>
             <label>Repite la contraseña<input className="input" type="password" value={repeat} onChange={(e) => setRepeat(e.target.value)} autoComplete="new-password" /></label>
             <label>Tipo
-              <select className="sel" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as 'admin' | 'folders' })} aria-label="Tipo de usuario">
-                <option value="folders">Administrador de carpetas</option>
+              <select className="sel" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as SaveUser['role'] })} aria-label="Tipo de usuario">
+                <option value="foldersView">Carpetas — solo lectura (ver y acciones seguras)</option>
+                <option value="folders">Carpetas — con edición (modifica políticas y carpetas)</option>
                 <option value="admin">Administrador (todo)</option>
               </select>
             </label>
           </div>
-          {edit.role === 'folders' && (
+          {edit.role !== 'admin' && (
             <div className="user-folders">
               <div className="sub-h">Carpetas que maneja <span className="muted small">(con todas sus subcarpetas)</span></div>
               {tree.length === 0 ? <p className="muted small">No hay carpetas.</p> : (
@@ -133,7 +134,7 @@ export function UsersPage() {
                   <td data-label="Nombre">{u.name || '—'}{u.me ? <span className="muted small"> (tú)</span> : null}</td>
                   <td data-label="Usuario" className="mono">{u.login}</td>
                   <td data-label="Correo">{u.email || '—'}</td>
-                  <td data-label="Tipo">{u.role === 'admin' ? 'Administrador' : 'Administrador de carpetas'}</td>
+                  <td data-label="Tipo">{u.role === 'admin' ? 'Administrador' : u.role === 'foldersView' ? 'Carpetas (solo lectura)' : 'Carpetas (edición)'}</td>
                   <td data-label="Carpetas">{u.role === 'admin' ? 'Todas' : u.folders.map((f) => pathOf.get(f) ?? `#${f}`).join(' · ') || '—'}</td>
                   <td>
                     <div className="gr-actions">
