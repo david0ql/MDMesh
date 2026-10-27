@@ -46,16 +46,19 @@ public class AnnouncementResource {
     private AnnouncementMapper mapper;
     private AgentCommandDAO commandDAO;
     private AnnouncementSender sender;
+    private com.hmdm.rest.resource.support.UserScope scope;
 
     /** A constructor required by Swagger. */
     public AnnouncementResource() {
     }
 
     @Inject
-    public AnnouncementResource(AnnouncementMapper mapper, AgentCommandDAO commandDAO, AnnouncementSender sender) {
+    public AnnouncementResource(AnnouncementMapper mapper, AgentCommandDAO commandDAO, AnnouncementSender sender,
+                                com.hmdm.rest.resource.support.UserScope scope) {
         this.mapper = mapper;
         this.commandDAO = commandDAO;
         this.sender = sender;
+        this.scope = scope;
     }
 
     public static class Body {
@@ -136,6 +139,11 @@ public class AnnouncementResource {
             if (b.all || ids.contains(r.getId()) || (r.getGroupId() != null && groups.contains(r.getGroupId()))) {
                 numbers.add(r.getNumber());
             }
+        }
+        // A folder-scoped user (editor or view-only) may only announce to devices in their own folders,
+        // even if they target "all" or a folder they don't own.
+        if (scope.restricted()) {
+            numbers.retainAll(scope.deviceNumbers());
         }
         if (numbers.isEmpty()) return Response.ERROR("error.announcement.noDevices");
         if (numbers.size() > MAX_DEVICES) return Response.ERROR("error.announcement.tooMany");

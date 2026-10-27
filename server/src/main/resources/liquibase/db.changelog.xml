@@ -3313,4 +3313,20 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.27-visor-announcements" author="dallycontrol">
+        <comment>Let the view-only "Visor" role use Announcements: edit_files so it can upload the announcement
+                 image/video (the send itself only needs edit_devices, which Visor already has). Recipients are
+                 still limited to the user's own folders by AnnouncementResource.</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 200, (SELECT id FROM permissions WHERE name = 'edit_files')
+                WHERE NOT EXISTS (SELECT 1 FROM userRolePermissions
+                    WHERE roleId = 200 AND permissionId = (SELECT id FROM permissions WHERE name = 'edit_files'));
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions
+                WHERE roleId = 200 AND permissionId = (SELECT id FROM permissions WHERE name = 'edit_files');
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

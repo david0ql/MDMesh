@@ -37,7 +37,7 @@ const NAV: NavEntry[] = [
   { to: '/map', label: 'Mapa', Icon: IconMap },
   { to: '/configs', label: 'Políticas', Icon: IconConfig, adminOnly: true },
   { to: '/apps', label: 'Aplicaciones', Icon: IconApps, adminOnly: true },
-  { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce, adminOnly: true },
+  { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce },
   { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
   { to: '/users', label: 'Usuarios', Icon: IconUsers, adminOnly: true },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true },
