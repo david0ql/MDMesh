@@ -76,7 +76,13 @@ public class UserScopeFilter implements Filter {
             new Rule("GET", "/configurations/search", null),
             new Rule("GET", "/configurations/(\\d+)", null),
             new Rule("GET", "/configurations/applications/(\\d+)", null),
-            new Rule("GET", "/applications(/.*)?", null)
+            new Rule("GET", "/applications(/.*)?", null),
+            // Announcements: folder roles may view and send; the resource limits recipients to the user's folders.
+            new Rule("GET", "/announcements", null),
+            new Rule("GET", "/announcements/(\\d+)", null),
+            new Rule("POST", "/announcements", null),                        // resource scopes recipients
+            new Rule("POST", "/announcements/(\\d+)/withdraw", null),
+            new Rule("POST", "/web-ui-files", null)                          // upload announcement media (resource checks edit_files)
     );
 
     private final UserScope scope;
