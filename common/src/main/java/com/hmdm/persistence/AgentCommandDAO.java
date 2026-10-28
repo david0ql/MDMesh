@@ -162,6 +162,19 @@ public class AgentCommandDAO {
         return deviceMapper.findDeviceNumberByHardwareId(customerId, hardwareId);
     }
 
+    /** Packages shown in a single device's kiosk (per-device "show in kiosk"). */
+    public java.util.List<String> listDeviceKioskApps(int deviceId) {
+        return deviceMapper.listDeviceKioskApps(deviceId);
+    }
+
+    public void addDeviceKioskApp(int deviceId, String packageName) {
+        deviceMapper.addDeviceKioskApp(deviceId, packageName);
+    }
+
+    public void removeDeviceKioskApp(int deviceId, String packageName) {
+        deviceMapper.removeDeviceKioskApp(deviceId, packageName);
+    }
+
     public String getDeviceSecretHash(String deviceNumber) {
         return deviceMapper.getDeviceSecretHash(deviceNumber);
     }

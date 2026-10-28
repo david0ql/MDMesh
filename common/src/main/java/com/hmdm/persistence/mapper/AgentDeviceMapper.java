@@ -69,6 +69,18 @@ public interface AgentDeviceMapper {
     String findDeviceNumberByHardwareId(@Param("customerId") int customerId,
                                         @Param("hardwareId") String hardwareId);
 
+    // --- Per-device kiosk apps: packages shown in a single device's kiosk (no per-device policy needed) ---
+    @Select("SELECT packageName FROM device_kiosk_app WHERE deviceId = #{deviceId}")
+    java.util.List<String> listDeviceKioskApps(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO device_kiosk_app (deviceId, packageName) VALUES (#{deviceId}, #{packageName}) ",
+             "ON CONFLICT (deviceId, packageName) DO NOTHING"})
+    void addDeviceKioskApp(@Param("deviceId") int deviceId, @Param("packageName") String packageName);
+
+    @org.apache.ibatis.annotations.Delete(
+            "DELETE FROM device_kiosk_app WHERE deviceId = #{deviceId} AND packageName = #{packageName}")
+    void removeDeviceKioskApp(@Param("deviceId") int deviceId, @Param("packageName") String packageName);
+
     /**
      * Store the Android version into infojson (the device list reads
      * {@code devices.infojson ->> 'androidVersion'}; our agent reports it via telemetry/state).

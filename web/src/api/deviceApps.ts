@@ -1,3 +1,4 @@
+import { apiClient } from './client';
 import { queueCommand, listCommandHistory, type QueueCommandRequest } from './commands';
 
 // Device app inventory for the kiosk picker. The agent answers `apps.scan` / `apps.icons`
@@ -119,3 +120,13 @@ export async function uninstallApp(
     payload: JSON.stringify({ packageName }),
   }, 120000, signal);
 }
+
+// --- Per-device kiosk apps: show an installed app in THIS device's kiosk (no per-device policy) ---
+export const listDeviceKioskApps = (deviceId: number | string) =>
+  apiClient.get<string[]>(`/private/agent/v1/devices/${deviceId}/kioskApps`);
+
+export const addDeviceKioskApp = (deviceId: number | string, packageName: string) =>
+  apiClient.post<string[]>(`/private/agent/v1/devices/${deviceId}/kioskApps`, { packageName });
+
+export const removeDeviceKioskApp = (deviceId: number | string, packageName: string) =>
+  apiClient.del<string[]>(`/private/agent/v1/devices/${deviceId}/kioskApps/${encodeURIComponent(packageName)}`);

@@ -163,8 +163,16 @@ public class DcUserResource {
         if (body.password != null && !body.password.isEmpty()) {
             u.setPassword(PasswordUtil.getHashFromMd5(body.password.toUpperCase()));
             u.setAuthToken(PasswordUtil.generateToken()); // a new password signs the user out elsewhere
-            u.setPasswordReset(false);
-            u.setPasswordResetToken(null);
+            // Admin-assigned password: force the user to set their own on first login. (Not when an admin
+            // changes their OWN password here.)
+            boolean self = body.id != null && me.get().getId().equals(body.id);
+            if (self) {
+                u.setPasswordReset(false);
+                u.setPasswordResetToken(null);
+            } else {
+                u.setPasswordReset(true);
+                u.setPasswordResetToken(PasswordUtil.generateToken());
+            }
         }
         if (body.id == null) {
             userDAO.insert(u);

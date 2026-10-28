@@ -48,7 +48,10 @@ public class ConfigReconciler {
         if (cfg == null) return null;
         List<Application> apps = unsecureDAO.getPlainConfigurationAppsOptimized(cfg.getId());
         PolicyApps.Resolved r = policyApps.resolve(cfg, apps, device.getId());
-        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg));
+        // Per-device kiosk apps: packages this one phone should also show in its kiosk (no per-device policy).
+        Set<String> extraKioskApps = device.getId() == null ? java.util.Collections.<String>emptySet()
+                : new java.util.HashSet<String>(commandDAO.listDeviceKioskApps(device.getId()));
+        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps);
     }
 
     /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */

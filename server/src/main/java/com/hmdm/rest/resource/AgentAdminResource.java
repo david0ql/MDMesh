@@ -1018,6 +1018,69 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "List the device's kiosk apps", notes = "Packages shown in THIS device's kiosk on top of its policy.")
+    @GET
+    @Path("/devices/{deviceId}/kioskApps")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response listKioskApps(@PathParam("deviceId") String deviceId) {
+        if (!canEditDevices("list device kiosk apps")) return Response.PERMISSION_DENIED();
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) return Response.ERROR("error.agent.device.unknown");
+        if (device.getCustomerId() != customerId.get()) return Response.PERMISSION_DENIED();
+        return Response.OK(commandDAO.listDeviceKioskApps(device.getId()));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Show an app in this device's kiosk",
+            notes = "Adds a package to THIS device's kiosk (no per-device policy) and re-applies. Body: { packageName }.")
+    @POST
+    @Path("/devices/{deviceId}/kioskApps")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response addKioskApp(@PathParam("deviceId") String deviceId, Map<String, Object> body) {
+        if (!SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: add kiosk app requires manage_fleet (user {})", SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) return Response.ERROR("error.agent.device.unknown");
+        if (device.getCustomerId() != customerId.get()) return Response.PERMISSION_DENIED();
+        String pkg = body == null || body.get("packageName") == null ? null : String.valueOf(body.get("packageName")).trim();
+        if (pkg == null || pkg.isEmpty() || pkg.length() > 255) return Response.ERROR("error.agent.command.invalid");
+        commandDAO.addDeviceKioskApp(device.getId(), pkg);
+        configReconciler.forceApply(device, System.currentTimeMillis());
+        wakeHub.wake(deviceId, "commands");
+        logger.info("Kiosk app {} added to device {} (per-device)", pkg, deviceId);
+        return Response.OK(commandDAO.listDeviceKioskApps(device.getId()));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Remove an app from this device's kiosk", notes = "Removes a per-device kiosk package and re-applies.")
+    @DELETE
+    @Path("/devices/{deviceId}/kioskApps/{pkg}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response removeKioskApp(@PathParam("deviceId") String deviceId, @PathParam("pkg") String pkg) {
+        if (!SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: remove kiosk app requires manage_fleet (user {})", SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) return Response.ERROR("error.agent.device.unknown");
+        if (device.getCustomerId() != customerId.get()) return Response.PERMISSION_DENIED();
+        commandDAO.removeDeviceKioskApp(device.getId(), pkg == null ? "" : pkg.trim());
+        configReconciler.forceApply(device, System.currentTimeMillis());
+        wakeHub.wake(deviceId, "commands");
+        logger.info("Kiosk app {} removed from device {} (per-device)", pkg, deviceId);
+        return Response.OK(commandDAO.listDeviceKioskApps(device.getId()));
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Force sync", notes = "Wake the device now so it pulls pending commands + reports state.")
     @POST
     @Path("/devices/{deviceId}/sync")

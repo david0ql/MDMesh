@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getLatestScan, scanApps, uninstallApp, type AppInfo } from '../api/deviceApps';
+import { getLatestScan, scanApps, uninstallApp, listDeviceKioskApps, addDeviceKioskApp, removeDeviceKioskApp, type AppInfo } from '../api/deviceApps';
 import { useToast } from '../ui/toast';
 import { fmtRelative } from '../ui/format';
 import { useAuth } from '../auth/AuthContext';
@@ -25,6 +25,32 @@ export function AppsPanel({ device }: { device: { number: string } }) {
   const [err, setErr] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<AppInfo | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  // Per-device kiosk apps: packages shown in THIS device's kiosk (on top of its policy).
+  const [kioskApps, setKioskApps] = useState<Set<string>>(new Set());
+  const [kioskBusy, setKioskBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    listDeviceKioskApps(device.number).then((l) => { if (alive) setKioskApps(new Set(l)); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [device.number]);
+
+  async function toggleKiosk(a: AppInfo) {
+    setKioskBusy(a.pkg);
+    try {
+      const inK = kioskApps.has(a.pkg);
+      const updated = inK
+        ? await removeDeviceKioskApp(device.number, a.pkg)
+        : await addDeviceKioskApp(device.number, a.pkg);
+      setKioskApps(new Set(updated));
+      toast.push('ok', inK ? 'Quitada del kiosco' : 'Visible en el kiosco',
+        inK ? 'Ya no aparece en el kiosco de este equipo.' : 'Aparecerá en el kiosco de este equipo en unos segundos.');
+    } catch (e) {
+      toast.push('err', 'No se pudo cambiar', e instanceof Error ? e.message : '');
+    } finally {
+      setKioskBusy(null);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -119,6 +145,16 @@ export function AppsPanel({ device }: { device: { number: string } }) {
                   <td className="mono">{a.pkg}</td>
                   <td className="mono">{a.versionName ?? '—'}{a.versionCode != null ? ` (${a.versionCode})` : ''}</td>
                   <td style={{ textAlign: 'right' }}>
+                    {canManage && !a.pkg.startsWith(AGENT_PREFIX) && (
+                      <label style={{ marginRight: 12, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                             title="Mostrar esta app en el kiosco de ESTE equipo (sin cambiar la política)">
+                        <input type="checkbox" className="dev-check"
+                               checked={kioskApps.has(a.pkg)}
+                               disabled={kioskBusy !== null}
+                               onChange={() => void toggleKiosk(a)} />
+                        {' '}En el kiosco
+                      </label>
+                    )}
                     {removable && canManage && (
                       <button
                         className="btn btn-danger"

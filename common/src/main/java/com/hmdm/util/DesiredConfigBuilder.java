@@ -60,6 +60,15 @@ public final class DesiredConfigBuilder {
 
     /** @param folderBrands the device's folder chain branding, nearest first (see {@link KioskBrand#effective}) */
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk, List<KioskBrand> folderBrands) {
+        return build(cfg, apps, notInKiosk, folderBrands, Collections.<String>emptySet());
+    }
+
+    /**
+     * @param extraKioskPackages device-level packages to also allow/show in the kiosk — the "show this app on
+     *   THIS device's kiosk" override, so one phone can get an app in its kiosk without a per-device policy.
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
@@ -118,6 +127,23 @@ public final class DesiredConfigBuilder {
                 nets.add(n);
             }
             d.setWifi(nets);
+        }
+        // Device-level kiosk apps: add the phone's own "show in kiosk" packages before the revision is hashed,
+        // so the device re-applies and the app appears in its kiosk without touching the shared policy.
+        if (d.getKiosk() != null && extraKioskPackages != null && !extraKioskPackages.isEmpty()) {
+            List<String> allowed = new ArrayList<String>(
+                    d.getKiosk().getAllowedPackages() == null ? Collections.<String>emptyList() : d.getKiosk().getAllowedPackages());
+            boolean added = false;
+            for (String pkg : extraKioskPackages) {
+                if (pkg == null) continue;
+                String p = pkg.trim();
+                if (!p.isEmpty() && !allowed.contains(p)) { allowed.add(p); added = true; }
+            }
+            if (added) {
+                d.getKiosk().setAllowedPackages(allowed);
+                // Extra apps turn a single-pinned kiosk into a launcher grid so they are reachable.
+                if (allowed.size() > 1) d.getKiosk().setMode("launcher");
+            }
         }
         d.setRevision(revision(d));
         return d;

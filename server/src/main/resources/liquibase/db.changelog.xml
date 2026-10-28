@@ -3329,4 +3329,18 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.10.28-device-kiosk-app" author="dallycontrol">
+        <comment>Per-device kiosk apps: show an installed app in a single device's kiosk without a per-device policy.</comment>
+        <sql>
+            CREATE TABLE device_kiosk_app (
+                deviceId INT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                packageName VARCHAR(255) NOT NULL,
+                PRIMARY KEY (deviceId, packageName)
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_kiosk_app;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
