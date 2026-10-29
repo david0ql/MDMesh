@@ -3,12 +3,16 @@ package com.dallycontrol.core.config
 import com.dallycontrol.proto.ConfigAppPolicy
 
 /**
- * Which user-installed apps the app policy suspends (Android-free, unit-tested). In `allowlist` mode everything
- * installed by the user is suspended unless it is allowed by package, resolved from an allowed function, or
- * protected (the agent itself, remote support). `open` suspends nothing (and lifts earlier suspensions).
+ * Which user-installed apps the app policy acts on (Android-free, unit-tested). In `allowlist` mode everything
+ * installed by the user that is not allowed (by package, resolved from an allowed function, or protected — the
+ * agent itself, remote support) is **uninstalled** (removed from the device), and suspended meanwhile so it is
+ * blocked the instant it appears. `open` suspends nothing (and lifts earlier suspensions).
+ *
+ * [uninstall] = every blocked app still present (all third-party, so a Device Owner can remove them silently).
+ * [suspend] = the blocked apps not yet suspended (immediate "paused by admin" while the removal runs).
  */
 object AppPolicyPlanner {
-    data class Plan(val suspend: Set<String>, val unsuspend: Set<String>)
+    data class Plan(val suspend: Set<String>, val unsuspend: Set<String>, val uninstall: Set<String> = emptySet())
 
     fun plan(
         policy: ConfigAppPolicy,
@@ -26,6 +30,7 @@ object AppPolicyPlanner {
         return Plan(
             suspend = blocked - currentlySuspended.toSet(),
             unsuspend = currentlySuspended.toSet() - blocked,
+            uninstall = blocked,
         )
     }
 }

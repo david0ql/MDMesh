@@ -338,8 +338,10 @@ object AgentModule {
         handle: DpmHandle,
         roles: RoleResolver,
         events: EventSink,
+        installManager: InstallManager,
     ): AppPolicyEnforcer = AndroidAppPolicyEnforcer(
-        context, handle.dpm, handle.admin, roles, events, protectedPackages = listOf(DroidVncController.PACKAGE),
+        context, handle.dpm, handle.admin, roles, events,
+        protectedPackages = listOf(DroidVncController.PACKAGE), installManager = installManager,
     )
 
     /** `device.openStore`: the app's Play Store page (the person taps Install); in kiosk the store must be allowed. */

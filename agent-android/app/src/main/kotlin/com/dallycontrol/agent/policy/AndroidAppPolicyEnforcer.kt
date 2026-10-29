@@ -7,18 +7,26 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import com.dallycontrol.core.config.AppPolicyEnforcer
 import com.dallycontrol.core.config.AppPolicyPlanner
+import com.dallycontrol.core.install.InstallManager
+import com.dallycontrol.core.install.InstallOutcome
 import com.dallycontrol.core.kiosk.RoleResolver
 import com.dallycontrol.core.telemetry.EventSink
 import com.dallycontrol.proto.ConfigAppPolicy
 import com.dallycontrol.proto.ConfigOutcome
 import com.dallycontrol.proto.EventType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 /**
  * The app policy on the device (open source, no managed Play): apps installed by the user outside the allowed list
- * are SUSPENDED — Android keeps them installed but greys them out and refuses to open them ("paused by your
- * admin") — and unsuspended when allowed later. Re-enforced when an app is installed, so something installed from
- * the Play Store is paused within seconds. `hidePlayStore` hides the store itself.
+ * are UNINSTALLED — removed from the device (they are all third-party, so a Device Owner removes them silently) —
+ * and suspended ("paused by your admin") meanwhile so they are blocked the instant they appear and until the
+ * removal finishes. Re-enforced when an app is installed, so something installed from the Play Store is removed
+ * within seconds. Apps that cannot be uninstalled (a maker's system app) stay suspended. `hidePlayStore` hides
+ * the store itself.
  */
 class AndroidAppPolicyEnforcer(
     private val context: Context,
@@ -27,9 +35,11 @@ class AndroidAppPolicyEnforcer(
     private val roles: RoleResolver,
     private val events: EventSink,
     private val protectedPackages: List<String>,
+    private val installManager: InstallManager,
 ) : AppPolicyEnforcer {
     private val prefs = context.getSharedPreferences("mdm_app_policy", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     @Synchronized
     override fun apply(policy: ConfigAppPolicy): String {
@@ -61,6 +71,24 @@ class AndroidAppPolicyEnforcer(
         val nowSuspended = (suspended - plan.unsuspend + failedUnsuspend) + (plan.suspend - failedSuspend.toSet())
         prefs.edit().putStringSet(KEY_SUSPENDED, nowSuspended.toSet()).apply()
         (plan.suspend - failedSuspend.toSet()).forEach { events.record(EventType.APP_BLOCKED, it) }
+
+        // Remove the blocked apps for good (not just hide them). They are all third-party (see userInstalled),
+        // so the Device Owner uninstalls them silently; on success drop them from the suspended set so prefs do
+        // not accumulate names of apps that no longer exist. System apps that cannot be removed stay suspended.
+        if (plan.uninstall.isNotEmpty()) {
+            val toRemove = plan.uninstall.toList()
+            scope.launch {
+                for (pkg in toRemove) {
+                    if (installManager.uninstall(pkg) is InstallOutcome.Success) {
+                        events.record(EventType.APP_UNINSTALLED, pkg)
+                        synchronized(this@AndroidAppPolicyEnforcer) {
+                            val s = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty() - pkg
+                            prefs.edit().putStringSet(KEY_SUSPENDED, s).apply()
+                        }
+                    }
+                }
+            }
+        }
 
         val playHidden = runCatching { dpm.setApplicationHidden(admin, PLAY_STORE, policy.hidePlayStore) }
         // Android refuses to pause some apps (e.g. its own "Android Device Policy", com.google.android.apps.work.clouddpc,
