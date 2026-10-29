@@ -46,6 +46,8 @@ data class ConfigDevice(
     val accountDomains: List<String>? = null,
     val factoryReset: String? = null,
     val frpAccounts: List<String>? = null,
+    /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); the MDM's silent installs still work. */
+    val installApps: String? = null,
 )
 
 /** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */

@@ -38,6 +38,7 @@ export interface DcPolicy {
     accountDomain?: string;
     accountDomains?: string[];
     factoryReset?: 'block';
+    installApps?: 'block';
     frpAccounts?: string[];
   };
 }
@@ -262,6 +263,24 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
               const ids = e.target.value.split(/[\s,]+/).map((x) => x.replace(/[^0-9]/g, '')).filter(Boolean);
               update({ ...p, device: { ...(p.device ?? {}), frpAccounts: ids.length ? ids : undefined } });
             }} />
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Instalación de apps por el usuario</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Bloquear»: el usuario no puede instalar apps en el equipo (ni Play Store, ni APKs, ni orígenes desconocidos).
+            Lo que despliegas desde esta consola se instala igual. Útil para que no metan apps que no son.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Instalación de apps" disabled={disabled} value={p.device?.installApps ?? ''}
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), installApps: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Permitida</option>
+            <option value="block">Bloquear (solo la consola instala)</option>
+          </select>
         </div>
       </div>
 

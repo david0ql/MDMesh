@@ -97,6 +97,7 @@ public class AgentResource {
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.ConfigReconciler configReconciler;
     private AnnouncementSender announcements;
+    private String baseUrl;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -110,13 +111,15 @@ public class AgentResource {
                          AgentCommandDAO commandDAO,
                          com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
                          com.hmdm.rest.resource.support.ConfigReconciler configReconciler,
-                         AnnouncementSender announcements) {
+                         AnnouncementSender announcements,
+                         @javax.inject.Named("base.url") String baseUrl) {
         this.announcements = announcements;
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
         this.commandDAO = commandDAO;
         this.configAppInstaller = configAppInstaller;
         this.configReconciler = configReconciler;
+        this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
     }
 
     // =================================================================================================================
@@ -224,7 +227,27 @@ public class AgentResource {
             // golden image. Failures are logged inside; enrollment itself must not fail on this.
             int queuedApps = configAppInstaller.enqueueConfigApps(device);
 
-            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued)",
+            // Auto-install remote support (droidVNC-NG) so remote control works out of the box — no manual
+            // "install remote support" step. Best-effort: enrollment must not fail if this cannot be queued.
+            try {
+                com.fasterxml.jackson.databind.node.ObjectNode p = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+                p.put("url", baseUrl + com.hmdm.util.RemoteSupport.APK_PATH);
+                p.put("packageName", com.hmdm.util.RemoteSupport.PACKAGE);
+                p.put("versionCode", com.hmdm.util.RemoteSupport.VERSION_CODE);
+                p.put("sha256", com.hmdm.util.RemoteSupport.SHA256);
+                AgentCommand rc = new AgentCommand();
+                rc.setDeviceNumber(deviceId);
+                rc.setType("app.install");
+                rc.setPayload(p.toString());
+                rc.setRequiresCapability("app.silentInstall");
+                rc.setStatus("pending");
+                rc.setCreatedAt(System.currentTimeMillis());
+                commandDAO.insert(rc);
+            } catch (Exception e) {
+                logger.warn("Auto remote-support install not queued for {}: {}", deviceId, e.getMessage());
+            }
+
+            logger.info("Agent enrolled device {} (configuration {}, {} config apps queued, remote support queued)",
                     deviceId, device.getConfigurationId(), queuedApps);
             return Response.OK(new AgentEnrollResponse(deviceId, configurationName, deviceSecret));
         } finally {

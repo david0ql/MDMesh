@@ -29,6 +29,10 @@ class DeviceRules(private val context: Context, private val handle: DpmHandle, p
         val admin = handle.admin
         restriction(UserManager.DISALLOW_CONFIG_TETHERING, rules?.tethering == "block")
         restriction(UserManager.DISALLOW_FACTORY_RESET, rules?.factoryReset == "block")
+        // "block" = user cannot install apps (Play Store, APKs, sideload). MDM silent installs are unaffected.
+        val blockInstall = rules?.installApps == "block"
+        restriction(UserManager.DISALLOW_INSTALL_APPS, blockInstall)
+        restriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES, blockInstall)
 
         val blockGoogle = rules?.googleAccounts == "block"
         if (blockGoogle != prefs.getBoolean(KEY_GOOGLE_BLOCKED, false)) {

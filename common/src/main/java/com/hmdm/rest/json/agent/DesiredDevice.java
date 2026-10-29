@@ -25,4 +25,6 @@ public class DesiredDevice {
     private List<String> accountDomains;
     private String factoryReset;
     private List<String> frpAccounts;
+    /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); MDM silent installs still work. */
+    private String installApps;
 }
