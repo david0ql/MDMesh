@@ -18,10 +18,14 @@ const CONFIRM_LIMIT_MS = 2 * 60 * 1000;
 export function KioskToggle({ device, compact = false }: { device: Device; compact?: boolean }) {
   const toast = useToast();
   const authUser = useAuth().user;
-  // Entering/exiting/customising the kiosk modifies the device — only fleet managers (admin/editor). A
-  // view-only folder role does not see these controls (and the app picker needs permissions it lacks).
-  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
-    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
+  const hasPerm = (p: string) => !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((x) => x.name === p));
+  // Operating the kiosk — turning the policy's kiosk on (re-apply) or off (exit) — needs only edit_devices,
+  // which every folder role has (the view-only "visor" too): both actions are allowed by the server for it.
+  const canOperate = hasPerm('edit_devices');
+  // Customising the kiosk (picking apps by hand) changes the device's software and needs manage_fleet, plus
+  // the app picker reads the Library (applications/configurations). A visor does not get these.
+  const canManage = hasPerm('manage_fleet');
   const [active, setActive] = useState<boolean | null>(null);
   const [policy, setPolicy] = useState<Configuration | null>(null);
   const [target, setTarget] = useState<{ want: boolean; since: number } | null>(null);
@@ -83,7 +87,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
   }
 
   async function turnOn() {
-    if (!policyKiosk) { setCustom(true); return; }
+    if (!policyKiosk) { if (canManage) setCustom(true); return; }
     setBusy(true);
     try {
       await reapplyConfiguration(device.number);
@@ -95,7 +99,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
     }
   }
 
-  if (!canManage) return null;
+  if (!canOperate) return null;
   const pending = target != null;
   return (
     <div className={`kt ${compact ? 'kt-compact' : ''}`} data-testid="kiosk-toggle">
@@ -111,12 +115,17 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
         </button>
       ) : (
         <>
-          <button className="btn btn-sm btn-primary" disabled={busy || active == null} onClick={() => void turnOn()}
-                  title={policyKiosk ? `Usa el quiosco de la política «${policy?.name}»` : 'Elige las apps del quiosco'}>
-            {policyKiosk ? 'Activar quiosco' : 'Activar quiosco…'}
-          </button>
-          {policyKiosk && (
+          {(policyKiosk || canManage) && (
+            <button className="btn btn-sm btn-primary" disabled={busy || active == null} onClick={() => void turnOn()}
+                    title={policyKiosk ? `Usa el quiosco de la política «${policy?.name}»` : 'Elige las apps del quiosco'}>
+              {policyKiosk ? 'Activar quiosco' : 'Activar quiosco…'}
+            </button>
+          )}
+          {policyKiosk && canManage && (
             <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setCustom(true)}>Personalizar…</button>
+          )}
+          {!policyKiosk && !canManage && (
+            <span className="muted small">La política no trae quiosco; pídele al editor que lo configure.</span>
           )}
         </>
       )}
