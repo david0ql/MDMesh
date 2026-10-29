@@ -4,6 +4,7 @@ import { getConfigStatus } from '../api/configSync';
 import { getConfigurations, type Configuration } from '../api/configurations';
 import { useToast } from '../ui/toast';
 import { KioskEnterModal } from './KioskEnterModal';
+import { useAuth } from '../auth/AuthContext';
 
 type Device = { number: string };
 
@@ -16,6 +17,11 @@ const CONFIRM_LIMIT_MS = 2 * 60 * 1000;
  */
 export function KioskToggle({ device, compact = false }: { device: Device; compact?: boolean }) {
   const toast = useToast();
+  const authUser = useAuth().user;
+  // Entering/exiting/customising the kiosk modifies the device — only fleet managers (admin/editor). A
+  // view-only folder role does not see these controls (and the app picker needs permissions it lacks).
+  const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
   const [active, setActive] = useState<boolean | null>(null);
   const [policy, setPolicy] = useState<Configuration | null>(null);
   const [target, setTarget] = useState<{ want: boolean; since: number } | null>(null);
@@ -89,6 +95,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
     }
   }
 
+  if (!canManage) return null;
   const pending = target != null;
   return (
     <div className={`kt ${compact ? 'kt-compact' : ''}`} data-testid="kiosk-toggle">
