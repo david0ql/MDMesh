@@ -87,7 +87,10 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
   }
 
   async function turnOn() {
-    if (!policyKiosk) { if (canManage) setCustom(true); return; }
+    // A viewer cannot read the policy (no `configurations` permission), so policyKiosk is unknown to them:
+    // re-applying the device's own configuration brings its kiosk back regardless. Only a manager without a
+    // policy kiosk opens the app picker to build one by hand.
+    if (!policyKiosk && canManage) { setCustom(true); return; }
     setBusy(true);
     try {
       await reapplyConfiguration(device.number);
@@ -115,17 +118,12 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
         </button>
       ) : (
         <>
-          {(policyKiosk || canManage) && (
-            <button className="btn btn-sm btn-primary" disabled={busy || active == null} onClick={() => void turnOn()}
-                    title={policyKiosk ? `Usa el quiosco de la política «${policy?.name}»` : 'Elige las apps del quiosco'}>
-              {policyKiosk ? 'Activar quiosco' : 'Activar quiosco…'}
-            </button>
-          )}
+          <button className="btn btn-sm btn-primary" disabled={busy || active == null} onClick={() => void turnOn()}
+                  title={policyKiosk ? `Usa el quiosco de la política «${policy?.name}»` : 'Vuelve a poner el quiosco del equipo'}>
+            {policyKiosk || !canManage ? 'Activar quiosco' : 'Activar quiosco…'}
+          </button>
           {policyKiosk && canManage && (
             <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setCustom(true)}>Personalizar…</button>
-          )}
-          {!policyKiosk && !canManage && (
-            <span className="muted small">La política no trae quiosco; pídele al editor que lo configure.</span>
           )}
         </>
       )}
