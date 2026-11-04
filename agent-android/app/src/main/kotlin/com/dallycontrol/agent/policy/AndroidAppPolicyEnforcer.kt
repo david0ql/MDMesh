@@ -21,12 +21,11 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 /**
- * The app policy on the device (open source, no managed Play): apps installed by the user outside the allowed list
- * are UNINSTALLED — removed from the device (they are all third-party, so a Device Owner removes them silently) —
- * and suspended ("paused by your admin") meanwhile so they are blocked the instant they appear and until the
- * removal finishes. Re-enforced when an app is installed, so something installed from the Play Store is removed
- * within seconds. Apps that cannot be uninstalled (a maker's system app) stay suspended. `hidePlayStore` hides
- * the store itself.
+ * The app policy on the device (open source, no managed Play): apps outside the allowed list are HIDDEN — they
+ * vanish from the launcher and the app drawer (setApplicationHidden), re-hidden every cycle so a reappearing or
+ * self-reinstalling one (e.g. Facebook via its system installer) disappears again — and, where the app can be
+ * removed (a third-party install), also UNINSTALLED for good. Re-enforced when an app is installed, so something
+ * from the Play Store is hidden within seconds. `hidePlayStore` hides the store itself.
  */
 class AndroidAppPolicyEnforcer(
     private val context: Context,
@@ -56,27 +55,37 @@ class AndroidAppPolicyEnforcer(
 
     private fun enforce(policy: ConfigAppPolicy): String {
         if (Build.VERSION.SDK_INT < 24) return ConfigOutcome.UNSUPPORTED
-        val suspended = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
+        val hiddenBefore = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
         val plan = AppPolicyPlanner.plan(
             policy = policy,
             userInstalled = userInstalled(),
             rolePackages = runCatching { roles.resolve(policy.roles).all }.getOrDefault(emptyList()),
             protected = protectedPackages + context.packageName,
-            currentlySuspended = suspended,
+            currentlySuspended = hiddenBefore,
         )
-        val failedSuspend = if (plan.suspend.isEmpty()) emptyList()
-        else dpm.setPackagesSuspended(admin, plan.suspend.toTypedArray(), true).toList()
-        val failedUnsuspend = if (plan.unsuspend.isEmpty()) emptyList()
-        else dpm.setPackagesSuspended(admin, plan.unsuspend.toTypedArray(), false).toList()
-        val nowSuspended = (suspended - plan.unsuspend + failedUnsuspend) + (plan.suspend - failedSuspend.toSet())
-        prefs.edit().putStringSet(KEY_SUSPENDED, nowSuspended.toSet()).apply()
-        (plan.suspend - failedSuspend.toSet()).forEach { events.record(EventType.APP_BLOCKED, it) }
+        // Every installed app outside the allowed list.
+        val blocked = plan.uninstall
 
-        // Remove the blocked apps for good (not just hide them). They are all third-party (see userInstalled),
-        // so the Device Owner uninstalls them silently; on success drop them from the suspended set so prefs do
-        // not accumulate names of apps that no longer exist. System apps that cannot be removed stay suspended.
-        if (plan.uninstall.isNotEmpty()) {
-            val toRemove = plan.uninstall.toList()
+        // Un-hide apps that are no longer blocked (newly allowed), so they come back.
+        (hiddenBefore - blocked).forEach { runCatching { dpm.setApplicationHidden(admin, it, false) } }
+
+        // Hide the blocked apps: they disappear from the launcher and the app drawer (not merely greyed out /
+        // "paused by admin" as a suspension would). Re-hide every cycle so an app that reappears — a reinstalled
+        // or preloaded one that cannot be uninstalled, e.g. Facebook via its system installer — is hidden again.
+        val failedHide = mutableSetOf<String>()
+        for (pkg in blocked) {
+            val isHidden = runCatching { dpm.isApplicationHidden(admin, pkg) }.getOrDefault(false)
+            if (!isHidden && !runCatching { dpm.setApplicationHidden(admin, pkg, true) }.getOrDefault(false)) {
+                failedHide.add(pkg)
+            }
+        }
+        prefs.edit().putStringSet(KEY_SUSPENDED, blocked).apply()
+        (blocked - hiddenBefore).forEach { events.record(EventType.APP_BLOCKED, it) }
+
+        // Also remove the blocked apps for good where possible (third-party ones): a Device Owner uninstalls them
+        // silently. The ones it cannot remove (system / self-reinstalling) stay hidden by the step above.
+        if (blocked.isNotEmpty()) {
+            val toRemove = blocked.toList()
             scope.launch {
                 for (pkg in toRemove) {
                     if (installManager.uninstall(pkg) is InstallOutcome.Success) {
@@ -91,16 +100,16 @@ class AndroidAppPolicyEnforcer(
         }
 
         val playHidden = runCatching { dpm.setApplicationHidden(admin, PLAY_STORE, policy.hidePlayStore) }
-        // Android refuses to pause some apps (e.g. its own "Android Device Policy", com.google.android.apps.work.clouddpc,
-        // or a maker's system app): the rest of the policy is in force, so that is a note, not a failure.
+        // Android refuses to hide some apps (e.g. its own "Android Device Policy", or a maker's core system app):
+        // the rest of the policy is in force, so that is a note, not a failure.
         return when {
             playHidden.isFailure && policy.hidePlayStore -> ConfigOutcome.failed("could not hide the Play Store")
-            failedSuspend.isNotEmpty() -> "${ConfigOutcome.APPLIED} (Android no deja pausar: ${failedSuspend.joinToString()})"
+            failedHide.isNotEmpty() -> "${ConfigOutcome.APPLIED} (Android no deja ocultar: ${failedHide.joinToString()})"
             else -> ConfigOutcome.APPLIED
         }
     }
 
-    /** Suspended by this policy right now (console / tests). */
+    /** Hidden by this policy right now (console / tests). */
     fun suspended(): Set<String> = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
 
     @Suppress("DEPRECATION")
