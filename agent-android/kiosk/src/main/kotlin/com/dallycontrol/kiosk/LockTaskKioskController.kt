@@ -39,11 +39,18 @@ class LockTaskKioskController(
         val ownPackage = homeComponent.packageName
         if (!dpm.isDeviceOwnerApp(ownPackage)) return KioskResult.Unsupported
         return runGuarded {
-            // Own package must stay allowlisted so the kiosk launcher can run.
-            val allowlist = (allowedPackages + ownPackage + supportPackages).distinct().toTypedArray()
+            // Android 16 (SDK 36): its LockTaskController NPEs in system_server when a lock-task-whitelisted
+            // task is collected in an app transition (confirmed on Samsung A17), crashing the whole system →
+            // a reboot loop on opening the kiosk app. Any lock-task packages at all trigger it — not only
+            // startLockTask — so on Android 16 we whitelist NONE: Android never attempts lock task, and
+            // setting it empty also exits any lock task left over from an older agent version. The kiosk still
+            // works as the persistent HOME launcher (KioskLauncherActivity disables the status bar there).
+            val softKiosk = Build.VERSION.SDK_INT >= 36
+            val allowlist = if (softKiosk) emptyArray()
+            else (allowedPackages + ownPackage + supportPackages).distinct().toTypedArray()
             dpm.setLockTaskPackages(admin, allowlist)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (!softKiosk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 dpm.setLockTaskFeatures(admin, features)
             }
 
