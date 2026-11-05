@@ -160,7 +160,21 @@ class KioskLauncherActivity : ComponentActivity() {
         return true
     }
 
+    /** Android 16 (SDK 36): its LockTaskController NPEs in system_server during the app transition when entering
+     *  lock task (confirmed on Samsung A17: NullPointerException on DisplayContent.executeAppTransition), which
+     *  crashes the whole system → a reboot loop, most visibly on opening the pinned app. There is no way to catch
+     *  a system_server crash from the app, so on Android 16 we do NOT enter lock task: we run a "soft" kiosk — this
+     *  activity is already the persistent HOME launcher, and we disable the status bar — so the device stays locked
+     *  without the buggy pin. Older Android uses the real lock task as before. */
+    private val softKiosk get() = android.os.Build.VERSION.SDK_INT >= 36
+
+    private fun setStatusBarDisabled(disabled: Boolean) = runCatching {
+        getSystemService(android.app.admin.DevicePolicyManager::class.java)
+            ?.setStatusBarDisabled(com.dallycontrol.agent.admin.AdminReceiver.componentName(this), disabled)
+    }
+
     private fun startLockTaskSafely() {
+        if (softKiosk) { setStatusBarDisabled(true); return }
         runCatching {
             val am = getSystemService(ActivityManager::class.java)
             if (am?.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) startLockTask()
@@ -168,6 +182,7 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     private fun stopLockTaskSafely() {
+        if (softKiosk) { setStatusBarDisabled(false); return }
         runCatching {
             val am = getSystemService(ActivityManager::class.java)
             if (am?.lockTaskModeState != android.app.ActivityManager.LOCK_TASK_MODE_NONE) stopLockTask()
@@ -198,7 +213,7 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     private fun doExit() {
-        runCatching { if (isFinishing.not()) stopLockTask() }
+        if (softKiosk) setStatusBarDisabled(false) else runCatching { if (isFinishing.not()) stopLockTask() }
         controller.exit()
         events.record("kioskExit", "exited on-device")
         // Drop our HOME claim and hand off to the OEM launcher so the device returns to normal
