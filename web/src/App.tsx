@@ -17,6 +17,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { FleetMapPage } from './pages/FleetMapPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
+import { ReportsPage } from './pages/ReportsPage';
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/apps" element={<AdminOnly><AppsPage /></AdminOnly>} />
               <Route path="/configs" element={<AdminOnly><ConfigurationsPage /></AdminOnly>} />
               <Route path="/announcements" element={<AnnouncementsPage />} />
+              <Route path="/reports" element={<AdminOnly><ReportsPage /></AdminOnly>} />
               <Route path="/enroll" element={<EnrollPage />} />
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
               <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
