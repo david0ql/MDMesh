@@ -77,6 +77,33 @@ public class AgentPackageResource {
         return Response.OK(cached);
     }
 
+    /**
+     * The version string of the hosted agent APK (e.g. "0.8.3"), or null when no APK is hosted or it cannot be read.
+     * Reuses the cached analysis of {@link #get()}; callers (the Reportes module) must already be authenticated.
+     */
+    public synchronized String latestVersion() {
+        File f = new File(filesDirectory, FILE);
+        if (!f.isFile()) return null;
+        long stamp = f.lastModified() ^ f.length();
+        if (cached == null || stamp != cachedStamp) {
+            try {
+                APKFileDetails d = analyzer.analyzeFile(f.getAbsolutePath());
+                Map<String, Object> p = new LinkedHashMap<>();
+                p.put("url", baseUrl + "/files/" + FILE);
+                p.put("packageName", d.getPkg());
+                p.put("versionCode", d.getVersionCode());
+                p.put("version", d.getVersion());
+                p.put("sha256", sha256(f));
+                cached = p;
+                cachedStamp = stamp;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        Object v = cached.get("version");
+        return v == null ? null : String.valueOf(v);
+    }
+
     private static String sha256(File f) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         try (InputStream in = new FileInputStream(f)) {

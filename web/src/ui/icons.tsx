@@ -110,6 +110,15 @@ export const IconConfig = (p: P) => (
   </Svg>
 );
 
+export const IconReports = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
+    <line x1="5.5" y1="6" x2="10.5" y2="6" />
+    <line x1="5.5" y1="8.5" x2="10.5" y2="8.5" />
+    <line x1="5.5" y1="11" x2="8.5" y2="11" />
+  </Svg>
+);
+
 export const IconApps = (p: P) => (
   <Svg {...p}>
     <path d="M3.5 5h9l-.7 7.8a1 1 0 0 1-1 .9H5.2a1 1 0 0 1-1-.9z" />
