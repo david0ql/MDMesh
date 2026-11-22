@@ -308,4 +308,13 @@ public interface AgentDeviceMapper {
             "FROM devices d LEFT JOIN device_state s ON s.deviceNumber = d.number " +
             "WHERE d.customerId = #{customerId} AND d.configurationId IS NOT NULL"})
     List<DeviceSyncRow> listDevicesForSync(@Param("customerId") int customerId);
+
+    /** Devices of one configuration with their applied revision + display info — to list the ones out of compliance. */
+    @Select({"SELECT d.number AS deviceNumber, d.description AS description, d.agentCapabilities AS capabilitiesJson, " +
+            "d.lastUpdate AS lastUpdate, s.appliedConfigRevision AS appliedConfigRevision, s.appliedConfigAt AS appliedConfigAt " +
+            "FROM devices d LEFT JOIN device_state s ON s.deviceNumber = d.number " +
+            "WHERE d.customerId = #{customerId} AND d.configurationId = #{configurationId} " +
+            "ORDER BY lower(coalesce(d.description, d.number))"})
+    List<com.hmdm.persistence.domain.ConfigDriftRow> listDevicesForConfig(@Param("customerId") int customerId,
+                                                                          @Param("configurationId") int configurationId);
 }

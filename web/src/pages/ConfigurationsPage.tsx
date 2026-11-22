@@ -27,6 +27,8 @@ import {
 } from '../data/configFields';
 import { AppPicker } from '../components/AppPicker';
 import { SyncBar } from '../components/SyncBar';
+import { ConfigHistoryPanel } from '../components/ConfigHistoryPanel';
+import { ComplianceCard } from '../components/ComplianceCard';
 import { KioskChangeConfirm, kioskAffectingChanges } from '../components/KioskChangeConfirm';
 
 // The seeded device-template defaults are locked: view-only, and used as bases
@@ -359,6 +361,7 @@ function ConfigEditor({
   onDuplicate: () => void;
 }) {
   const toast = useToast();
+  const [tab, setTab] = useState<'edit' | 'history'>('edit');
   const [draft, setDraft] = useState<Configuration>(() => ({ ...initial }));
   // The unmodified starting point for change detection (e.g. kioskAffectingChanges).
   // Kept separate from `initial` because the list endpoint omits `applications` —
@@ -543,6 +546,19 @@ function ConfigEditor({
         )}
       </div>
 
+      {!isNew && (
+        <div className="seg" role="tablist" aria-label="Configuración o historial" style={{ marginBottom: 14 }}>
+          <button type="button" className={tab === 'edit' ? 'on' : ''} onClick={() => setTab('edit')}>Configuración</button>
+          <button type="button" className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')} data-testid="tab-config-history">Historial de cambios</button>
+        </div>
+      )}
+
+      {tab === 'history' && initial.id != null ? (
+        <ConfigHistoryPanel configId={initial.id} />
+      ) : (
+      <>
+      {!isNew && initial.id != null ? <ComplianceCard configId={initial.id} /> : null}
+
       {appsError && !appsReady ? (
         <div className="banner banner-alert" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span>No se pudieron cargar las apps asignadas a esta política. Guardar está desactivado para no borrar la lista de apps (ni las apps permitidas del quiosco).</span>
@@ -706,6 +722,8 @@ function ConfigEditor({
           onAdd={addApps}
           onClose={() => setPickerOpen(false)}
         />
+      )}
+      </>
       )}
     </>
   );

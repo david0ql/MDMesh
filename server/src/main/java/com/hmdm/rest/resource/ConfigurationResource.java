@@ -32,7 +32,9 @@ import com.hmdm.persistence.*;
 import com.hmdm.persistence.domain.*;
 import com.hmdm.rest.json.LookupItem;
 import com.hmdm.rest.json.UpgradeConfigurationApplicationRequest;
+import com.hmdm.rest.resource.support.ConfigReconciler;
 import com.hmdm.security.SecurityContext;
+import com.hmdm.util.ConfigChangeSummary;
 import com.hmdm.util.FileUtil;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -57,6 +59,8 @@ public class ConfigurationResource {
     private PushService pushService;
     private CustomerDAO customerDAO;
     private UserDAO userDAO;
+    private ConfigAuditDAO configAuditDAO;
+    private ConfigReconciler configReconciler;
     private String baseUrl;
 
     /**
@@ -71,12 +75,16 @@ public class ConfigurationResource {
                                  PushService pushService,
                                  CustomerDAO customerDAO,
                                  UserDAO userDAO,
+                                 ConfigAuditDAO configAuditDAO,
+                                 ConfigReconciler configReconciler,
                                  @Named("base.url") String baseUrl) {
         this.configurationDAO = configurationDAO;
         this.applicationDAO = applicationDAO;
         this.pushService = pushService;
         this.customerDAO = customerDAO;
         this.userDAO = userDAO;
+        this.configAuditDAO = configAuditDAO;
+        this.configReconciler = configReconciler;
         this.baseUrl = baseUrl;
     }
     // =================================================================================================================
@@ -202,19 +210,24 @@ public class ConfigurationResource {
                         user.getConfigurations().add(new LookupItem(configuration.getId(), null));
                         userDAO.updateUserMainDetails(user);
                     }
+                    configuration = getConfiguration(configuration.getId());
+                    writeAudit("create", null, configuration);
+                    return Response.OK(configuration);
                 } else {
                     if (!configurationDAO.hasConfigurationAccess(id)) {
                         log.error("Unauthorized attempt to update the configuration " + configuration.getId() +
                                 "by user " + SecurityContext.get().getCurrentUserName());
                         return Response.PERMISSION_DENIED();
                     }
+                    // Snapshot the policy as it was, before the write, for the audit diff.
+                    Configuration before = getConfiguration(id);
                     log.info("Configuration " + configuration.getName() + " updated by user "  + SecurityContext.get().getCurrentUserName());
                     this.configurationDAO.updateConfiguration(configuration);
                     this.pushService.notifyDevicesOnUpdate(configuration.getId());
+                    configuration = getConfiguration(configuration.getId());
+                    writeAudit("update", before, configuration);
+                    return Response.OK(configuration);
                 }
-                configuration = getConfiguration(configuration.getId());
-
-                return Response.OK(configuration);
             }
         } catch (Exception e) {
             log.error("Unexpected error when saving the configuration", e);
@@ -302,7 +315,10 @@ public class ConfigurationResource {
             return Response.PERMISSION_DENIED();
         }
         try {
+            // Last-known snapshot for the audit trail, captured before the row disappears.
+            Configuration before = getConfiguration(id);
             this.configurationDAO.removeConfigurationById(id);
+            writeAudit("delete", before, null);
             return Response.OK();
         } catch (ConfigurationReferenceExistsException e) {
             log.error("Failed to delete configuration #{}", id, e);
@@ -359,6 +375,80 @@ public class ConfigurationResource {
         Configuration configurationById = getConfiguration(id);
 
         return Response.OK(configurationById);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(
+            value = "Get configuration change history",
+            notes = "Audit/version trail for a configuration: who changed what and when, with the resulting revision.",
+            response = ConfigAudit.class,
+            responseContainer = "List"
+    )
+    @GET
+    @Path("/{id}/history")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getConfigurationHistory(@PathParam("id") @ApiParam("Configuration ID") Integer id) {
+        if (!SecurityContext.get().hasPermission("configurations") ||
+                !configurationDAO.hasConfigurationAccess(id)) {
+            log.error("Unauthorized attempt to access the history of configuration " + id);
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        try {
+            return Response.OK(this.configAuditDAO.listByConfiguration(customerId.get(), id));
+        } catch (Exception e) {
+            log.error("Failed to read the history of configuration #{}", id, e);
+            return Response.INTERNAL_ERROR();
+        }
+    }
+
+    /**
+     * <p>Writes one configuration audit/version row for the current user. Never throws into the save path:
+     * a failure to audit must not fail the save (logged at WARN instead).</p>
+     *
+     * @param action 'create', 'update' or 'delete'
+     * @param before the configuration before the change (null on create)
+     * @param after  the configuration after the change (null on delete)
+     */
+    private void writeAudit(String action, Configuration before, Configuration after) {
+        try {
+            Configuration ref = after != null ? after : before;
+            if (ref == null) {
+                return;
+            }
+            ConfigAudit entry = new ConfigAudit();
+            entry.setCustomerId(ref.getCustomerId());
+            entry.setConfigurationId(ref.getId());
+            entry.setConfigurationName(ref.getName());
+            SecurityContext.get().getCurrentUser().ifPresent(u -> {
+                entry.setUserId(u.getId());
+                entry.setUserName(u.getName() != null ? u.getName() : u.getLogin());
+            });
+            entry.setAction(action);
+            entry.setChangesJson(ConfigChangeSummary.build(before, after));
+            // The resulting desired-state revision (same SHA-256 the drift check compares), null on delete.
+            entry.setRevision(after == null ? null : currentRevision(after));
+            entry.setCreatedAt(System.currentTimeMillis());
+            this.configAuditDAO.insert(entry);
+        } catch (Exception e) {
+            log.warn("Failed to write configuration audit entry ({}) for configuration {}",
+                    action, after != null ? after.getId() : (before != null ? before.getId() : null), e);
+        }
+    }
+
+    /** The desired-config revision for a configuration, computed exactly as the drift check does (probe device). */
+    private String currentRevision(Configuration cfg) {
+        try {
+            Device probe = new Device();
+            probe.setConfigurationId(cfg.getId());
+            probe.setCustomerId(cfg.getCustomerId());
+            return configReconciler.currentRevision(probe);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

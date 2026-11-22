@@ -99,3 +99,40 @@ export async function copyConfiguration(
 ): Promise<void> {
   await apiClient.put('/private/configurations/copy', { id, name, description });
 }
+
+// ── Change history (audit / versioning) ──────────────────────────────────────
+// com.hmdm.rest.resource.ConfigurationResource#getConfigurationHistory
+//   GET /rest/private/configurations/{id}/history  ->  ConfigAudit[] (newest first)
+
+/** One change in a configuration's change-history, as written to config_audit on every save/delete. */
+export interface ConfigAuditEntry {
+  id: number;
+  configurationId?: number | null;
+  configurationName?: string | null;
+  userId?: number | null;
+  userName?: string | null;
+  action: 'create' | 'update' | 'delete' | string;
+  /** Raw JSON string: { diff?: {field: {from,to}}, snapshot: {...} }. Parsed with parseChanges(). */
+  changesJson?: string | null;
+  revision?: string | null;
+  createdAt?: number | null;
+}
+
+export interface ConfigChanges {
+  diff?: Record<string, { from: unknown; to: unknown }>;
+  snapshot?: Record<string, unknown>;
+}
+
+export function parseChanges(changesJson: string | null | undefined): ConfigChanges | null {
+  if (!changesJson) return null;
+  try {
+    const v = JSON.parse(changesJson) as ConfigChanges;
+    return v && typeof v === 'object' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getConfigurationHistory(id: number): Promise<ConfigAuditEntry[]> {
+  return apiClient.get<ConfigAuditEntry[]>(`/private/configurations/${id}/history`);
+}
