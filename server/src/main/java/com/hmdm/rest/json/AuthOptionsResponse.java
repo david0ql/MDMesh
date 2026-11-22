@@ -38,6 +38,12 @@ public class AuthOptionsResponse {
     private boolean recover;
     private boolean signup;
     private String publicKey;
+    /** Console login branding (per instance): a logo shown on the sign-in screen instead of the default wordmark. */
+    private String loginLogoUrl;
+    /** Console login branding: an optional background image for the sign-in screen. */
+    private String loginBackgroundUrl;
+    /** Console login branding: an optional client name shown on the sign-in screen. */
+    private String brandName;
 
     /**
      * <p>Constructs new <code>AuthOptionsResponse</code> instance. This implementation does nothing.</p>
@@ -67,5 +73,29 @@ public class AuthOptionsResponse {
 
     public void setPublicKey(String publicKey) {
         this.publicKey = publicKey;
+    }
+
+    public String getLoginLogoUrl() {
+        return loginLogoUrl;
+    }
+
+    public void setLoginLogoUrl(String loginLogoUrl) {
+        this.loginLogoUrl = loginLogoUrl;
+    }
+
+    public String getLoginBackgroundUrl() {
+        return loginBackgroundUrl;
+    }
+
+    public void setLoginBackgroundUrl(String loginBackgroundUrl) {
+        this.loginBackgroundUrl = loginBackgroundUrl;
+    }
+
+    public String getBrandName() {
+        return brandName;
+    }
+
+    public void setBrandName(String brandName) {
+        this.brandName = brandName;
     }
 }

@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { isFolderAdmin } from '../api/auth';
+import { getConsoleBrand, type ConsoleBrand } from '../api/fleet';
 import { useTheme } from './theme';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { ReloadPrompt } from '../components/ReloadPrompt';
@@ -21,6 +22,22 @@ import {
   IconSun,
   IconMoon,
 } from './icons';
+
+// Cached across page navigations (AppShell remounts per page) so the header brand does not flicker.
+let consoleBrandCache: ConsoleBrand | null | undefined;
+
+/** The DallyControl wordmark, the console's default brand. */
+function DefaultWordmark() {
+  return (
+    <span className="wordmark" aria-label="DallyControl">
+      <span className="bullet" aria-hidden="true" />
+      <span>
+        <span className="mdm">Dally</span>
+        <span className="esh">Control</span>
+      </span>
+    </span>
+  );
+}
 
 interface NavEntry {
   to: string;
@@ -55,6 +72,19 @@ export function AppShell({
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+  // Per-client console branding (header), resolved from the signed-in user's folders. Empty for full administrators.
+  const [brand, setBrand] = useState<ConsoleBrand | null | undefined>(consoleBrandCache);
+
+  useEffect(() => {
+    if (consoleBrandCache !== undefined) return; // already resolved this session
+    let alive = true;
+    getConsoleBrand()
+      .then((b) => { const v = b && (b.logoUrl || b.name) ? b : null; consoleBrandCache = v; if (alive) setBrand(v); })
+      .catch(() => { consoleBrandCache = null; if (alive) setBrand(null); });
+    return () => { alive = false; };
+  }, []);
+
+  const branded = brand && (brand.logoUrl || brand.name);
 
   return (
     <div className="shell">
@@ -65,13 +95,14 @@ export function AppShell({
       />
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <span className="wordmark" aria-label="DallyControl">
-            <span className="bullet" aria-hidden="true" />
-            <span>
-              <span className="mdm">Dally</span>
-              <span className="esh">Control</span>
+          {branded ? (
+            <span className="console-brand" aria-label={brand?.name || 'Marca de consola'}>
+              {brand?.logoUrl && <img className="console-brand-logo" src={brand.logoUrl} alt={brand.name || ''} />}
+              {brand?.name && <span className="console-brand-name">{brand.name}</span>}
             </span>
-          </span>
+          ) : (
+            <DefaultWordmark />
+          )}
         </div>
         <nav className="nav">
           {NAV.filter((n) => !n.adminOnly || !isFolderAdmin(user)).map(({ to, label, Icon }) => (
@@ -100,7 +131,7 @@ export function AppShell({
             {theme === 'dark' ? <IconSun className="ico" /> : <IconMoon className="ico" />}
             <span style={{ marginLeft: 8 }}>{theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
           </button>
-          <button className="btn btn-ghost" onClick={() => void signOut()}>
+          <button className="btn btn-ghost" onClick={() => { consoleBrandCache = undefined; void signOut(); }}>
             <IconSignOut className="ico" />
             <span style={{ marginLeft: 8 }}>Cerrar sesión</span>
           </button>
@@ -116,7 +147,7 @@ export function AppShell({
           >
             <IconMenu />
           </button>
-          <span style={{ fontWeight: 600 }}>{title ?? 'DallyControl'}</span>
+          <span style={{ fontWeight: 600 }}>{title ?? (branded ? brand?.name || 'Consola' : 'DallyControl')}</span>
         </div>
         <main className="content route-enter"><ReloadPrompt /><UpdateBanner />{children}</main>
       </div>

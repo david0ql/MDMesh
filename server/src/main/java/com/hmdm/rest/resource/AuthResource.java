@@ -68,6 +68,10 @@ public class AuthResource {
     private HmdmAuthInterface authEngine;
     private com.hmdm.rest.resource.support.LoginThrottle loginThrottle;
     private boolean allowDefaultPassword;
+    /** Console login branding (per instance, pre-authentication). Empty strings mean "use the default wordmark". */
+    private String loginLogo = "";
+    private String loginBackground = "";
+    private String brandName = "";
     /** MD5("admin"), what the console sends for the password "admin" — the default every fresh database starts with. */
     private static final String DEFAULT_PASSWORD_MD5 = "21232F297A57A5A743894A0E4A801FC3";
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AuthResource.class);
@@ -92,7 +96,13 @@ public class AuthResource {
                         @Named("transmit.password") boolean transmitPassword,
                         @Named("auth.class") HmdmAuthInterface authEngine,
                         com.hmdm.rest.resource.support.LoginThrottle loginThrottle,
-                        @Named("allow.default.password") boolean allowDefaultPassword) {
+                        @Named("allow.default.password") boolean allowDefaultPassword,
+                        @Named("rebranding.login.logo") String loginLogo,
+                        @Named("rebranding.login.background") String loginBackground,
+                        @Named("rebranding.name") String brandName) {
+        this.loginLogo = loginLogo == null ? "" : loginLogo.trim();
+        this.loginBackground = loginBackground == null ? "" : loginBackground.trim();
+        this.brandName = brandName == null ? "" : brandName.trim();
         this.loginThrottle = loginThrottle;
         this.allowDefaultPassword = allowDefaultPassword;
         this.userDAO = userDAO;
@@ -237,6 +247,9 @@ public class AuthResource {
         AuthOptionsResponse response = new AuthOptionsResponse();
         response.setSignup(emailService.isConfigured() && customerSignup);
         response.setRecover(emailService.isConfigured());
+        if (loginLogo != null && !loginLogo.isEmpty()) response.setLoginLogoUrl(loginLogo);
+        if (loginBackground != null && !loginBackground.isEmpty()) response.setLoginBackgroundUrl(loginBackground);
+        if (brandName != null && !brandName.isEmpty()) response.setBrandName(brandName);
         if (transmitPassword) {
             PublicKey publicKey = rsaKeyService.getPublicKey();
             byte[] keyBytes = publicKey.getEncoded();
