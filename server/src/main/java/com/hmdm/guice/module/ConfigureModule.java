@@ -53,6 +53,9 @@ public class ConfigureModule extends AbstractModule {
     private final String rebrandingMobileNameParameter = "rebranding.mobile.name";
     private final String rebrandingSignupLinkParameter = "rebranding.signup.link";
     private final String rebrandingTermsLinkParameter = "rebranding.terms.link";
+    // Console login branding (pre-authentication, per instance): shown on the sign-in screen.
+    private final String rebrandingLoginLogoParameter = "rebranding.login.logo";
+    private final String rebrandingLoginBackgroundParameter = "rebranding.login.background";
     private final String smtpHostParameter = "smtp.host";
     private final String smtpPortParameter = "smtp.port";
     private final String smtpSslParameter = "smtp.ssl";
@@ -169,6 +172,10 @@ public class ConfigureModule extends AbstractModule {
         this.bindConstant().annotatedWith(Names.named(rebrandingSignupLinkParameter)).to(opt != null ? opt : "");
         opt = this.context.getInitParameter(rebrandingTermsLinkParameter);
         this.bindConstant().annotatedWith(Names.named(rebrandingTermsLinkParameter)).to(opt != null ? opt : "");
+        opt = this.context.getInitParameter(rebrandingLoginLogoParameter);
+        this.bindConstant().annotatedWith(Names.named(rebrandingLoginLogoParameter)).to(opt != null ? opt : "");
+        opt = this.context.getInitParameter(rebrandingLoginBackgroundParameter);
+        this.bindConstant().annotatedWith(Names.named(rebrandingLoginBackgroundParameter)).to(opt != null ? opt : "");
 
         // SMTP
         opt = this.context.getInitParameter(smtpHostParameter);

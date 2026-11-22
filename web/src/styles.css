@@ -3251,4 +3251,98 @@ a {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+   Console branding (per-client header) + login branding + brand editor
+   ========================================================================= */
+/* Header brand in the sidebar: a client logo and/or name replacing the wordmark. */
+.console-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.console-brand-logo {
+  max-height: 30px;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+.console-brand-name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Login screen: a configurable client logo instead of the wordmark. */
+.login-logo {
+  display: block;
+  max-height: 52px;
+  max-width: 220px;
+  width: auto;
+  object-fit: contain;
+}
+/* When a background image is set, lift the card off it for legibility. */
+.login-screen:not([style=""]) .login-card {
+  backdrop-filter: saturate(1.1);
+}
+
+/* Brand modal: tabs for console vs kiosk branding. */
+.brand-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  margin: 0 0 14px;
+  background: var(--app);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+.brand-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.brand-tab:hover { color: var(--text); }
+.brand-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(0,0,0,0.08));
+}
+
+/* Console brand editor: form on the left, header preview on the right. */
+.cb-editor { display: grid; grid-template-columns: 1fr minmax(180px, 240px); gap: 18px; align-items: start; }
+.cb-thumb { background: var(--app); }
+.cb-thumb img { max-height: 48px; max-width: 100%; object-fit: contain; }
+.cb-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--app);
+}
+.cb-preview-head {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+.cb-preview-head img { max-height: 28px; max-width: 100%; object-fit: contain; }
+@media (max-width: 720px) {
+  .cb-editor { grid-template-columns: 1fr; }
 }

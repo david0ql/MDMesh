@@ -16,9 +16,14 @@ public class DeviceGroupView {
     /** Kiosk branding of this folder (JSON, see KioskBrand); null = inherits. */
     @com.fasterxml.jackson.annotation.JsonRawValue
     private String brand;
+    /** Console branding of this folder (JSON, see ConsoleBrand); null = inherits. Shown in the admin console header. */
+    @com.fasterxml.jackson.annotation.JsonRawValue
+    private String consoleBrand;
 
     public String getBrand() { return brand; }
     public void setBrand(String brand) { this.brand = brand; }
+    public String getConsoleBrand() { return consoleBrand; }
+    public void setConsoleBrand(String consoleBrand) { this.consoleBrand = consoleBrand; }
 
     public Integer getParentId() { return parentId; }
     public void setParentId(Integer parentId) { this.parentId = parentId; }

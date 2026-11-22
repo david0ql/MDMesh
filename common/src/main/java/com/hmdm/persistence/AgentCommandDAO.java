@@ -311,6 +311,10 @@ public class AgentCommandDAO {
         return deviceMapper.updateGroupBrand(customerId, id, brandJson) > 0;
     }
 
+    public boolean updateGroupConsoleBrand(int customerId, int id, String brandJson) {
+        return deviceMapper.updateGroupConsoleBrand(customerId, id, brandJson) > 0;
+    }
+
     /** Move a group's direct children under {@code parentId} (null = top level). */
     public void reparentChildren(int customerId, int id, Integer parentId) {
         deviceMapper.reparentChildren(customerId, id, parentId);

@@ -17,6 +17,8 @@ export interface FleetGroup {
   effectiveConfigurationName: string | null;
   /** The folder's own kiosk branding; null = inherits. */
   brand?: KioskBrand | null;
+  /** The folder's own console branding (admin header logo/name); null = inherits. */
+  consoleBrand?: ConsoleBrand | null;
   /** Devices directly in this group (not its sub-folders). */
   deviceCount: number;
 }
@@ -156,6 +158,25 @@ export interface KioskBrand {
 /** A folder's own branding; an empty object makes it inherit again (parent folder, then the policy). */
 export const setGroupBrand = (id: number, brand: KioskBrand) =>
   apiClient.put<{ group: FleetGroup; devices: number }>(`${BASE}/groups/${id}/brand`, brand);
+
+/**
+ * Console branding (admin header): the client logo and name shown in the console to the folder's administrators, once
+ * they sign in. Independent of the kiosk branding pushed to the devices. An empty object makes the folder inherit again.
+ */
+export interface ConsoleBrand {
+  logoUrl?: string;
+  name?: string;
+}
+
+/** A folder's own console branding; an empty object makes it inherit again (nearest folder towards the root wins). */
+export const setGroupConsoleBrand = (id: number, brand: ConsoleBrand) =>
+  apiClient.put<{ group: FleetGroup }>(`${BASE}/groups/${id}/consoleBrand`, brand);
+
+/**
+ * The console branding to show the signed-in user in the header, resolved over the folders they can reach (nearest the
+ * top wins). Empty ({}) for full administrators — the console then uses its default DallyControl wordmark.
+ */
+export const getConsoleBrand = () => apiClient.get<ConsoleBrand>(`${BASE}/consoleBrand`);
 
 /** Install/update now, on every device of the target, the policy apps it lacks or has in an older version. */
 export async function syncAppsFor(t: Target): Promise<{ devices: number; queued: number }> {

@@ -344,6 +344,81 @@ public class FleetResource {
         return Response.OK(out);
     }
 
+    @ApiOperation(value = "Set a folder's console branding",
+            notes = "Body: { logoUrl?, name? } (empty clears it: the folder inherits again). The logo/name shown in the "
+                    + "admin console header to the folder administrators of this folder. Independent of the kiosk branding.")
+    @PUT
+    @Path("/groups/{id}/consoleBrand")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setGroupConsoleBrand(@PathParam("id") int id, com.hmdm.util.ConsoleBrand body) {
+        Optional<Integer> customerId = editor("set group console branding");
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        if (commandDAO.findGroup(c, id) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        if (scope.restricted() && !scope.canGroup(id)) {
+            return Response.PERMISSION_DENIED();
+        }
+        com.hmdm.util.ConsoleBrand b = body == null ? null : body.cleaned();
+        commandDAO.updateGroupConsoleBrand(c, id, b == null || b.isEmpty() ? null : b.toJson());
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("group", commandDAO.findGroup(c, id));
+        return Response.OK(out);
+    }
+
+    @ApiOperation(value = "Current user's console branding",
+            notes = "The logo/name to show in the console header for the signed-in user, resolved over the folders they "
+                    + "can reach (nearest the top wins). Empty for full administrators (the console uses its default wordmark).")
+    @GET
+    @Path("/consoleBrand")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response currentConsoleBrand() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        // A full administrator (no folder scope) keeps the default DallyControl wordmark.
+        Set<Integer> mine = scope.groups();
+        if (mine == null) {
+            return Response.OK(new LinkedHashMap<String, Object>());
+        }
+        List<DeviceGroupView> all = commandDAO.listGroups(c);
+        Map<Integer, DeviceGroupView> byId = new java.util.HashMap<>();
+        for (DeviceGroupView g : all) byId.put(g.getId(), g);
+        // Depth of each reachable folder (distance from the root of its tree); shallowest first.
+        List<DeviceGroupView> reachable = new ArrayList<>();
+        for (DeviceGroupView g : all) if (mine.contains(g.getId())) reachable.add(g);
+        reachable.sort((a, b) -> Integer.compare(depthOf(a, byId), depthOf(b, byId)));
+        List<com.hmdm.util.ConsoleBrand> chain = new ArrayList<>();
+        for (DeviceGroupView g : reachable) chain.add(com.hmdm.util.ConsoleBrand.parse(g.getConsoleBrand()));
+        com.hmdm.util.ConsoleBrand eff = com.hmdm.util.ConsoleBrand.effective(chain);
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (eff != null) {
+            if (eff.getLogoUrl() != null) out.put("logoUrl", eff.getLogoUrl());
+            if (eff.getName() != null) out.put("name", eff.getName());
+        }
+        return Response.OK(out);
+    }
+
+    /** Distance of a folder from the root of its tree (0 = top level), guarded against cycles. */
+    private static int depthOf(DeviceGroupView g, Map<Integer, DeviceGroupView> byId) {
+        int depth = 0;
+        Integer parent = g.getParentId();
+        Set<Integer> seen = new HashSet<>();
+        while (parent != null && seen.add(parent) && depth < 64) {
+            DeviceGroupView p = byId.get(parent);
+            if (p == null) break;
+            depth++;
+            parent = p.getParentId();
+        }
+        return depth;
+    }
+
     @ApiOperation(value = "Delete group", notes = "Refused while the folder itself holds devices (move them first); "
             + "its sub-folders move up to its parent.")
     @DELETE

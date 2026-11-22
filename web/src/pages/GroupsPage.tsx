@@ -6,11 +6,12 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import {
-  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, setGroupBrand, updateGroup,
-  type FleetGroup, type GroupNode, type GroupsOverview, type KioskBrand, type Target,
+  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, setGroupBrand, setGroupConsoleBrand, updateGroup,
+  type ConsoleBrand, type FleetGroup, type GroupNode, type GroupsOverview, type KioskBrand, type Target,
 } from '../api/fleet';
 import { BulkActionModal } from '../components/BulkActionModal';
 import { KioskBrandEditor } from '../components/KioskBrandEditor';
+import { ConsoleBrandEditor } from '../components/ConsoleBrandEditor';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -42,6 +43,8 @@ export function GroupsPage() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [brandFor, setBrandFor] = useState<FleetGroup | null>(null);
   const [brand, setBrand] = useState<KioskBrand>({});
+  const [consoleBrand, setConsoleBrand] = useState<ConsoleBrand>({});
+  const [brandTab, setBrandTab] = useState<'console' | 'kiosk'>('console');
   const [brandBusy, setBrandBusy] = useState(false);
   const [name, setName] = useState('');
   const [newConfig, setNewConfig] = useState('');
@@ -150,8 +153,11 @@ export function GroupsPage() {
     if (!brandFor) return;
     setBrandBusy(true);
     try {
+      // Console branding (header) and kiosk branding (devices) are stored separately; save both.
+      await setGroupConsoleBrand(brandFor.id, consoleBrand);
       const r = await setGroupBrand(brandFor.id, brand);
-      toast.push('ok', 'Marca guardada', `${brandFor.name}: ${r.devices} dispositivo${r.devices === 1 ? '' : 's'} la aplican en su próximo reporte.`);
+      toast.push('ok', 'Marca guardada',
+        `${brandFor.name}: marca de consola actualizada; ${r.devices} dispositivo${r.devices === 1 ? '' : 's'} aplican la del quiosco en su próximo reporte.`);
       setBrandFor(null);
       await load();
     } catch (e) {
@@ -250,9 +256,9 @@ export function GroupsPage() {
                     {canManage && <button className="btn btn-sm btn-ghost" onClick={() => openCreate(g.id)}>+ Subcarpeta</button>}
                     {canManage && <button className="btn btn-sm btn-ghost" onClick={() => openEdit(g)}>Editar</button>}
                     {canManage && <button className="btn btn-sm btn-ghost" data-testid={`group-brand-${g.id}`}
-                            title="Logos, fondo y número de soporte del quiosco para esta carpeta"
-                            onClick={() => { setBrand(g.brand ?? {}); setBrandFor(g); }}>
-                      Marca{g.brand ? ' ●' : ''}
+                            title="Marca de la consola (encabezado) y del quiosco (dispositivos) para esta carpeta"
+                            onClick={() => { setBrand(g.brand ?? {}); setConsoleBrand(g.consoleBrand ?? {}); setBrandTab('console'); setBrandFor(g); }}>
+                      Marca{(g.brand || g.consoleBrand) ? ' ●' : ''}
                     </button>}
                     {canManage && !(folderAdmin && g.parentId == null) && <button className="btn btn-sm btn-ghost gr-del" disabled={g.deviceCount > 0}
                             title={g.deviceCount > 0 ? 'Tiene dispositivos: muévelos a otra carpeta antes de eliminarla' : undefined}
@@ -277,12 +283,32 @@ export function GroupsPage() {
       {brandFor && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal ann-modal">
-            <h3>Marca del quiosco: {brandFor.name}</h3>
-            <p className="muted small">
-              Aplica a los equipos de esta carpeta y de sus subcarpetas que estén en quiosco. Lo que dejes vacío se hereda de la
-              carpeta superior y, si no, de la política. El serial se activa en la política.
-            </p>
-            <KioskBrandEditor value={brand} onChange={setBrand} forFolder />
+            <h3>Marca de {brandFor.name}</h3>
+            <div className="brand-tabs" role="tablist">
+              <button type="button" role="tab" className={`brand-tab ${brandTab === 'console' ? 'active' : ''}`}
+                      aria-selected={brandTab === 'console'} data-testid="brand-tab-console"
+                      onClick={() => setBrandTab('console')}>Consola</button>
+              <button type="button" role="tab" className={`brand-tab ${brandTab === 'kiosk' ? 'active' : ''}`}
+                      aria-selected={brandTab === 'kiosk'} data-testid="brand-tab-kiosk"
+                      onClick={() => setBrandTab('kiosk')}>Quiosco</button>
+            </div>
+            {brandTab === 'console' ? (
+              <>
+                <p className="muted small">
+                  Logo y nombre que ven en el encabezado de la consola los administradores de esta carpeta (y de sus
+                  subcarpetas que no definan el suyo). No afecta a los dispositivos. Vacío = hereda la carpeta superior.
+                </p>
+                <ConsoleBrandEditor value={consoleBrand} onChange={setConsoleBrand} />
+              </>
+            ) : (
+              <>
+                <p className="muted small">
+                  Aplica a los equipos de esta carpeta y de sus subcarpetas que estén en quiosco. Lo que dejes vacío se hereda de la
+                  carpeta superior y, si no, de la política. El serial se activa en la política.
+                </p>
+                <KioskBrandEditor value={brand} onChange={setBrand} forFolder />
+              </>
+            )}
             <div className="modal-actions">
               <button className="btn" disabled={brandBusy} onClick={() => setBrandFor(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={brandBusy} data-testid="group-brand-save" onClick={() => void saveBrand()}>Guardar</button>

@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { Wordmark } from '../ui/Wordmark';
+import { fetchAuthOptions, type AuthOptions } from '../api/auth';
 
 export function LoginPage() {
   const { signIn } = useAuth();
@@ -15,6 +16,14 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Per-instance login branding (pre-authentication): logo, background and client name for the sign-in screen.
+  const [brand, setBrand] = useState<AuthOptions | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchAuthOptions().then((o) => { if (alive) setBrand(o); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -35,12 +44,19 @@ export function LoginPage() {
     }
   }
 
+  const bgStyle = brand?.loginBackgroundUrl
+    ? { background: `center / cover no-repeat url("${brand.loginBackgroundUrl}")` }
+    : undefined;
+  const brandName = brand?.brandName?.trim();
+
   return (
-    <div className="login-screen">
+    <div className="login-screen" style={bgStyle}>
       <form className="login-card route-enter" onSubmit={onSubmit}>
-        <Wordmark />
+        {brand?.loginLogoUrl
+          ? <img className="login-logo" src={brand.loginLogoUrl} alt={brandName || 'Logo'} />
+          : <Wordmark />}
         <div className="login-head">
-          <h1>Inicia sesión en DallyControl</h1>
+          <h1>{brandName ? `Inicia sesión en ${brandName}` : 'Inicia sesión en DallyControl'}</h1>
           <p>Consola de control de la flota de dispositivos.</p>
         </div>
 

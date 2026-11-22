@@ -243,7 +243,10 @@ public interface AgentDeviceMapper {
     @Update({"UPDATE groups SET brand = #{brand} WHERE id = #{id} AND customerId = #{customerId}"})
     int updateGroupBrand(@Param("customerId") int customerId, @Param("id") int id, @Param("brand") String brand);
 
-    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, g.brand, c.name AS configurationName, " +
+    @Update({"UPDATE groups SET console_brand = #{brand} WHERE id = #{id} AND customerId = #{customerId}"})
+    int updateGroupConsoleBrand(@Param("customerId") int customerId, @Param("id") int id, @Param("brand") String brand);
+
+    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, g.brand, g.console_brand AS consoleBrand, c.name AS configurationName, " +
             "e.id AS effectiveConfigurationId, e.name AS effectiveConfigurationName, " +
             "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
             "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +

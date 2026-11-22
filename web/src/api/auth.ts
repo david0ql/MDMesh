@@ -40,6 +40,12 @@ export interface AuthOptions {
   recover: boolean;
   /** Base64 RSA public key, present only when transmit.password mode is on. */
   publicKey?: string;
+  /** Console login branding (per instance): a logo shown on the sign-in screen instead of the default wordmark. */
+  loginLogoUrl?: string;
+  /** Console login branding: an optional background image for the sign-in screen. */
+  loginBackgroundUrl?: string;
+  /** Console login branding: an optional client name shown on the sign-in screen. */
+  brandName?: string;
 }
 
 function hashPassword(plain: string): string {
