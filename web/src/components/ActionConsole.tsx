@@ -1,4 +1,5 @@
 import { ScriptPanel } from './ScriptPanel';
+import { SavedScriptsPanel } from './SavedScriptsPanel';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt, queueCommand, getDeviceState,
@@ -8,7 +9,7 @@ import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
 import { useAuth } from '../auth/AuthContext';
 
-type Device = { number: string };
+type Device = { id: number; number: string };
 
 /** A view-only folder role lacks "disruptive_actions": it may run the safe actions but not lock/reboot/etc. */
 function canRunDisruptive(user: ReturnType<typeof useAuth>['user']): boolean {
@@ -135,6 +136,8 @@ export function ActionConsole({ device }: { device: Device }) {
           </div>
         </section>
       ))}
+
+      <SavedScriptsPanel device={device} onQueued={() => { void refresh(); }} />
 
       <ScriptPanel device={device} onQueued={() => { void refresh(); }} />
 

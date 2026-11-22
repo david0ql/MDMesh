@@ -119,6 +119,14 @@ export const IconReports = (p: P) => (
   </Svg>
 );
 
+export const IconScript = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 2.5h8v11H4z" />
+    <path d="M6 6l2 2-2 2" />
+    <line x1="9" y1="10.5" x2="11" y2="10.5" />
+  </Svg>
+);
+
 export const IconApps = (p: P) => (
   <Svg {...p}>
     <path d="M3.5 5h9l-.7 7.8a1 1 0 0 1-1 .9H5.2a1 1 0 0 1-1-.9z" />
