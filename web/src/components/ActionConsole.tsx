@@ -1,4 +1,5 @@
 import { ScriptPanel } from './ScriptPanel';
+import { SavedScriptsPanel } from './SavedScriptsPanel';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt, queueCommand, getDeviceState,
@@ -7,7 +8,7 @@ import {
 import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
 
-type Device = { number: string };
+type Device = { id: number; number: string };
 
 const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
   { id: 'safe', title: 'Seguras' },
@@ -125,6 +126,8 @@ export function ActionConsole({ device }: { device: Device }) {
           </div>
         </section>
       ))}
+
+      <SavedScriptsPanel device={device} onQueued={() => { void refresh(); }} />
 
       <ScriptPanel device={device} onQueued={() => { void refresh(); }} />
 
