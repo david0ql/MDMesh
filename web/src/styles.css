@@ -3251,6 +3251,9 @@ a {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+/* =========================================================================
    Console branding (per-client header) + login branding + brand editor
    ========================================================================= */
 /* Header brand in the sidebar: a client logo and/or name replacing the wordmark. */

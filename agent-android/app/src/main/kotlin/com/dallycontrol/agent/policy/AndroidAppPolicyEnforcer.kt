@@ -137,6 +137,38 @@ class AndroidAppPolicyEnforcer(
             }
         }
 
+        // --- Structured drift / version reporting for the console ------------------------------------------
+        // Anything the policy wanted that did not stick: an app it could not pause (failedSuspend), and an allowed
+        // or role app that is missing or has no launcher after everything above ran. Reported as POLICY_DRIFT only
+        // when the drift signature changes, so a steady fault is logged once, not every reconcile cycle.
+        val driftWanted = (policy.allowed + rolePackages).toSet() - (protectedPackages + context.packageName).toSet()
+        val missing = mutableListOf<String>()
+        val noLauncher = mutableListOf<String>()
+        val noVersion = mutableListOf<String>()
+        for (pkg in driftWanted) {
+            val info = runCatching { pm.getPackageInfo(pkg, 0) }.getOrNull()
+            if (info == null) {
+                missing += pkg
+                continue
+            }
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+            // Installed but with no real version (code 0) = a broken/stub install the console should re-push.
+            if (code <= 0L) noVersion += pkg
+            if (runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull() == null) noLauncher += pkg
+        }
+        val driftParts = buildList {
+            if (failedHide.isNotEmpty()) add("failedHide=${failedHide.joinToString(",")}")
+            if (missing.isNotEmpty()) add("missing=${missing.joinToString(",")}")
+            if (noLauncher.isNotEmpty()) add("noLauncher=${noLauncher.joinToString(",")}")
+        }
+        emitDriftIfChanged(driftParts)
+        emitNoVersion(noVersion)
+
         val playHidden = runCatching { dpm.setApplicationHidden(admin, PLAY_STORE, policy.hidePlayStore) }
         // Android refuses to hide some apps (e.g. its own "Android Device Policy", or a maker's core system app):
         // the rest of the policy is in force, so that is a note, not a failure.
@@ -150,6 +182,30 @@ class AndroidAppPolicyEnforcer(
     /** Hidden by this policy right now (console / tests). */
     fun suspended(): Set<String> = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
 
+    /**
+     * Emit [EventType.POLICY_DRIFT] only when the set of problems changes, so a persistent fault is reported once
+     * (not on every reconcile). An empty signature (drift cleared) is stored but not emitted.
+     */
+    private fun emitDriftIfChanged(parts: List<String>) {
+        val signature = parts.sorted().joinToString(";")
+        if (signature == prefs.getString(KEY_DRIFT_SIG, "").orEmpty()) return
+        prefs.edit().putString(KEY_DRIFT_SIG, signature).apply()
+        if (signature.isNotEmpty()) events.record(EventType.POLICY_DRIFT, signature)
+    }
+
+    /**
+     * Emit [EventType.APP_NO_VERSION] once per package that is installed with version code 0, until it recovers a
+     * real version. We remember what we already reported so a lingering stub is not re-emitted every cycle, and a
+     * recovered package is cleared so a future regression reports again. No install is attempted here — the console
+     * decides whether to re-push (e.g. via `device.appInstallForce`).
+     */
+    private fun emitNoVersion(current: List<String>) {
+        val reported = prefs.getStringSet(KEY_NOVER_REPORTED, emptySet()).orEmpty()
+        val cur = current.toSet()
+        (cur - reported).forEach { events.record(EventType.APP_NO_VERSION, it) }
+        if (cur != reported) prefs.edit().putStringSet(KEY_NOVER_REPORTED, cur).apply()
+    }
+
     @Suppress("DEPRECATION")
     private fun userInstalled(): List<String> =
         context.packageManager.getInstalledApplications(0)
@@ -161,5 +217,9 @@ class AndroidAppPolicyEnforcer(
         const val KEY_SUSPENDED = "suspended"
         const val KEY_UNINST_TRIED = "uninstall_tried"
         const val PLAY_STORE = "com.android.vending"
+        /** Last emitted POLICY_DRIFT signature, so an unchanged fault is not re-reported each cycle. */
+        const val KEY_DRIFT_SIG = "drift_sig"
+        /** Packages already reported as APP_NO_VERSION, cleared when they recover a real version. */
+        const val KEY_NOVER_REPORTED = "noversion_reported"
     }
 }
