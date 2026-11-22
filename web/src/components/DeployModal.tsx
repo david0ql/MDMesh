@@ -12,6 +12,7 @@ import { groupTree, listGroups, queueForTarget, type FleetGroup } from '../api/f
 import { statusMeta } from '../ui/status';
 import { fmtRelative, orDash } from '../ui/format';
 import { useToast } from '../ui/toast';
+import { InstalledDevicesModal } from './InstalledDevicesModal';
 
 /** An app resolved to everything needed to deploy it. */
 export interface DeploySubject {
@@ -37,7 +38,12 @@ export function DeployModal({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const canAssign = subject.applicationId != null;
+  // Assigning to a policy means "install" — only offer it for a library app that actually has an installable
+  // artifact. A no-APK placeholder (Play Store / on-the-phone) would be linked but never install (the "version 0"
+  // trap the server now rejects), so the tab stays disabled until its APK is obtained.
+  const canAssign = subject.applicationId != null && (!!subject.url || !!subject.parts?.length);
+  // Fleet panel: which devices already have this app installed (+ mass uninstall).
+  const [showInstalled, setShowInstalled] = useState(false);
   // Which library version to install (an app can have several builds; asked before deploying).
   const [versions, setVersions] = useState<LabeledVersion[]>([]);
   const [versionId, setVersionId] = useState<number | null>(null);
@@ -211,11 +217,21 @@ export function DeployModal({
             className={tab === 'config' ? 'on' : ''}
             onClick={() => canAssign && setTab('config')}
             disabled={!canAssign}
-            title={canAssign ? undefined : 'Solo las apps de la Biblioteca se pueden asignar a una política'}
+            title={canAssign ? undefined : subject.applicationId != null
+              ? 'Esta app no tiene APK: obtén el APK antes de asignarla a una política'
+              : 'Solo las apps de la Biblioteca se pueden asignar a una política'}
           >
             Agregar a una política
           </button>
+          <button className="btn btn-sm btn-ghost" type="button" style={{ marginLeft: 'auto' }}
+            onClick={() => setShowInstalled(true)}
+            title="Ver en qué dispositivos ya está instalada y desinstalarla en masa">
+            Equipos con la app
+          </button>
         </div>
+        {showInstalled && (
+          <InstalledDevicesModal packageName={subject.packageName} label={subject.label} onClose={() => setShowInstalled(false)} />
+        )}
 
         {!installable && tab !== 'config' && (
           <div className="banner banner-warn">

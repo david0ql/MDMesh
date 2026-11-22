@@ -23,6 +23,7 @@ import {
 } from '../api/applications';
 import { searchFdroid, type FDroidApp } from '../api/fdroid';
 import { DeployModal, type DeploySubject } from '../components/DeployModal';
+import { InstalledDevicesModal } from '../components/InstalledDevicesModal';
 
 type SourceId = 'library' | 'custom' | 'device' | 'fdroid' | 'play';
 
@@ -156,6 +157,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   // Package -> download progress (0..1, or -1 = unknown size) while the server fetches its APK.
   const [fetching, setFetching] = useState<Record<string, number>>({});
   const [bulk, setBulk] = useState<string | null>(null);
+  // Which app's installed-devices panel is open (fleet targeting + mass uninstall).
+  const [installed, setInstalled] = useState<{ pkg: string; label: string } | null>(null);
 
   const load = () => {
     // Groups of builds (several versions of one package, each policy on one of them) show as a group card.
@@ -208,6 +211,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   return (
     <>
       {grouping && <MakeGroupDialog app={grouping} onClose={() => setGrouping(null)} onDone={() => { setGrouping(null); void load(); }} />}
+      {installed && <InstalledDevicesModal packageName={installed.pkg} label={installed.label} onClose={() => setInstalled(null)} />}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="dv-search" style={{ width: 260 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -246,7 +250,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
       ) : (
         <div className="app-grid">
           {shown.filter((a) => a.id != null && groups[a.id]).map((a) => (
-            <VersionGroupCard key={a.id} app={a} group={groups[a.id!]} policies={policies} onDeploy={onDeploy} onChanged={() => void load()} />
+            <VersionGroupCard key={a.id} app={a} group={groups[a.id!]} policies={policies} onDeploy={onDeploy}
+              onChanged={() => void load()} onShowDevices={() => setInstalled({ pkg: a.pkg, label: a.name })} />
           ))}
           {shown.filter((a) => a.id == null || !groups[a.id]).map((a) => {
             const busy = a.pkg in fetching;
@@ -270,6 +275,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
                     </button>
                   ) : (
                     <>
+                      <button className="btn btn-sm btn-ghost" onClick={() => setInstalled({ pkg: a.pkg, label: a.name })}
+                              data-testid={`devices-${a.pkg}`} title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
                       <button className="btn btn-sm btn-ghost" onClick={() => setGrouping(a)} data-testid={`versions-${a.pkg}`}
                               title="Para tener varias versiones de esta app (por ejemplo una por cliente) y que cada política use la suya">Hacer grupo</button>
                       <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>

@@ -254,6 +254,20 @@ public class DeviceDAO extends AbstractDAO<Device> {
     }
 
     /**
+     * <p>Fleet-level app targeting: all devices of the given customer that report the specified package as installed
+     * (aggregated from each device's {@code infojson -> 'applications'} inventory). Customer-scoped in the query;
+     * folder-administrator visibility is applied by the caller.</p>
+     *
+     * @param customerId the customer to search within.
+     * @param pkg the package name to look for.
+     * @return the devices that have the package installed (numeric id, number, description, configuration and the
+     *         installed version/label).
+     */
+    public List<com.hmdm.rest.json.DeviceWithApp> getDevicesWithPackage(int customerId, String pkg) {
+        return this.mapper.getDevicesWithPackage(customerId, pkg);
+    }
+
+    /**
      * <p>Gets the lookup list of devices matching the specified filter.</p>
      *
      * @param filter a filter to be used for filtering the records.

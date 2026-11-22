@@ -89,6 +89,7 @@ public class AgentAdminResource {
     private String baseUrl;
     /** Folder administrators: their folders' devices only. */
     private com.hmdm.rest.resource.support.UserScope scope;
+    private com.hmdm.persistence.DeviceDAO deviceDAO;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -104,7 +105,9 @@ public class AgentAdminResource {
                               com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
                               ConfigReconciler configReconciler,
                               @javax.inject.Named("base.url") String baseUrl,
-                              com.hmdm.rest.resource.support.UserScope scope) {
+                              com.hmdm.rest.resource.support.UserScope scope,
+                              com.hmdm.persistence.DeviceDAO deviceDAO) {
+        this.deviceDAO = deviceDAO;
         this.scope = scope;
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.tokenDAO = tokenDAO;
@@ -474,6 +477,32 @@ public class AgentAdminResource {
         result.put("queued", queued);
         result.put("skipped", skipped);
         return Response.OK(result);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Devices with an app installed",
+            notes = "Fleet-level app targeting: this customer's devices whose last-reported inventory contains the given "
+                    + "package (?pkg=com.example). Each entry carries the numeric device id, so the console can feed the set "
+                    + "straight into POST /bulk/commands (e.g. a mass app.uninstall). Folder administrators see only their folders.")
+    @GET
+    @Path("/apps/devices")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response devicesWithApp(@QueryParam("pkg") String pkg) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (pkg == null || pkg.trim().isEmpty()) {
+            return Response.ERROR("error.agent.app.pkg.required");
+        }
+        List<com.hmdm.rest.json.DeviceWithApp> rows =
+                deviceDAO.getDevicesWithPackage(customerId.get(), pkg.trim());
+        // Folder administrators only see their own folders' devices (null = unrestricted).
+        Set<String> visible = scope.deviceNumbers();
+        if (visible != null) {
+            rows.removeIf(r -> r.getNumber() == null || !visible.contains(r.getNumber()));
+        }
+        return Response.OK(rows);
     }
 
     // =================================================================================================================

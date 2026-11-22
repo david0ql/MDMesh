@@ -28,6 +28,7 @@ import com.hmdm.service.DeviceApplicationsStatus;
 import com.hmdm.service.DeviceConfigFilesStatus;
 import org.apache.ibatis.annotations.*;
 import com.hmdm.rest.json.DeviceLookupItem;
+import com.hmdm.rest.json.DeviceWithApp;
 
 public interface DeviceMapper {
 
@@ -210,4 +211,20 @@ public interface DeviceMapper {
 
     @Select("SELECT id FROM devices")
     List<Integer> getAllDeviceIds();
+
+    /**
+     * Fleet-level app targeting: every device of the customer whose last-reported inventory
+     * ({@code infojson -> 'applications'}) contains the given package. COALESCE guards devices that never reported
+     * an app list (null) so the lateral expansion cannot error.
+     */
+    @Select("SELECT d.id AS id, d.number AS number, d.description AS description, " +
+            "       d.configurationId AS configurationId, " +
+            "       app ->> 'version' AS appVersion, " +
+            "       app ->> 'name' AS appName " +
+            "FROM devices d " +
+            "CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d.infojson -> 'applications', '[]'::jsonb)) AS app " +
+            "WHERE d.customerId = #{customerId} " +
+            "  AND app ->> 'pkg' = #{pkg} " +
+            "ORDER BY d.number")
+    List<DeviceWithApp> getDevicesWithPackage(@Param("customerId") int customerId, @Param("pkg") String pkg);
 }
