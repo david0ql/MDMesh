@@ -2097,6 +2097,10 @@ a {
 .picker-row.on {
   background: var(--hairline);
 }
+.picker-row.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .picker-ic {
   width: 30px;
   height: 30px;

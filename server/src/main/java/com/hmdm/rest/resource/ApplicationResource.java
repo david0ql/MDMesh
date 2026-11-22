@@ -555,6 +555,36 @@ public class ApplicationResource {
         }
     }
 
+    /**
+     * DallyControl guard against the "version 0" trap: an app whose latest version has no installable artifact
+     * (a Play Store / on-the-phone placeholder — "Sin APK", versionCode 0, no url/parts) can be linked to a
+     * configuration with action=install, but the agent has nothing to download, so it silently never installs.
+     * Web-page apps are a shortcut/URL, not an APK, so they are exempt.
+     *
+     * @return true when the app's latest version carries something the agent can install.
+     */
+    private boolean isInstallableApp(Application app) {
+        if (app == null) {
+            return false;
+        }
+        if (app.getType() == ApplicationType.web) {
+            return true; // not APK-based; the APK guard does not apply
+        }
+        if (app.getLatestVersion() == null) {
+            return false;
+        }
+        ApplicationVersion v = applicationDAO.findApplicationVersionById(app.getLatestVersion());
+        if (v == null) {
+            return false;
+        }
+        return notBlank(v.getUrl()) || notBlank(v.getParts())
+                || notBlank(v.getUrlArmeabi()) || notBlank(v.getUrlArm64());
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.trim().isEmpty();
+    }
+
     // =================================================================================================================
     @ApiOperation(
             value = "Update application configurations",
@@ -586,6 +616,26 @@ public class ApplicationResource {
                 return application.getCustomerId() != user.getCustomerId() ||
                        configuration.getCustomerId() != user.getCustomerId();
             });
+
+            // Guard against the "version 0" trap: refuse to link an app for installation (action=1) when its latest
+            // version has no installable APK/bundle — otherwise it is assigned but silently never installs. Non-install
+            // links (hide=0, remove=2) are always allowed.
+            java.util.Set<String> noApk = new java.util.LinkedHashSet<>();
+            for (ApplicationConfigurationLink link : request.getConfigurations()) {
+                if (link.getAction() != 1) {
+                    continue;
+                }
+                Application app = applicationDAO.findById(link.getApplicationId());
+                if (app != null && !isInstallableApp(app)) {
+                    noApk.add(app.getName() == null ? app.getPkg() : app.getName());
+                }
+            }
+            if (!noApk.isEmpty()) {
+                return Response.ERROR("Estas apps no tienen APK y no se pueden instalar desde una política: "
+                        + String.join(", ", noApk)
+                        + ". Primero obtén el APK (botón «Obtener APK» en Apps) o despliégalas desde la Play Store.");
+            }
+
             logger.info("Application configurations updated by user " + SecurityContext.get().getCurrentUserName());
             this.applicationDAO.updateApplicationConfigurations(request);
 

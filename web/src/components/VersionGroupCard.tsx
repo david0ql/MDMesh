@@ -15,8 +15,10 @@ export const buildName = (v: LabeledVersion) => v.label?.trim() || v.version || 
  * A group of builds of one app (same package, e.g. Distribución for El Sol and for Disay). Each policy uses exactly
  * one build of the group, assigned here; uploading a new build adds it to the group without moving any policy.
  */
-export function VersionGroupCard({ app, group, policies, onChanged, onDeploy }: {
+export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, onShowDevices }: {
   app: Application; group: VersionGroup; policies: PolicyRef[]; onChanged: () => void; onDeploy: (a: Application) => void;
+  /** Open the fleet panel: which devices have this app installed (+ mass uninstall). */
+  onShowDevices?: (a: Application) => void;
 }) {
   const toast = useToast();
   const [assigning, setAssigning] = useState<LabeledVersion | null>(null);
@@ -62,6 +64,10 @@ export function VersionGroupCard({ app, group, policies, onChanged, onDeploy }: 
         </div>
         <div className="vg-actions">
           <button className="btn btn-sm" onClick={() => setAdding(true)} data-testid={`group-add-${app.pkg}`}>Agregar versión</button>
+          {onShowDevices && (
+            <button className="btn btn-sm btn-ghost" onClick={() => onShowDevices(app)} data-testid={`group-devices-${app.pkg}`}
+              title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
+          )}
           <button className="btn btn-sm btn-primary" onClick={() => onDeploy(app)}>Desplegar</button>
         </div>
       </div>

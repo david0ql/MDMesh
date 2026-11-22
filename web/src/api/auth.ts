@@ -91,3 +91,12 @@ export async function submitForcedPasswordReset(
 /** A folder administrator: manages only the devices of the folders an administrator gave them. */
 export const isFolderAdmin = (u: AuthUser | null | undefined) =>
   !!u && u.allDevicesAvailable === false && !u.superAdmin && !u.userRole?.superAdmin;
+
+/**
+ * Whether the user holds a named permission. Super-admins hold everything. This mirrors the server's
+ * `SecurityContext.hasPermission(...)`; the server is still the authority (every gated endpoint re-checks it) —
+ * this only hides actions the user can't take. `manage_fleet` (mass device actions) maps to `edit_devices`.
+ */
+export const hasPermission = (u: AuthUser | null | undefined, name: string): boolean =>
+  !!u && (!!u.superAdmin || !!u.userRole?.superAdmin
+    || (u.userRole?.permissions ?? []).some((p) => p.name === name));

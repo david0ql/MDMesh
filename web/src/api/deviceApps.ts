@@ -1,4 +1,5 @@
-import { queueCommand, listCommandHistory, type QueueCommandRequest } from './commands';
+import { queueCommand, listCommandHistory, bulkQueueCommand, type QueueCommandRequest, type BulkCommandResult } from './commands';
+import { apiClient } from './client';
 
 // Device app inventory for the kiosk picker. The agent answers `apps.scan` / `apps.icons`
 // commands and returns the data as JSON in the command-result `detail`; we read it back from
@@ -102,6 +103,46 @@ export async function fetchIcons(
     onBatch?.(got);
   }
   return out;
+}
+
+// --- Fleet-level app targeting (which devices have an app, and mass-uninstall) ----------------------
+
+/** One device that reports a given package as installed (server: GET /private/agent/v1/apps/devices?pkg=). */
+export interface DeviceWithApp {
+  /** Numeric device id — feed straight into the bulk command endpoint. */
+  id: number;
+  number: string;
+  description?: string | null;
+  configurationId?: number | null;
+  /** The version of the app installed on this device. */
+  appVersion?: string | null;
+  appName?: string | null;
+}
+
+/**
+ * Every device of the customer whose last-reported inventory contains the package. Folder administrators only get
+ * their own folders' devices (enforced server-side).
+ */
+export async function listDevicesWithApp(packageName: string): Promise<DeviceWithApp[]> {
+  return apiClient.get<DeviceWithApp[]>(
+    `/private/agent/v1/apps/devices?pkg=${encodeURIComponent(packageName)}`,
+  );
+}
+
+/**
+ * Queue a silent uninstall of a package on many devices at once, by numeric device id. Reuses the bulk command
+ * endpoint (gated server-side on edit_devices); each device must advertise `app.silentInstall`. Fire-and-forget.
+ */
+export async function bulkUninstallApp(
+  deviceIds: number[],
+  packageName: string,
+  signal?: AbortSignal,
+): Promise<BulkCommandResult> {
+  return bulkQueueCommand(
+    deviceIds,
+    { type: 'app.uninstall', requiresCapability: 'app.silentInstall', payload: JSON.stringify({ packageName }) },
+    signal,
+  );
 }
 
 /**

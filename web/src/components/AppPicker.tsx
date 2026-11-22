@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { appCategory, type AppCategory, type Application } from '../api/applications';
+import { hasApk } from '../api/apkFetch';
 
 const CAT_LABEL: Record<AppCategory, string> = {
   uploaded: 'Subidas',
@@ -47,7 +48,14 @@ export function AppPicker({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [available, cat, q]);
 
+  // The "version 0" guard: an app without an installable APK/bundle (a Play Store / on-the-phone placeholder) would be
+  // added to the policy but never install. Block picking it here — obtain its APK first (Apps → "Obtener APK").
+  // Web-app shortcuts are installable-by-URL, so they are fine.
+  const installable = (a: Application) => appCategory(a) === 'web' || hasApk(a);
+
   function toggle(id: number) {
+    const app = apps.find((a) => a.id === id);
+    if (app && !installable(app)) return; // not selectable
     setPicked((p) => {
       const n = new Set(p);
       if (n.has(id)) n.delete(id);
@@ -57,7 +65,7 @@ export function AppPicker({
   }
 
   function add() {
-    const chosen = apps.filter((a) => picked.has(a.id));
+    const chosen = apps.filter((a) => picked.has(a.id) && installable(a));
     if (chosen.length) onAdd(chosen);
     onClose();
   }
@@ -90,15 +98,19 @@ export function AppPicker({
           ) : (
             shown.map((a) => {
               const on = picked.has(a.id);
+              const noApk = !installable(a);
               return (
-                <label key={a.id} className={`picker-row ${on ? 'on' : ''}`}>
-                  <input type="checkbox" className="dev-check" checked={on} onChange={() => toggle(a.id)} />
+                <label key={a.id} className={`picker-row ${on ? 'on' : ''} ${noApk ? 'disabled' : ''}`}
+                  title={noApk ? 'Sin APK: no se puede instalar desde una política. Obtén su APK en Apps → «Obtener APK».' : undefined}>
+                  <input type="checkbox" className="dev-check" checked={on} disabled={noApk} onChange={() => toggle(a.id)} />
                   <span className="picker-ic" aria-hidden="true">{(a.name.trim()[0] ?? '?').toUpperCase()}</span>
                   <span className="picker-meta">
                     <span className="picker-nm">{a.name}</span>
                     <span className="picker-pkg mono">{a.pkg}</span>
                   </span>
-                  {a.version && <span className="picker-ver">v{a.version}</span>}
+                  {noApk
+                    ? <span className="chip tone-warn">Sin APK</span>
+                    : a.version && <span className="picker-ver">v{a.version}</span>}
                 </label>
               );
             })
