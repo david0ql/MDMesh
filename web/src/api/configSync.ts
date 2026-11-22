@@ -25,6 +25,32 @@ export function getSyncSummary(): Promise<ConfigSyncSummary[]> {
   return apiClient.get<ConfigSyncSummary[]>('/private/agent/v1/configurations/syncSummary');
 }
 
+/** One device out of compliance for a configuration (has not applied its current revision). */
+export interface ComplianceDevice {
+  number: string;
+  description?: string | null;
+  appliedRevision?: string | null;
+  appliedAt?: number | null;
+  lastUpdate?: number | null;
+  status: 'outOfSync' | 'neverSeen' | 'unsupported' | string;
+}
+
+/** Compliance detail for one configuration: current revision, counts and the drifting devices. */
+export interface ConfigCompliance {
+  configurationId: number;
+  currentRevision?: string | null;
+  total: number;
+  inSync: number;
+  outOfSync: number;
+  neverSeen: number;
+  unsupported: number;
+  devices: ComplianceDevice[];
+}
+
+export function getConfigCompliance(configId: number): Promise<ConfigCompliance> {
+  return apiClient.get<ConfigCompliance>(`/private/agent/v1/configurations/${configId}/compliance`);
+}
+
 export function parseOutcomes(detail: string | null | undefined): ConfigOutcomes | null {
   if (!detail) return null;
   try {

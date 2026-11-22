@@ -33,6 +33,7 @@ import com.hmdm.notification.AgentWakeHub;
 import com.hmdm.rest.json.AgentBulkCommandRequest;
 import com.hmdm.rest.json.Response;
 import com.hmdm.rest.json.agent.CommandHistoryView;
+import com.hmdm.rest.json.agent.ConfigComplianceView;
 import com.hmdm.rest.json.agent.ConfigStatusView;
 import com.hmdm.rest.json.agent.ConfigSyncSummary;
 import com.hmdm.rest.resource.support.ConfigReconciler;
@@ -630,6 +631,55 @@ public class AgentAdminResource {
             }
         }
         return Response.OK(new ArrayList<>(out.values()));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Configuration compliance", notes = "Current revision, sync counts and the devices that have not applied the latest version of one configuration.")
+    @GET
+    @Path("/configurations/{id}/compliance")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getConfigCompliance(@PathParam("id") Integer id) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+
+        com.hmdm.persistence.domain.Device probe = new com.hmdm.persistence.domain.Device();
+        probe.setConfigurationId(id);
+        probe.setCustomerId(customerId.get());
+        String current = configReconciler.currentRevision(probe);
+
+        ConfigComplianceView view = new ConfigComplianceView();
+        view.setConfigurationId(id);
+        view.setCurrentRevision(current);
+        List<ConfigComplianceView.Device> drifting = new ArrayList<>();
+        for (com.hmdm.persistence.domain.ConfigDriftRow row : commandDAO.listDevicesForConfig(customerId.get(), id)) {
+            view.setTotal(view.getTotal() + 1);
+            Set<String> tokens = AgentCapabilityTokens.flatten(row.getCapabilitiesJson());
+            boolean supported = AgentCapabilityTokens.isAllowed(DesiredConfigBuilder.CAPABILITY, tokens);
+            String status;
+            if (!supported) {
+                view.setUnsupported(view.getUnsupported() + 1);
+                status = "unsupported";
+            } else if (row.getAppliedConfigRevision() == null) {
+                view.setNeverSeen(view.getNeverSeen() + 1);
+                status = "neverSeen";
+            } else if (row.getAppliedConfigRevision().equals(current)) {
+                view.setInSync(view.getInSync() + 1);
+                continue; // compliant: not listed
+            } else {
+                view.setOutOfSync(view.getOutOfSync() + 1);
+                status = "outOfSync";
+            }
+            ConfigComplianceView.Device d = new ConfigComplianceView.Device();
+            d.setNumber(row.getDeviceNumber());
+            d.setDescription(row.getDescription());
+            d.setAppliedRevision(row.getAppliedConfigRevision());
+            d.setAppliedAt(row.getAppliedConfigAt());
+            d.setLastUpdate(row.getLastUpdate());
+            d.setStatus(status);
+            drifting.add(d);
+        }
+        view.setDevices(drifting);
+        return Response.OK(view);
     }
 
     // =================================================================================================================

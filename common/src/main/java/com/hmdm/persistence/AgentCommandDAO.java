@@ -425,4 +425,9 @@ public class AgentCommandDAO {
     public List<DeviceSyncRow> listDevicesForSync(int customerId) {
         return deviceMapper.listDevicesForSync(customerId);
     }
+
+    /** Devices of one configuration with their applied revision + display info (for the drift / compliance list). */
+    public List<com.hmdm.persistence.domain.ConfigDriftRow> listDevicesForConfig(int customerId, int configurationId) {
+        return deviceMapper.listDevicesForConfig(customerId, configurationId);
+    }
 }
