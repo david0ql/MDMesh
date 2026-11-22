@@ -5,6 +5,9 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * MyBatis mapper for the latest agent-reported device snapshot ({@link DeviceState}).
  * One row per device number; {@link #upsert} replaces the prior snapshot.
@@ -30,4 +33,23 @@ public interface DeviceStateMapper {
     @Select({"SELECT deviceNumber, battery, charging, locked, kioskActive, androidRelease, lastBootAt, updatedAt, agentVersion, powerMode, telemetry, appliedConfigRevision, appliedConfigAt " +
             "FROM device_state WHERE deviceNumber = #{deviceNumber}"})
     DeviceState findByDeviceNumber(@Param("deviceNumber") String deviceNumber);
+
+    // --- Fleet dashboard aggregates (scoped by customer through the devices table) ---
+
+    /** How many of the customer's devices are currently reported as locked (blocked). */
+    @Select({"SELECT COUNT(*) FROM device_state s JOIN devices d ON d.number = s.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND s.locked = TRUE"})
+    long countLocked(@Param("customerId") int customerId);
+
+    /** Android release distribution across the fleet (one row per reported release, descending by count). */
+    @Select({"SELECT COALESCE(s.androidRelease, '') AS label, COUNT(*) AS counter " +
+            "FROM device_state s JOIN devices d ON d.number = s.deviceNumber " +
+            "WHERE d.customerId = #{customerId} " +
+            "GROUP BY COALESCE(s.androidRelease, '') ORDER BY counter DESC"})
+    List<Map<String, Object>> countByAndroidRelease(@Param("customerId") int customerId);
+
+    /** Last-census telemetry JSON for every device of the customer; parsed for the fleet storage total. */
+    @Select({"SELECT s.telemetry AS telemetry FROM device_state s JOIN devices d ON d.number = s.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND s.telemetry IS NOT NULL"})
+    List<Map<String, Object>> telemetryRows(@Param("customerId") int customerId);
 }

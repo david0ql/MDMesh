@@ -3,9 +3,15 @@ import { useLiveDevices } from '../ui/live';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { useDevices } from '../data/useDevices';
-import { statusMeta, isOnline as isOnlineByRecency } from '../ui/status';
+import {
+  statusMeta,
+  isOnline as isOnlineByRecency,
+  isOffline as isOfflineByThreshold,
+  DEFAULT_OFFLINE_THRESHOLD_MS,
+} from '../ui/status';
 import { fmtRelative, orDash } from '../ui/format';
 import { getEvents, type DeviceEvent } from '../api/events';
+import { getDashboardSummary, type DashboardSummary } from '../api/dashboard';
 import type { DeviceView, ConfigurationLookup } from '../api/devices';
 
 type Bucket = 'online' | 'attention' | 'offline';
@@ -25,6 +31,13 @@ const EVENT_VERBS: Record<string, string> = {
   kioskCrashLoop: 'su aplicación de kiosco se cerró repetidamente',
 };
 
+// App-installation status labels (server ChartItem.stringAttr from getInstallSummary).
+const APP_STATUS_LABELS: Record<string, string> = {
+  SUCCESS: 'Al día',
+  VERSION_MISMATCH: 'Versión distinta',
+  FAILURE: 'Con fallos',
+};
+
 function configName(
   d: DeviceView,
   configs: Record<string, ConfigurationLookup>,
@@ -33,11 +46,25 @@ function configName(
   return configs[String(d.configurationId)]?.name ?? 'Sin asignar';
 }
 
-function bucketOf(d: DeviceView, now?: number): Bucket {
-  // Offline first (recency of last check-in); a still-reporting device with a config issue is
-  // "attention". statusCode alone can't say offline — it stays green after a factory reset.
-  if (!isOnlineByRecency(d.lastUpdate, now, d.number)) return 'offline';
-  return statusMeta(d.statusCode).tone === 'warn' ? 'attention' : 'online';
+/**
+ * Three-tier split with a single, configurable offline definition:
+ *  - en línea: live now or last seen within the short online window (unless its status asks for attention);
+ *  - sin conexión: not seen within the configured offline threshold (offlineThresholdDays);
+ *  - requiere atención: in between, or a still-reporting device with a status issue.
+ */
+function bucketOf(d: DeviceView, now: number, offlineMs: number): Bucket {
+  if (isOnlineByRecency(d.lastUpdate, now, d.number)) {
+    return statusMeta(d.statusCode).tone === 'warn' ? 'attention' : 'online';
+  }
+  if (isOfflineByThreshold(d.lastUpdate, now, offlineMs, d.number)) return 'offline';
+  return 'attention';
+}
+
+function fmtBytes(b?: number): string {
+  if (!b || b <= 0) return '0 GB';
+  if (b >= 1024 ** 4) return `${(b / 1024 ** 4).toLocaleString('es-CO', { maximumFractionDigits: 1 })} TB`;
+  if (b >= 1024 ** 3) return `${(b / 1024 ** 3).toLocaleString('es-CO', { maximumFractionDigits: 1 })} GB`;
+  return `${Math.max(1, Math.round(b / 1024 ** 2)).toLocaleString('es-CO')} MB`;
 }
 
 interface ActivityItem {
@@ -104,14 +131,37 @@ function ActivityIcon({ type }: { type: string }) {
 export function DashboardPage() {
   useLiveDevices(); // a device with its live channel open shows connected
   const navigate = useNavigate();
-  const { devices, total, configurations, loading, error } = useDevices();
+  const { devices, total, configurations, loading, error, reload } = useDevices();
   const [activity, setActivity] = useState<ActivityItem[] | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
 
-  // Tick every 30s so the online/attention/offline split decays as devices go quiet.
+  // Server-resolved dashboard parameters (fall back until the first fetch lands).
+  const refreshSeconds = summary?.dashboardRefreshSeconds ?? 30;
+  const offlineMs = summary
+    ? summary.offlineThresholdDays * 24 * 60 * 60 * 1000
+    : DEFAULT_OFFLINE_THRESHOLD_MS;
+
+  // Tick on the configured interval so the split decays and the server aggregates refresh.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 30000);
+    const ms = Math.max(5, refreshSeconds) * 1000;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      getDashboardSummary().then(setSummary).catch(() => undefined);
+      void reload();
+    }, ms);
     return () => clearInterval(t);
+  }, [refreshSeconds, reload]);
+
+  // First load of the server aggregates.
+  useEffect(() => {
+    let cancelled = false;
+    getDashboardSummary()
+      .then((s) => !cancelled && setSummary(s))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const counts = useMemo(() => {
@@ -119,13 +169,13 @@ export function DashboardPage() {
       attention = 0,
       offline = 0;
     for (const d of devices) {
-      const b = bucketOf(d, now);
+      const b = bucketOf(d, now, offlineMs);
       if (b === 'online') online++;
       else if (b === 'attention') attention++;
       else offline++;
     }
     return { online, attention, offline };
-  }, [devices, now]);
+  }, [devices, now, offlineMs]);
 
   const shown = devices.length;
   const pct = (n: number) => (shown ? `${(n / shown) * 100}%` : '0%');
@@ -133,10 +183,10 @@ export function DashboardPage() {
   const attention = useMemo(
     () =>
       [...devices]
-        .filter((d) => bucketOf(d, now) !== 'online')
+        .filter((d) => bucketOf(d, now, offlineMs) !== 'online')
         .sort((a, b) => (a.lastUpdate ?? 0) - (b.lastUpdate ?? 0))
         .slice(0, 6),
-    [devices, now],
+    [devices, now, offlineMs],
   );
 
   const byConfig = useMemo(() => {
@@ -147,6 +197,29 @@ export function DashboardPage() {
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [devices, configurations]);
+
+  // By folder (group): a device may sit in several folders; count each. No folder → "Sin carpeta".
+  const byGroup = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of devices) {
+      const groups = d.groups ?? [];
+      if (groups.length === 0) m.set('Sin carpeta', (m.get('Sin carpeta') ?? 0) + 1);
+      else for (const g of groups) m.set(g.name, (m.get(g.name) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [devices]);
+
+  // Android version spread: prefer the server aggregate (last census), else derive from the device list.
+  const byAndroid = useMemo(() => {
+    if (summary?.androidVersions?.length) {
+      return summary.androidVersions
+        .map((c) => [c.stringAttr || '—', c.number] as [string, number])
+        .sort((a, b) => b[1] - a[1]);
+    }
+    const m = new Map<string, number>();
+    for (const d of devices) m.set(d.androidVersion || '—', (m.get(d.androidVersion || '—') ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [summary, devices]);
 
   // Cross-fleet activity: pull recent events for the most-recently-active
   // devices and merge. Per-device endpoint, so cap the fan-out.
@@ -179,6 +252,11 @@ export function DashboardPage() {
     };
   }, [loading, devices]);
 
+  const storagePct =
+    summary && summary.storage.totalBytes > 0
+      ? Math.round(((summary.storage.totalBytes - summary.storage.freeBytes) / summary.storage.totalBytes) * 100)
+      : 0;
+
   return (
     <AppShell title="Resumen">
       <div className="page-head">
@@ -206,12 +284,54 @@ export function DashboardPage() {
               <i style={{ background: 'var(--offline)' }} />
               {counts.offline} sin conexión
             </span>
+            <span>
+              <i style={{ background: 'var(--alert, #c0392b)' }} />
+              {summary?.blocked ?? 0} bloqueado{(summary?.blocked ?? 0) === 1 ? '' : 's'}
+            </span>
           </div>
           <div className="fleet-bar">
             <i style={{ background: 'var(--online)', width: pct(counts.online) }} />
             <i style={{ background: 'var(--warn)', width: pct(counts.attention) }} />
             <i style={{ background: 'var(--offline)', width: pct(counts.offline) }} />
           </div>
+        </div>
+      </div>
+
+      {/* Fleet widgets: blocked, offline (by configured threshold), recent SIM activity, storage. */}
+      <div className="dash-tiles">
+        <div className="dash-tile">
+          <span className="dash-tile-v">{summary?.blocked ?? '—'}</span>
+          <span className="dash-tile-k">Bloqueados</span>
+        </div>
+        <div
+          className="dash-tile"
+          role="button"
+          tabIndex={0}
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/devices')}
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/devices')}
+        >
+          <span className="dash-tile-v">{summary?.offline ?? counts.offline}</span>
+          <span className="dash-tile-k">
+            Sin conexión
+            <small> &gt; {summary?.offlineThresholdDays ?? 1} día{(summary?.offlineThresholdDays ?? 1) === 1 ? '' : 's'}</small>
+          </span>
+        </div>
+        <div className="dash-tile">
+          <span className="dash-tile-v">{summary?.simEventsRecent ?? '—'}</span>
+          <span className="dash-tile-k">
+            Movimientos de SIM
+            <small> últimos {summary?.simWindowDays ?? 7} días</small>
+          </span>
+        </div>
+        <div className="dash-tile">
+          <span className="dash-tile-v">{summary ? fmtBytes(summary.storage.freeBytes) : '—'}</span>
+          <span className="dash-tile-k">
+            Almacenamiento libre
+            {summary && summary.storage.totalBytes > 0 && (
+              <small> de {fmtBytes(summary.storage.totalBytes)} ({storagePct} % usado)</small>
+            )}
+          </span>
         </div>
       </div>
 
@@ -326,6 +446,69 @@ export function DashboardPage() {
                   <div className="cfg-row" key={name}>
                     <span className="k">{name}</span>
                     <span className="v">{n}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title">Por carpeta</h2>
+            </div>
+            <div className="ov-listpad">
+              {byGroup.length === 0 ? (
+                <div className="empty">
+                  <span className="label">Carpetas</span>
+                  Aún no hay dispositivos.
+                </div>
+              ) : (
+                byGroup.map(([name, n]) => (
+                  <div className="cfg-row" key={name}>
+                    <span className="k">{name}</span>
+                    <span className="v">{n}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title">Por versión de Android</h2>
+            </div>
+            <div className="ov-listpad">
+              {byAndroid.length === 0 ? (
+                <div className="empty">
+                  <span className="label">Android</span>
+                  Sin datos todavía.
+                </div>
+              ) : (
+                byAndroid.map(([name, n]) => (
+                  <div className="cfg-row" key={name}>
+                    <span className="k">{name}</span>
+                    <span className="v">{n}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title">Estado de apps</h2>
+            </div>
+            <div className="ov-listpad">
+              {!summary || summary.appStatus.length === 0 ? (
+                <div className="empty">
+                  <span className="label">Aplicaciones</span>
+                  Sin datos todavía.
+                </div>
+              ) : (
+                summary.appStatus.map((c) => (
+                  <div className="cfg-row" key={c.stringAttr}>
+                    <span className="k">{APP_STATUS_LABELS[c.stringAttr] ?? c.stringAttr}</span>
+                    <span className="v">{c.number}</span>
                   </div>
                 ))
               )}

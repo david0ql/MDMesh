@@ -39,12 +39,14 @@ import com.hmdm.service.DeviceConfigFilesStatus;
 import org.apache.commons.math3.stat.descriptive.summary.Sum;
 import org.mybatis.guice.transactional.Transactional;
 import com.hmdm.persistence.mapper.DeviceMapper;
+import com.hmdm.persistence.mapper.DeviceStateMapper;
 import com.hmdm.security.SecurityContext;
 import com.hmdm.security.SecurityException;
 
 @Singleton
 public class DeviceDAO extends AbstractDAO<Device> {
     private final DeviceMapper mapper;
+    private final DeviceStateMapper deviceStateMapper;
     private final ApplicationSettingDAO applicationSettingDAO;
 
     private final Set<DeviceListHook> deviceListHooks;
@@ -52,9 +54,11 @@ public class DeviceDAO extends AbstractDAO<Device> {
     private final int fastSearchChars;
 
     @Inject
-    public DeviceDAO(DeviceMapper mapper, ApplicationSettingDAO applicationSettingDAO, Injector injector,
+    public DeviceDAO(DeviceMapper mapper, DeviceStateMapper deviceStateMapper,
+                     ApplicationSettingDAO applicationSettingDAO, Injector injector,
                      EventService eventService, @Named("device.fast.search.chars") int fastSearchChars) {
         this.mapper = mapper;
+        this.deviceStateMapper = deviceStateMapper;
         this.applicationSettingDAO = applicationSettingDAO;
         this.eventService = eventService;
         this.fastSearchChars = fastSearchChars;
@@ -320,9 +324,33 @@ public class DeviceDAO extends AbstractDAO<Device> {
                     item3.setNumber(this.mapper.countAllDevicesForSummary(filter));
                     result.add(item3);
 
+                    // Blocked: an orthogonal dimension — a locked device may also be online/idle/offline above.
+                    ChartItem item4 = new ChartItem();
+                    item4.setStringAttr("blocked");
+                    item4.setNumber(this.deviceStateMapper.countLocked(u.getCustomerId()));
+                    result.add(item4);
+
                     return result;
                 })
                 .orElse(null);
+    }
+
+    /**
+     * Counts the current user's devices last seen before {@code maxOnlineTime} (epoch millis) — the single,
+     * parameterised definition of "offline" for the dashboard. User-scoped like the rest of the summary.
+     */
+    @Transactional
+    public long countOfflineDevices(long maxOnlineTime) {
+        return SecurityContext.get().getCurrentUser()
+                .map(u -> {
+                    DeviceSummaryRequest filter = new DeviceSummaryRequest(
+                            u.getId(), u.getCustomerId(),
+                            null, null, null, null, null, maxOnlineTime, null
+                    );
+                    Long c = this.mapper.countAllDevicesForSummary(filter);
+                    return c == null ? 0L : c;
+                })
+                .orElse(0L);
     }
 
     @Transactional

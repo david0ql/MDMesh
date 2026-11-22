@@ -99,6 +99,12 @@ public class Settings implements CustomerData, Serializable {
     @ApiModelProperty("Timeout in seconds for logging out while idle (0 - no logout)")
     private Integer idleLogout;
 
+    // DallyControl dashboard parameters (misc settings)
+    @ApiModelProperty("Dashboard auto-refresh interval in seconds (console Resumen view)")
+    private Integer dashboardRefreshSeconds;
+    @ApiModelProperty("Threshold in days after which a device without check-in is considered offline")
+    private Integer offlineThresholdDays;
+
     // This property is not stored in the database, it is a transient field used by the Settings resource
     @ApiModelProperty(hidden = true)
     private boolean singleCustomer;
@@ -348,6 +354,22 @@ public class Settings implements CustomerData, Serializable {
 
     public void setIdleLogout(Integer idleLogout) {
         this.idleLogout = idleLogout;
+    }
+
+    public Integer getDashboardRefreshSeconds() {
+        return dashboardRefreshSeconds;
+    }
+
+    public void setDashboardRefreshSeconds(Integer dashboardRefreshSeconds) {
+        this.dashboardRefreshSeconds = dashboardRefreshSeconds;
+    }
+
+    public Integer getOfflineThresholdDays() {
+        return offlineThresholdDays;
+    }
+
+    public void setOfflineThresholdDays(Integer offlineThresholdDays) {
+        this.offlineThresholdDays = offlineThresholdDays;
     }
 
     public boolean isSingleCustomer() {

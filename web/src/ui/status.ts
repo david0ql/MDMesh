@@ -25,9 +25,25 @@ export function statusMeta(code?: string): StatusMeta {
 /** Online if the last report is within this window (ms): 20 min, the server's connection gap. A locked phone in battery-saving mode reports about every 10-15 min (Android Doze), so a shorter window showed it offline while it was on. */
 export const ONLINE_WINDOW_MS = 20 * 60 * 1000;
 
+/** Default offline threshold if the server has no value configured: 1 day. The server resolves the real one
+ *  (settings.offlineThresholdDays) and returns it in the dashboard summary. */
+export const DEFAULT_OFFLINE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
 /** Online: its live channel is open now (see ui/live), or it reported within the window. */
 export function isOnline(lastUpdate?: number, now: number = Date.now(), number?: string): boolean {
   if (isLive(number)) return true;
   if (!lastUpdate) return false;
   return now - lastUpdate <= ONLINE_WINDOW_MS;
+}
+
+/** Offline: not live and last seen before the (configured) threshold. The single definition of "sin conexión". */
+export function isOffline(
+  lastUpdate?: number,
+  now: number = Date.now(),
+  thresholdMs: number = DEFAULT_OFFLINE_THRESHOLD_MS,
+  number?: string,
+): boolean {
+  if (isLive(number)) return false;
+  if (!lastUpdate) return true;
+  return now - lastUpdate > thresholdMs;
 }

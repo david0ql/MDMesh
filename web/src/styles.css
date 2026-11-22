@@ -2313,6 +2313,43 @@ a {
   height: 100%;
 }
 
+/* Fleet widget tiles (blocked / offline / SIM / storage) */
+.dash-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+@media (max-width: 720px) {
+  .dash-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.dash-tile {
+  background: var(--surface, #fff);
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dash-tile-v {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.dash-tile-k {
+  font-size: 12px;
+  color: var(--muted);
+}
+.dash-tile-k small {
+  color: var(--faint);
+  font-size: 11px;
+}
+
 .ov-listpad {
   padding: 4px 0 8px;
 }
