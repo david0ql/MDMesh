@@ -56,10 +56,11 @@ class AndroidAppPolicyEnforcer(
     private fun enforce(policy: ConfigAppPolicy): String {
         if (Build.VERSION.SDK_INT < 24) return ConfigOutcome.UNSUPPORTED
         val hiddenBefore = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
+        val rolePackages = runCatching { roles.resolve(policy.roles).all }.getOrDefault(emptyList())
         val plan = AppPolicyPlanner.plan(
             policy = policy,
             userInstalled = userInstalled(),
-            rolePackages = runCatching { roles.resolve(policy.roles).all }.getOrDefault(emptyList()),
+            rolePackages = rolePackages,
             protected = protectedPackages + context.packageName,
             currentlySuspended = hiddenBefore,
         )
@@ -82,12 +83,49 @@ class AndroidAppPolicyEnforcer(
         prefs.edit().putStringSet(KEY_SUSPENDED, blocked).apply()
         (blocked - hiddenBefore).forEach { events.record(EventType.APP_BLOCKED, it) }
 
+        // Self-heal allowed apps that a maker left installed-but-DISABLED. Some preloads (e.g. the Microsoft apps on
+        // Samsung) sit installed as a disabled system package with NO launcher entry, so they never show in the kiosk
+        // or the launcher even though the policy allows them. For each allowed/role app that is installed yet not
+        // launchable, re-enable it as Device Owner (no ADB needed). All calls are idempotent and skipped once the app
+        // is launchable, so steady state costs nothing.
+        val pm = context.packageManager
+        val wanted = (policy.allowed + rolePackages).toSet()
+        // Un-suspend any allowed app a previous policy/agent left suspended — a suspended app still shows in the
+        // launcher but throws the system "action not allowed, contact your IT admin" dialog when opened. Idempotent.
+        if (wanted.isNotEmpty()) runCatching { dpm.setPackagesSuspended(admin, wanted.toTypedArray(), false) }
+        for (pkg in wanted) {
+            val present = runCatching { pm.getPackageInfo(pkg, 0) }.isSuccess
+            if (present && runCatching { pm.getLaunchIntentForPackage(pkg) }.getOrNull() == null) {
+                runCatching { dpm.enableSystemApp(admin, pkg) }
+                runCatching { dpm.setApplicationHidden(admin, pkg, false) }
+                runCatching { pm.setApplicationEnabledSetting(pkg, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, 0) }
+            }
+        }
+
         // Also remove the blocked apps for good where possible (third-party ones): a Device Owner uninstalls them
-        // silently. The ones it cannot remove (system / self-reinstalling) stay hidden by the step above.
-        if (blocked.isNotEmpty()) {
-            val toRemove = blocked.toList()
+        // silently. BUT only ever ATTEMPT each package ONCE. Several Samsung preloads (Facebook, Instagram, TikTok,
+        // YouTube Music, Samsung Free / FM Radio...) are reinstalled by a maker service the instant they are
+        // removed, so uninstalling them every cycle was an endless PackageManager churn (hundreds of thousands of
+        // ops/day across the fleet) that kept the CPU awake and drained the battery while achieving nothing — the
+        // hide step above already makes them vanish and stops them running. So we try once; if a package comes back
+        // we leave it installed-but-hidden instead of fighting the reinstaller forever. A package that is later
+        // allowed (no longer blocked) is cleared below, so re-blocking it attempts a fresh uninstall.
+        val triedBefore = prefs.getStringSet(KEY_UNINST_TRIED, emptySet()).orEmpty()
+        // Forget packages that are no longer blocked (newly allowed) so a future re-block can uninstall again.
+        val triedStill = triedBefore intersect blocked
+        if (triedStill.size != triedBefore.size) {
+            prefs.edit().putStringSet(KEY_UNINST_TRIED, triedStill).apply()
+        }
+        val toRemove = blocked.filterNot { it in triedStill }
+        if (toRemove.isNotEmpty()) {
             scope.launch {
                 for (pkg in toRemove) {
+                    // Mark as tried BEFORE the attempt: a reappearance is then never uninstalled again, even if
+                    // this attempt reports failure. This single-attempt rule is what breaks the battery-killing loop.
+                    synchronized(this@AndroidAppPolicyEnforcer) {
+                        val t = prefs.getStringSet(KEY_UNINST_TRIED, emptySet()).orEmpty() + pkg
+                        prefs.edit().putStringSet(KEY_UNINST_TRIED, t).apply()
+                    }
                     if (installManager.uninstall(pkg) is InstallOutcome.Success) {
                         events.record(EventType.APP_UNINSTALLED, pkg)
                         synchronized(this@AndroidAppPolicyEnforcer) {
@@ -121,6 +159,7 @@ class AndroidAppPolicyEnforcer(
     private companion object {
         const val KEY_POLICY = "policy"
         const val KEY_SUSPENDED = "suspended"
+        const val KEY_UNINST_TRIED = "uninstall_tried"
         const val PLAY_STORE = "com.android.vending"
     }
 }

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { getDeviceState, queueCommand, reapplyConfiguration } from '../api/commands';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { getDeviceState, queueCommand, reapplyConfiguration, type DeviceState } from '../api/commands';
 import { getConfigStatus } from '../api/configSync';
 import { getConfigurations, type Configuration } from '../api/configurations';
 import { useToast } from '../ui/toast';
@@ -10,6 +10,33 @@ type Device = { number: string };
 
 /** How long to follow the device after a switch before saying it will apply on its next connection. */
 const CONFIRM_LIMIT_MS = 2 * 60 * 1000;
+
+/** True when the agent's dotted version (e.g. "0.9.1") is at least major.minor.patch. */
+function agentAtLeast(version: string | null | undefined, major: number, minor: number, patch: number): boolean {
+  if (!version) return false;
+  const p = version.trim().split(/[.-]/);
+  const want = [major, minor, patch];
+  for (let i = 0; i < 3; i++) {
+    const v = parseInt((p[i] ?? '0').replace(/\D.*$/, ''), 10);
+    if (Number.isNaN(v)) return false;
+    if (v !== want[i]) return v > want[i];
+  }
+  return true;
+}
+
+/**
+ * Whether the device is in its kiosk. On Android 16 the agent (0.9+) runs a SOFT kiosk (persistent HOME +
+ * status bar off, no lock-task), so it never reports `kioskActive` — the device still shows the kiosk launcher
+ * but `lockTaskModeState` is NONE. For those we treat the kiosk as active when the policy has one and it is
+ * applied. On Android ≤15 the real lock-task flag (`kioskActive`) is authoritative.
+ */
+function kioskEngaged(st: DeviceState | null, policyKiosk: boolean): boolean {
+  if (!st) return false;
+  if (st.kioskActive) return true;
+  const release = parseInt((st.androidRelease ?? '').replace(/\D.*$/, ''), 10);
+  const softKiosk = release >= 16 && agentAtLeast(st.agentVersion, 0, 9, 0);
+  return softKiosk && policyKiosk;
+}
 
 /**
  * Kiosk on/off in one place: the current state, one button to switch it and "Aplicando…" until the phone confirms.
@@ -31,11 +58,14 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
   const [target, setTarget] = useState<{ want: boolean; since: number } | null>(null);
   const [custom, setCustom] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Read inside the poll loop (a stable callback) needs the latest policy-kiosk flag without re-subscribing.
+  const policyKioskRef = useRef(false);
 
   const read = useCallback(async () => {
     const st = await getDeviceState(device.number).catch(() => null);
-    if (st) setActive(st.kioskActive);
-    return st?.kioskActive ?? null;
+    const engaged = kioskEngaged(st, policyKioskRef.current);
+    if (st) setActive(engaged);
+    return st ? engaged : null;
   }, [device.number]);
 
   useEffect(() => {
@@ -73,6 +103,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
   }, [read, target, toast]);
 
   const policyKiosk = !!policy?.kioskMode;
+  useEffect(() => { policyKioskRef.current = policyKiosk; }, [policyKiosk]);
 
   async function turnOff() {
     setBusy(true);

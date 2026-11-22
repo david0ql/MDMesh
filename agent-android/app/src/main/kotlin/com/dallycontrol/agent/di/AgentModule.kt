@@ -83,6 +83,7 @@ import com.dallycontrol.core.store.DeviceIdentity
 import com.dallycontrol.agent.policy.AndroidAppPolicyEnforcer
 import com.dallycontrol.agent.policy.AndroidRoleResolver
 import com.dallycontrol.agent.policy.ChromeManagedBrowser
+import com.dallycontrol.core.command.handlers.DeviceAppEnableHandler
 import com.dallycontrol.core.command.handlers.DeviceAppLaunchHandler
 import com.dallycontrol.core.config.AppPolicyEnforcer
 import com.dallycontrol.core.config.ManagedBrowser
@@ -363,6 +364,36 @@ object AgentModule {
                     )
                     null
                 }
+            }
+        }
+
+    /**
+     * `device.appEnable`: re-enable an installed-but-disabled app (Device-Owner lever, no ADB). Handles the maker
+     * preload case (e.g. Microsoft apps on Samsung installed as a disabled system package with no launcher entry).
+     */
+    @Provides
+    @IntoSet
+    fun provideDeviceAppEnableHandler(@ApplicationContext context: Context, handle: DpmHandle): CommandHandler =
+        DeviceAppEnableHandler { pkg ->
+            val pm = context.packageManager
+            // Device Owner re-enables a disabled preloaded system app (throws if it is not a system app — ignored).
+            runCatching { handle.dpm.enableSystemApp(handle.admin, pkg) }
+            // Undo a policy hide, if any.
+            runCatching { handle.dpm.setApplicationHidden(handle.admin, pkg, false) }
+            // Undo a suspension (a suspended app DOES show in the launcher but, when opened, throws the system
+            // "action not allowed / contact your IT admin" dialog). A leftover from an older policy stays until lifted.
+            if (android.os.Build.VERSION.SDK_INT >= 24) {
+                runCatching { handle.dpm.setPackagesSuspended(handle.admin, arrayOf(pkg), false) }
+            }
+            // Best-effort: reset the package's component-enabled state to its manifest default.
+            runCatching {
+                pm.setApplicationEnabledSetting(pkg, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, 0)
+            }
+            val installed = runCatching { pm.getPackageInfo(pkg, 0) }.isSuccess
+            when {
+                !installed -> "not installed"
+                pm.getLaunchIntentForPackage(pkg) == null -> "enabled but still has no launcher entry"
+                else -> null
             }
         }
 

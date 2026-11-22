@@ -29,6 +29,13 @@ object DeviceAction {
     /** Open an installed app in the foreground. Payload: `{ "packageName": "…" }`. */
     const val APP_LAUNCH = "device.appLaunch"
 
+    /**
+     * Re-enable an installed-but-disabled app so it becomes usable and launchable (a maker's preloaded
+     * app — e.g. Microsoft apps on Samsung — can sit installed as a disabled system package with no
+     * launcher entry, so it never shows in the kiosk). Device-Owner lever, no ADB. Payload: `{ "packageName": "…" }`.
+     */
+    const val APP_ENABLE = "device.appEnable"
+
     /** Open an app's Play Store page so the person taps Install. Payload: `{ "packageName": "…" }`. */
     const val OPEN_STORE = "device.openStore"
 

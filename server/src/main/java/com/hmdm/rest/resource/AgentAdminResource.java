@@ -514,7 +514,35 @@ public class AgentAdminResource {
         if (device.getCustomerId() != customerId.get()) {
             return Response.PERMISSION_DENIED();
         }
-        return Response.OK(commandDAO.getState(deviceId));
+        DeviceState state = commandDAO.getState(deviceId);
+        // Android 16 (SDK 36)+ runs a SOFT kiosk (persistent HOME + status bar off, no lock-task), so
+        // lockTaskModeState is NONE and the agent reports kioskActive=false even while the kiosk launcher is
+        // showing. When the device's configuration has a kiosk and the agent is 0.9+, report it as active —
+        // computed here (server-side) so it is right for the viewer role too, which cannot read configurations.
+        if (state != null && !Boolean.TRUE.equals(state.getKioskActive())
+                && AgentResource.atLeast(state.getAndroidRelease(), 16, 0, 0)
+                && AgentResource.atLeast(state.getAgentVersion(), 0, 9, 0)) {
+            Integer cfgId = device.getConfigurationId();
+            com.hmdm.persistence.domain.Configuration cfg = cfgId == null ? null : unsecureDAO.getConfigurationById(cfgId);
+            // ...but honour a manual "exit kiosk": a soft kiosk cannot report that it left, so if the latest
+            // kiosk.exit is newer than the latest config.apply the operator took it out — leave it inactive.
+            if (cfg != null && cfg.isKioskMode() && !kioskExitedSinceApply(deviceId)) {
+                state.setKioskActive(Boolean.TRUE);
+            }
+        }
+        return Response.OK(state);
+    }
+
+    /** True when the device's most recent kiosk.exit is newer than its most recent config.apply (manually taken out). */
+    private boolean kioskExitedSinceApply(String deviceNumber) {
+        com.hmdm.persistence.domain.AgentCommand exit = commandDAO.findLatestOfType(deviceNumber, "kiosk.exit");
+        if (exit == null || exit.getCreatedAt() == null) {
+            return false;
+        }
+        com.hmdm.persistence.domain.AgentCommand apply =
+                commandDAO.findLatestOfType(deviceNumber, DesiredConfigBuilder.COMMAND_TYPE);
+        long applyAt = (apply == null || apply.getCreatedAt() == null) ? 0L : apply.getCreatedAt();
+        return exit.getCreatedAt() > applyAt;
     }
 
     // =================================================================================================================
