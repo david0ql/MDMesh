@@ -35,4 +35,18 @@ object EventType {
     const val SOUND_ALERT = "soundAlert"
     /** That sound stopped: how long it played and what stopped it. */
     const val SOUND_ENDED = "soundEnded"
+
+    /**
+     * Policy enforcement drifted from the desired state: the agent applied the app policy but some pieces could not
+     * be made to stick. `detail` lists the problems as `key=pkg[,pkg];key=…` (e.g. `failedHide=…;missing=…;noLauncher=…`),
+     * so the console can show exactly what/where. Emitted only when the drift signature changes (not every cycle).
+     */
+    const val POLICY_DRIFT = "policyDrift"
+
+    /**
+     * An allowed app is present but has no real version (version code <= 0), so it is effectively a broken/stub
+     * install the console should flag and re-push. `detail` is the package name. Emitted once per package until it
+     * recovers a real version (respects the install retry cache; no busy loop).
+     */
+    const val APP_NO_VERSION = "appNoVersion"
 }

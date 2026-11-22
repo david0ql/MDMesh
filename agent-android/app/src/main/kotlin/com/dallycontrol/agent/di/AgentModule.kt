@@ -13,6 +13,7 @@ import com.dallycontrol.core.action.AlertNotifier
 import com.dallycontrol.core.action.ResetPasswordTokenStore
 import com.dallycontrol.core.action.RingController
 import com.dallycontrol.core.command.handlers.AppIconsHandler
+import com.dallycontrol.core.command.handlers.AppInstallForceHandler
 import com.dallycontrol.core.command.handlers.AppInstallHandler
 import com.dallycontrol.core.command.handlers.AppScanHandler
 import com.dallycontrol.core.command.handlers.AppUninstallHandler
@@ -271,6 +272,12 @@ object AgentModule {
     @IntoSet
     fun provideAppUninstallHandler(installManager: InstallManager): CommandHandler =
         AppUninstallHandler(installManager)
+
+    /** `device.appInstallForce`: clear the cached "already tried / OS-blocked" markers for the package, then retry once. */
+    @Provides
+    @IntoSet
+    fun provideAppInstallForceHandler(installManager: InstallManager): CommandHandler =
+        AppInstallForceHandler(installManager)
 
     @Provides
     @Singleton

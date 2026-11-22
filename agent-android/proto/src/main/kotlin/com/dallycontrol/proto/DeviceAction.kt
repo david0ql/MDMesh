@@ -60,6 +60,14 @@ object DeviceAction {
     const val LOCATION_PASSIVE = "passive"
     const val LOCATION_ACTIVE = "active"
 
+    /**
+     * Force a fresh install attempt for a package: clear the agent's cached "already tried this version-name" and
+     * OS-blocked markers for it, then install once more. Use when a transient OEM block or a same-version-code retry
+     * cap has latched and the console wants to re-push the APK. Payload is the same as `app.install`
+     * (`{ url, packageName, versionCode?, versionName?, sha256?, runAfterInstall?, allowDowngrade?, parts? }`).
+     */
+    const val APP_INSTALL_FORCE = "device.appInstallForce"
+
     /** Desired-state document push (see ConfigApplyPayload). Advertised as device key [CONFIG_APPLY_KEY]. */
     const val CONFIG_APPLY = "config.apply"
     const val CONFIG_APPLY_KEY = "configApply"
@@ -67,7 +75,7 @@ object DeviceAction {
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "openStore",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "appInstallForce", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
     )

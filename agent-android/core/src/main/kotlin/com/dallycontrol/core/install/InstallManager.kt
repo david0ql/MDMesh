@@ -234,6 +234,23 @@ class InstallManager @Inject constructor(
         }
     }
 
+    /**
+     * Forget the "do not retry" markers this manager caches for [packageName]:
+     *  - the version-name already tried over the same version code ([names]), and
+     *  - the OS-refused version and reason ([osBlocked]).
+     *
+     * After this, the very next [install] call for the package is treated as a first attempt again (it will
+     * download and try even a version a previous OEM block had latched). Used by `device.appInstallForce` to let the
+     * console re-push an APK that a transient block or a same-code retry cap had parked. Idempotent.
+     */
+    fun clearInstallCache(packageName: String) {
+        names.edit().remove("name:$packageName").apply()
+        osBlocked.edit()
+            .remove("blocked:$packageName")
+            .remove("blocked:$packageName:why")
+            .apply()
+    }
+
     // --- internals -----------------------------------------------------------------
 
     /**

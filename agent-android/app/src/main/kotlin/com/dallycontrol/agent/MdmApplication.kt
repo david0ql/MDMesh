@@ -3,6 +3,7 @@ package com.dallycontrol.agent
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.dallycontrol.agent.service.BatteryExemption
 import com.dallycontrol.agent.service.WakeKeepAlive
 import com.dallycontrol.core.sync.CheckInWorker
 import dagger.hilt.android.HiltAndroidApp
@@ -28,5 +29,8 @@ class MdmApplication : Application(), Configuration.Provider {
         CheckInWorker.schedule(this)   // periodic reconcile (WorkManager floor)
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat
+        // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
+        // WebSocket are not Doze-throttled — there is no FCM in this build. Idempotent; see BatteryExemption.
+        runCatching { BatteryExemption.ensure(this) }
     }
 }
