@@ -21,11 +21,20 @@
 
 package com.hmdm.rest.resource;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hmdm.persistence.CommonDAO;
 import com.hmdm.persistence.DeviceDAO;
 import com.hmdm.persistence.domain.DeviceSummaryRequest;
+import com.hmdm.persistence.domain.Settings;
 import com.hmdm.persistence.domain.SummaryConfigItem;
+import com.hmdm.persistence.mapper.DeviceEventMapper;
+import com.hmdm.persistence.mapper.DeviceStateMapper;
+import com.hmdm.rest.json.ChartItem;
+import com.hmdm.rest.json.DashboardSummary;
 import com.hmdm.rest.json.Response;
 import com.hmdm.rest.json.SummaryResponse;
+import com.hmdm.security.SecurityContext;
 import com.hmdm.service.DeviceApplicationsStatus;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -40,6 +49,7 @@ import javax.ws.rs.core.MediaType;
 import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 @Api(tags = {"Summary"}, authorizations = {@Authorization("Bearer Token")})
 @Singleton
@@ -47,8 +57,18 @@ import java.util.List;
 public class SummaryResource {
 
     private static final Logger log = LoggerFactory.getLogger(SummaryResource.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** Fallbacks when the console parameters have never been set. */
+    private static final int DEFAULT_REFRESH_SECONDS = 30;
+    private static final int DEFAULT_OFFLINE_DAYS = 1;
+    private static final int DEFAULT_SIM_WINDOW_DAYS = 7;
+    private static final long DAY_MS = 86400L * 1000L;
 
     private DeviceDAO deviceDAO;
+    private DeviceStateMapper deviceStateMapper;
+    private DeviceEventMapper deviceEventMapper;
+    private CommonDAO commonDAO;
 
     /**
      * <p>A constructor required by Swagger.</p>
@@ -57,8 +77,12 @@ public class SummaryResource {
     }
 
     @Inject
-    public SummaryResource(DeviceDAO deviceDAO) {
+    public SummaryResource(DeviceDAO deviceDAO, DeviceStateMapper deviceStateMapper,
+                           DeviceEventMapper deviceEventMapper, CommonDAO commonDAO) {
         this.deviceDAO = deviceDAO;
+        this.deviceStateMapper = deviceStateMapper;
+        this.deviceEventMapper = deviceEventMapper;
+        this.commonDAO = commonDAO;
     }
 
     // =================================================================================================================
@@ -156,6 +180,94 @@ public class SummaryResource {
         summaryResponse.setDevicesEnrolledMonthly(deviceDAO.getDevicesEnrolledMonthly());
 
         return Response.OK(summaryResponse);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(
+            value = "Get dashboard fleet aggregates",
+            notes = "Blocked devices, offline count by the configured threshold, recent SIM activity, fleet storage " +
+                    "total, Android version spread and app-installation status, plus the console dashboard parameters.",
+            response = DashboardSummary.class
+    )
+    @GET
+    @Path("/dashboard")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getDashboard(@QueryParam("simDays") Integer simDays) {
+        try {
+            Integer customerId = SecurityContext.get().getCurrentUser().map(u -> u.getCustomerId()).orElse(null);
+            if (customerId == null) {
+                return Response.PERMISSION_DENIED();
+            }
+
+            Settings settings = this.commonDAO.getSettings();
+            int refreshSeconds = settings != null && settings.getDashboardRefreshSeconds() != null
+                    && settings.getDashboardRefreshSeconds() > 0
+                    ? settings.getDashboardRefreshSeconds() : DEFAULT_REFRESH_SECONDS;
+            int offlineDays = settings != null && settings.getOfflineThresholdDays() != null
+                    && settings.getOfflineThresholdDays() > 0
+                    ? settings.getOfflineThresholdDays() : DEFAULT_OFFLINE_DAYS;
+            int simWindow = simDays != null && simDays > 0 ? simDays : DEFAULT_SIM_WINDOW_DAYS;
+
+            long now = System.currentTimeMillis();
+
+            DashboardSummary out = new DashboardSummary();
+            out.setDashboardRefreshSeconds(refreshSeconds);
+            out.setOfflineThresholdDays(offlineDays);
+            out.setSimWindowDays(simWindow);
+
+            out.setBlocked(this.deviceStateMapper.countLocked(customerId));
+            out.setOffline(this.deviceDAO.countOfflineDevices(now - (long) offlineDays * DAY_MS));
+            out.setSimEventsRecent(this.deviceEventMapper.countByTypeLike(
+                    customerId, "sim%", now - (long) simWindow * DAY_MS));
+
+            // Android version spread.
+            List<ChartItem> androidVersions = new LinkedList<>();
+            for (Map<String, Object> row : this.deviceStateMapper.countByAndroidRelease(customerId)) {
+                ChartItem item = new ChartItem();
+                Object label = row.get("label");
+                String s = label == null ? "" : String.valueOf(label);
+                item.setStringAttr(s.isEmpty() ? "—" : s);
+                Object counter = row.get("counter");
+                item.setNumber(counter == null ? 0 : ((Number) counter).intValue());
+                androidVersions.add(item);
+            }
+            out.setAndroidVersions(androidVersions);
+
+            // Fleet storage total: sum free/total from each device's last census JSON.
+            DashboardSummary.StorageAggregate storage = new DashboardSummary.StorageAggregate();
+            long free = 0, total = 0;
+            int reporting = 0;
+            for (Map<String, Object> row : this.deviceStateMapper.telemetryRows(customerId)) {
+                Object tel = row.get("telemetry");
+                if (tel == null) continue;
+                try {
+                    JsonNode node = JSON.readTree(String.valueOf(tel));
+                    JsonNode hw = node.path("hardware");
+                    JsonNode dyn = node.path("dynamic");
+                    Long t = hw.hasNonNull("totalStorageBytes") ? hw.get("totalStorageBytes").asLong() : null;
+                    Long f = dyn.hasNonNull("freeStorageBytes") ? dyn.get("freeStorageBytes").asLong() : null;
+                    if (t != null && t > 0) {
+                        total += t;
+                        free += (f != null ? f : 0);
+                        reporting++;
+                    }
+                } catch (Exception ignore) {
+                    // Skip devices whose telemetry is absent or malformed.
+                }
+            }
+            storage.setFreeBytes(free);
+            storage.setTotalBytes(total);
+            storage.setDevicesReporting(reporting);
+            out.setStorage(storage);
+
+            // App-installation status (reuse the per-app-status summary already computed for the overview).
+            out.setAppStatus(this.deviceDAO.getInstallSummary());
+
+            return Response.OK(out);
+        } catch (Exception e) {
+            log.error("Failed to compute dashboard summary", e);
+            return Response.INTERNAL_ERROR();
+        }
     }
 
 }

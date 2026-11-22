@@ -12,6 +12,7 @@ import { DeviceColumnsSettings } from '../components/DeviceColumnsSettings';
 import { orDash, fmtRelative } from '../ui/format';
 import { useToast } from '../ui/toast';
 import { listGroups, setGlobalConfiguration } from '../api/fleet';
+import { getSettings, saveMiscSettings, type Settings } from '../api/settings';
 
 const APP_VERSION = '0.1.0';
 
@@ -30,6 +31,37 @@ export function SettingsPage() {
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
   const [updMsg, setUpdMsg] = useState<string | null>(null);
+  // Dashboard parameters (misc settings). We keep the full settings record to round-trip on save.
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [refreshSeconds, setRefreshSeconds] = useState<string>('30');
+  const [offlineDays, setOfflineDays] = useState<string>('1');
+  const [savingDash, setSavingDash] = useState(false);
+  useEffect(() => {
+    getSettings()
+      .then((s) => {
+        setSettings(s);
+        if (s.dashboardRefreshSeconds != null) setRefreshSeconds(String(s.dashboardRefreshSeconds));
+        if (s.offlineThresholdDays != null) setOfflineDays(String(s.offlineThresholdDays));
+      })
+      .catch(() => undefined);
+  }, []);
+  async function saveDashboard() {
+    const refresh = Math.max(5, Math.min(3600, Number(refreshSeconds) || 30));
+    const days = Math.max(1, Math.min(365, Number(offlineDays) || 1));
+    setSavingDash(true);
+    try {
+      await saveMiscSettings({ ...(settings ?? {}), dashboardRefreshSeconds: refresh, offlineThresholdDays: days });
+      setRefreshSeconds(String(refresh));
+      setOfflineDays(String(days));
+      setSettings((p) => ({ ...(p ?? {}), dashboardRefreshSeconds: refresh, offlineThresholdDays: days }));
+      toast.push('ok', 'Parámetros guardados', 'El resumen usará estos valores.');
+    } catch (e) {
+      toast.push('err', 'No se pudo guardar', e instanceof Error ? e.message : '');
+    } finally {
+      setSavingDash(false);
+    }
+  }
+
   // The global configuration: devices without a group configuration or their own run it.
   const [defaultConfig, setDefaultConfig] = useState<string>('');
   useEffect(() => {
@@ -342,6 +374,54 @@ export function SettingsPage() {
               </span>
             </div>
           )}
+        </section>
+
+        {/* Dashboard parameters */}
+        <section className="panel">
+          <div className="panel-head">
+            <h2 className="panel-title">Resumen (tablero)</h2>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => void saveDashboard()}
+              disabled={savingDash}
+            >
+              {savingDash ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+          <div className="set-row">
+            <span className="k">
+              Actualización automática
+              <small>Cada cuántos segundos el resumen vuelve a consultar los datos (5–3600).</small>
+            </span>
+            <span className="v">
+              <input
+                className="input"
+                type="number"
+                min={5}
+                max={3600}
+                value={refreshSeconds}
+                onChange={(e) => setRefreshSeconds(e.target.value)}
+              />
+              <span className="muted small"> segundos</span>
+            </span>
+          </div>
+          <div className="set-row">
+            <span className="k">
+              Umbral de «sin conexión»
+              <small>Un equipo que no reporta en este número de días se cuenta como sin conexión (1–365).</small>
+            </span>
+            <span className="v">
+              <input
+                className="input"
+                type="number"
+                min={1}
+                max={365}
+                value={offlineDays}
+                onChange={(e) => setOfflineDays(e.target.value)}
+              />
+              <span className="muted small"> días</span>
+            </span>
+          </div>
         </section>
 
         {/* Appearance */}

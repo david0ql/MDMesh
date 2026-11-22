@@ -108,6 +108,8 @@ public interface CommonMapper {
                     "passwordLength, " +
                     "passwordStrength, " +
                     "idleLogout, " +
+                    "dashboardRefreshSeconds, " +
+                    "offlineThresholdDays, " +
                     "customerId" +
                     ") VALUES (" +
                     "#{createNewDevices}, " +
@@ -128,6 +130,8 @@ public interface CommonMapper {
                     "#{passwordLength}, " +
                     "#{passwordStrength}, " +
                     "#{idleLogout}, " +
+                    "#{dashboardRefreshSeconds}, " +
+                    "#{offlineThresholdDays}, " +
                     "#{customerId}" +
                     ") " +
                     "ON CONFLICT ON CONSTRAINT settings_customer_unique DO " +
@@ -149,7 +153,9 @@ public interface CommonMapper {
                     "passwordReset = EXCLUDED.passwordReset, " +
                     "passwordLength = EXCLUDED.passwordLength, " +
                     "passwordStrength = EXCLUDED.passwordStrength, " +
-                    "idleLogout = EXCLUDED.idleLogout "
+                    "idleLogout = EXCLUDED.idleLogout, " +
+                    "dashboardRefreshSeconds = EXCLUDED.dashboardRefreshSeconds, " +
+                    "offlineThresholdDays = EXCLUDED.offlineThresholdDays "
     })
     void saveMiscSettings(Settings settings);
 
