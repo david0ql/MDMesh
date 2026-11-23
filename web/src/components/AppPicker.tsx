@@ -48,10 +48,11 @@ export function AppPicker({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [available, cat, q]);
 
-  // The "version 0" guard: an app without an installable APK/bundle (a Play Store / on-the-phone placeholder) would be
-  // added to the policy but never install. Block picking it here — obtain its APK first (Apps → "Obtener APK").
-  // Web-app shortcuts are installable-by-URL, so they are fine.
-  const installable = (a: Application) => appCategory(a) === 'web' || hasApk(a);
+  // The "version 0" guard: an UPLOADED app without an installable APK/bundle would be added to the policy but never
+  // install. Block picking only those — obtain its APK first (Apps → "Obtener APK"). System apps are already on the
+  // device (they only need allowing/enabling, e.g. Chrome for Outlook login) and web-app shortcuts install by URL, so
+  // both are selectable without an APK.
+  const installable = (a: Application) => appCategory(a) === 'web' || appCategory(a) === 'system' || hasApk(a);
 
   function toggle(id: number) {
     const app = apps.find((a) => a.id === id);

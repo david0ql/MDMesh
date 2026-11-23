@@ -174,11 +174,30 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     private fun startLockTaskSafely() {
-        if (softKiosk) { setStatusBarDisabled(true); return }
+        val p = active
+        // Soft kiosk (Android 16+): keep the status bar — and therefore notifications and the pull-down — unless the
+        // policy explicitly turns notifications off. Hiding it unconditionally left Android 16 devices with no
+        // notifications at all. The device stays locked as the persistent HOME launcher regardless.
+        if (softKiosk) { setStatusBarDisabled(p?.features?.notifications == false); return }
         runCatching {
             val am = getSystemService(ActivityManager::class.java)
             if (am?.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) startLockTask()
         }.onFailure { android.util.Log.w("Kiosk", "startLockTask", it) }
+        // Self-heal the lock-task feature mask (Home / Recents / power menu) on every (re)lock. The mask is otherwise
+        // set only by the explicit enter() path, so a mask cleared by a kiosk.exit during remote support, or a boot
+        // that did not re-run enter(), left Home/Recents/power dead until a fresh kiosk.enter. Re-asserting it here
+        // (idempotent) keeps the buttons working without a config.apply. Android ≤15 only (soft kiosk returned above).
+        if (p != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) runCatching {
+            val mask = com.dallycontrol.kiosk.lockTaskFeatures(
+                com.dallycontrol.kiosk.KioskToggles(
+                    home = p.features.home, recents = p.features.recents, notifications = p.features.notifications,
+                    systemInfo = p.features.systemInfo, keyguard = p.features.keyguard,
+                    lockButtons = if (!p.powerPin.isNullOrBlank()) true else p.features.lockButtons,
+                ),
+            )
+            getSystemService(android.app.admin.DevicePolicyManager::class.java)
+                ?.setLockTaskFeatures(com.dallycontrol.agent.admin.AdminReceiver.componentName(this), mask)
+        }
     }
 
     private fun stopLockTaskSafely() {

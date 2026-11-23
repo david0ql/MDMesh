@@ -567,6 +567,9 @@ public class ApplicationResource {
         if (app == null) {
             return false;
         }
+        if (app.isSystem()) {
+            return true; // preinstalled on the device: the link allows/enables it (enableSystemApp), no APK to download
+        }
         if (app.getType() == ApplicationType.web) {
             return true; // not APK-based; the APK guard does not apply
         }
