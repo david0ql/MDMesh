@@ -62,19 +62,23 @@ public class ConfigurationDAO extends AbstractLinkedDAO<Configuration, Applicati
     private final EventService eventService;
 
 
+    private final com.hmdm.persistence.mapper.UserMapper userMapper;
+
     @Inject
     public ConfigurationDAO(ConfigurationMapper mapper,
                             ApplicationMapper applicationMapper,
                             ApplicationSettingDAO applicationSettingDAO,
                             ConfigurationFileDAO configurationFileDAO,
                             @Named("base.url") String baseUrl,
-                            EventService eventService) {
+                            EventService eventService,
+                            com.hmdm.persistence.mapper.UserMapper userMapper) {
         this.mapper = mapper;
         this.applicationMapper = applicationMapper;
         this.applicationSettingDAO = applicationSettingDAO;
         this.configurationFileDAO = configurationFileDAO;
         this.baseUrl = baseUrl;
         this.eventService = eventService;
+        this.userMapper = userMapper;
         log.info("Base URL: " + baseUrl);
     }
 
@@ -115,6 +119,16 @@ public class ConfigurationDAO extends AbstractLinkedDAO<Configuration, Applicati
             if (files != null && !files.isEmpty()) {
                 this.mapper.insertConfigurationFiles(configuration.getId(), files);
             }
+
+            // Folder-scoped creators (not allConfigAvailable) only see policies granted to them in
+            // userConfigurationAccess. Auto-grant the creator access to the policy they just made, so a folder
+            // editor can see and manage their own new policy (and only theirs). Full/all-config users are unaffected.
+            com.hmdm.security.SecurityContext.get().getCurrentUser().ifPresent(u -> {
+                if (!u.isAllConfigAvailable()) {
+                    this.userMapper.insertUserConfigurationAccess(
+                            u.getId(), java.util.Collections.singletonList(configuration.getId()));
+                }
+            });
         });
     }
 

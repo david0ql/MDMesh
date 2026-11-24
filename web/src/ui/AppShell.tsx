@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
-import { isFolderAdmin } from '../api/auth';
+import { isFolderAdmin, hasPermission } from '../api/auth';
 import { getConsoleBrand, type ConsoleBrand } from '../api/fleet';
 import { useTheme } from './theme';
 import { UpdateBanner } from '../components/UpdateBanner';
@@ -47,6 +47,8 @@ interface NavEntry {
   Icon: (p: { className?: string }) => ReactNode;
   /** Hidden for folder administrators (they manage only their folders' devices). */
   adminOnly?: boolean;
+  /** Shown only to users holding this permission (folder editors included); the server still scopes the data. */
+  perm?: string;
 }
 
 const NAV: NavEntry[] = [
@@ -54,7 +56,7 @@ const NAV: NavEntry[] = [
   { to: '/groups', label: 'Carpetas', Icon: IconGroups },
   { to: '/devices', label: 'Dispositivos', Icon: IconDevices },
   { to: '/map', label: 'Mapa', Icon: IconMap },
-  { to: '/configs', label: 'Políticas', Icon: IconConfig, adminOnly: true },
+  { to: '/configs', label: 'Políticas', Icon: IconConfig, perm: 'configurations' },
   { to: '/apps', label: 'Aplicaciones', Icon: IconApps, adminOnly: true },
   { to: '/announcements', label: 'Anuncios', Icon: IconAnnounce },
   { to: '/reports', label: 'Reportes', Icon: IconReports, adminOnly: true },
@@ -109,7 +111,7 @@ export function AppShell({
           )}
         </div>
         <nav className="nav">
-          {NAV.filter((n) => !n.adminOnly || !isFolderAdmin(user)).map(({ to, label, Icon }) => (
+          {NAV.filter((n) => (!n.adminOnly || !isFolderAdmin(user)) && (!n.perm || hasPermission(user, n.perm))).map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}

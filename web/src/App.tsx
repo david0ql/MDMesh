@@ -13,6 +13,7 @@ import { ConfigurationsPage } from './pages/ConfigurationsPage';
 import { EnrollPage } from './pages/EnrollPage';
 import { UsersPage } from './pages/UsersPage';
 import { AdminOnly } from './auth/AdminOnly';
+import { RequirePermission } from './auth/RequirePermission';
 import { SettingsPage } from './pages/SettingsPage';
 import { FleetMapPage } from './pages/FleetMapPage';
 import { GroupsPage } from './pages/GroupsPage';
@@ -36,7 +37,7 @@ export default function App() {
               <Route path="/map" element={<FleetMapPage />} />
               <Route path="/groups" element={<GroupsPage />} />
               <Route path="/apps" element={<AdminOnly><AppsPage /></AdminOnly>} />
-              <Route path="/configs" element={<AdminOnly><ConfigurationsPage /></AdminOnly>} />
+              <Route path="/configs" element={<RequirePermission name="configurations"><ConfigurationsPage /></RequirePermission>} />
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/reports" element={<AdminOnly><ReportsPage /></AdminOnly>} />
               <Route path="/scripts" element={<AdminOnly><ScriptsPage /></AdminOnly>} />
