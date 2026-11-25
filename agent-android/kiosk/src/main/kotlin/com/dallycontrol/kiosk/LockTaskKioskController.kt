@@ -97,6 +97,18 @@ class LockTaskKioskController(
         }
     }
 
+    override fun currentFeatures(): Int {
+        // Android 16+ runs the soft kiosk (no lock task), so there is no feature mask to self-heal.
+        if (Build.VERSION.SDK_INT >= 36) return -1
+        if (!dpm.isDeviceOwnerApp(admin.packageName)) return -1
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return -1 // getLockTaskFeatures is API 28+
+        return try {
+            dpm.getLockTaskFeatures(admin)
+        } catch (t: Throwable) {
+            -1
+        }
+    }
+
     /** Run [block]; convert success to [KioskResult.Ok] and any throwable to [KioskResult.Failed]. */
     private inline fun runGuarded(block: () -> Unit): KioskResult =
         try {

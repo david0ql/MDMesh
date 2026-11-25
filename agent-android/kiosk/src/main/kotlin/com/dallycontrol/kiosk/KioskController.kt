@@ -68,4 +68,11 @@ interface KioskController {
 
     /** The packages currently allowlisted for lock-task mode, or empty if unavailable. */
     fun allowedPackages(): List<String>
+
+    /**
+     * The live `LOCK_TASK_FEATURE_*` mask currently set as device policy (API 28+), used by the periodic self-heal
+     * to detect a drifted mask and re-apply it. Returns a negative sentinel when it does not apply or cannot be
+     * read — soft kiosk (no lock task), not the Device Owner, or below API 28 — so the self-heal skips those.
+     */
+    fun currentFeatures(): Int = -1
 }

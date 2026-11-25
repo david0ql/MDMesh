@@ -48,6 +48,7 @@ class DeviceWatch @Inject constructor(
     private val vnc: com.dallycontrol.agent.remote.DroidVncController,
     private val deviceRules: com.dallycontrol.agent.policy.DeviceRules,
     private val sounds: com.dallycontrol.agent.diag.SoundWatch,
+    private val kioskApplier: com.dallycontrol.core.kiosk.KioskApplier,
 ) {
     private var trailJob: Job? = null
     private var registered: Context? = null
@@ -163,6 +164,9 @@ class DeviceWatch @Inject constructor(
                 runCatching { com.dallycontrol.agent.diag.ExitReasons.reportNew(context, eventLog) }
                 runCatching { com.dallycontrol.agent.admin.AdminReceiver.protectProcesses(context) }
                 runCatching { appPolicy.reenforce() }
+                // Self-heal the kiosk button mask (Home/Recents/power) when it drifted — fixes Android ≤15 lock-task
+                // devices where the mask was lost and the broken Home stopped the launcher from recovering it.
+                runCatching { kioskApplier.reassert() }
                 runCatching { sim.check() }
             }
         }
