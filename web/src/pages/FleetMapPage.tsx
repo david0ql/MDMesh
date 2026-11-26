@@ -84,7 +84,14 @@ export function FleetMapPage() {
     return m;
   }, [data]);
 
-  const visible = useMemo(() => (data?.devices ?? []).filter((d) => !hidden.has(d.number)), [data, hidden]);
+  // The map shows the devices that are not hidden AND, when the search box has text, only those matching it —
+  // so filtering by a phone leaves only that phone's points and trail on the map (not just the list).
+  const visible = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (data?.devices ?? []).filter((d) =>
+      !hidden.has(d.number) &&
+      (!needle || nameOf(d).toLowerCase().includes(needle) || d.number.toLowerCase().includes(needle)));
+  }, [data, hidden, q]);
 
   // Map instance.
   useEffect(() => {
