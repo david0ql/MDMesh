@@ -498,6 +498,34 @@ public class ApplicationDAO extends AbstractLinkedDAO<Application, ApplicationCo
 
     }
 
+    /**
+     * DallyControl: unlink an app from the given configurations (does NOT delete the app from the library). A folder
+     * editor passes only the configurations they can reach (already scoped by {@link ConfigurationDAO#getAllConfigurations()}),
+     * so their carpetas are the only ones affected. findById runs the customer-ownership check on the app.
+     *
+     * @return the number of configurationApplications links removed.
+     */
+    @Transactional
+    public int removeApplicationFromConfigurations(int applicationId, List<Integer> configurationIds) {
+        if (configurationIds == null || configurationIds.isEmpty()) {
+            return 0;
+        }
+        // Raises a SecurityException if the app belongs to another customer.
+        final Application application = findById(applicationId);
+        if (application == null) {
+            return 0;
+        }
+        final int removed = this.mapper.deleteApplicationConfigurationLinksForAppInConfigs(applicationId, configurationIds);
+        SecurityContext.get().getCurrentUser().ifPresent(user -> {
+            this.mapper.recheckConfigurationMainApplications(user.getCustomerId());
+            this.mapper.recheckConfigurationContentApplications(user.getCustomerId());
+            this.mapper.recheckConfigurationKioskModes(user.getCustomerId());
+        });
+        log.info("Application #{} ({}) unlinked from {} configuration(s): {} link(s) removed",
+                applicationId, application.getPkg(), configurationIds.size(), removed);
+        return removed;
+    }
+
     @Transactional
     public void updateApplicationVersionConfigurations(LinkConfigurationsToAppVersionRequest request, User user) {
         final int applicationVersionId = request.getApplicationVersionId();

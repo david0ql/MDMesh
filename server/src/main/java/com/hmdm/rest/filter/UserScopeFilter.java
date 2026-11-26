@@ -82,6 +82,7 @@ public class UserScopeFilter implements Filter {
             new Rule("GET", "/agent/v1/configurations/(\\d+)/compliance", null), // non-compliance list (resource scopes)
             new Rule("GET", "/applications(/.*)?", null),
             new Rule("POST", "/applications/configurations", null),          // link apps to a policy (version-0 guard; resource checks access)
+            new Rule("POST", "/applications/(\\d+)/remove-from-my-configs", null), // unlink app from the editor's own policies (resource scopes to their configs)
             new Rule("GET", "/reports/v1(/.*)?", null),                      // reports: resource scopes each row to the user's own devices
             new Rule("GET PUT", "/scripts", null),                          // scripts: list scoped to creator; authoring checks manage_scripts
             new Rule("DELETE", "/scripts/(\\d+)", null),                    // delete script: resource checks manage_scripts

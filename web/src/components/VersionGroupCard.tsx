@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
-import type { Application } from '../api/applications';
+import { removeAppFromMyPolicies, type Application } from '../api/applications';
 import { assignVersion, deleteVersion, setVersionLabel, type LabeledVersion, type VersionGroup } from '../api/versions';
 import { uploadApkToLibrary } from '../api/uploadToLibrary';
+import { useAuth } from '../auth/AuthContext';
+import { hasPermission } from '../api/auth';
 import { useToast } from '../ui/toast';
 
 export interface PolicyRef { id: number; name: string }
@@ -21,10 +23,37 @@ export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, on
   onShowDevices?: (a: Application) => void;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
+  const canEdit = hasPermission(user, 'edit_applications');
   const [assigning, setAssigning] = useState<LabeledVersion | null>(null);
   const [renaming, setRenaming] = useState<{ id: number; value: string } | null>(null);
   const [adding, setAdding] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const members = group.members;
+
+  // Unlink the whole app (every build of the group) from the policies of the current user's folders. The server
+  // scopes this to the policies they can reach. It does NOT delete the app/builds from the Library.
+  async function removeFromPolicies() {
+    if (app.id == null) return;
+    if (!window.confirm(
+      `¿Quitar «${app.name}» de tus políticas asignadas?\n\n` +
+      'No borra la app ni sus versiones de la biblioteca: solo la desvincula de las políticas de tus carpetas. ' +
+      'Los teléfonos no la desinstalan.',
+    )) return;
+    setUnlinking(true);
+    try {
+      const n = await removeAppFromMyPolicies(app.id);
+      toast.push('ok', `${app.name} quitada de tus políticas`,
+        n > 0
+          ? `${n} vínculo${n === 1 ? '' : 's'} de política eliminado${n === 1 ? '' : 's'}. La app sigue en la biblioteca.`
+          : 'No estaba en ninguna de tus políticas. La app sigue en la biblioteca.');
+      onChanged();
+    } catch (e) {
+      toast.push('err', 'No se pudo quitar de las políticas', e instanceof Error ? e.message : String(e));
+    } finally {
+      setUnlinking(false);
+    }
+  }
 
   async function rename(v: LabeledVersion, value: string) {
     try {
@@ -67,6 +96,13 @@ export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, on
           {onShowDevices && (
             <button className="btn btn-sm btn-ghost" onClick={() => onShowDevices(app)} data-testid={`group-devices-${app.pkg}`}
               title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
+          )}
+          {canEdit && app.id != null && (
+            <button className="btn btn-sm btn-ghost" disabled={unlinking} onClick={() => void removeFromPolicies()}
+              data-testid={`group-unlink-${app.pkg}`}
+              title="Quitar esta app de las políticas de tus carpetas (no la borra de la biblioteca)">
+              {unlinking ? 'Quitando…' : 'Quitar de políticas'}
+            </button>
           )}
           <button className="btn btn-sm btn-primary" onClick={() => onDeploy(app)}>Desplegar</button>
         </div>

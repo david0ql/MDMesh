@@ -570,6 +570,23 @@ public interface ApplicationMapper {
     int deleteApplicationConfigurationLinksForSamePkg(@Param("applicationId") int applicationId,
                                                       @Param("configurationId") int configurationId);
 
+    /**
+     * DallyControl: unlink an app from a given set of configurations. Deletes every configurationApplications row for
+     * any application sharing the package of the given app (so version groups unlink as a whole) within the listed
+     * configurations. The caller is responsible for passing only configurations the current user may touch.
+     */
+    @Delete("<script>" +
+            "DELETE FROM configurationApplications " +
+            "WHERE configurationId IN " +
+            "<foreach item='cid' collection='configurationIds' open='(' separator=',' close=')'>#{cid}</foreach> " +
+            "AND applicationId IN (" +
+            "    SELECT id FROM applications " +
+            "    WHERE pkg = (SELECT pkg FROM applications WHERE id = #{applicationId})" +
+            ")" +
+            "</script>")
+    int deleteApplicationConfigurationLinksForAppInConfigs(@Param("applicationId") int applicationId,
+                                                           @Param("configurationIds") java.util.List<Integer> configurationIds);
+
 
     @Select({"SELECT COUNT(*) AS cnt " +
             "FROM applications " +

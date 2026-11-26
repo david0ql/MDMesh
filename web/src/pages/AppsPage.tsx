@@ -17,10 +17,13 @@ import {
   uniqueApkName,
   saveAndroidApplication,
   lookupPlayApp,
+  removeAppFromMyPolicies,
   type PlayApp,
   type Application,
   type BundleUploadResult,
 } from '../api/applications';
+import { useAuth } from '../auth/AuthContext';
+import { hasPermission } from '../api/auth';
 import { searchFdroid, type FDroidApp } from '../api/fdroid';
 import { DeployModal, type DeploySubject } from '../components/DeployModal';
 import { InstalledDevicesModal } from '../components/InstalledDevicesModal';
@@ -148,6 +151,9 @@ function AppIcon({ name, url }: { name: string; url?: string | null }) {
 
 function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   const toast = useToast();
+  const { user } = useAuth();
+  const canEdit = hasPermission(user, 'edit_applications');
+  const [removing, setRemoving] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Application | null>(null);
   const [groups, setGroups] = useState<Record<number, VersionGroup>>({});
   const [policies, setPolicies] = useState<PolicyRef[]>([]);
@@ -194,6 +200,30 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
       return false;
     } finally {
       setFetching((m) => { const n = { ...m }; delete n[a.pkg]; return n; });
+    }
+  };
+
+  // Unlink the app from the policies of the current user's folders (a folder editor) — the server scopes this to the
+  // policies they can reach. It does NOT delete the app from the Library and does NOT uninstall it from phones.
+  const removeFromPolicies = async (a: Application) => {
+    if (a.id == null) return;
+    if (!window.confirm(
+      `¿Quitar «${a.name}» de tus políticas asignadas?\n\n` +
+      'No borra la app de la biblioteca: solo la desvincula de las políticas de tus carpetas. ' +
+      'Los teléfonos no la desinstalan.',
+    )) return;
+    setRemoving(a.pkg);
+    try {
+      const n = await removeAppFromMyPolicies(a.id);
+      toast.push('ok', `${a.name} quitada de tus políticas`,
+        n > 0
+          ? `${n} vínculo${n === 1 ? '' : 's'} de política eliminado${n === 1 ? '' : 's'}. La app sigue en la biblioteca.`
+          : 'No estaba en ninguna de tus políticas. La app sigue en la biblioteca.');
+      void load();
+    } catch (e) {
+      toast.push('err', 'No se pudo quitar de las políticas', e instanceof Error ? e.message : '');
+    } finally {
+      setRemoving(null);
     }
   };
 
@@ -270,15 +300,29 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
                     ? <span className="app-ver">{a.version ? `v${a.version}` : '—'}</span>
                     : <span className="chip tone-warn" title="Solo es una ficha de la Play Store: el MDM no la puede instalar todavía">Sin APK</span>}
                   {!hasApk(a) ? (
-                    <button className="btn btn-sm btn-primary" disabled={busy || !!bulk} onClick={() => void obtain(a).then(load)} data-testid={`obtain-${a.pkg}`}>
-                      {busy ? (f >= 0 ? `Descargando ${Math.round(f * 100)} %` : 'Descargando…') : 'Obtener APK'}
-                    </button>
+                    <>
+                      <button className="btn btn-sm btn-primary" disabled={busy || !!bulk} onClick={() => void obtain(a).then(load)} data-testid={`obtain-${a.pkg}`}>
+                        {busy ? (f >= 0 ? `Descargando ${Math.round(f * 100)} %` : 'Descargando…') : 'Obtener APK'}
+                      </button>
+                      {canEdit && a.id != null && (
+                        <button className="btn btn-sm btn-ghost" disabled={removing === a.pkg} onClick={() => void removeFromPolicies(a)}
+                                data-testid={`unlink-${a.pkg}`} title="Quitar esta app de las políticas de tus carpetas (no la borra de la biblioteca)">
+                          {removing === a.pkg ? 'Quitando…' : 'Quitar de políticas'}
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <button className="btn btn-sm btn-ghost" onClick={() => setInstalled({ pkg: a.pkg, label: a.name })}
                               data-testid={`devices-${a.pkg}`} title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
                       <button className="btn btn-sm btn-ghost" onClick={() => setGrouping(a)} data-testid={`versions-${a.pkg}`}
                               title="Para tener varias versiones de esta app (por ejemplo una por cliente) y que cada política use la suya">Hacer grupo</button>
+                      {canEdit && a.id != null && (
+                        <button className="btn btn-sm btn-ghost" disabled={removing === a.pkg} onClick={() => void removeFromPolicies(a)}
+                                data-testid={`unlink-${a.pkg}`} title="Quitar esta app de las políticas de tus carpetas (no la borra de la biblioteca)">
+                          {removing === a.pkg ? 'Quitando…' : 'Quitar de políticas'}
+                        </button>
+                      )}
                       <button className="btn btn-sm btn-primary" onClick={() => onDeploy(a)}>
                         Desplegar
                       </button>

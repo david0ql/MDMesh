@@ -103,6 +103,16 @@ export async function updateAppConfigLinks(
   await apiClient.post('/private/applications/configurations', req);
 }
 
+/**
+ * Unlink an app from the policies the current user can reach (their own folders' policies for a folder editor; every
+ * policy of the customer for an admin). Does NOT delete the app from the Library — only removes it from those policies.
+ * @returns how many policy links were removed.
+ */
+export async function removeAppFromMyPolicies(appId: number): Promise<number> {
+  const r = await apiClient.post<{ affected: number }>(`/private/applications/${appId}/remove-from-my-configs`, {});
+  return r?.affected ?? 0;
+}
+
 // --- APK upload (drop → analyze → host) -------------------------------------
 // See FilesResource (@Path /private/web-ui-files):
 //   POST /                 multipart "file" -> FileUploadResult (parses the APK)

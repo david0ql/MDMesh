@@ -667,6 +667,47 @@ public class ApplicationResource {
 
     // =================================================================================================================
     @ApiOperation(
+            value = "Remove an app from the current user's policies",
+            notes = "Unlinks the app from every policy (configuration) the current user can reach. Does NOT delete the " +
+                    "app from the library. A folder editor only affects their own folders' policies; an admin affects " +
+                    "all of the customer's policies."
+    )
+    @POST
+    @Path("/{appId}/remove-from-my-configs")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response removeApplicationFromMyConfigurations(@PathParam("appId") @ApiParam("Application ID") Integer appId) {
+        if (!SecurityContext.get().hasPermission("edit_applications")) {
+            logger.error("Unauthorized attempt to unlink application from policies by user " +
+                    SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
+        try {
+            // getAllConfigurations() is already scoped: a folder editor only gets the policies they can reach, an
+            // admin gets every policy of the customer. We never fall back to customerId, so a folder editor can only
+            // ever unlink the app from their own folders' policies.
+            final List<Integer> configIds = new LinkedList<>();
+            for (Configuration c : this.configurationDAO.getAllConfigurations()) {
+                if (c.getId() != null) {
+                    configIds.add(c.getId());
+                }
+            }
+            final int affected = this.applicationDAO.removeApplicationFromConfigurations(appId, configIds);
+            logger.info("Application #{} unlinked from {} of the user's policies by user {}",
+                    appId, affected, SecurityContext.get().getCurrentUserName());
+            Map<String, Object> out = new HashMap<>();
+            out.put("affected", affected);
+            return Response.OK(out);
+        } catch (SecurityException e) {
+            logger.error("Prohibited to unlink application #{} from policies by current user", appId, e);
+            return Response.PERMISSION_DENIED();
+        } catch (Exception e) {
+            logger.error("Failed to unlink application #{} from the user's policies", appId, e);
+            return Response.INTERNAL_ERROR();
+        }
+    }
+
+    // =================================================================================================================
+    @ApiOperation(
             value = "Update application version configurations",
             notes = "Updates the list of configurations using requested application version"
     )
