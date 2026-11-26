@@ -38,12 +38,20 @@ public class ReportsDAO {
         return mapper.appInstallAggregate(customerId);
     }
 
+    public List<Map<String, Object>> appInstallAggregateScoped(int customerId, String devs) {
+        return mapper.appInstallAggregateScoped(customerId, devs);
+    }
+
     public List<Map<String, Object>> appInstallDevices(int customerId, String pkg) {
         return mapper.appInstallDevices(customerId, pkg);
     }
 
     public List<Map<String, Object>> installedAppsCatalog(int customerId) {
         return mapper.installedAppsCatalog(customerId);
+    }
+
+    public List<Map<String, Object>> installedAppsCatalogScoped(int customerId, String devs) {
+        return mapper.installedAppsCatalogScoped(customerId, devs);
     }
 
     public List<Map<String, Object>> devicesByApp(int customerId, String pkgsCsv) {

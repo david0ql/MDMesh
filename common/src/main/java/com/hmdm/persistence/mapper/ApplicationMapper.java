@@ -130,6 +130,41 @@ public interface ApplicationMapper {
             "ORDER BY applications.name"})
     List<Application> getAllApplicationsByValue(@Param("customerId") int customerId, @Param("value") String value);
 
+    /**
+     * Folder administrator's view of the library: only the customer's apps that are actually used by the folders the
+     * user reaches. The app is kept when any of its versions is linked (configurationApplications) to a configuration
+     * that a folder in the user's scope (groups.configurationId ∈ userDeviceGroupsAccess) points at. Common/master
+     * apps are intentionally dropped here — a restricted user only sees what their own folders deploy.
+     */
+    @Select({SELECT_BASE +
+            "WHERE customerId = #{customerId} " +
+            "AND applications.id IN (" +
+            "    SELECT av.applicationId " +
+            "    FROM applicationVersions av " +
+            "    INNER JOIN configurationApplications ca ON ca.applicationVersionId = av.id " +
+            "    INNER JOIN groups g ON g.configurationId = ca.configurationId " +
+            "    INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = g.id " +
+            "    WHERE uda.userId = #{userId}" +
+            ") " +
+            "ORDER BY name"})
+    List<Application> getAllApplicationsScoped(@Param("customerId") int customerId, @Param("userId") int userId);
+
+    @Select({SELECT_BASE +
+            "WHERE customerId = #{customerId} " +
+            "AND applications.id IN (" +
+            "    SELECT av.applicationId " +
+            "    FROM applicationVersions av " +
+            "    INNER JOIN configurationApplications ca ON ca.applicationVersionId = av.id " +
+            "    INNER JOIN groups g ON g.configurationId = ca.configurationId " +
+            "    INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = g.id " +
+            "    WHERE uda.userId = #{userId}" +
+            ") " +
+            "AND (applications.name ILIKE #{value} OR pkg ILIKE #{value}) " +
+            "ORDER BY applications.name"})
+    List<Application> getAllApplicationsByValueScoped(@Param("customerId") int customerId,
+                                                      @Param("value") String value,
+                                                      @Param("userId") int userId);
+
     @Select({SELECT_BASE +
             "WHERE (customerId = #{customerId})" +
             "AND (applicationVersions.url=#{url} OR applicationVersions.urlarmeabi=#{url} OR applicationVersions.urlarm64=#{url}) " +

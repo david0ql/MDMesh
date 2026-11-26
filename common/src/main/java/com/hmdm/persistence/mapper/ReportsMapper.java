@@ -69,6 +69,28 @@ public interface ReportsMapper {
     List<Map<String, Object>> appInstallAggregate(@Param("customerId") int customerId);
 
     /**
+     * Same aggregate as {@link #appInstallAggregate}, but narrowed to a folder administrator's own devices.
+     * {@code devs} is a comma-separated list of device numbers (UUIDs, no commas); the inner sub-select that
+     * joins {@code devices d} gets the extra {@code AND d.number = ANY(...)} guard so counts never include
+     * other folders' devices. Everything else is identical to the fleet-wide query.
+     */
+    @Select({"SELECT pkg, COUNT(DISTINCT deviceNumber) AS devices, COUNT(*) AS commands, " +
+            "COUNT(*) FILTER (WHERE status = 'done') AS done, " +
+            "COUNT(*) FILTER (WHERE status IN ('failed','unsupported','expired')) AS failed, " +
+            "COUNT(*) FILTER (WHERE status IN ('pending','delivered')) AS pending, " +
+            "MAX(createdat) AS lastat " +
+            "FROM (SELECT a.deviceNumber, a.status, a.createdAt AS createdat, " +
+            "             (a.payload::jsonb ->> 'packageName') AS pkg " +
+            "      FROM agentCommand a JOIN devices d ON d.number = a.deviceNumber " +
+            "      WHERE d.customerId = #{customerId} AND a.type = 'app.install' " +
+            "        AND d.number = ANY(string_to_array(#{devs}, ',')) " +
+            "        AND a.payload IS NOT NULL AND a.payload ~ '^\\s*\\{' OFFSET 0) t " +
+            "WHERE pkg IS NOT NULL " +
+            "GROUP BY pkg ORDER BY devices DESC, commands DESC, pkg"})
+    List<Map<String, Object>> appInstallAggregateScoped(@Param("customerId") int customerId,
+                                                        @Param("devs") String devs);
+
+    /**
      * Drill-down: every app.install for one package, newest first. The JSON cast lives in a sub-select whose WHERE
      * already excluded non-JSON payloads (OFFSET 0 fences it so the planner never lifts the cast above the guard).
      */
@@ -90,6 +112,19 @@ public interface ReportsMapper {
             "WHERE d.customerId = #{customerId} AND app->>'pkg' IS NOT NULL AND app->>'pkg' <> '' " +
             "GROUP BY app->>'pkg' ORDER BY devices DESC, pkg"})
     List<Map<String, Object>> installedAppsCatalog(@Param("customerId") int customerId);
+
+    /**
+     * Same catalogue as {@link #installedAppsCatalog}, but narrowed to a folder administrator's own devices.
+     * {@code devs} is a comma-separated list of device numbers (UUIDs, no commas); the extra
+     * {@code AND d.number = ANY(...)} guard keeps the per-package device counts to the editor's folders.
+     */
+    @Select({"SELECT app->>'pkg' AS pkg, MAX(app->>'name') AS name, COUNT(DISTINCT d.id) AS devices " +
+            "FROM devices d, LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
+            "WHERE d.customerId = #{customerId} AND app->>'pkg' IS NOT NULL AND app->>'pkg' <> '' " +
+            "  AND d.number = ANY(string_to_array(#{devs}, ',')) " +
+            "GROUP BY app->>'pkg' ORDER BY devices DESC, pkg"})
+    List<Map<String, Object>> installedAppsCatalogScoped(@Param("customerId") int customerId,
+                                                         @Param("devs") String devs);
 
     /** One row per (device, matched package): the devices that have any of the requested packages. */
     @Select({"SELECT d.id, d.number, d.description, " + GROUP_ID_SUBQUERY + ", " +

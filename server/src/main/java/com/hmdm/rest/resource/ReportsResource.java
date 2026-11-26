@@ -322,7 +322,8 @@ public class ReportsResource {
     // --- 3. App installs (aggregate + drill-down) --------------------------------------------------------------
 
     private ReportData appInstalls(int c) {
-        List<Map<String, Object>> rows = reportsDAO.appInstallAggregate(c);
+        List<Map<String, Object>> rows = scopedAggregate(reportsDAO::appInstallAggregate,
+                reportsDAO::appInstallAggregateScoped, c);
         List<Column> cols = Arrays.asList(
                 col("pkg", "Paquete", "text"), col("devices", "Equipos", "number"),
                 col("commands", "Despliegues", "number"), col("done", "Exitosos", "number"),
@@ -346,7 +347,8 @@ public class ReportsResource {
     // --- 4. By app (catalogue + devices) -----------------------------------------------------------------------
 
     private ReportData appsCatalog(int c) {
-        List<Map<String, Object>> rows = reportsDAO.installedAppsCatalog(c);
+        List<Map<String, Object>> rows = scopedAggregate(reportsDAO::installedAppsCatalog,
+                reportsDAO::installedAppsCatalogScoped, c);
         List<Column> cols = Arrays.asList(
                 col("pkg", "Paquete", "text"), col("name", "Nombre", "text"), col("devices", "Equipos", "number"));
         return new ReportData("apps-catalog", "Catálogo de apps instaladas", cols, rows);
@@ -534,6 +536,23 @@ public class ReportsResource {
             if (visible.contains(String.valueOf(num))) kept.add(row);
         }
         return new ReportData(d.report, d.title, d.columns, kept);
+    }
+
+    /**
+     * Package-level aggregates (app-installs, apps-catalog) carry no device number, so {@link #scoped} can't
+     * narrow them after the fact — a folder administrator would otherwise see fleet-wide counts. For a restricted
+     * user, run the device-scoped query against their own device numbers (empty scope ⇒ empty report, never the
+     * whole fleet). A full administrator keeps the plain fleet-wide query.
+     */
+    private List<Map<String, Object>> scopedAggregate(java.util.function.IntFunction<List<Map<String, Object>>> fleet,
+                                                       java.util.function.BiFunction<Integer, String, List<Map<String, Object>>> scopedByDevs,
+                                                       int c) {
+        if (scope != null && scope.restricted()) {
+            java.util.Set<String> devs = scope.deviceNumbers();
+            if (devs == null || devs.isEmpty()) return new ArrayList<>();
+            return scopedByDevs.apply(c, String.join(",", devs));
+        }
+        return fleet.apply(c);
     }
 
     private interface Builder {

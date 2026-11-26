@@ -40,6 +40,7 @@ import com.hmdm.notification.PushService;
 import com.hmdm.persistence.*;
 import com.hmdm.persistence.domain.*;
 import com.hmdm.rest.json.*;
+import com.hmdm.rest.resource.support.UserScope;
 import com.hmdm.security.SecurityContext;
 import com.hmdm.security.SecurityException;
 import com.hmdm.util.FileUtil;
@@ -78,6 +79,7 @@ public class ApplicationResource {
     private com.hmdm.persistence.AgentCommandDAO agentCommandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.PolicyApps policyApps;
+    private UserScope scope;
 
     @Inject
     public ApplicationResource(ApplicationDAO applicationDAO,
@@ -86,7 +88,9 @@ public class ApplicationResource {
                                @Named("files.directory") String filesDirectory,
                                com.hmdm.persistence.AgentCommandDAO agentCommandDAO,
                                com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
-                               com.hmdm.rest.resource.support.PolicyApps policyApps) {
+                               com.hmdm.rest.resource.support.PolicyApps policyApps,
+                               UserScope scope) {
+        this.scope = scope;
         this.policyApps = policyApps;
         this.agentCommandDAO = agentCommandDAO;
         this.configAppInstaller = configAppInstaller;
@@ -143,6 +147,9 @@ public class ApplicationResource {
                     SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
         }
+        if (scope != null && scope.restricted()) {
+            return Response.OK(this.applicationDAO.getAllApplicationsScoped());
+        }
         return Response.OK(this.applicationDAO.getAllApplications());
     }
 
@@ -161,6 +168,9 @@ public class ApplicationResource {
             logger.error("Unauthorized attempt to access application list by user " +
                     SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
+        }
+        if (scope != null && scope.restricted()) {
+            return Response.OK(this.applicationDAO.getAllApplicationsByValueScoped(value));
         }
         return Response.OK(this.applicationDAO.getAllApplicationsByValue(value));
     }

@@ -95,6 +95,17 @@ public class ApplicationDAO extends AbstractLinkedDAO<Application, ApplicationCo
         return getList(customerId -> this.mapper.getAllApplicationsByValue(customerId, "%" + value + "%"));
     }
 
+    /** Folder administrator's library: only the apps used by the folders the current user reaches. */
+    public List<Application> getAllApplicationsScoped() {
+        return getListWithCurrentUser(u -> this.mapper.getAllApplicationsScoped(u.getCustomerId(), u.getId()));
+    }
+
+    /** Same as {@link #getAllApplicationsByValue}, but narrowed to the current folder administrator's folders. */
+    public List<Application> getAllApplicationsByValueScoped(String value) {
+        return getListWithCurrentUser(
+                u -> this.mapper.getAllApplicationsByValueScoped(u.getCustomerId(), "%" + value + "%", u.getId()));
+    }
+
     public List<Application> getAllApplicationsByUrl(String url) {
         List<Application> appList = getList(customerId -> this.mapper.getAllApplicationsByUrl(customerId, url));
         if (appList == null || appList.size() == 0) {
