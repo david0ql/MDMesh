@@ -82,6 +82,12 @@ public class AnnouncementResource {
     public Response list() {
         Optional<Integer> c = SecurityContext.get().getCurrentCustomerId();
         if (!c.isPresent()) return Response.PERMISSION_DENIED();
+        if (scope.restricted()) {
+            Integer userId = SecurityContext.get().getCurrentUser().map(u -> u.getId()).orElse(null);
+            if (userId == null) return Response.PERMISSION_DENIED();
+            // Only announcements that reach the user's own folders/devices; counts cover those devices only.
+            return Response.OK(mapper.listForUser(c.get(), userId));
+        }
         return Response.OK(mapper.list(c.get()));
     }
 
@@ -97,6 +103,13 @@ public class AnnouncementResource {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("announcement", a);
         List<Map<String, Object>> receipts = mapper.receipts(id);
+        // A folder administrator only sees the receipts of their own devices, and may not open an announcement
+        // that reaches none of them (so an id they don't own looks like it doesn't exist).
+        if (scope.restricted()) {
+            Set<String> visible = scope.deviceNumbers();
+            receipts.removeIf(r -> visible == null || !visible.contains(String.valueOf(r.get("devicenumber"))));
+            if (receipts.isEmpty()) return Response.ERROR("error.announcement.notFound");
+        }
         // Phones whose agent predates announcements hold them until the agent is updated: say so.
         for (Map<String, Object> r : receipts) {
             String n = String.valueOf(r.get("devicenumber"));

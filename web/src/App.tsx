@@ -36,11 +36,11 @@ export default function App() {
               <Route path="/devices/:id" element={<DeviceDetailPage />} />
               <Route path="/map" element={<FleetMapPage />} />
               <Route path="/groups" element={<GroupsPage />} />
-              <Route path="/apps" element={<AdminOnly><AppsPage /></AdminOnly>} />
+              <Route path="/apps" element={<RequirePermission name="applications"><AppsPage /></RequirePermission>} />
               <Route path="/configs" element={<RequirePermission name="configurations"><ConfigurationsPage /></RequirePermission>} />
               <Route path="/announcements" element={<AnnouncementsPage />} />
-              <Route path="/reports" element={<AdminOnly><ReportsPage /></AdminOnly>} />
-              <Route path="/scripts" element={<AdminOnly><ScriptsPage /></AdminOnly>} />
+              <Route path="/reports" element={<RequirePermission name="manage_fleet"><ReportsPage /></RequirePermission>} />
+              <Route path="/scripts" element={<RequirePermission name="manage_scripts"><ScriptsPage /></RequirePermission>} />
               <Route path="/enroll" element={<EnrollPage />} />
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
               <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />

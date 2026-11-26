@@ -36,7 +36,9 @@ public interface ConfigurationMapper {
             "INNER JOIN users ON users.id = #{userId} " +
             "LEFT JOIN userConfigurationAccess access ON configurations.id = access.configurationId AND access.userId = users.id " +
             "WHERE configurations.customerId=#{customerId} " +
-            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL) " +
+            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL " +
+            "     OR configurations.id IN (SELECT g.configurationId FROM groups g " +
+            "        INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = g.id WHERE uda.userId = users.id)) " +
             "ORDER BY configurations.name"})
     List<Configuration> getAllConfigurations(@Param("customerId") int customerId, @Param("userId") int userId);
 
@@ -45,7 +47,9 @@ public interface ConfigurationMapper {
             "INNER JOIN users ON users.id = #{userId} " +
             "LEFT JOIN userConfigurationAccess access ON configurations.id = access.configurationId AND access.userId = users.id " +
             "WHERE configurations.customerId=#{customerId} " +
-            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL) " +
+            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL " +
+            "     OR configurations.id IN (SELECT g.configurationId FROM groups g " +
+            "        INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = g.id WHERE uda.userId = users.id)) " +
             "AND (configurations.name ILIKE #{value} OR configurations.description ILIKE #{value}) " +
             "ORDER BY configurations.name"})
     List<Configuration> getAllConfigurationsByValue(@Param("customerId") int customerId,
@@ -57,7 +61,9 @@ public interface ConfigurationMapper {
             "INNER JOIN users ON users.id = #{userId} " +
             "LEFT JOIN userConfigurationAccess access ON configurations.id = access.configurationId AND access.userId = users.id " +
             "WHERE configurations.customerId=#{customerId} " +
-            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL) " +
+            "AND (users.allConfigAvailable = TRUE OR NOT access.id IS NULL " +
+            "     OR configurations.id IN (SELECT g.configurationId FROM groups g " +
+            "        INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = g.id WHERE uda.userId = users.id)) " +
             "AND configurations.id=#{configurationId} " +
             "LIMIT 1 "})
     Configuration checkConfigurationAccess(@Param("customerId") int customerId,

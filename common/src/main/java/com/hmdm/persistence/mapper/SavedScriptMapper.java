@@ -52,6 +52,11 @@ public interface SavedScriptMapper {
     @Select({"SELECT * FROM savedScript WHERE customerId = #{customerId} ORDER BY quickAction DESC, name ASC"})
     List<SavedScript> list(@Param("customerId") int customerId);
 
+    /** Folder-scoped variant: only the scripts this user authored (so a folder editor sees just their own). */
+    @Select({"SELECT * FROM savedScript WHERE customerId = #{customerId} AND createdBy = #{createdBy} " +
+            "ORDER BY quickAction DESC, name ASC"})
+    List<SavedScript> listByCreator(@Param("customerId") int customerId, @Param("createdBy") int createdBy);
+
     @Select({"SELECT * FROM savedScript WHERE id = #{id} AND customerId = #{customerId}"})
     SavedScript findById(@Param("customerId") int customerId, @Param("id") int id);
 

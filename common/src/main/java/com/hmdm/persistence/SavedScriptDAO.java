@@ -54,6 +54,10 @@ public class SavedScriptDAO {
         return mapper.list(customerId);
     }
 
+    public List<SavedScript> listByCreator(int customerId, int createdBy) {
+        return mapper.listByCreator(customerId, createdBy);
+    }
+
     public SavedScript findById(int customerId, int id) {
         return mapper.findById(customerId, id);
     }

@@ -119,6 +119,12 @@ public class ScriptsResource {
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
         }
+        // A folder editor sees only the scripts they authored (their folder's quick actions); admins see all.
+        if (scope.restricted()) {
+            Integer userId = SecurityContext.get().getCurrentUser().map(User::getId).orElse(null);
+            if (userId == null) return Response.PERMISSION_DENIED();
+            return Response.OK(scriptDAO.listByCreator(customerId.get(), userId));
+        }
         return Response.OK(scriptDAO.list(customerId.get()));
     }
 

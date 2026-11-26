@@ -242,7 +242,7 @@ public class ReportsResource {
         final int c = customerId.get();
         final ReportData data;
         try {
-            data = build(rep, c, days, from, to, pkg, pkgs, minutes, limit);
+            data = scoped(build(rep, c, days, from, to, pkg, pkgs, minutes, limit));
         } catch (Exception e) {
             logger.warn("Report export {} failed for customer {}", reportName, c, e);
             return javax.ws.rs.core.Response.status(500).build();
@@ -507,17 +507,33 @@ public class ReportsResource {
 
     // --- shared helpers ------------------------------------------------------------------------------------------
 
-    /** Reader = a full administrator of a customer. Folder administrators are refused (the module is fleet-wide). */
+    /**
+     * Reader = any signed-in user of a customer. Full administrators see the whole fleet; folder administrators
+     * are allowed too, but every report they get is narrowed to their own devices by {@link #scoped} (a report row
+     * that carries a device number is dropped unless that device is in {@link UserScope#deviceNumbers()}).
+     */
     private Optional<Integer> reader() {
-        Optional<Integer> customerId = SecurityContext.get() == null ? Optional.empty()
+        return SecurityContext.get() == null ? Optional.empty()
                 : SecurityContext.get().getCurrentCustomerId();
-        if (!customerId.isPresent()) return Optional.empty();
-        if (scope != null && scope.restricted()) {
-            logger.warn("Reportes denied to folder administrator {}",
-                    SecurityContext.get().getCurrentUserName());
-            return Optional.empty();
+    }
+
+    /**
+     * Narrow a report to the devices the signed-in user may reach. For a folder administrator, keep only the rows
+     * whose device number is in their scope; rows that carry no device number (package-level aggregates such as
+     * app-installs or apps-catalog) are left as-is — those report fleet-wide counts, not other folders' devices.
+     */
+    private ReportData scoped(ReportData d) {
+        if (scope == null || !scope.restricted()) return d;
+        java.util.Set<String> visible = scope.deviceNumbers();
+        if (visible == null) return d;
+        List<Map<String, Object>> kept = new ArrayList<>();
+        for (Map<String, Object> row : d.rows) {
+            Object num = row.containsKey("number") ? row.get("number")
+                    : (row.containsKey("devicenumber") ? row.get("devicenumber") : null);
+            if (num == null) { kept.add(row); continue; } // aggregate row (no device): no device leak
+            if (visible.contains(String.valueOf(num))) kept.add(row);
         }
-        return customerId;
+        return new ReportData(d.report, d.title, d.columns, kept);
     }
 
     private interface Builder {
@@ -528,7 +544,7 @@ public class ReportsResource {
         Optional<Integer> customerId = reader();
         if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
         try {
-            return Response.OK(toMap(b.build(customerId.get())));
+            return Response.OK(toMap(scoped(b.build(customerId.get()))));
         } catch (Exception e) {
             logger.warn("Report failed for customer {}", customerId.get(), e);
             return Response.ERROR("error.report.failed");

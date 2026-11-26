@@ -29,6 +29,22 @@ public interface AnnouncementMapper {
             "WHERE a.customerId = #{customerId} GROUP BY a.id ORDER BY a.createdAt DESC LIMIT 200"})
     List<Map<String, Object>> list(@Param("customerId") int customerId);
 
+    /**
+     * Folder-scoped variant of {@link #list}: only announcements that reach at least one of the user's own devices
+     * (through {@code userDeviceGroupsAccess}), and the receipt counts reflect only those devices — never devices in
+     * other folders.
+     */
+    @Select({"SELECT a.id, a.title, a.body, a.mediaUrl, a.mediaType, a.mandatory, a.targetLabel, a.createdBy, a.createdAt, " +
+            "a.expiresAt, a.withdrawnAt, " +
+            "count(r.deviceNumber) AS total, count(r.receivedAt) AS received, count(r.seenAt) AS seen, count(r.ackAt) AS acked " +
+            "FROM announcement a LEFT JOIN announcement_receipt r ON r.announcementId = a.id " +
+            "AND r.deviceNumber IN (SELECT d.number FROM devices d " +
+            "    INNER JOIN deviceGroups dg ON dg.deviceId = d.id " +
+            "    INNER JOIN userDeviceGroupsAccess uda ON uda.groupId = dg.groupId WHERE uda.userId = #{userId}) " +
+            "WHERE a.customerId = #{customerId} GROUP BY a.id HAVING count(r.deviceNumber) > 0 " +
+            "ORDER BY a.createdAt DESC LIMIT 200"})
+    List<Map<String, Object>> listForUser(@Param("customerId") int customerId, @Param("userId") int userId);
+
     @Select({"SELECT * FROM announcement WHERE id = #{id} AND customerId = #{customerId}"})
     Map<String, Object> find(@Param("customerId") int customerId, @Param("id") int id);
 
