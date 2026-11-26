@@ -76,7 +76,16 @@ public class UserScopeFilter implements Filter {
             new Rule("GET", "/configurations/search", null),
             new Rule("GET", "/configurations/(\\d+)", null),
             new Rule("GET", "/configurations/applications/(\\d+)", null),
+            new Rule("GET", "/configurations/(\\d+)/history", null),          // policy change history (resource checks access)
+            new Rule("PUT", "/configurations", null),                        // create/edit: resource checks add_config / hasConfigurationAccess (theirs only); creator auto-granted
+            new Rule("DELETE", "/configurations/(\\d+)", null),              // delete: resource checks copy_config + hasConfigurationAccess
+            new Rule("GET", "/agent/v1/configurations/(\\d+)/compliance", null), // non-compliance list (resource scopes)
             new Rule("GET", "/applications(/.*)?", null),
+            new Rule("POST", "/applications/configurations", null),          // link apps to a policy (version-0 guard; resource checks access)
+            new Rule("GET", "/reports/v1(/.*)?", null),                      // reports: resource scopes each row to the user's own devices
+            new Rule("GET PUT", "/scripts", null),                          // scripts: list scoped to creator; authoring checks manage_scripts
+            new Rule("DELETE", "/scripts/(\\d+)", null),                    // delete script: resource checks manage_scripts
+            new Rule("POST", "/scripts/(\\d+)/run", null),                  // run script: resource checks edit_devices + per-device scope
             // Announcements: folder roles may view and send; the resource limits recipients to the user's folders.
             new Rule("GET", "/announcements", null),
             new Rule("GET", "/announcements/(\\d+)", null),

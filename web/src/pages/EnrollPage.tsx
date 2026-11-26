@@ -3,6 +3,8 @@ import { AppShell } from '../ui/AppShell';
 import { IconCopy } from '../ui/icons';
 import { useToast } from '../ui/toast';
 import { mintEnrollToken } from '../api/enroll';
+import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin } from '../api/auth';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
 import { ApiError } from '../api/client';
 import { fmtDateTime } from '../ui/format';
@@ -28,6 +30,7 @@ type Mode = 'qr' | 'token' | 'codes' | 'noreset' | 'usb';
 
 export function EnrollPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [mode, setMode] = useState<Mode>('qr');
   const [token, setToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | undefined>();
@@ -63,11 +66,19 @@ export function EnrollPage() {
   }, [cfgId, configs]);
 
   async function generate() {
+    const gid = Number(groupId);
+    const validGroup = Number.isFinite(gid) && gid > 0;
+    // A folder editor can only enroll into one of their own folders; the server refuses an unscoped token. Guide
+    // them to pick a folder instead of surfacing a raw "permiso denegado".
+    if (isFolderAdmin(user) && !validGroup) {
+      setToken(null);
+      setTokError('Selecciona una de tus carpetas para generar el código de inscripción.');
+      return;
+    }
     setBusy(true);
     setTokError(null);
     try {
-      const gid = Number(groupId);
-      const res = await mintEnrollToken({ groupId: Number.isFinite(gid) && gid > 0 ? gid : undefined });
+      const res = await mintEnrollToken({ groupId: validGroup ? gid : undefined });
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
