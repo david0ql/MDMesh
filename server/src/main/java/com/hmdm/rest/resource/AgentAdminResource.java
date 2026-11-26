@@ -848,14 +848,22 @@ public class AgentAdminResource {
         if (from == null || to == null || to < from || to - from > FLEET_MAP_MAX_RANGE_MILLIS) {
             return Response.ERROR("error.agent.locations.range");
         }
-        List<com.hmdm.persistence.domain.DeviceLocation> fixes =
-                commandDAO.listFleetLocations(customerId.get(), from, to, FLEET_MAP_MAX_FIXES + 1);
+        // A folder editor must be scoped IN THE QUERY, before the fix cap — otherwise a long range fills the cap with
+        // other folders' fixes and the per-device filter below drops them all, leaving the map empty.
+        java.util.Set<String> visible = scope.deviceNumbers();
+        List<com.hmdm.persistence.domain.DeviceLocation> fixes;
+        if (scope.restricted()) {
+            fixes = (visible == null || visible.isEmpty())
+                    ? java.util.Collections.emptyList()
+                    : commandDAO.listFleetLocationsScoped(customerId.get(), from, to, FLEET_MAP_MAX_FIXES + 1, String.join(",", visible));
+        } else {
+            fixes = commandDAO.listFleetLocations(customerId.get(), from, to, FLEET_MAP_MAX_FIXES + 1);
+        }
         boolean truncated = fixes.size() > FLEET_MAP_MAX_FIXES;
         if (truncated) {
             fixes = fixes.subList(0, FLEET_MAP_MAX_FIXES);
         }
         Map<String, Map<String, Object>> byDevice = new LinkedHashMap<>();
-        java.util.Set<String> visible = scope.deviceNumbers();
         for (com.hmdm.persistence.domain.DeviceLocation f : fixes) {
             if (visible != null && !visible.contains(f.getDeviceNumber())) continue;
             Map<String, Object> entry = byDevice.computeIfAbsent(f.getDeviceNumber(), n -> {

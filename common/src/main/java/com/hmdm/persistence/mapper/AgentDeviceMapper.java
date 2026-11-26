@@ -121,6 +121,17 @@ public interface AgentDeviceMapper {
     List<DeviceLocation> listFleetLocations(@Param("customerId") int customerId, @Param("from") long from,
                                             @Param("to") long to, @Param("limit") int limit);
 
+    /** Same as {@link #listFleetLocations} but restricted to a folder editor's own devices, so the {@code LIMIT}
+     *  (the map's fix cap) is applied AFTER narrowing to their devices — otherwise a long range fills the cap with
+     *  other folders' fixes and the per-folder filter then drops them all, showing nothing. {@code devs} is a
+     *  comma-separated list of device numbers. */
+    @Select({"SELECT l.* FROM device_location l JOIN devices d ON d.number = l.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND d.number = ANY(string_to_array(#{devs}, ',')) " +
+            "AND l.capturedAt BETWEEN #{from} AND #{to} " +
+            "ORDER BY l.deviceNumber, l.capturedAt LIMIT #{limit}"})
+    List<DeviceLocation> listFleetLocationsScoped(@Param("customerId") int customerId, @Param("from") long from,
+                                                  @Param("to") long to, @Param("limit") int limit, @Param("devs") String devs);
+
     // --- Connection history (device_connection): a session lasts while check-ins keep coming within the gap ---
 
     @Update({"UPDATE device_connection SET lastSeenAt = #{now} WHERE id = (SELECT id FROM device_connection " +

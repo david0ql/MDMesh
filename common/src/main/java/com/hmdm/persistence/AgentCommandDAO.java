@@ -215,6 +215,12 @@ public class AgentCommandDAO {
         return deviceMapper.listFleetLocations(customerId, from, to, limit);
     }
 
+    /** Fleet fixes narrowed to a folder editor's own devices (the cap applies after scoping). */
+    public java.util.List<com.hmdm.persistence.domain.DeviceLocation> listFleetLocationsScoped(
+            int customerId, long from, long to, int limit, String devs) {
+        return deviceMapper.listFleetLocationsScoped(customerId, from, to, limit, devs);
+    }
+
     // --- App versions ---
 
     /**
