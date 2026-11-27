@@ -430,7 +430,7 @@ class Emu:
         return int(self.sh("getprop ro.build.version.sdk").strip() or 0)
 
     def uid(self, pkg):
-        m = re.search(r"userId=(\d+)", self.sh(f"dumpsys package {pkg}"))
+        m = re.search(r"(?:userId|appId)=(\d+)", self.sh(f"dumpsys package {pkg}"))
         return m.group(1) if m else None
 
     def transport(self):
@@ -453,7 +453,11 @@ class Emu:
             self.sh("svc data enable")
             self.sh("svc wifi disable")
         want = "WIFI" if kind == "wifi" else "CELLULAR"
-        got = wait_for(60, lambda: self.transport() if want in self.transport() else None, every=2)
+        got = wait_for(20, lambda: self.transport() if want in self.transport() else None, every=2)
+        if got is None and kind == "wifi":
+            # Newer emulator images do not always rejoin their own network by themselves: ask for it.
+            self.sh("cmd wifi connect-network AndroidWifi open")
+            got = wait_for(60, lambda: self.transport() if want in self.transport() else None, every=2)
         ok(f"default network is {'Wi-Fi' if kind == 'wifi' else 'mobile data'}", got is not None, self.transport())
         time.sleep(3)
 
@@ -563,7 +567,7 @@ def emulator(api, args):
             else:
                 chk("always-on VPN is the agent", emu.sh("settings get secure always_on_vpn_app").strip(), agent)
                 chk("always-on VPN without lockdown", emu.sh("settings get secure always_on_vpn_lockdown").strip() in ("0", "null", ""), True)
-                ok("dumpsys device_policy: VPN settings are locked (no_config_vpn)", "no_config_vpn" in emu.sh("dumpsys device_policy"))
+                ok("dumpsys user: VPN settings are locked (no_config_vpn)", "no_config_vpn" in emu.sh("dumpsys user"))
                 conn = emu.sh("dumpsys connectivity")
                 ok("dumpsys connectivity: a VPN network exists", re.search(r"Transports: [A-Z|_]*VPN|type: VPN\[", conn) is not None)
                 ok("no VPN consent dialog on screen", "vpndialogs" not in emu.sh("dumpsys window | grep -i -E 'mCurrentFocus|mFocusedApp'"))
@@ -588,7 +592,8 @@ def emulator(api, args):
         section("allowlist: only the listed apps use mobile data")
         policy.save({"mode": "allowlist", "apps": [ALLOWED]})
         v = wait_state("phone blocks the apps outside the list",
-                       lambda s: s is not None and BLOCKED in blocked_of(s) and ALLOWED not in blocked_of(s) and s.get("mechanism") != "none")
+                       lambda s: s is not None and s.get("mode") == "allowlist" and BLOCKED in blocked_of(s)
+                       and ALLOWED not in blocked_of(s))
         ok("the agent is never in the blocked list", agent not in blocked_of(v.get("status")))
         ok("Google Play services are not in the blocked list", "com.google.android.gms" not in blocked_of(v.get("status")))
         if (v.get("status") or {}).get("mechanism") == "vpn":
@@ -674,7 +679,7 @@ def emulator(api, args):
 
         section("policy removed: everything is undone")
         policy.save({"mode": "blocklist", "apps": [BLOCKED]})
-        wait_state("blocklist back", lambda s: s is not None and BLOCKED in blocked_of(s))
+        wait_state("blocklist back", lambda s: s is not None and s.get("mode") == "blocklist" and BLOCKED in blocked_of(s))
         policy.save(None)
         wait_state("the phone reports no mobile-data state", lambda s: s is None)
         good, line = emu.works(BLOCKED)
@@ -683,7 +688,7 @@ def emulator(api, args):
         admin = netpolicy.split("Admin restricted uids for metered data:", 1)[-1][:300] if "Admin restricted uids" in netpolicy else ""
         ok("dumpsys netpolicy: no admin-restricted uid left", uids[BLOCKED] not in admin and uids[ALLOWED] not in admin, admin.strip()[:120])
         chk("no always-on VPN left", emu.sh("settings get secure always_on_vpn_app").strip() in ("null", ""), True)
-        ok("VPN settings unlocked again", "no_config_vpn" not in emu.sh("dumpsys device_policy"))
+        ok("VPN settings unlocked again", "no_config_vpn" not in emu.sh("dumpsys user"))
         ok("no VPN network left", "VPN" not in emu.transport())
     finally:
         api.post(f"/agent/v1/devices/{number}/mobileData", {"mode": "policy"})

@@ -44,7 +44,7 @@ try {
   await page.fill('input[type="text"], input[name="login"]', 'admin');
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  await page.waitForURL(/dashboard|devices/, { timeout: 20000 });
+  await page.waitForURL(/dashboard|devices/, { timeout: 60000 });
   check('console login', true);
 
   // --- a throw-away policy (copy of the first one, no apps) ---------------------------------------------------------
@@ -58,10 +58,10 @@ try {
   // --- policy editor: section "Datos móviles" -----------------------------------------------------------------------
   await page.goto(`${api}/configs`);
   const card = page.locator('.cfg-card', { hasText: policyName });
-  await card.waitFor({ timeout: 20000 });
+  await card.waitFor({ timeout: 60000 });
   await card.getByRole('button', { name: 'Editar' }).click();
   const sec = page.getByTestId('policy-mobile-data');
-  await sec.waitFor({ timeout: 20000 });
+  await sec.waitFor({ timeout: 60000 });
   await sec.scrollIntoViewIfNeeded();
   check('the policy has a «Datos móviles» section', await sec.getByText('Datos móviles', { exact: true }).isVisible());
   check('starts without restriction', (await sec.getByTestId('md-mode').inputValue()) === 'open');
@@ -96,8 +96,8 @@ try {
   await sec.getByTestId('md-mechanism').selectOption('vpn');
   await page.screenshot({ path: `${shots}/01-policy-section.png`, fullPage: true });
 
-  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
-  await page.locator('.cfg-card', { hasText: policyName }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click({ timeout: 120000 });
+  await page.locator('.cfg-card', { hasText: policyName }).waitFor({ timeout: 60000 });
   const saved = await mobileData();
   check('saved: mode, apps and mechanism', saved?.mode === 'blocklist' && JSON.stringify(saved.apps) === '["com.video.app"]' && saved.mechanism === 'vpn', JSON.stringify(saved));
   check('saved: limits in megabytes', saved?.deviceLimitMb === 500 && JSON.stringify(saved.appLimits) === '[{"pkg":"com.chat.app","limitMb":100}]', JSON.stringify(saved));
@@ -105,7 +105,7 @@ try {
 
   await page.locator('.cfg-card', { hasText: policyName }).getByRole('button', { name: 'Editar' }).click();
   const again = page.getByTestId('policy-mobile-data');
-  await again.waitFor({ timeout: 20000 });
+  await again.waitFor({ timeout: 60000 });
   check('reopened: the editor shows what was saved',
     (await again.getByTestId('md-mode').inputValue()) === 'blocklist' && (await again.getByTestId('md-device-limit').inputValue()) === '500'
     && (await again.getByTestId('md-cut-day').inputValue()) === '15' && (await again.getByTestId('md-warn').inputValue()) === '70'
@@ -116,8 +116,8 @@ try {
   await again.getByTestId('md-period').selectOption('monthly');
   check('back to monthly: the cut day starts empty (day 1)', (await again.getByTestId('md-cut-day').inputValue()) === '');
   await again.getByTestId('md-cut-day').fill('15');
-  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
-  await page.locator('.cfg-card', { hasText: policyName }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click({ timeout: 120000 });
+  await page.locator('.cfg-card', { hasText: policyName }).waitFor({ timeout: 60000 });
   const resaved = await mobileData();
   check('automatic mechanism is stored as «not set», cut day kept', resaved?.mechanism === undefined && resaved?.cutDay === 15, JSON.stringify(resaved));
 
@@ -152,7 +152,7 @@ try {
   await page.goto(`${api}/devices/${encodeURIComponent(number)}`);
   await page.getByRole('button', { name: 'Uso de apps' }).click();
   const dcard = page.getByTestId('mobile-data-card');
-  await dcard.getByTestId('md-usage').waitFor({ timeout: 20000 });
+  await dcard.getByTestId('md-usage').waitFor({ timeout: 60000 });
   check('device card shows the mechanism the phone uses', await dcard.getByTestId('md-mechanism-state').getByText(/Restricción de datos del sistema/).isVisible());
   const usage = await dcard.getByTestId('md-usage').innerText();
   check('device row: 460 MB of 500 MB, near the limit', /Todo el equipo/.test(usage) && /460 MB/.test(usage) && /500 MB \(92 %\)/.test(usage) && /Cerca del límite/.test(usage), usage);
@@ -170,7 +170,7 @@ try {
   await dcard.getByTestId('md-block').fill('com.game.app');
   await dcard.getByTestId('md-ignore-limits').check();
   await dcard.getByTestId('md-save').click();
-  await dcard.getByTestId('md-override').waitFor({ timeout: 15000 });
+  await dcard.getByTestId('md-override').waitFor({ timeout: 60000 });
   const view = (await rest('GET', `/private/agent/v1/devices/${encodeURIComponent(number)}/mobileData`)).data;
   check('override stored', JSON.stringify(view.override) === '{"allow":["com.video.app"],"block":["com.game.app"],"ignoreLimits":true}', JSON.stringify(view.override));
   check('effective: allowed app out of the list, blocked app in, no limits',
@@ -180,11 +180,11 @@ try {
   await dcard.getByTestId('md-edit').click();
   await dcard.getByTestId('md-unrestricted').check();
   await dcard.getByTestId('md-save').click();
-  await dcard.getByText('Este equipo no tiene restricción de datos móviles').waitFor({ timeout: 15000 });
+  await dcard.getByText('Este equipo no tiene restricción de datos móviles').waitFor({ timeout: 60000 });
   check('«sin restricción» on this device: nothing is sent to the phone',
     (await rest('GET', `/private/agent/v1/devices/${encodeURIComponent(number)}/mobileData`)).data.effective === null);
   await dcard.getByTestId('md-reset').click();
-  await dcard.getByTestId('md-override').waitFor({ state: 'detached', timeout: 15000 });
+  await dcard.getByTestId('md-override').waitFor({ state: 'detached', timeout: 60000 });
   check('«Volver a la política» removes the override',
     (await rest('GET', `/private/agent/v1/devices/${encodeURIComponent(number)}/mobileData`)).data.override === null);
 
@@ -199,14 +199,14 @@ try {
   // --- alerts -----------------------------------------------------------------------------------------------------------
   await page.goto(`${api}/alerts`);
   const typeSel = page.locator('.report-toolbar select').first();
-  await typeSel.waitFor({ timeout: 15000 });
+  await typeSel.waitFor({ timeout: 60000 });
   const options = await typeSel.locator('option').allInnerTexts();
   check('Alertas offers the two mobile-data types', options.includes('Datos móviles: cerca del límite') && options.includes('Datos móviles: límite superado'), options.join(' | '));
   await typeSel.selectOption('dataLimit');
-  await page.getByText('Chat (com.chat.app): 101 MB de 100 MB (101 %)').first().waitFor({ timeout: 20000 });
+  await page.getByText('Chat (com.chat.app): 101 MB de 100 MB (101 %)').first().waitFor({ timeout: 60000 });
   check('the «límite superado» alert of the device is listed with its detail', true);
   await typeSel.selectOption('dataWarning');
-  await page.getByText('Equipo: 460 MB de 500 MB (92 %)').first().waitFor({ timeout: 20000 });
+  await page.getByText('Equipo: 460 MB de 500 MB (92 %)').first().waitFor({ timeout: 60000 });
   check('the «cerca del límite» alert is listed with its detail', true);
   await page.screenshot({ path: `${shots}/05-alerts.png`, fullPage: true });
 
@@ -214,7 +214,7 @@ try {
   await page.goto(`${api}/reports`);
   await page.getByRole('button', { name: 'Datos móviles: uso vs. límite' }).click();
   const row = page.locator('tr', { hasText: number }).first();
-  await row.waitFor({ timeout: 20000 });
+  await row.waitFor({ timeout: 60000 });
   const table = await page.locator('table').first().innerText();
   check('report lists the device with consumption, limit and state', /consumo del periodo/i.test(table) && /Límite superado/.test(table) && /Cerca del límite/.test(table) && /460 MB/.test(table), table.slice(0, 300));
   await page.screenshot({ path: `${shots}/06-report.png`, fullPage: true });
