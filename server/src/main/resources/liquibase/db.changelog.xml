@@ -3438,4 +3438,66 @@
         </rollback>
     </changeSet>
 
+    <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
+         still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
+         where the grant already exists. -->
+    <changeSet id="26.11.27-manage-users-by-role-id" author="dallycontrol">
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (2, 3) AND p.name = 'manage_users'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-device-conn-diag" author="dallycontrol">
+        <comment>Connection diagnostics per device (device_connection is the presence history, another thing): screen/network as of the last report, the last network failure
+                 and the last explained silence reported by the agent (console: "Última falla de conexión", "En reposo").</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_conn_diag (
+                deviceNumber    VARCHAR(255) PRIMARY KEY,
+                updatedAt       BIGINT NOT NULL,
+                screenOn        BOOLEAN,
+                network         VARCHAR(16),
+                serverHost      VARCHAR(255),
+                usingBackup     BOOLEAN,
+                reconnects      BIGINT NOT NULL DEFAULT 0,
+                failureKind     VARCHAR(16),
+                failureAt       BIGINT,
+                failureDetail   VARCHAR(400),
+                failureHttpCode INT,
+                failureChannel  VARCHAR(16),
+                failureNetwork  VARCHAR(16),
+                failureSsid     VARCHAR(64),
+                failureHost     VARCHAR(255),
+                failureIssuer   VARCHAR(400),
+                failureCount    INT,
+                stopReason      VARCHAR(24),
+                stopAt          BIGINT,
+                stopResumedAt   BIGINT,
+                stopBattery     INT
+            );
+        </sql>
+        <sql splitStatements="false">
+            -- Own trigger (not the shared dallycontrol_delete_device_agent_data): deleting a device drops its diagnostics.
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_conn_diag() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM device_conn_diag WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <sql>
+            DROP TRIGGER IF EXISTS devices_delete_conn_diag ON devices;
+            CREATE TRIGGER devices_delete_conn_diag AFTER DELETE ON devices
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_delete_device_conn_diag();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS devices_delete_conn_diag ON devices;
+            DROP FUNCTION IF EXISTS dallycontrol_delete_device_conn_diag();
+            DROP TABLE IF EXISTS device_conn_diag;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

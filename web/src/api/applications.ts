@@ -1,4 +1,5 @@
-import { apiClient } from './client';
+import { ApiError, apiClient } from './client';
+import { AAB_MESSAGE, CHUNKED_THRESHOLD, uploadInParts, type UploadAs, type UploadProgress } from './chunkedUpload';
 
 // Applications library — see com.hmdm.rest.resource.ApplicationResource (@Path /private/applications).
 // All responses use the {status,data} envelope (apiClient unwraps to data).
@@ -87,8 +88,34 @@ export async function addApplicationVersion(v: {
   applicationId: number; version?: string; versionCode?: number; url: string;
   /** Split-bundle parts as a JSON string (see [Application.parts]). */
   parts?: string;
-}): Promise<ApplicationVersion> {
-  return apiClient.put<ApplicationVersion>('/private/applications/versions', v);
+}, confirmSignatureChange = false): Promise<ApplicationVersion> {
+  // The server refuses a version signed with another certificate than the previous one unless this is confirmed.
+  return apiClient.put<ApplicationVersion>(
+    `/private/applications/versions${confirmSignatureChange ? '?confirmSignatureChange=true' : ''}`, v);
+}
+
+/**
+ * Whether an uploaded APK is signed like the version of the same package already in the Library. Android only
+ * updates an app with an APK of the same certificate, so "changed" means the update will fail on the phones.
+ */
+export interface SignatureVerdict {
+  status: 'first' | 'same' | 'changed' | 'unknown';
+  changed: boolean;
+  newSha256?: string | null;
+  previousSha256?: string | null;
+  previousVersion?: string | null;
+  /** The warning to show, when changed. */
+  message?: string;
+}
+
+/**
+ * Ask before going on with an APK whose signature changed. True = go on (nothing changed, or the person confirmed).
+ */
+export function confirmSignatureChange(sig: SignatureVerdict | null | undefined): boolean {
+  if (!sig?.changed) return true;
+  return window.confirm(
+    `⚠ La firma del APK cambió\n\n${sig.message ?? 'Este APK está firmado con otro certificado que la versión anterior.'}`
+    + '\n\n¿Agregar esta versión de todos modos?');
 }
 
 export async function getVersions(appId: number): Promise<ApplicationVersion[]> {
@@ -136,6 +163,8 @@ export interface FileUploadResult {
   fileDetails?: ApkFileDetails;
   exists?: boolean;
   complete?: boolean;
+  /** Signed like the version already in the Library? */
+  signature?: SignatureVerdict | null;
 }
 
 export interface UploadedFileView {
@@ -147,10 +176,25 @@ export interface UploadedFileView {
 }
 
 /** Upload an APK; the server parses it and returns its package/version details. */
-export async function uploadApk(file: File): Promise<FileUploadResult> {
+export async function uploadApk(file: File, onProgress?: (p: UploadProgress) => void): Promise<FileUploadResult> {
+  return uploadWhole<FileUploadResult>(file, 'apk', '/private/web-ui-files', onProgress);
+}
+
+/**
+ * One request for a small file; in parts for a big one (the tunnel in front of the server refuses bodies over
+ * 100 MB) — and also when the one request was refused for its size after all (HTTP 413).
+ */
+async function uploadWhole<T>(file: File, as: UploadAs, path: string, onProgress?: (p: UploadProgress) => void): Promise<T> {
+  if (file.name.toLowerCase().endsWith('.aab')) throw new ApiError(AAB_MESSAGE, 'ERROR', 0);
+  if (file.size >= CHUNKED_THRESHOLD) return uploadInParts<T>(file, as, onProgress);
   const form = new FormData();
   form.append('file', file, file.name);
-  return apiClient.postForm<FileUploadResult>('/private/web-ui-files', form);
+  try {
+    return await apiClient.postForm<T>(path, form);
+  } catch (e) {
+    if (e instanceof ApiError && e.httpStatus === 413) return uploadInParts<T>(file, as, onProgress);
+    throw e;
+  }
 }
 
 // --- Split-APK bundle upload (.xapk/.apks/.apkm/.zip) ------------------------
@@ -163,13 +207,13 @@ export interface BundleUploadResult {
   version?: string;
   versionCode: number;
   parts: { url: string; sha256: string; name: string }[];
+  /** Signed like the version already in the Library? */
+  signature?: SignatureVerdict | null;
 }
 
 /** Upload a split-APK bundle; the server unpacks it and returns the hosted parts. */
-export async function uploadBundle(file: File): Promise<BundleUploadResult> {
-  const form = new FormData();
-  form.append('file', file, file.name);
-  return apiClient.postForm<BundleUploadResult>('/private/web-ui-files/bundle', form);
+export async function uploadBundle(file: File, onProgress?: (p: UploadProgress) => void): Promise<BundleUploadResult> {
+  return uploadWhole<BundleUploadResult>(file, 'bundle', '/private/web-ui-files/bundle', onProgress);
 }
 
 /** Commit a just-uploaded temp file into the served files area; returns its url. */

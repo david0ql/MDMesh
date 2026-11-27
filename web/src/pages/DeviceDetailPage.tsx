@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
+import { connectionLabel, useConnectionStates } from '../ui/connection';
+import { ConnectionCard } from '../components/ConnectionCard';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -28,6 +30,7 @@ import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
+import { getDeviceInstallProblems, retryNote, type DeviceInstallProblem } from '../api/installStatus';
 
 type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
 
@@ -132,6 +135,7 @@ function freeOf(free: unknown, total: unknown): string {
 
 export function DeviceDetailPage() {
   useLiveDevices(); // a device with its live channel open shows connected
+  const connections = useConnectionStates();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
@@ -142,6 +146,8 @@ export function DeviceDetailPage() {
   const [tele, setTele] = useState<TelemetrySnapshot | null>(null);
   const [ds, setDs] = useState<DeviceState | null>(null);
   const [cfgStatus, setCfgStatus] = useState<ConfigStatus | null>(null);
+  // Installs of this device that are held back (not Device Owner…) or failed, with the reason.
+  const [installProblems, setInstallProblems] = useState<DeviceInstallProblem[]>([]);
   const [tab, setTab] = useState<Tab>('control');
   const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
@@ -196,6 +202,7 @@ export function DeviceDetailPage() {
         getTelemetry(device.number).then((v) => { if (on) setTele(v); }).catch(() => undefined),
         getDeviceState(device.number).then((v) => { if (on) setDs(v); }).catch(() => undefined),
         getConfigStatus(device.number).then((v) => { if (on) setCfgStatus(v); }).catch(() => undefined),
+        getDeviceInstallProblems(device.number).then((v) => { if (on) setInstallProblems(v ?? []); }).catch(() => undefined),
       ]);
       if (!on) return;
       t = setTimeout(() => void poll(), 5000);
@@ -293,7 +300,9 @@ export function DeviceDetailPage() {
   // Online/offline is recency of last check-in — NOT statusCode (which is config compliance and
   // stays green for a device that was factory-reset and stopped reporting).
   const online = isOnlineByRecency(device.lastUpdate, undefined, device.number);
-  const statusLabel = online ? 'En línea' : 'Sin conexión';
+  const connection = connections.get(device.number);
+  const conn = connectionLabel(online, connection);
+  const statusLabel = conn.hint ? `${conn.label} · ${conn.hint}` : conn.label;
 
   const statusRows: Row[] = [
     { k: 'Batería', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'cargando' : 'sin cargar'}`) : '—' },
@@ -378,7 +387,7 @@ export function DeviceDetailPage() {
         <aside className="panel detail-rail">
           <div className="top">
             <DeviceStatusIcon online={online} name={device.description || device.number} size={30} />
-            <span className={`st ${online ? 'on' : 'off'}`}>{statusLabel}</span>
+            <span className={`st ${online ? 'on' : conn.tone === 'resting' ? 'rest' : 'off'}`}>{statusLabel}</span>
             <span className="ago">· {fmtRelative(device.lastUpdate)}</span>
           </div>
           <h1>{device.number}</h1>
@@ -433,12 +442,31 @@ export function DeviceDetailPage() {
             </div>
           )}
 
+          {installProblems.filter((p) => p.state === 'held').length > 0 && (
+            <div className="banner banner-warn" role="alert" data-testid="install-held">
+              <b>Instalaciones retenidas ({installProblems.filter((p) => p.state === 'held').length}).</b>{' '}
+              {installProblems.find((p) => p.state === 'held')?.reason}
+              <div className="mono small" style={{ marginTop: 4 }}>
+                {installProblems.filter((p) => p.state === 'held').map((p) => p.packageName).join(', ')}
+              </div>
+            </div>
+          )}
+          {installProblems.filter((p) => p.state === 'failed').map((p) => (
+            <div className="banner banner-alert" role="alert" key={p.packageName} data-testid={`install-failed-${p.packageName}`}>
+              <b>No se pudo instalar <span className="mono">{p.packageName}</span>.</b> {p.reason}
+              <div className="small" style={{ marginTop: 4 }}>{retryNote(p)}</div>
+              {p.detail && <div className="mono small" style={{ marginTop: 4, wordBreak: 'break-word' }}>Respuesta del equipo: {p.detail}</div>}
+            </div>
+          ))}
+
           <DeviceScopeCard
             deviceId={device.id}
             onChanged={() => { void getConfigStatus(device.number).then(setCfgStatus).catch(() => undefined); }}
           />
 
           <ConfigStatusCard status={cfgStatus} />
+
+          <ConnectionCard connection={connection} />
         </aside>
 
         {/* RIGHT: work */}

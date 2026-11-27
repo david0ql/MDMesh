@@ -1,5 +1,6 @@
+import type { UploadProgress } from './chunkedUpload';
 import {
-  addApplicationVersion, commitUpload, getVersions, isNewVersion, listApplications, saveAndroidApplication, uniqueApkName, uploadApk,
+  addApplicationVersion, commitUpload, confirmSignatureChange, getVersions, isNewVersion, listApplications, saveAndroidApplication, uniqueApkName, uploadApk,
   type Application, type ApplicationVersion,
 } from './applications';
 import { listAppVersions, setVersionLabel } from './versions';
@@ -24,10 +25,16 @@ async function versionIdOf(appId: number, version: string | undefined, code: num
  * older one that is not there is refused — unless it goes into a group of builds ([intoGroup]: each policy uses the
  * build it is given, so an older code is just another build; the value is the group's package). [label] names the version. Returns the up-to-date Library app.
  */
-export async function uploadApkToLibrary(file: File, label?: string, intoGroup?: string): Promise<UploadOutcome> {
-  const up = await uploadApk(file);
+export async function uploadApkToLibrary(file: File, label?: string, intoGroup?: string,
+  onProgress?: (p: UploadProgress) => void): Promise<UploadOutcome> {
+  const up = await uploadApk(file, onProgress);
   const fd = up.fileDetails;
   if (!fd?.pkg) return { kind: 'error', note: 'No se pudo leer el paquete del APK.' };
+  // Signed with another certificate than the version already here: the phones would refuse the update.
+  const signatureChanged = !!up.signature?.changed;
+  if (!confirmSignatureChange(up.signature)) {
+    return { kind: 'error', note: 'No se agregó: la firma del APK no coincide con la de la versión anterior.' };
+  }
   if (intoGroup && fd.pkg !== intoGroup) {
     return { kind: 'error', note: `Ese APK es de otra app (${fd.pkg}); este grupo es de ${intoGroup}.` };
   }
@@ -50,7 +57,7 @@ export async function uploadApkToLibrary(file: File, label?: string, intoGroup?:
       if (!intoGroup) return { kind: 'error', note: `El versionCode ${vc} es menor que ${current} y esa versión no está en la Biblioteca.` };
     }
     if (!url) return { kind: 'error', note: 'No se pudo alojar el archivo en el servidor.' };
-    await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url });
+    await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url }, signatureChanged);
     const fresh = (await find()) ?? existing;
     const versionId = await versionIdOf(existing.id, fd.version, vc, label);
     return { kind: 'version', app: fresh, versionId, version: fd.version, note: `${fd.name || fd.pkg} ${fd.version ?? ''}: nueva versión (versionCode ${vc}).` };

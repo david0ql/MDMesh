@@ -156,46 +156,84 @@ public class DownloadFilesServlet extends HttpServlet {
 
     }
 
-    private void sendPartialContent(String rangeStr, File file, HttpServletResponse resp) {
-        try {
-            String[] range = rangeStr.split("-");
-            Long start = Long.parseLong(range[0]);
-            Long end = null;
-            if (range.length > 1) {
-                end = Long.parseLong(range[1]);
-            }
-            InputStream input = new FileInputStream(file);
-            ServletOutputStream outputStream = resp.getOutputStream();
-            long length = file.length();
-            if (end == null) {
-                end = length;
-            }
+    /**
+     * The byte range a {@code Range: bytes=<spec>} header asks for in a file of [length] bytes, as
+     * {first, last} (both inclusive); null when it cannot be satisfied (starts at or past the end: HTTP 416).
+     * Understands "a-b", "a-" and "-n" (the last n bytes); only the first range of a list is served.
+     *
+     * @throws IllegalArgumentException when the spec is not a byte range at all
+     */
+    static long[] parseRange(String spec, long length) {
+        String first = spec.split(",")[0].trim();
+        int dash = first.indexOf('-');
+        if (dash < 0) throw new IllegalArgumentException("not a range: " + spec);
+        String from = first.substring(0, dash).trim();
+        String to = first.substring(dash + 1).trim();
+        long start;
+        long end;
+        if (from.isEmpty()) {
+            long suffix = Long.parseLong(to);
+            if (suffix <= 0 || length == 0) return null;
+            start = Math.max(0, length - suffix);
+            end = length - 1;
+        } else {
+            start = Long.parseLong(from);
+            end = to.isEmpty() ? length - 1 : Math.min(Long.parseLong(to), length - 1);
+        }
+        if (start < 0 || start >= length || end < start) return null;
+        return new long[]{start, end};
+    }
 
+    /**
+     * Serves part of a file (HTTP 206): how the agent resumes a big APK whose download was cut. A range that starts
+     * at or past the end answers 416 with the file's size — the agent reads that as "I already have it all".
+     */
+    private void sendPartialContent(String rangeStr, File file, HttpServletResponse resp) {
+        long length = file.length();
+        long[] range;
+        try {
+            range = parseRange(rangeStr, length);
+        } catch (RuntimeException e) {
+            range = new long[]{0, Math.max(0, length - 1)}; // not a byte range: the whole file
+        }
+        try {
+            if (range == null || length == 0) {
+                resp.setStatus(416);
+                resp.setHeader("Content-Range", "bytes */" + length);
+                return;
+            }
+            long start = range[0];
+            long end = range[1];
+            long contentLength = end - start + 1;
             resp.setStatus(206);
             // Same guard as a full download: a hosted file is never rendered inline from this origin.
             resp.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName().replaceAll("[\"\\\\\r\n]", "_") + "\"");
             resp.setHeader("X-Content-Type-Options", "nosniff");
+            resp.setHeader("Accept-Ranges", "bytes");
             if (resp.getContentType() == null) {
                 resp.setContentType("application/octet-stream");
             }
             resp.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + length);
-            long contentLength = end - start;
-            if (length <= 2147483647L) {
-                resp.setContentLength((int)contentLength);
-            } else {
-                resp.addHeader("Content-Length", Long.toString(contentLength));
-            }
+            resp.setHeader("Content-Length", Long.toString(contentLength));
             if (file.getAbsolutePath().endsWith(".apk")) {
                 resp.setContentType(CONTENT_TYPE_APK);
             }
-
-            input.skip(start);
-
-            IOUtils.copy(input, outputStream, contentLength);
-            outputStream.flush();
-
+            try (java.io.RandomAccessFile input = new java.io.RandomAccessFile(file, "r");
+                 ServletOutputStream outputStream = resp.getOutputStream()) {
+                input.seek(start);
+                byte[] buf = new byte[64 * 1024];
+                long left = contentLength;
+                while (left > 0) {
+                    int n = input.read(buf, 0, (int) Math.min(buf.length, left));
+                    if (n < 0) break;
+                    outputStream.write(buf, 0, n);
+                    left -= n;
+                }
+                outputStream.flush();
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            // Usually the phone dropping the connection mid-download; it resumes with another Range request.
+            log.debug("Partial download of {} interrupted: {}", file.getName(), e.toString());
         }
     }
 }

@@ -813,6 +813,9 @@ a {
 .detail-rail .st.off {
   color: var(--secondary);
 }
+.detail-rail .st.rest {
+  color: var(--resting, #6f7fb3);
+}
 .detail-rail .ago {
   font-size: 12px;
   color: var(--faint);
@@ -3030,6 +3033,7 @@ a {
 .pwr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
 .pwr.on { color: var(--ok, #1aa766); }
 .pwr.off { color: var(--faint, #9aa3b0); }
+.pwr.rest { color: var(--resting, #6f7fb3); }
 .net { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
 .net-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
 .net-bars i { display: inline-block; width: 3px; border-radius: 1px; background: var(--border, #e7e9ee); }
