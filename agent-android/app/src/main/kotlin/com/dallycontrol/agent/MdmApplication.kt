@@ -18,6 +18,7 @@ import javax.inject.Inject
 class MdmApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var connection: com.dallycontrol.core.net.ConnectionDiagnostics
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -26,6 +27,15 @@ class MdmApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Before anything reports: was the process killed, or did the phone lose power, since the last sign of life?
+        runCatching {
+            connection.onProcessStart(
+                android.provider.Settings.Global.getInt(
+                    contentResolver, android.provider.Settings.Global.BOOT_COUNT,
+                    com.dallycontrol.core.net.ConnectionDiagnostics.NO_BOOT_COUNT,
+                ),
+            )
+        }
         CheckInWorker.schedule(this)   // periodic reconcile (WorkManager floor)
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat

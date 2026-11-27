@@ -2,7 +2,9 @@ package com.dallycontrol.core.sync
 
 import com.dallycontrol.core.capability.CapabilitySource
 import com.dallycontrol.core.command.CommandDispatcher
+import com.dallycontrol.core.net.ConnectionDiagnostics
 import com.dallycontrol.core.net.MdmApi
+import com.dallycontrol.core.net.MemoryKeyValueStore
 import com.dallycontrol.core.state.DeviceStateSource
 import com.dallycontrol.core.store.DeviceIdentity
 import com.dallycontrol.core.telemetry.EventSink
@@ -46,6 +48,7 @@ class CheckInCoordinator @Inject constructor(
     private val eventSink: EventSink,
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
     private val syncStatus: SyncStatus = SyncStatus(),
+    private val connection: ConnectionDiagnostics = ConnectionDiagnostics(MemoryKeyValueStore()),
 ) {
 
     private val mutex = Mutex()
@@ -53,7 +56,13 @@ class CheckInCoordinator @Inject constructor(
     // Off the main thread whoever calls: the foreground service launches from lifecycleScope (Main), and
     // a cycle does blocking work (telemetry, a location fix with a latch), which on Main risked ANRs and
     // starved main-looper callbacks the cycle itself was waiting for.
-    suspend fun runOnce(): Unit = withContext(workContext) { runLocked() }
+    suspend fun runOnce(): Unit = withContext(workContext) { runLocked(goodbye = false) }
+
+    /**
+     * One last report while the device shuts down, carrying the reason, so the console shows it as off rather
+     * than as a lost connection. Best effort: the caller bounds it with a timeout.
+     */
+    suspend fun runGoodbye(): Unit = withContext(workContext) { runLocked(goodbye = true) }
 
     /** True while a cycle is in flight (a heartbeat then skips instead of queueing behind it). */
     val isBusy: Boolean get() = mutex.isLocked
@@ -61,28 +70,40 @@ class CheckInCoordinator @Inject constructor(
     /** Where cycles run. Tests swap in EmptyCoroutineContext to stay on the test scheduler. */
     internal var workContext: kotlin.coroutines.CoroutineContext = Dispatchers.IO
 
-    private suspend fun runLocked(): Unit = mutex.withLock {
+    private suspend fun runLocked(goodbye: Boolean): Unit = mutex.withLock {
+        runCatching { connection.markAlive() }
         try {
             // Commands executed in a cycle leave results in the buffer. Report them right away
             // (and pick up anything queued meanwhile) instead of on the next wake or the
             // 10-minute floor, which left the console showing "delivered" for minutes.
             var rounds = 0
-            while (cycle() && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
+            while (cycle(goodbye) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
             syncStatus.clear()
         } catch (t: Throwable) {
-            if (t !is CancellationException) syncStatus.recordFailure(t)
+            if (t !is CancellationException) {
+                syncStatus.recordFailure(t)
+                // Not enrolled yet / no token: nothing was sent, so there is no network failure to explain.
+                runCatching {
+                    when (t) {
+                        is EnrollmentException -> Unit
+                        is CheckInException -> connection.recordRejected(t.message)
+                        else -> connection.recordFailure(t, ConnectionDiagnostics.CHANNEL_CHECKIN)
+                    }
+                }
+            }
             throw t
         }
     }
 
     /** One request/response round; true when it executed commands whose results are unreported. */
-    private suspend fun cycle(): Boolean {
+    private suspend fun cycle(goodbye: Boolean): Boolean {
         val deviceId = enrollment.ensureEnrolled()
         val authorization = "Bearer ${identity.secret().orEmpty()}"
         val matrix = capabilitySource.matrix(deviceId)
         val acks = pending.drain()
         val bufferedEvents = eventSink.drain()
         val telemetry = runCatching { telemetrySource.snapshot() }.getOrNull()
+        val connectionReport = runCatching { connection.pendingReport(goodbye) }.getOrNull()
 
         val response = try {
             api.checkIn(
@@ -95,6 +116,7 @@ class CheckInCoordinator @Inject constructor(
                     telemetry = telemetry,
                     events = bufferedEvents,
                     hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
+                    connection = connectionReport,
                 ),
             )
         } catch (t: Throwable) {
@@ -111,6 +133,10 @@ class CheckInCoordinator @Inject constructor(
         }
 
         telemetry?.let { runCatching { telemetrySource.delivered(it) } }
+        runCatching {
+            connection.delivered(connectionReport, goodbye)
+            connection.acceptBackupUrls(data.backupUrls)
+        }
         // A command that must wait (no internet for its download) stays unanswered: the server re-queues it.
         val results = data.commands.mapNotNull {
             try {
