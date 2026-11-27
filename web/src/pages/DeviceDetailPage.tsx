@@ -22,7 +22,7 @@ import { DeviceScopeCard } from '../components/DeviceScopeCard';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import { getConfigStatus, type ConfigStatus } from '../api/configSync';
 import {
-  getDeviceState, forceSync, queueCommand, syncConfigApps, type DeviceState,
+  getDeviceState, forceSync, queueCommand, syncConfigApps, listWipedDevices, type DeviceState, type WipedMark,
 } from '../api/commands';
 import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
@@ -145,6 +145,15 @@ export function DeviceDetailPage() {
   const [tab, setTab] = useState<Tab>('control');
   const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
+  const [wiped, setWiped] = useState<WipedMark | null>(null);
+  useEffect(() => {
+    if (!device?.number) return;
+    let on = true;
+    const check = () => listWipedDevices().then((m) => { if (on) setWiped(m[device.number] ?? null); }).catch(() => undefined);
+    void check();
+    const t = setInterval(() => void check(), 60_000);
+    return () => { on = false; clearInterval(t); };
+  }, [device?.number]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -373,6 +382,11 @@ export function DeviceDetailPage() {
             <span className="ago">· {fmtRelative(device.lastUpdate)}</span>
           </div>
           <h1>{device.number}</h1>
+          {wiped && (
+            <div className="wiped-badge" title="El equipo recibió el borrado remoto y no volvió a reportar. El registro se conserva.">
+              Borrado · {new Date(wiped.wipedAt).toLocaleString('es-CO')}{wiped.wipedBy ? ` · por ${wiped.wipedBy}` : ''}
+            </div>
+          )}
           <NameField
             device={device}
             onSaved={(desc) => setDevice((d) => (d ? { ...d, description: desc } : d))}

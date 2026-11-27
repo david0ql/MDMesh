@@ -18,11 +18,13 @@ import {
   reportDataUsage,
   reportNonCompliance,
   reportDecommissioned,
+  reportCommandLatency,
   type ReportResult,
   type ReportColumn,
   type ReportRow,
   type ExportFormat,
 } from '../api/reports';
+import { listGroups, type FleetGroup } from '../api/fleet';
 
 // ---------------------------------------------------------------------------------------------
 // Generic value formatting + table
@@ -206,7 +208,8 @@ type TabId =
   | 'outdated-apps'
   | 'data-usage'
   | 'non-compliance'
-  | 'decommissioned';
+  | 'decommissioned'
+  | 'command-latency';
 
 const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'offline', label: 'Sin conexión', hint: 'Equipos cuya última conexión supera los días indicados.' },
@@ -220,6 +223,7 @@ const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'data-usage', label: 'Datos móviles', hint: 'Mayores consumidores de datos móviles en los últimos días.' },
   { id: 'non-compliance', label: 'Incumplimiento', hint: 'Equipos cuya revisión aplicada no coincide con la actual de su política.' },
   { id: 'decommissioned', label: 'Dados de baja', hint: 'Equipos eliminados en el rango de fechas.' },
+  { id: 'command-latency', label: 'Latencia de comandos', hint: 'Por tipo de comando: enviados, % ejecutados y latencia (p50, p90 y máxima, en segundos) desde que se envía hasta que el equipo lo recibe y hasta que lo ejecuta. Filtra por fechas y carpeta.' },
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -239,6 +243,10 @@ export function ReportsPage() {
   const [simTo, setSimTo] = useState(todayStr());
   const [decFrom, setDecFrom] = useState(daysAgoStr(90));
   const [decTo, setDecTo] = useState(todayStr());
+  const [latFrom, setLatFrom] = useState(daysAgoStr(30));
+  const [latTo, setLatTo] = useState(todayStr());
+  const [latGroup, setLatGroup] = useState<number | ''>('');
+  const [folders, setFolders] = useState<FleetGroup[]>([]);
 
   const [result, setResult] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -269,10 +277,12 @@ export function ReportsPage() {
         return { days: usageDays, limit: usageLimit };
       case 'decommissioned':
         return { from: startOfDay(decFrom), to: endOfDay(decTo) };
+      case 'command-latency':
+        return { from: startOfDay(latFrom), to: endOfDay(latTo), ...(latGroup === '' ? {} : { groupId: latGroup }) };
       default:
         return {};
     }
-  }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo]);
+  }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo, latFrom, latTo, latGroup]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,6 +325,9 @@ export function ReportsPage() {
         case 'decommissioned':
           r = await reportDecommissioned(startOfDay(decFrom), endOfDay(decTo));
           break;
+        case 'command-latency':
+          r = await reportCommandLatency(startOfDay(latFrom), endOfDay(latTo), latGroup === '' ? null : latGroup);
+          break;
         default:
           return;
       }
@@ -325,7 +338,13 @@ export function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo]);
+  }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo, latFrom, latTo, latGroup]);
+
+  // Folders for the latency report's filter (loaded the first time that tab is opened).
+  useEffect(() => {
+    if (tab !== 'command-latency' || folders.length) return;
+    listGroups().then((g) => setFolders(g.groups)).catch(() => undefined);
+  }, [tab, folders.length]);
 
   // Reload when the tab changes (and on first mount). Filter changes are applied with "Actualizar".
   useEffect(() => {
@@ -428,6 +447,18 @@ export function ReportsPage() {
         )}
         {tab === 'decommissioned' && (
           <DateRangeField from={decFrom} to={decTo} onFrom={setDecFrom} onTo={setDecTo} />
+        )}
+        {tab === 'command-latency' && (
+          <>
+            <DateRangeField from={latFrom} to={latTo} onFrom={setLatFrom} onTo={setLatTo} />
+            <label className="report-field">
+              <span>Carpeta</span>
+              <select className="sel" value={latGroup} onChange={(e) => setLatGroup(e.target.value === '' ? '' : Number(e.target.value))}>
+                <option value="">Todas</option>
+                {folders.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </label>
+          </>
         )}
 
         {tab !== 'by-app' && (

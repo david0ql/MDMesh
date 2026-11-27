@@ -3464,3 +3464,16 @@ a {
 .sim-match.ok { color: var(--ok, #1aa766); }
 .sim-match.bad { color: var(--danger, #c2403f); }
 .sim-match.unknown { color: var(--faint, #9aa3b0); font-weight: 500; }
+
+/* Command history: lifecycle steps, latency and issuer under each order. */
+.timeline-item { flex-wrap: wrap; }
+.timeline-item .t-steps,
+.timeline-item .t-who,
+.timeline-item .t-detail { flex-basis: 100%; }
+.timeline-item .t-steps { display: flex; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.timeline-item .t-cancel { margin-left: 8px; }
+.status-cancelled { color: var(--faint); }
+.wiped-badge {
+  display: inline-block; margin: 6px 0; padding: 3px 9px; border-radius: 999px;
+  background: var(--alert); color: #fff; font-size: 12px; font-weight: 600;
+}
