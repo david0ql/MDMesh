@@ -45,6 +45,8 @@ export const reportOffline = (days: number) => apiClient.get<ReportResult>(`${BA
 export const reportSim = (from: number, to: number) =>
   apiClient.get<ReportResult>(`${BASE}/sim${qs({ from, to })}`);
 
+export const reportSimMismatch = () => apiClient.get<ReportResult>(`${BASE}/sim-mismatch`);
+
 export const reportAppInstalls = () => apiClient.get<ReportResult>(`${BASE}/app-installs`);
 
 export const reportAppInstallDevices = (pkg: string) =>

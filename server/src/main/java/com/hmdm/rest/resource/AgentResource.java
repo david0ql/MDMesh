@@ -202,6 +202,16 @@ public class AgentResource {
                 }
             }
 
+            // Carry the operator-declared expected SIM phone number onto the device, so the first check-in can
+            // compare it against the number the SIM actually reports (null when none was declared).
+            if (token.getExpectedPhone() != null && !token.getExpectedPhone().trim().isEmpty()) {
+                try {
+                    commandDAO.updateExpectedPhone(deviceId, token.getExpectedPhone().trim());
+                } catch (Exception e) {
+                    logger.warn("Could not store expected phone for {}: {}", deviceId, e.getMessage());
+                }
+            }
+
             // Mint a per-device secret; persist only its SHA-256 hash. The plaintext is
             // returned exactly once (below) and is required as a bearer token on /checkin.
             String deviceSecret = UUID.randomUUID().toString().replace("-", "")
@@ -390,6 +400,7 @@ public class AgentResource {
             recordLocation(deviceNumber, tel);
             autoName(device, tel);
             mirrorIdentity(deviceNumber, tel);
+            checkSimPhone(deviceNumber, tel);
             // Device history (traceability): one sample every few minutes.
             try {
                 commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
@@ -758,6 +769,97 @@ public class AgentResource {
         } catch (Exception e) {
             logger.warn("Could not name device {}: {}", device.getNumber(), e.getMessage());
         }
+    }
+
+    /**
+     * Compare the number the SIM reports against the phone number the operator declared at enrollment, and record the
+     * verdict on the device (so the device list and the "SIM no coincide" report can show it). On a NEW mismatch it
+     * also records a {@code simMismatch} alert event. Honest about the common case where the SIM does not expose its
+     * number: when it is unavailable the verdict is "no comparable" (NULL), never a false mismatch.
+     */
+    private void checkSimPhone(String deviceNumber, JsonNode tel) {
+        try {
+            String expected = commandDAO.getExpectedPhone(deviceNumber);
+            if (expected == null || expected.trim().isEmpty()) {
+                return; // no expected number declared for this device — nothing to verify
+            }
+            long now = System.currentTimeMillis();
+            String observed = firstSimNumber(tel);
+            Boolean previous = commandDAO.getSimMismatch(deviceNumber);
+            if (observed == null) {
+                // The SIM/telephony API did not expose a number (frequent): mark it not comparable, don't flag.
+                commandDAO.updateSimObservation(deviceNumber, null, null, now);
+                return;
+            }
+            boolean mismatch = !phonesMatch(expected, observed);
+            String stored = observed.length() > 64 ? observed.substring(0, 64) : observed;
+            commandDAO.updateSimObservation(deviceNumber, stored, mismatch, now);
+            // Alert only on the transition into a mismatch, so a persistent mismatch doesn't flood the timeline.
+            if (mismatch && !Boolean.TRUE.equals(previous)) {
+                String detail = "esperado=" + expected + " sim=" + observed;
+                if (detail.length() > MAX_EVENT_DETAIL_CHARS) {
+                    detail = detail.substring(0, MAX_EVENT_DETAIL_CHARS);
+                }
+                commandDAO.insertEvent(deviceNumber, "simMismatch", now, detail);
+                logger.info("Device {}: SIM number does not match the expected one (expected={}, sim={})",
+                        deviceNumber, expected, observed);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not verify the SIM phone number of {}: {}", deviceNumber, e.getMessage());
+        }
+    }
+
+    /** First non-blank SIM number from telemetry {@code dynamic.sim.slots[].number}; null when none is available. */
+    private static String firstSimNumber(JsonNode tel) {
+        if (tel == null) {
+            return null;
+        }
+        JsonNode slots = tel.path("dynamic").path("sim").path("slots");
+        if (slots == null || !slots.isArray()) {
+            return null;
+        }
+        for (JsonNode slot : slots) {
+            String n = slot.hasNonNull("number") ? slot.get("number").asText(null) : null;
+            if (n != null && !n.trim().isEmpty()) {
+                return n.trim();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Phone-number match tolerant of country-code and formatting differences: compare digits only and treat the
+     * numbers as equal when one ends with the other over at least 7 shared trailing digits (so {@code +57 300 123 4567}
+     * matches {@code 3001234567}). Both empty / too short ⇒ no match.
+     */
+    static boolean phonesMatch(String a, String b) {
+        String da = digitsOnly(a);
+        String db = digitsOnly(b);
+        if (da.isEmpty() || db.isEmpty()) {
+            return false;
+        }
+        if (da.equals(db)) {
+            return true;
+        }
+        int min = Math.min(da.length(), db.length());
+        if (min < 7) {
+            return false;
+        }
+        return da.substring(da.length() - min).equals(db.substring(db.length() - min));
+    }
+
+    private static String digitsOnly(String s) {
+        if (s == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c >= '0' && c <= '9') {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private void mirrorIdentity(String deviceNumber, JsonNode tel) {

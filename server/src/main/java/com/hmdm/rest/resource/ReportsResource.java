@@ -104,7 +104,7 @@ public class ReportsResource {
 
     /** Known reports. {@code export} = can be downloaded as CSV/Excel. */
     public enum Report {
-        OFFLINE, SIM, APP_INSTALLS, APP_INSTALL_DEVICES, BY_APP, APPS_CATALOG,
+        OFFLINE, SIM, SIM_MISMATCH, APP_INSTALLS, APP_INSTALL_DEVICES, BY_APP, APPS_CATALOG,
         NO_COMMANDS, OUTDATED_AGENTS, OUTDATED_APPS, DATA_USAGE, NON_COMPLIANCE, DECOMMISSIONED;
 
         static Report of(String name) {
@@ -133,6 +133,14 @@ public class ReportsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response sim(@QueryParam("from") Long from, @QueryParam("to") Long to) {
         return json(c -> sim(c, from, to));
+    }
+
+    @ApiOperation(value = "Número de SIM no coincide", notes = "Equipos cuyo número real de la SIM difiere del número de celular esperado declarado en la inscripción.")
+    @GET
+    @Path("/sim-mismatch")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response simMismatch() {
+        return json(this::simMismatch);
     }
 
     @ApiOperation(value = "Aplicaciones desplegadas", notes = "Agrega los comandos app.install por paquete.")
@@ -278,6 +286,7 @@ public class ReportsResource {
         switch (rep) {
             case OFFLINE: return offline(c, days);
             case SIM: return sim(c, from, to);
+            case SIM_MISMATCH: return simMismatch(c);
             case APP_INSTALLS: return appInstalls(c);
             case APP_INSTALL_DEVICES: return appInstallDevices(c, pkg);
             case BY_APP: return byApp(c, pkgs);
@@ -317,6 +326,18 @@ public class ReportsResource {
                 col("name", "Equipo", "text"), col("number", "Número", "text"), col("group", "Carpeta", "text"),
                 col("evento", "Evento", "text"), col("ts", "Fecha", "datetime"), col("detail", "Detalle", "text"));
         return new ReportData("sim", "Retiro/cambio de SIM", cols, rows);
+    }
+
+    // --- 2b. SIM number does not match the expected one --------------------------------------------------------
+
+    private ReportData simMismatch(int c) {
+        List<Map<String, Object>> rows = reportsDAO.simMismatchDevices(c);
+        enrich(c, rows);
+        List<Column> cols = Arrays.asList(
+                col("name", "Equipo", "text"), col("number", "Número", "text"), col("group", "Carpeta", "text"),
+                col("expectedphone", "Celular esperado", "text"), col("simphone", "Celular de la SIM", "text"),
+                col("simphoneat", "Verificado", "datetime"), col("lastseen", "Última conexión", "datetime"));
+        return new ReportData("sim-mismatch", "Número de SIM no coincide", cols, rows);
     }
 
     // --- 3. App installs (aggregate + drill-down) --------------------------------------------------------------

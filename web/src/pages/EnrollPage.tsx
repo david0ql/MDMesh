@@ -46,6 +46,9 @@ export function EnrollPage() {
   const [groupId, setGroupId] = useState<string>(() => {
     try { return localStorage.getItem(ENROLL_GROUP_KEY) ?? ''; } catch { return ''; }
   });
+  // Operator-declared phone number of the device's SIM. Stored with the token and copied onto the device at
+  // enrollment; the server later compares it against the number the SIM reports and flags a mismatch.
+  const [expectedPhone, setExpectedPhone] = useState('');
   useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
   useEffect(() => {
     try { if (groupId) localStorage.setItem(ENROLL_GROUP_KEY, groupId); else localStorage.removeItem(ENROLL_GROUP_KEY); }
@@ -78,7 +81,7 @@ export function EnrollPage() {
     setBusy(true);
     setTokError(null);
     try {
-      const res = await mintEnrollToken({ groupId: validGroup ? gid : undefined });
+      const res = await mintEnrollToken({ groupId: validGroup ? gid : undefined, expectedPhone });
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
@@ -125,6 +128,19 @@ export function EnrollPage() {
               <option value="">Sin carpeta</option>
               {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
             </select>
+          </label>
+          <label className="enroll-group">
+            <span>Celular esperado</span>
+            <input
+              className="input"
+              type="tel"
+              inputMode="tel"
+              value={expectedPhone}
+              onChange={(e) => setExpectedPhone(e.target.value)}
+              placeholder="opcional, p. ej. 3001234567"
+              aria-label="Número de celular esperado"
+              title="Número de la SIM que debería tener el equipo. Al inscribir se compara con el número real; si difiere se genera una alerta. Tras cambiarlo, genera un nuevo código."
+            />
           </label>
           <span className="seg" role="tablist" aria-label="Método de inscripción">
             <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Escanear QR</button>

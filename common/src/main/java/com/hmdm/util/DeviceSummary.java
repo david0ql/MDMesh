@@ -46,6 +46,11 @@ public final class DeviceSummary {
         s.put("totalStorageBytes", hw.hasNonNull("totalStorageBytes") ? hw.get("totalStorageBytes").asLong() : null);
         s.put("securityPatch", text(hw, "securityPatch"));
         s.put("systemUpdatePending", dyn.hasNonNull("systemUpdatePendingSince"));
+        // Expected SIM phone (declared at enrollment) vs the number the SIM reports, and the verdict:
+        // simMismatch TRUE = different, FALSE = matches, null = not comparable (number unavailable / none declared).
+        s.put("expectedPhone", row.get("expectedphone"));
+        s.put("simPhone", row.get("simphone"));
+        s.put("simMismatch", row.get("simmismatch"));
         s.put("stateAt", row.get("stateat"));
         return s;
     }

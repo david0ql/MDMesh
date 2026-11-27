@@ -201,6 +201,24 @@ public class AgentCommandDAO {
         deviceMapper.updateAndroidVersion(deviceNumber, androidVersion);
     }
 
+    // --- Expected SIM phone (declared at enrollment) vs the SIM's reported number ---
+
+    public String getExpectedPhone(String deviceNumber) {
+        return deviceMapper.getExpectedPhone(deviceNumber);
+    }
+
+    public Boolean getSimMismatch(String deviceNumber) {
+        return deviceMapper.getSimMismatch(deviceNumber);
+    }
+
+    public void updateExpectedPhone(String deviceNumber, String expectedPhone) {
+        deviceMapper.updateExpectedPhone(deviceNumber, expectedPhone);
+    }
+
+    public void updateSimObservation(String deviceNumber, String simPhone, Boolean simMismatch, long ts) {
+        deviceMapper.updateSimObservation(deviceNumber, simPhone, simMismatch, ts);
+    }
+
     /**
      * Append a location fix to the device's trail, skipping it if it isn't newer than the last
      * stored fix — passive last-known reporting returns the same fix until the OS refreshes it, so

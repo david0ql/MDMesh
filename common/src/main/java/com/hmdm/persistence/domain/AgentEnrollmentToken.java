@@ -59,6 +59,15 @@ public class AgentEnrollmentToken implements Serializable {
     private String wifiPassword;
     private String wifiSecurity;
 
+    /**
+     * Phone number the operator declares the enrolled device's SIM should carry (optional). Copied onto the device at
+     * enrollment; the server later compares it against the number the agent reads from the SIM and flags a mismatch.
+     */
+    private String expectedPhone;
+
+    public String getExpectedPhone() { return expectedPhone; }
+    public void setExpectedPhone(String expectedPhone) { this.expectedPhone = expectedPhone; }
+
     public String getWifiSsid() { return wifiSsid; }
     public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }
     public String getWifiPassword() { return wifiPassword; }
