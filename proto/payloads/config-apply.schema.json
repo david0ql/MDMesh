@@ -26,6 +26,17 @@
         "theme": { "type": "object", "properties": { "backgroundColor": {"type":"string"}, "textColor": {"type":"string"}, "iconSize": {"type":"string"} } }
       }
     },
-    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } }
+    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } },
+    "hardware": {
+      "type": "object", "additionalProperties": true,
+      "description": "Hardware and ports. Absent = not managed (the agent undoes what an earlier document set). Agents before this section ignore it; the camera is also sent as policies.camera for them.",
+      "properties": {
+        "rules": {
+          "type": "object", "additionalProperties": { "enum": ["allow", "block"] },
+          "description": "Rule key -> allow | block. Keys: camera, usbDebug, usbData, physicalMedia, bluetoothSharing, bluetoothConfig, nfc, nfcBeam, microphone, airplaneMode, wifiDirect, printing, networkReset, dateTime, unknownSources, locationConfig, locationSharing, contentCapture, assistContent (see registry.md)."
+        },
+        "restrictions": { "type": "array", "items": { "type": "string", "pattern": "^no_[a-z0-9_]+$" }, "description": "Extra UserManager.DISALLOW_* values from the validated list." }
+      }
+    }
   }
 }

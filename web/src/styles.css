@@ -3537,3 +3537,19 @@ a {
 .loc-latest { margin: 0 0 8px; }
 .loc-low { padding-bottom: 8px; }
 @media (max-width: 900px) { .gz-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* Hardware y puertos (policy editor) and Restricciones (device tab) */
+.hw-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 2px; }
+.hw-since { margin-left: 6px; font-size: 10px; padding: 1px 6px; }
+.hw-warn { color: var(--warn, #b45309); }
+.hw-free-list { margin-top: 6px; font-size: 12px; }
+.hw-free-list ul { list-style: none; padding: 0; margin: 6px 0 0; columns: 2; }
+.hw-free-list li { break-inside: avoid; padding: 1px 0; }
+.hw-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+.hw-table { margin-bottom: 14px; }
+.hw-table th:first-child, .hw-table td:first-child { width: 46%; }
+.hw-table td { vertical-align: top; }
+@media (max-width: 720px) {
+  .hw-free-list ul { columns: 1; }
+  .hw-head { flex-direction: column; }
+}

@@ -30,8 +30,9 @@ import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 import { getDeviceInstallProblems, retryNote, type DeviceInstallProblem } from '../api/installStatus';
 import { DataFreshness } from '../components/DataFreshness';
+import { HardwarePanel } from '../components/HardwarePanel';
 
-type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'hardware';
 
 interface Row {
   k: string;
@@ -488,6 +489,9 @@ export function DeviceDetailPage() {
             <button className={tab === 'location' ? 'on' : ''} onClick={() => setTab('location')}>
               Ubicación
             </button>
+            <button className={tab === 'hardware' ? 'on' : ''} onClick={() => setTab('hardware')} data-testid="tab-hardware">
+              Restricciones
+            </button>
           </div>
 
           <div className="tabbody">
@@ -509,6 +513,7 @@ export function DeviceDetailPage() {
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}
             {tab === 'location' && <LocationPanel device={device} />}
+            {tab === 'hardware' && <HardwarePanel device={device} />}
           </div>
         </section>
       </div>

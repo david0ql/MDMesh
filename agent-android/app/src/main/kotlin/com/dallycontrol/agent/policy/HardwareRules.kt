@@ -16,14 +16,14 @@ class HardwareRules(context: Context, handle: DpmHandle) {
     private val prefs = context.getSharedPreferences("mdm_hardware_rules", Context.MODE_PRIVATE)
 
     private val enforcer = HardwareEnforcer(
-        DpmHardwareBackend(handle),
+        DpmHardwareBackend(handle, context.contentResolver),
         object : OwnedTokens {
             override fun load(): Set<String> = prefs.getStringSet(KEY_OWNED, emptySet()).orEmpty().toSet()
             override fun save(tokens: Set<String>) { prefs.edit().putStringSet(KEY_OWNED, tokens).apply() }
         },
     )
 
-    /** @return one outcome per rule: `hardware.<key>` / `restrictions.<key>` → applied | unsupported: why | failed: why. */
+    /** @return one outcome per rule (`hardware.<key>` / `restrictions.<key>`): applied, unsupported, failed. */
     @Synchronized
     fun apply(hardware: ConfigHardware?, held: Set<String>): Map<String, String> =
         enforcer.apply(hardware?.rules.orEmpty(), hardware?.restrictions.orEmpty(), held)

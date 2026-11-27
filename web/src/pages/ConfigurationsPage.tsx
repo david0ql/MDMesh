@@ -1,4 +1,5 @@
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
+import { HardwarePolicyPanel } from '../components/HardwarePolicyPanel';
 import { listAppVersions, listPolicyDowngrades, listVersionLabels, setPolicyDowngrade, topCode, type LabeledVersion } from '../api/versions';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
 import { KioskBrandEditor } from '../components/KioskBrandEditor';
@@ -706,6 +707,8 @@ function ConfigEditor({
       />
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
+
+      <HardwarePolicyPanel draft={draft} disabled={readOnly} set={set} />
 
       {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}
 

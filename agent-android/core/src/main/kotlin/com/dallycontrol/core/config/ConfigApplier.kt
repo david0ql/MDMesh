@@ -103,18 +103,24 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
-        if (doc.hardware != null || previous?.hardware != null) {
-            val held = com.dallycontrol.policy.hardware.HardwareCatalog.heldByOtherSections(
-                doc.policies, doc.device?.tethering, doc.device?.factoryReset, doc.device?.installApps,
-            )
-            val asked = doc.hardware?.let { h -> h.rules.keys.map { "hardware.$it" } + h.restrictions.map { "restrictions.$it" } }.orEmpty()
-            val o = hardware?.let { runCatching { it(doc.hardware, held) }.getOrElse { e -> asked.associateWith { ConfigOutcome.failed(e.message ?: "hardware") } } }
-                ?: asked.associateWith { ConfigOutcome.UNSUPPORTED }
-            outcomes.putAll(o)
-        }
+        outcomes.putAll(applyHardware(doc, previous))
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
+    }
+
+    /** Hardware and ports: applied when the document has the section, undone when only the previous one had it. */
+    private fun applyHardware(doc: ConfigApplyPayload, previous: ConfigApplyPayload?): Map<String, String> {
+        if (doc.hardware == null && previous?.hardware == null) return emptyMap()
+        val held = com.dallycontrol.policy.hardware.HardwareCatalog.heldByOtherSections(
+            doc.policies, doc.device?.tethering, doc.device?.factoryReset, doc.device?.installApps,
+        )
+        val asked = doc.hardware?.let { h -> h.rules.keys.map { "hardware.$it" } + h.restrictions.map { "restrictions.$it" } }
+            .orEmpty()
+        return hardware?.let { apply ->
+            runCatching { apply(doc.hardware, held) }
+                .getOrElse { e -> asked.associateWith { ConfigOutcome.failed(e.message ?: "hardware") } }
+        } ?: asked.associateWith { ConfigOutcome.UNSUPPORTED }
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */

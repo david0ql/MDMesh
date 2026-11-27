@@ -1,10 +1,13 @@
 package com.dallycontrol.policy.hardware
 
+import android.content.ContentResolver
 import android.os.Build
+import android.provider.Settings
 import com.dallycontrol.policy.wifi.DpmHandle
 
 /** [HardwareBackend] over `DevicePolicyManager`. Every raw call of the hardware rules lives here. */
-class DpmHardwareBackend(private val handle: DpmHandle) : HardwareBackend {
+@Suppress("TooManyFunctions") // one small function per device switch
+class DpmHardwareBackend(private val handle: DpmHandle, private val resolver: ContentResolver) : HardwareBackend {
 
     override val sdk: Int get() = Build.VERSION.SDK_INT
 
@@ -15,7 +18,11 @@ class DpmHardwareBackend(private val handle: DpmHandle) : HardwareBackend {
     }
 
     override fun hasRestriction(key: String): Boolean? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) handle.dpm.getUserRestrictions(handle.admin).getBoolean(key, false) else null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            handle.dpm.getUserRestrictions(handle.admin).getBoolean(key, false)
+        } else {
+            null
+        }
 
     override fun setCameraDisabled(disabled: Boolean) = handle.dpm.setCameraDisabled(handle.admin, disabled)
 
@@ -36,4 +43,9 @@ class DpmHardwareBackend(private val handle: DpmHandle) : HardwareBackend {
 
     @Suppress("DEPRECATION")
     override fun isAutoTimeRequired(): Boolean = handle.dpm.autoTimeRequired
+
+    override fun isAdbEnabled(): Boolean = Settings.Global.getInt(resolver, Settings.Global.ADB_ENABLED, 0) == 1
+
+    // A Device Owner may write this global setting (DevicePolicyManager.setGlobalSetting's allowed list).
+    override fun enableAdb() = handle.dpm.setGlobalSetting(handle.admin, Settings.Global.ADB_ENABLED, "1")
 }

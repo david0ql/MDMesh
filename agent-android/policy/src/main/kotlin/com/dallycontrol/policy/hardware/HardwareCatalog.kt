@@ -1,13 +1,14 @@
 package com.dallycontrol.policy.hardware
 
 /**
- * The "hardware and ports" rules a policy can set (`config.apply` → `hardware.rules`, value `allow` | `block`) and the
- * Android mechanism behind each one. Pure (no Android imports): restriction keys are the literal values of the
+ * The "hardware and ports" rules a policy can set (`config.apply` → `hardware.rules`, value `allow` | `block`) and
+ * the Android mechanism behind each one. Pure (no Android imports): restriction keys are the literal values of the
  * `UserManager.DISALLOW_*` constants and API levels are plain ints, so the whole decision is unit-testable on the JVM.
  *
  * Every rule states the first Android API level that honours it ([HardwareRule.minSdk]); below it the agent reports
  * `unsupported: sdk-<level>` instead of pretending.
  */
+@Suppress("MagicNumber") // the numbers are Android API levels: they are the data of this table
 object HardwareCatalog {
 
     /** Pseudo-tokens for rules that are not a user restriction. */

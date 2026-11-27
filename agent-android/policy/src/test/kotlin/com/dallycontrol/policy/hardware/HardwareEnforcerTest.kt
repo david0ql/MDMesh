@@ -23,6 +23,7 @@ class HardwareEnforcerTest {
         override fun setRestriction(key: String, on: Boolean) {
             if (key in refuse) throw SecurityException("no $key")
             if (key in ignore) return
+            if (key == "no_debugging_features" && on) adb = false // what Android does
             if (on) restrictions += key else restrictions -= key
         }
         override fun hasRestriction(key: String): Boolean? = key in restrictions
@@ -36,6 +37,9 @@ class HardwareEnforcerTest {
         override fun isUsbDataEnabled() = usbData
         override fun setAutoTimeRequired(required: Boolean) { autoTime = required }
         override fun isAutoTimeRequired() = autoTime
+        var adb = false
+        override fun isAdbEnabled() = adb
+        override fun enableAdb() { adb = true }
     }
 
     private class Memory : OwnedTokens {
@@ -82,7 +86,7 @@ class HardwareEnforcerTest {
         assertTrue(b.autoTime)
         assertFalse("no_config_date_time" in b.restrictions)
         assertEquals("applied", out["hardware.unknownSources"])
-        assertFalse("the global variant only exists from Android 10", "no_install_unknown_sources_globally" in b.restrictions)
+        assertFalse("the global variant is Android 10+", "no_install_unknown_sources_globally" in b.restrictions)
     }
 
     @Test fun `usb data is reported as not supported by the device when its hal cannot cut it`() {
@@ -91,7 +95,8 @@ class HardwareEnforcerTest {
         assertEquals("unsupported: device", out["hardware.usbData"])
         assertTrue(b.usbData)
         // Allowing it there is a no-op that must not fail.
-        assertEquals("applied", HardwareEnforcer(b, Memory()).apply(mapOf("usbData" to "allow"), emptyList(), emptySet())["hardware.usbData"])
+        val allowed = HardwareEnforcer(b, Memory()).apply(mapOf("usbData" to "allow"), emptyList(), emptySet())
+        assertEquals("applied", allowed["hardware.usbData"])
     }
 
     @Test fun `a rule that leaves the policy is undone, but only what this section set`() {
@@ -110,11 +115,32 @@ class HardwareEnforcerTest {
         assertTrue(mem.tokens.isEmpty())
     }
 
+    @Test fun `lifting the debugging block gives usb debugging back only if it was on before`() {
+        val b = FakeBackend().apply { adb = true }
+        val mem = Memory()
+        val e = HardwareEnforcer(b, mem)
+        e.apply(mapOf("usbDebug" to "block"), emptyList(), emptySet())
+        assertFalse(b.adb)
+        e.apply(mapOf("usbDebug" to "block"), emptyList(), emptySet()) // a re-apply must not forget it was on
+        assertEquals(setOf("no_debugging_features", "@adbWasOn"), mem.tokens)
+        assertEquals("applied", e.apply(mapOf("usbDebug" to "allow"), emptyList(), emptySet())["hardware.usbDebug"])
+        assertTrue("the technician's cable works again", b.adb)
+        assertTrue(mem.tokens.isEmpty())
+
+        val off = FakeBackend()
+        val e2 = HardwareEnforcer(off, Memory())
+        e2.apply(mapOf("usbDebug" to "block"), emptyList(), emptySet())
+        e2.apply(emptyMap(), emptyList(), emptySet())
+        assertFalse("it was off: it stays off", off.adb)
+        assertFalse("no_debugging_features" in off.restrictions)
+    }
+
     @Test fun `allow clears a restriction even when this section did not set it`() {
         val b = FakeBackend()
         b.restrictions += "no_debugging_features"
         b.camera = true
-        val out = HardwareEnforcer(b, Memory()).apply(mapOf("usbDebug" to "allow", "camera" to "allow"), emptyList(), emptySet())
+        val out = HardwareEnforcer(b, Memory())
+            .apply(mapOf("usbDebug" to "allow", "camera" to "allow"), emptyList(), emptySet())
         assertEquals(mapOf("hardware.usbDebug" to "applied", "hardware.camera" to "applied"), out)
         assertTrue(b.restrictions.isEmpty())
         assertFalse(b.camera)
@@ -134,7 +160,8 @@ class HardwareEnforcerTest {
     @Test fun `a refused or ignored restriction is reported as failed`() {
         val b = FakeBackend().apply { refuse = setOf("no_printing"); ignore = setOf("no_airplane_mode") }
         val mem = Memory()
-        val out = HardwareEnforcer(b, mem).apply(mapOf("printing" to "block", "airplaneMode" to "block", "usbDebug" to "block"), emptyList(), emptySet())
+        val out = HardwareEnforcer(b, mem)
+            .apply(mapOf("printing" to "block", "airplaneMode" to "block", "usbDebug" to "block"), emptyList(), setOf())
         assertEquals("failed: no no_printing", out["hardware.printing"])
         assertEquals("failed: not-effective", out["hardware.airplaneMode"])
         assertEquals("applied", out["hardware.usbDebug"])
@@ -155,14 +182,15 @@ class HardwareEnforcerTest {
     @Test fun `without device owner nothing is touched`() {
         val b = FakeBackend(owner = false)
         val out = HardwareEnforcer(b, Memory()).apply(mapOf("camera" to "block"), listOf("no_sms"), emptySet())
-        assertEquals(mapOf("hardware.camera" to "unsupported: not-device-owner", "restrictions.no_sms" to "unsupported: not-device-owner"), out)
+        val why = "unsupported: not-device-owner"
+        assertEquals(mapOf("hardware.camera" to why, "restrictions.no_sms" to why), out)
         assertFalse(b.camera)
     }
 
     @Test fun `a free restriction wins over an allow of the same key and every catalog key is unique`() {
         assertEquals(HardwareCatalog.RULES.size, HardwareCatalog.RULES.map { it.key }.toSet().size)
         val ruleTokens = HardwareCatalog.RULES.flatMap { r -> r.tokens.map { it.key } }
-        assertTrue("the free list never overlaps a rule", HardwareCatalog.FREE_RESTRICTIONS.keys.none { it in ruleTokens })
+        assertTrue("free list and rules are disjoint", HardwareCatalog.FREE_RESTRICTIONS.keys.none { it in ruleTokens })
         HardwareCatalog.RULES.forEach { assertNotNull(HardwareCatalog.rule(it.key)) }
     }
 }
