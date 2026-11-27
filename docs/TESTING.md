@@ -509,3 +509,17 @@ scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --dev
 (cd scripts/shots && npm ci)       # once: Playwright
 DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
 ```
+
+Result (2026-11-27, own stack + debug agent on clean emulators; a rule the release cannot honour must be reported, so
+the totals differ):
+
+| Android | API | `hardware-e2e.py` | Notes |
+|---|---|---|---|
+| 9 | 28 | 57/57 | USB data, NFC, Wi-Fi Direct, content capture and assistant reported `unsupported: sdk-N`; date/time with the restriction; no camera app on the image (camera check skipped, policy state verified) |
+| 15 | 35 | 58/58 | after merging the base branch; NFC reported `unsupported: platform` (this image refuses the restriction); `hardware-console-e2e.mjs --device` 26/26 |
+| 16 | 36 | 57/58 | NFC applied; the one failure was the script counting `dumpsys user`'s per-user-type templates as restrictions in force (fixed, re-verified on API 35) |
+
+On every release: adb stopped answering when USB debugging was blocked and came back by itself after the revert; the
+emulators report `canUsbDataSignalingBeDisabled() = true`, so "USB data" was applied and reverted there. `svc usb
+getFunctions` gives no answer on these images, so the MTP check is skipped (the `no_usb_file_transfer` restriction is
+verified instead).
