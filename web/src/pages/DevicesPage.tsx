@@ -82,6 +82,9 @@ export function DevicesPage() {
   // view-only folder role does not get those bulk controls.
   const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
     || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
+  // Enrolling new devices is its own permission (enroll_devices); the server checks it on the codes and tokens.
+  const canEnroll = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'enroll_devices'));
   useLiveDevices(); // a device with its live channel open shows connected
   useConnectionStates(); // "En reposo" (silent for a known reason) instead of "Sin conexión"
   const navigate = useNavigate();
@@ -388,9 +391,11 @@ export function DevicesPage() {
             onChange={setColumns}
           />
         )}
-        <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
-          Inscribir dispositivo
-        </button>
+        {canEnroll && (
+          <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
+            Inscribir dispositivo
+          </button>
+        )}
       </div>
 
       <div className="filters">

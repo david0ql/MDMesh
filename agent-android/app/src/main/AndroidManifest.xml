@@ -318,6 +318,18 @@
             </intent-filter>
         </service>
 
+        <!-- Mobile data per app (data/MobileDataVpnService.kt): a local VPN with no server that only captures the apps
+             the policy keeps off mobile data. Used on Android 7-8 (no system restriction there) or when the policy
+             asks for it; the Device Owner sets it as the always-on VPN, so there is no consent dialog. -->
+        <service
+            android:name=".data.MobileDataVpnService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+
         <!-- Push wake channel (Firebase Cloud Messaging): a signal-only message that makes the agent check in. The
              project's values come from the server at run time (PushRegistrar), so there is no google-services.json and
              the library's own start-up provider, which would look for one, is removed. -->

@@ -77,23 +77,26 @@ public final class ReportExport {
     /** CSV in UTF-8 with BOM and CRLF rows, fields separated by {@code sep} (quoted when they contain it). */
     public static void writeCsv(List<Column> cols, List<Map<String, Object>> rows, ZoneId zone, char sep,
                                 OutputStream out) throws IOException {
-        Writer w = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        Writer w = new java.io.BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8), 1 << 16);
         // UTF-8 BOM so Excel on Windows opens accented Spanish correctly.
         w.write('﻿');
+        // Row by row: nothing but the current line is held, whatever the number of rows.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cols.size(); i++) {
             if (i > 0) sb.append(sep);
             sb.append(csv(cols.get(i).label, sep));
         }
         sb.append("\r\n");
+        w.write(sb.toString());
         for (Map<String, Object> row : rows) {
+            sb.setLength(0);
             for (int i = 0; i < cols.size(); i++) {
                 if (i > 0) sb.append(sep);
                 sb.append(csv(text(cols.get(i), row.get(cols.get(i).key), zone), sep));
             }
             sb.append("\r\n");
+            w.write(sb.toString());
         }
-        w.write(sb.toString());
         w.flush();
     }
 

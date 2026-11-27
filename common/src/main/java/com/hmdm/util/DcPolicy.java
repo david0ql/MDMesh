@@ -65,6 +65,8 @@ public class DcPolicy {
     private String powerPin;
     /** Device security rules: data sharing, Google accounts, factory reset. */
     private com.hmdm.rest.json.agent.DesiredDevice device;
+    /** Mobile data per app: which apps may use it, and the data limits of the period (see {@link MobileDataPolicy}). */
+    private MobileData mobileData;
     /** Backup check-in schedule of the phones (how often they ask for commands when the live channel is closed). */
     private Wake wake;
 
@@ -82,6 +84,37 @@ public class DcPolicy {
         private Integer fastWindowMinutes;
         /** Alarm-clock alarms: never deferred in deep sleep, but the phone shows the alarm icon. */
         private Boolean alarmClock;
+    }
+
+    /**
+     * {@code mode}: {@code open} | {@code blocklist} (the {@code apps} are Wi-Fi only) | {@code allowlist} (only the
+     * {@code apps} use mobile data). {@code mechanism}: absent = automatic, {@code dpm} or {@code vpn}. Limits in
+     * megabytes per {@code period} ({@code monthly} from {@code cutDay} 1..28, or {@code daily}); {@code warnPercent}
+     * raises the warning (80 by default); {@code essential} apps keep mobile data when the device limit is spent.
+     */
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MobileData {
+        private String mode;
+        private List<String> apps;
+        private String mechanism;
+        private String period;
+        private Integer cutDay;
+        private Integer warnPercent;
+        private Long deviceLimitMb;
+        private List<AppLimit> appLimits;
+        private List<String> essential;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AppLimit {
+        private String pkg;
+        private Long limitMb;
     }
 
     @Getter
@@ -166,7 +199,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null && locationFixSeconds == null && wake == null;
+                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && wake == null;
     }
 
     private DcPolicy cleaned() {
@@ -264,6 +297,7 @@ public class DcPolicy {
             c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
                     && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
         }
+        c.mobileData = MobileDataPolicy.clean(mobileData);
         if (wake != null) {
             Wake w = new Wake();
             w.pollMinutes = within(wake.pollMinutes, 1, 15);

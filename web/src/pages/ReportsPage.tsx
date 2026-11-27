@@ -18,6 +18,7 @@ import {
   reportOutdatedAgents,
   reportOutdatedApps,
   reportDataUsage,
+  reportDataLimits,
   reportNonCompliance,
   reportDecommissioned,
   reportCommandLatency,
@@ -209,6 +210,7 @@ type TabId =
   | 'outdated-agents'
   | 'outdated-apps'
   | 'data-usage'
+  | 'data-limits'
   | 'non-compliance'
   | 'decommissioned'
   | 'inventory'
@@ -225,6 +227,7 @@ const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'outdated-agents', label: 'Agentes desactualizados', hint: 'Equipos cuyo agente no es la última versión servida.' },
   { id: 'outdated-apps', label: 'Apps desactualizadas', hint: 'Apps instaladas cuya versión difiere de la última de la biblioteca.' },
   { id: 'data-usage', label: 'Datos móviles', hint: 'Mayores consumidores de datos móviles en los últimos días.' },
+  { id: 'data-limits', label: 'Datos móviles: uso vs. límite', hint: 'Consumo del periodo frente a los límites de la política, por equipo y por app con límite, con las apps que quedaron sin datos móviles.' },
   { id: 'non-compliance', label: 'Incumplimiento', hint: 'Equipos cuya revisión aplicada no coincide con la actual de su política.' },
   { id: 'decommissioned', label: 'Dados de baja', hint: 'Equipos eliminados en el rango de fechas.' },
   { id: 'inventory', label: 'Inventario de la flota', hint: 'Estado de toda la flota con su último reporte: conexión, batería, almacenamiento, Android y red de cada equipo, con resumen y exportación a Excel o CSV.' },
@@ -327,6 +330,9 @@ export function ReportsPage() {
           break;
         case 'data-usage':
           r = await reportDataUsage(usageDays, usageLimit);
+          break;
+        case 'data-limits':
+          r = await reportDataLimits();
           break;
         case 'non-compliance':
           r = await reportNonCompliance();

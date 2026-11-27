@@ -3764,6 +3764,202 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-mobile-data" author="dallycontrol">
+        <comment>Mobile data per app: a device's own override of its policy's mobile-data section (apps always allowed
+                 or blocked on that device, limits ignored, or no restriction at all). Removed with the device.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_mobile_data (
+                deviceId  INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                settings  TEXT NOT NULL,
+                updatedAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_mobile_data;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-audit-trail" author="dallycontrol">
+        <comment>Audit trail of what every console user does (who, when, from where, what, on what, result, change).
+                 Append-only: UPDATE is always refused and DELETE only passes inside the retention purge, which sets
+                 dallycontrol.audit_purge for its own transaction. Rows are chained by hash per customer (prevHash / hash).
+                 audit_settings holds each customer's retention (default 365 days).</comment>
+        <sql splitStatements="false">
+            CREATE TABLE IF NOT EXISTS audit_trail (
+                id BIGSERIAL PRIMARY KEY,
+                createdAt BIGINT NOT NULL,
+                customerId INT,
+                userId INT,
+                login TEXT,
+                userName TEXT,
+                roleId INT,
+                roleName TEXT,
+                ip TEXT,
+                userAgent TEXT,
+                category VARCHAR(32) NOT NULL,
+                action VARCHAR(96) NOT NULL,
+                label TEXT NOT NULL,
+                method VARCHAR(8),
+                path TEXT,
+                targetType VARCHAR(24),
+                targetId TEXT,
+                targetName TEXT,
+                deviceNumbers TEXT[],
+                groupIds INT[],
+                result VARCHAR(8) NOT NULL,
+                httpStatus INT,
+                message TEXT,
+                detail TEXT,
+                durationMs INT,
+                prevHash VARCHAR(64),
+                hash VARCHAR(64) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS audit_trail_customer_idx ON audit_trail (customerId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_chain_idx ON audit_trail (customerId, id);
+            CREATE INDEX IF NOT EXISTS audit_trail_user_idx ON audit_trail (userId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_devices_idx ON audit_trail USING GIN (deviceNumbers);
+            CREATE INDEX IF NOT EXISTS audit_trail_groups_idx ON audit_trail USING GIN (groupIds);
+
+            CREATE TABLE IF NOT EXISTS audit_settings (
+                customerId INT PRIMARY KEY,
+                retentionDays INT NOT NULL DEFAULT 365
+            );
+
+            CREATE OR REPLACE FUNCTION dallycontrol_audit_trail_guard() RETURNS trigger AS $fn$
+            BEGIN
+                IF TG_OP = 'DELETE' AND current_setting('dallycontrol.audit_purge', true) = 'on' THEN
+                    RETURN OLD;
+                END IF;
+                RAISE EXCEPTION 'audit_trail is append-only (% refused)', TG_OP;
+            END
+            $fn$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS audit_trail_no_change ON audit_trail;
+            CREATE TRIGGER audit_trail_no_change BEFORE UPDATE OR DELETE ON audit_trail
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+            DROP TRIGGER IF EXISTS audit_trail_no_truncate ON audit_trail;
+            CREATE TRIGGER audit_trail_no_truncate BEFORE TRUNCATE ON audit_trail
+                FOR EACH STATEMENT EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS audit_settings;
+            DROP TABLE IF EXISTS audit_trail;
+            DROP FUNCTION IF EXISTS dallycontrol_audit_trail_guard();
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-audit-permission" author="dallycontrol">
+        <comment>Permission,new: view_audit — opens the Auditoría screen (and the activity of a device or a user).
+                 Granted by id to the super-administrator (1) and the administrator (2); a folder role that receives
+                 it only sees the rows of its own folders and users.</comment>
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'view_audit', 'Ver la auditoria de acciones (el usuario de carpetas solo la de sus carpetas)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'view_audit');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'view_audit'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'view_audit');
+            DELETE FROM permissions WHERE name = 'view_audit';
+        </rollback>
+    </changeSet>
+
+    <!-- More objects that existed only in the production database (applied by hand), found by running the role and
+         audit tests on an empty database: the saved scripts, the policy change history and the permission that
+         gates script authoring. Without them a fresh install could not save a script nor record a policy edit.
+         Idempotent: a no-op where they already exist. Granted by role id (1 super-admin, 2 administrator). -->
+    <changeSet id="26.11.27-backfill-scripts-config-audit" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS savedScript (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                description TEXT,
+                body TEXT,
+                paramsJson TEXT,
+                quickAction BOOLEAN NOT NULL DEFAULT FALSE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS savedscript_customer_idx ON savedScript (customerId);
+
+            CREATE TABLE IF NOT EXISTS config_audit (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                configurationId INT,
+                configurationName VARCHAR(255),
+                userId INT,
+                userName VARCHAR(255),
+                action VARCHAR(32),
+                changesJson TEXT,
+                revision VARCHAR(64),
+                createdAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS config_audit_configuration_idx ON config_audit (configurationId, id);
+
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y eliminar scripts', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'manage_scripts'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-enroll-permission-enforced" author="dallycontrol">
+        <comment>enroll_devices is now checked by the server (enrollment tokens and codes; until now edit_devices
+                 opened them and enroll_devices was only a row in the role matrix). So that nobody loses what they
+                 can do today, every role that operates devices (edit_devices) receives enroll_devices; an
+                 administrator can then untick it per role. Idempotent.</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT DISTINCT urp.roleId, e.id
+                FROM userRolePermissions urp
+                    INNER JOIN permissions p ON p.id = urp.permissionId AND p.name = 'edit_devices'
+                    CROSS JOIN permissions e
+                WHERE e.name = 'enroll_devices'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = urp.roleId AND x.permissionId = e.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-role-templates" author="dallycontrol">
+        <comment>Two ready-made roles (by fixed id, like the view-only role 200) that an administrator can assign as
+                 they are or duplicate: 210 "Solo lectura" (sees devices, applications and files; changes nothing and
+                 sends no command) and 211 "Técnico de soporte" (operates devices with the safe actions and remote
+                 control, edits their description; no interrupting actions — lock, reboot, change passcode, wipe —
+                 and no fleet, policy or enrollment changes). Idempotent.</comment>
+        <sql>
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 210, 'Solo lectura', 'Solo ve: dispositivos, aplicaciones y archivos. No modifica nada ni envia comandos', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 210 OR name = 'Solo lectura');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 210, p.id FROM permissions p
+                WHERE p.name IN ('applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 210 AND name = 'Solo lectura')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 210 AND x.permissionId = p.id);
+
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 211, 'Técnico de soporte', 'Opera dispositivos con acciones seguras y control remoto, sin acciones que interrumpen (bloquear, reiniciar, cambiar clave, borrar)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 211 OR name = 'Técnico de soporte');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 211, p.id FROM permissions p
+                WHERE p.name IN ('edit_devices', 'edit_device_desc', 'applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 211 AND name = 'Técnico de soporte')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 211 AND x.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE roleId IN (210, 211);
+            DELETE FROM userRoles WHERE id IN (210, 211);
+        </rollback>
+    </changeSet>
+
     <!-- Second wake channel (push): the device's push token and what its agent reports about how it can be woken. -->
     <changeSet id="26.11.27-device-push-wake" author="dallycontrol">
         <sql>

@@ -314,10 +314,22 @@ from Google Play on Android 7-8), the setup wizard of each maker (Samsung/Knox, 
 Protect's verdict on the agent, factory-reset protection (FRP), captive portals, and real Zero-Touch / Knox Mobile
 Enrollment assignment. Emulator facts the script works around (none of them are agent behaviour):
 
-- A booted emulator is already "set up". The script clears `user_setup_complete` / `device_provisioned`, disables
-  AOSP's `com.android.provision` (it marks the device as set up on every boot) and restarts the framework without
-  `device_policies.xml`, because `DevicePolicyManagerService` latches "setup complete" there and then answers
-  "Device already provisioned".
+- A booted emulator is already "set up", and `DevicePolicyManagerService` keeps its own copy of that fact: with it,
+  Android answers "Device already provisioned". On Android 8+ the script clears the two settings and asks the service
+  to read them again (`forceUpdateUserSetupComplete`, a platform test API, through `ProvisionIntent --reset-setup`).
+  On Android 7 it disables the apps that mark an emulator as set up on every boot (`com.android.provision`,
+  `com.google.android.sdksetup`, the image's setup wizard), deletes `device_policies.xml` and reboots.
+- With no setup wizard running, nothing "finishes" the provisioning. Up to Android 11 the agent only receives the
+  QR's token at that moment, so after 45 s without an enrollment the script does what a wizard does at its end
+  (`PROVISION_FINALIZATION`, then the two settings). `--finalize-after 99999` never does it: the "wizard abandoned"
+  case, where the result line says whether the agent's own enrollment screen and notification are up.
+- `--pause-cmd` / `--resume-cmd` take the server away while the phone enrolls; `--replay-token` deletes the agent's
+  stored identity after it enrolled, so it presents the same single-use token again (the answer-was-lost case).
+- `matrix --callbacks-apk <apk>` is the fallback for a release whose emulator will not run the wizard part: the agent
+  is made Device Owner with adb and receives the payload through the same callbacks Android uses
+  (`ProvisionIntent --callback`). It verifies the agent's side only, and the result line says `flow=agent-callbacks`.
+- Several emulators at once make every step slow enough to time out; results taken on an overloaded machine are
+  reported as not obtained, not as failures.
 - Android 6 (API 23) has no QR provisioning (it arrived in Android 7.0): that release enrolls by cable or NFC only.
 - Every emulator of a release reports the same serial and IMEI, so "same phone after a factory reset" is checked
   with made-up identities by `enroll_api_check.py`, and the server ignores `EMULATOR*` serials for de-duplication.
@@ -334,6 +346,151 @@ running 13 agents' builds and emulators at the same time, 1-minute load 30–50,
 `scripts/command-console-e2e.mjs` (Chromium, console of the same stack): 16/16 — history with the three steps, latency,
 issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
 Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
+
+### Results (2026-11-27, dev stack + debug agent of this branch; published agent 0.9.8 where noted)
+
+New agent, QR payload from `web/src/enroll/payload.ts` (tracked download, clock, time zone, locale), from the
+provisioning intent to "enrolled with its configuration" in the console:
+
+| Android | Result | How the agent got the token |
+|---------|--------|------------------------------|
+| 6 (API 23) | not applicable | QR provisioning starts in Android 7 |
+| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled, first attempt, 52-56 s after Device Owner | `qr-legacy`: only once the setup wizard finalized |
+| 10 (API 29) | enrolled, first attempt | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized |
+| 11-17 (API 30-37) | **not obtained** | see below |
+
+Published agent 0.9.8 with the production QR payload of that day (to Device Owner only; it cannot enroll against the
+dev stack): Device Owner on Android 7.0, 7.1, 8.0, 8.1, 9, 10 and 11 (the Android 11 run had the agent already
+installed by an earlier attempt on the same emulator). Android 12+ not obtained.
+
+"Device Owner but never enrolled" (the wizard is abandoned, or does not finalize): reproduced on Android 7.0 and 9 -
+the agent is Device Owner and logs `no enrollment token available` until finalization. The delivery point is the
+same code path for every release up to Android 11, and 0.9.8 has no fallback on any of them. With this branch:
+Android 10 enrolls without the finalization (`qr-early`); on Android 7.0, left without it, the agent showed its
+enrollment screen ("Scan the console's QR" / folder code) and the notification.
+
+Seen on the way: on Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download ("Failed to
+perform a platform-requested role holder update ... offline provisioning is false") on an image without Google Play;
+with the extra the log says "allowOffline set, provisioning via platform" and the download and install proceed.
+On Android 9 the device clock jumped to the payload's `PROVISIONING_LOCAL_TIME` before `DownloadPackageTask`.
+
+Not obtained: Android 11-17 end to end, the clock-set-back runs, the server-outage and token-replay runs. The machine
+was running the emulators of several other test suites (load average 40-50): `uiautomator` and `pm` calls timed out,
+the dev server answered 502, and on the last Android 13 attempt the emulator's system server died mid-run. The
+token-replay and de-dup behaviour is covered at the API by `enroll_api_check.py` (24 checks), the agent's handling of
+each callback by unit tests; neither replaces the device run. The Windows enroller was run under PowerShell 7 on
+macOS with a simulated adb (`scripts/windows-enroller-sim.sh`), not on Windows PowerShell 5.1.
+## Mobile data per app ([DATOS-MOVILES.md](DATOS-MOVILES.md))
+
+`scripts/mobile-data-e2e.py` has two modes. Without a device it plays the phone over the Agent v1 API and checks the
+server: the policy's section in the device document (megabytes → bytes), the per-device override and its revision,
+the device card's "use against limit", limit events → alerts (not duplicated), the report "Datos móviles: uso vs.
+límite" with its CSV/Excel export, and with `--mailpit` the alert e-mail. With `--serial` it drives a real agent on an
+emulator, where `adb shell svc wifi disable` leaves the emulated (metered) cellular network: three test apps that make
+one HTTP request per launch (`scripts/build-netprobe-testapps.sh`), one blocked, one allowed, one essential.
+
+```bash
+scripts/mobile-data-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]
+
+scripts/build-netprobe-testapps.sh
+scripts/adb-enroll.sh --server http://10.0.2.2:8088 --api-url http://localhost:8088 --debug-build \
+    --apk agent-android/app/build/outputs/apk/debug/app-debug.apk --admin-user admin --serial emulator-5554
+scripts/mobile-data-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <device number>
+
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/mobile-data-console-e2e.mjs --api http://localhost:8088
+```
+
+The emulator run covers: nothing restricted → blocklist with the system restriction (`setMeteredDataDisabledPackages`:
+the blocked app fails on mobile data and works on Wi-Fi, the allowed app and the agent keep working, Wi-Fi ↔ mobile) →
+the same with the agent's local VPN forced (always-on VPN = the agent, no consent dialog, `no_config_vpn`, idle on
+Wi-Fi) → allowlist → per-device override (allow / block / unrestricted) → app limit (warning alert, then limit alert
+and automatic block; Wi-Fi still works; announced once per period) → device limit (every app but the essential one) →
+"ignore limits" on the device → section removed (no admin-restricted uid, no always-on VPN, VPN settings unlocked).
+It reads `dumpsys netpolicy`, `dumpsys device_policy` and `dumpsys connectivity` on the way.
+
+Emulator notes: a busy dev stack's Caddy can answer 502 while the agent enrolls and the agent then keeps retrying a
+used token; enrolling against Tomcat's own port (`DEV_API_PORT`) avoids it. `dumpsys device_policy` prints the
+metered-disabled list only on recent Android versions; `dumpsys netpolicy` ("Admin restricted uids for metered
+data") shows it on all of them. Newer images do not always rejoin "AndroidWifi" after `svc wifi enable`; the script
+asks for it (`cmd wifi connect-network AndroidWifi open`).
+
+### Results (2026-11-27, own stack + debug agent built from this branch)
+
+Machine under heavy load (load average 45+, a dozen stacks and five emulators), so the waits are long but nothing was
+timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over adb as Device Owner.
+
+| What | Result |
+|------|--------|
+| Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
+| Console in headless Chromium | 37/37 |
+| Emulator API 30 (Android 11) | 94/95 — the one miss was a check of this script (it looked for the metered list in `dumpsys device_policy`, which Android 11 does not print); fixed |
+| Emulator API 35 (Android 15) | 93/95 — both misses were checks of this script, not of the product: it read a stale state while the phone switched from the VPN to the system restriction, and it looked for `no_config_vpn` in `dumpsys device_policy`, where Android 15 keeps an empty entry after the restriction is lifted (`dumpsys user` showed it gone); both fixed |
+
+On both emulators, with both mechanisms: the blocked app failed on mobile data and worked on Wi-Fi, the allowed app
+and the agent's check-in kept working on mobile data, and switching Wi-Fi ↔ mobile changed the outcome each time. With
+the local VPN there was no consent dialog, `always_on_vpn_app` was the agent and it was removed when the policy was.
+The emulated cellular network is counted per app by `NetworkStatsManager`, so the limits ran for real: a 1.3 MB
+download against a 2 MB app limit with a 50 % threshold raised the warning, the next one the limit alert, and the app
+lost mobile data without the server telling it to.
+
+More fleet-inventory checks (2026-11-27, own stack, machine under heavy load — figures marked with the load):
+
+- `scripts/fleet-console-e2e.mjs` — the console in headless Chromium (`npx -y -p playwright@1.48 node …`): Dispositivos →
+  Exportar (Excel and CSV; everything / what the table shows / the selection, every downloaded file opened), the
+  "Dato de" column, "Actualizar ahora" (list and device page), Reportes → Inventario de la flota (tiles, thresholds,
+  exports) and Envíos programados (create, edit, pause, resume, "Enviar ahora", delete; `--no-smtp` for the notice).
+  `--folder-user` signs in as a folder administrator. `--slow N` multiplies the waits on a loaded machine.
+- `scripts/fleet-report-scope-e2e.py` — a user limited to one folder, over the API: exports, inventory report and
+  scheduled e-mails hold only that folder's devices; other folders' schedules cannot be seen, edited, sent or deleted.
+- `scripts/dev-synthetic-fleet.py` — SQL for a synthetic fleet (folders, devices with their census, a month of
+  sessions) to load-test a dev database; `--remove` deletes it.
+
+Results: browser as administrator 33/33 (5,001 devices: 29 checks before the mail part, then 33/33 with STARTTLS mail);
+browser as folder administrator 35 checks passed (262 of 5,001 devices; mail verified over the API); browser without
+SMTP 31/31; folder scope over the API 33/33; Android 9 (API 28): device 76/76 and browser with the live device 34/34
+(refresh 1.6 s, load 33); Android 15 (API 35): device 76/76 and browser 34/34 (refresh 4.4 s, load 38; enrolling
+needed the `dpm set-device-owner` retry of the first minutes after boot). Scheduled e-mails over STARTTLS + user/password against Mailpit started with
+`--smtp-require-starttls --smtp-auth-file` (it answers 530 without STARTTLS or without AUTH): "Enviar ahora" and the
+scheduler-fired run both delivered. 5,000 devices + 103,000 sessions, server heap capped at 512 MB: Excel 5.9–6.5 s,
+CSV 0.6–1.4 s, inventory report 1 s (measured before the machine saturated).
+
+## Auditoría y roles (MDM-15)
+
+What is checked, and with what:
+
+| Check | How |
+|-------|-----|
+| Every state-changing route is audited | `AuditCatalogCoverageTest` (server tests): reads the JAX-RS annotations of every resource and fails when a reachable POST / PUT / DELETE has no entry in `AuditCatalog` (or is recorded under another route's rule, or the catalog names a route that no longer exists) |
+| What a row contains, secrets never kept, before / after, result | `AuditTrailServiceTest`, `AuditPiecesTest`, `AuditTrailFilterTest`, `AuditHashTest` |
+| The trail end to end, as a limited technician | `scripts/audit-e2e.py` (needs an enrolled device; an emulator is enough) |
+| Each permission of the role matrix restricts the API | `scripts/roles-matrix-e2e.py` (no device needed) |
+| The Auditoría screen, the device / user activity, Roles | `scripts/audit-console-e2e.mjs` (headless Chromium) |
+
+```bash
+# the technician, the allowed and refused actions (a real command to the device, a wipe without permission…), the
+# rows, the scope of a folder user, the exports, immutability (also at SQL level) and the retention purge
+scripts/audit-e2e.py --api http://localhost:8080 --device <device number> --db-container dallycontrol-dev-postgres-1
+
+# for EACH permission: a role without it is refused on its endpoints, the same role with it passes; role life cycle,
+# no privilege escalation, the ready-made roles (--only perm1,perm2 runs a subset)
+scripts/roles-matrix-e2e.py --api http://localhost:8080 [--device <device number>]
+
+# the console (once: cd scripts/shots && npm install && npx playwright install chromium)
+node scripts/audit-console-e2e.mjs --web http://localhost:8088 --device <device number> --shots /tmp/audit-shots
+```
+
+A new mutating endpoint makes `AuditCatalogCoverageTest` fail until it gets a line in
+`server/src/main/java/com/hmdm/audit/AuditCatalog.java` (`audit(...)` with a Spanish label, or `skip(...)` with the
+reason). Until then the request is still recorded, with a generic label. A new permission belongs in
+`web/src/data/roleCapabilities.ts` and in the `MATRIX` of `scripts/roles-matrix-e2e.py`, with the endpoints it gates.
+
+Result (2026-11-27, own stack on an empty database + debug agent 0.9.7 on a clean API 35 emulator, through Caddy):
+`audit-e2e.py` 97/97 (the allowed command reached the device and was reported `delivered`; the wipe, lock and
+passcode attempts were refused and recorded as denied; SQL `UPDATE` / `DELETE` / `TRUNCATE` on `audit_trail` refused;
+the purge removed the planted 120-day-old row and recorded itself); `roles-matrix-e2e.py` 19 permissions, 274 calls,
+308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
+device does not support remote control" (recorded as an error row); the duration of a session that did open is
+covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
 
 ## Second wake channel (push FCM, backup polling) — MDM-07
 
