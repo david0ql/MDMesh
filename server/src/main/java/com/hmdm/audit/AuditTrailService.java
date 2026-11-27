@@ -55,7 +55,7 @@ public class AuditTrailService {
 
     static final int MAX_DEVICES = 2000;
     private static final long REMOTE_SESSION_WINDOW_MS = 12L * 3600_000L;
-    private static final long DENIED_READ_REPEAT_MS = 60_000L;
+    private static final long DENIED_READ_REPEAT_MS = 10 * 60_000L;
 
     private final AuditTrailDAO dao;
     private final AuditTrailMapper db;
@@ -170,7 +170,7 @@ public class AuditTrailService {
         if (!priv || userId == null) return false;
         boolean denied = AuditOutcome.DENIED.equals(outcome.result);
         if (rule == null && AuditCatalog.isMutating(s.method)) return true;
-        // Reads (and POST queries, upload parts, interface preferences): only a refusal is worth a row, once a minute.
+        // Reads (and POST queries, upload parts, interface preferences): only a refusal is worth a row, and the same refused read repeated (a page that polls) is one row every ten minutes.
         if (!denied) return false;
         String key = userId + "|" + s.method + "|" + s.path;
         long now = System.currentTimeMillis();
@@ -264,6 +264,7 @@ public class AuditTrailService {
             if (rule.command) {
                 commandType = commandType(body);
                 String t = commandType == null ? "" : commandType.trim().toLowerCase(Locale.ROOT);
+                // The console closes a remote session by queueing remote.vnc.stop: that is the end of the session.
                 if ("remote.vnc.stop".equals(t) && "device.command".equals(rule.action)) {
                     e.category = AuditCatalog.REMOTE;
                     e.action = "remote.session.stop";

@@ -122,7 +122,8 @@ public class AuditCatalogCoverageTest {
         for (Route r : routes()) existing.add(r.verb + " " + r.template);
         Set<String> stale = new TreeSet<>();
         for (AuditCatalog.Rule rule : AuditCatalog.rules()) {
-            if (!existing.contains(rule.key())) stale.add(rule.key());
+            // A route of a module still being merged may not exist yet.
+            if (!rule.optional && !existing.contains(rule.key())) stale.add(rule.key());
         }
         assertTrue("AuditCatalog names routes that no resource declares (renamed or removed?):\n  "
                 + String.join("\n  ", stale), stale.isEmpty());

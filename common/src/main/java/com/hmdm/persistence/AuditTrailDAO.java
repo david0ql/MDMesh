@@ -35,7 +35,7 @@ public class AuditTrailDAO {
     @Transactional
     public void append(AuditEntry entry) {
         mapper.lockChain();
-        entry.prevHash = mapper.lastHash();
+        entry.prevHash = mapper.lastHash(entry.customerId);
         entry.hash = AuditHash.of(entry);
         mapper.insert(entry);
     }
@@ -60,8 +60,8 @@ public class AuditTrailDAO {
         return mapper.lastRemoteStart(number, since);
     }
 
-    public List<AuditEntry> chain(long afterId, int limit) {
-        return mapper.chain(afterId, limit);
+    public List<AuditEntry> chain(Integer customerId, long afterId, int limit) {
+        return mapper.chain(customerId, afterId, limit);
     }
 
     public long total() {
@@ -85,7 +85,7 @@ public class AuditTrailDAO {
     @Transactional
     public int purge(Integer customerId, long before) {
         mapper.allowPurge();
-        return customerId == null ? mapper.purgeNoCustomer(before) : mapper.purge(customerId, before);
+        return mapper.purge(customerId, before);
     }
 
     public AuditTrailMapper lookups() {

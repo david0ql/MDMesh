@@ -24,6 +24,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { GeofencesPage } from './pages/GeofencesPage';
+import { AuditPage } from './pages/AuditPage';
 
 export default function App() {
   return (
@@ -47,11 +48,12 @@ export default function App() {
               <Route path="/reports" element={<RequirePermission name="manage_fleet"><ReportsPage /></RequirePermission>} />
               <Route path="/alerts" element={<RequirePermission name="manage_fleet"><AlertsPage /></RequirePermission>} />
               <Route path="/scripts" element={<RequirePermission name="manage_scripts"><ScriptsPage /></RequirePermission>} />
-              <Route path="/enroll" element={<EnrollPage />} />
+              <Route path="/enroll" element={<RequirePermission name="enroll_devices"><EnrollPage /></RequirePermission>} />
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
               <Route path="/users" element={<RequirePermission name="manage_users"><UsersPage /></RequirePermission>} />
               <Route path="/roles" element={<AdminOnly><RolesPage /></AdminOnly>} />
               <Route path="/geofences" element={<RequirePermission name="manage_fleet"><GeofencesPage /></RequirePermission>} />
+              <Route path="/audit" element={<RequirePermission name="view_audit"><AuditPage /></RequirePermission>} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

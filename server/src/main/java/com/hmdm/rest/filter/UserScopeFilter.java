@@ -113,7 +113,9 @@ public class UserScopeFilter implements Filter {
             // and of the users they manage. The activity of one device is checked here against the device's folder.
             new Rule("GET", "/audit/v1/(log|facets|export|settings)", null),
             new Rule("GET", "/audit/v1/devices/([^/]+)/activity", "device"),
-            new Rule("GET", "/audit/v1/users/(\\d+)/activity", null)
+            new Rule("GET", "/audit/v1/users/(\\d+)/activity", null),
+            // Users module: the roles a folder manager may assign (DcUserResource: never more than they hold).
+            new Rule("GET", "/dc/users/roles", null)
     );
 
     private final UserScope scope;

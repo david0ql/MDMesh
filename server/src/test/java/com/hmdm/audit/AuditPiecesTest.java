@@ -142,8 +142,11 @@ public class AuditPiecesTest {
 
     @Test
     public void addedAndRemovedValues() {
-        ObjectNode c = AuditDiff.changes(row("permisos", "edit_devices"), row("permisos", "edit_devices, disruptive_actions"));
+        ObjectNode c = AuditDiff.changes(row("permisos", "edit_devices, files"), row("permisos", "edit_devices, disruptive_actions"));
         assertEquals("edit_devices, disruptive_actions", c.get("permisos").get("despues").asText());
+        // A list says what was added and what was removed (two long lists cut at 160 characters would not).
+        assertEquals("disruptive_actions", c.get("permisos").get("agregado").asText());
+        assertEquals("files", c.get("permisos").get("quitado").asText());
         c = AuditDiff.changes(row("email", null), row("email", "a@b.co"));
         assertTrue(c.get("correo").get("antes").isNull());
     }

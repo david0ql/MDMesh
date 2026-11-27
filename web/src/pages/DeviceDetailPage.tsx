@@ -30,8 +30,11 @@ import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 import { getDeviceInstallProblems, retryNote, type DeviceInstallProblem } from '../api/installStatus';
 import { DataFreshness } from '../components/DataFreshness';
+import { AuditActivity } from '../components/AuditActivity';
+import { useAuth } from '../auth/AuthContext';
+import { hasPermission } from '../api/auth';
 
-type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'activity';
 
 interface Row {
   k: string;
@@ -147,6 +150,9 @@ export function DeviceDetailPage() {
   // Installs of this device that are held back (not Device Owner…) or failed, with the reason.
   const [installProblems, setInstallProblems] = useState<DeviceInstallProblem[]>([]);
   // Links from alert e-mails and the Geocercas page open the map directly: /devices/<n>?tab=location
+  // The audit trail of this device is shown to whoever may read the audit (the server scopes it to their folders).
+  const { user: authUser } = useAuth();
+  const canSeeAudit = hasPermission(authUser, 'view_audit');
   const [tab, setTab] = useState<Tab>(() =>
     new URLSearchParams(window.location.search).get('tab') === 'location' ? 'location' : 'control');
   const workRef = useRef<HTMLElement>(null);
@@ -488,6 +494,11 @@ export function DeviceDetailPage() {
             <button className={tab === 'location' ? 'on' : ''} onClick={() => setTab('location')}>
               Ubicación
             </button>
+            {canSeeAudit && (
+              <button className={tab === 'activity' ? 'on' : ''} onClick={() => setTab('activity')} data-testid="tab-activity">
+                Actividad
+              </button>
+            )}
           </div>
 
           <div className="tabbody">
@@ -509,6 +520,7 @@ export function DeviceDetailPage() {
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}
             {tab === 'location' && <LocationPanel device={device} />}
+            {tab === 'activity' && canSeeAudit && <AuditActivity device={device.number} />}
           </div>
         </section>
       </div>

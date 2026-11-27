@@ -133,6 +133,19 @@ public class AgentAdminResource {
         return false;
     }
 
+    /**
+     * Enrolling devices (tokens, reusable codes and their list) has its own permission, {@code enroll_devices}:
+     * a support role can act on devices without being able to add new ones to the fleet, and the other way round.
+     */
+    private static boolean canEnroll(String action) {
+        if (SecurityContext.get().hasPermission("enroll_devices")) {
+            return true;
+        }
+        logger.warn("Permission denied: {} requires enroll_devices (user {})", action,
+                SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
+        return false;
+    }
+
     // =================================================================================================================
     @ApiOperation(value = "Mint enrollment token", notes = "Creates a single-use enrollment token for the current customer. "
             + "An optional configurationId pins the enrolled device to that configuration; an optional groupId puts it "
@@ -142,7 +155,7 @@ public class AgentAdminResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response mintToken(AgentEnrollmentToken body) {
-        if (!canEditDevices("mint enrollment token")) {
+        if (!canEnroll("mint enrollment token")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -228,7 +241,7 @@ public class AgentAdminResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response createCode(CodeBody body) {
-        if (!canEditDevices("create enrollment code")) {
+        if (!canEnroll("create enrollment code")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -296,6 +309,10 @@ public class AgentAdminResource {
     @Path("/codes")
     @Produces(MediaType.APPLICATION_JSON)
     public Response listCodes() {
+        // The list shows each code (anyone holding one can enroll a phone into the folder): enrollment only.
+        if (!canEnroll("list enrollment codes")) {
+            return Response.PERMISSION_DENIED();
+        }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
@@ -315,7 +332,7 @@ public class AgentAdminResource {
     @Path("/codes/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response revokeCode(@PathParam("id") int id, @QueryParam("purge") boolean purge) {
-        if (!canEditDevices("revoke enrollment code")) {
+        if (!canEnroll("revoke enrollment code")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -467,6 +484,12 @@ public class AgentAdminResource {
         }
         if (requiresDisruptivePermission(type) && !SecurityContext.get().hasPermission("disruptive_actions")) {
             logger.warn("Permission denied: bulk {} requires disruptive_actions (user {})",
+                    type, SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
+        // Same rule as the per-device call: installing / uninstalling apps needs manage_fleet, also in bulk.
+        if (requiresFleetPermission(type) && !SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: bulk {} requires manage_fleet (user {})",
                     type, SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
         }

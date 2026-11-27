@@ -62,6 +62,15 @@ public final class AuditDiff {
         LABELS.put("permisos", "permisos");
     }
 
+    /** Snapshot fields that hold a comma-separated list. */
+    private static final Set<String> LISTS = new HashSet<>(Arrays.asList("permisos", "carpetas"));
+
+    private static Set<String> items(String list) {
+        Set<String> out = new LinkedHashSet<>();
+        if (list != null) for (String s : list.split(",")) if (!s.trim().isEmpty()) out.add(s.trim());
+        return out;
+    }
+
     static String label(String column) {
         String l = LABELS.get(column);
         return l != null ? l : column;
@@ -87,6 +96,17 @@ public final class AuditDiff {
                 continue;
             }
             ObjectNode c = JsonNodeFactory.instance.objectNode();
+            if (LISTS.contains(k)) {
+                // A list (permissions, folders): what was added and what was removed says more than two long lists.
+                Set<String> was = items(a);
+                Set<String> is = items(b);
+                Set<String> added = new LinkedHashSet<>(is);
+                added.removeAll(was);
+                Set<String> removed = new LinkedHashSet<>(was);
+                removed.removeAll(is);
+                if (!added.isEmpty()) c.put("agregado", cut(String.join(", ", added)));
+                if (!removed.isEmpty()) c.put("quitado", cut(String.join(", ", removed)));
+            }
             c.put("antes", cut(a));
             c.put("despues", cut(b));
             out.set(label(k), c);

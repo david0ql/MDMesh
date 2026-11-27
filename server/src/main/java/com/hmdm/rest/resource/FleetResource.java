@@ -869,6 +869,13 @@ public class FleetResource {
     // --- helpers --------------------------------------------------------------------------------------------------
 
     private Response fanOut(int customerId, CommandBody body, Predicate<DeviceScopeRow> which, String target) {
+        // A command is a device action wherever it is sent from: edit_devices, like the per-device and bulk calls
+        // (manage_fleet alone lets a role organise folders and policies, not operate the phones).
+        if (!SecurityContext.get().hasPermission("edit_devices")) {
+            logger.warn("Permission denied: fan-out to {} requires edit_devices (user {})", target,
+                    SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
+            return Response.PERMISSION_DENIED();
+        }
         AgentCommand cmd = body == null ? null : body.command;
         if (cmd == null || cmd.getType() == null || cmd.getType().trim().isEmpty()) {
             return Response.ERROR("error.agent.command.invalid");
@@ -885,7 +892,7 @@ public class FleetResource {
                 && !SecurityContext.get().hasPermission("disruptive_actions")) {
             logger.warn("Permission denied: fan-out {} requires disruptive_actions (user {})", type,
                     SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
-            return Response.ERROR("error.agent.command.bulkForbidden");
+            return Response.PERMISSION_DENIED();
         }
         int queued = 0;
         long now = System.currentTimeMillis();

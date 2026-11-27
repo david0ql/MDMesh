@@ -56,8 +56,10 @@ public interface AuditTrailMapper {
     @Select({"SELECT 1 FROM (SELECT pg_advisory_xact_lock(742600127)) l"})
     Integer lockChain();
 
-    @Select({"SELECT hash FROM audit_trail ORDER BY id DESC LIMIT 1"})
-    String lastHash();
+    /** The chain is per customer (each has its own retention), in id order. */
+    @Select({"SELECT hash FROM audit_trail WHERE customerId IS NOT DISTINCT FROM #{customerId,jdbcType=INTEGER} " +
+            "ORDER BY id DESC LIMIT 1"})
+    String lastHash(@Param("customerId") Integer customerId);
 
     @Insert({"INSERT INTO audit_trail (createdAt, customerId, userId, login, userName, roleId, roleName, ip, userAgent, " +
             "category, action, label, method, path, targetType, targetId, targetName, deviceNumbers, groupIds, result, " +
@@ -94,9 +96,10 @@ public interface AuditTrailMapper {
             "AND result = 'ok' AND deviceNumbers @> ARRAY[#{number}]::text[]), 0)"})
     Long lastRemoteStart(@Param("number") String number, @Param("since") long since);
 
-    /** The chain in id order, for verification. */
-    @Select({"SELECT " + COLUMNS + " FROM audit_trail e WHERE e.id > #{afterId} ORDER BY e.id LIMIT #{limit}"})
-    List<AuditEntry> chain(@Param("afterId") long afterId, @Param("limit") int limit);
+    /** A customer's chain in id order, for verification. */
+    @Select({"SELECT " + COLUMNS + " FROM audit_trail e WHERE e.customerId IS NOT DISTINCT FROM #{customerId,jdbcType=INTEGER} " +
+            "AND e.id > #{afterId} ORDER BY e.id LIMIT #{limit}"})
+    List<AuditEntry> chain(@Param("customerId") Integer customerId, @Param("afterId") long afterId, @Param("limit") int limit);
 
     @Select({"SELECT COUNT(*) FROM audit_trail"})
     long total();
@@ -117,11 +120,15 @@ public interface AuditTrailMapper {
     @Select({"SELECT set_config('dallycontrol.audit_purge', 'on', true)"})
     String allowPurge();
 
-    @Delete({"DELETE FROM audit_trail WHERE customerId = #{customerId} AND createdAt < #{before}"})
-    int purge(@Param("customerId") int customerId, @Param("before") long before);
-
-    @Delete({"DELETE FROM audit_trail WHERE customerId IS NULL AND createdAt < #{before}"})
-    int purgeNoCustomer(@Param("before") long before);
+    /**
+     * Deletes the OLDEST rows of a customer's chain: everything written before the first row that must be kept.
+     * Cutting only the head of the chain (never a row in the middle, even when two requests were written in a
+     * different order than they started) is what keeps the rest verifiable after a purge.
+     */
+    @Delete({"DELETE FROM audit_trail WHERE customerId IS NOT DISTINCT FROM #{customerId,jdbcType=INTEGER} AND id < COALESCE(" +
+            "(SELECT MIN(id) FROM audit_trail WHERE customerId IS NOT DISTINCT FROM #{customerId,jdbcType=INTEGER} " +
+            "AND createdAt >= #{before}), 9223372036854775807)"})
+    int purge(@Param("customerId") Integer customerId, @Param("before") long before);
 
     // --- look-ups (who / what) -----------------------------------------------------------------------------------
 

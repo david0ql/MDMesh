@@ -273,13 +273,13 @@ public class AuditTrailServiceTest {
     // --- what is, and is not, recorded ---------------------------------------------------------------------------
 
     @Test
-    public void readsAreRecordedOnlyWhenRefusedAndOnlyOncePerMinute() {
+    public void readsAreRecordedOnlyWhenRefusedAndNotRepeated() {
         assertNull(run(seen("GET", "/private/agent/v1/devices/dev-1/state", 7, null), 200, OK));
         AuditEntry e = run(seen("GET", "/private/agent/v1/devices/otro/state", 7, null), 403, null);
         assertNotNull(e);
         assertEquals("denied", e.result);
         assertTrue(e.label, e.label.startsWith("Consulta denegada"));
-        assertNull("the same refused read within a minute is one row", run(seen("GET", "/private/agent/v1/devices/otro/state", 7, null), 403, null));
+        assertNull("the same refused read repeated is one row", run(seen("GET", "/private/agent/v1/devices/otro/state", 7, null), 403, null));
         // A search that uses POST is a read too.
         assertNull(run(seen("POST", "/private/devices/search", 7, "{}"), 200, OK));
     }

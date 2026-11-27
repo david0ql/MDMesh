@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { useAuth } from '../auth/AuthContext';
-import { isFolderAdmin } from '../api/auth';
+import { isFolderAdmin, hasPermission } from '../api/auth';
+import { AuditActivity } from '../components/AuditActivity';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
-import { deleteUser, listUsers, saveUser, type ConsoleUser, type SaveUser } from '../api/users';
+import { deleteUser, listAssignableRoles, listUsers, saveUser, type AssignableRole, type ConsoleUser, type SaveUser } from '../api/users';
+import { describeRole } from '../data/roleCapabilities';
 
 // Users of the console: administrators (everything) and folder administrators, who manage only the devices of the
 // folders they are given — those folders and every folder below them, also folders created there later.
@@ -21,12 +23,21 @@ export function UsersPage() {
   const [edit, setEdit] = useState<SaveUser | null>(null);
   const [repeat, setRepeat] = useState('');
   const [busy, setBusy] = useState(false);
+  // Custom roles (Roles page) this user may hand out, and whether a custom role covers the whole fleet.
+  const [roles, setRoles] = useState<AssignableRole[]>([]);
+  const [allFleet, setAllFleet] = useState(false);
+  // The three built-in kinds already cover the editor (3) and view-only (200) roles.
+  const customRoles = useMemo(() => roles.filter((r) => r.id !== 3 && r.id !== 200), [roles]);
+  // Recent activity of one user (audit trail); only for those who may read the audit.
+  const canSeeAudit = hasPermission(user, 'view_audit');
+  const [activityOf, setActivityOf] = useState<ConsoleUser | null>(null);
   const tree = useMemo(() => groupTree(groups), [groups]);
   const pathOf = useMemo(() => new Map(tree.map((n) => [n.group.id, n.path])), [tree]);
 
   const load = () => {
     listUsers().then(setUsers).catch((e) => { setUsers([]); toast.push('err', 'No se pudieron cargar los usuarios', String(e?.message ?? e)); });
     listGroups().then((o) => setGroups(o.groups)).catch(() => undefined);
+    listAssignableRoles().then(setRoles).catch(() => setRoles([]));
   };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -52,10 +63,12 @@ export function UsersPage() {
     if (!edit.id && !edit.password) return toast.push('err', 'Falta la contraseña', 'Escribe una contraseña para el usuario nuevo.');
     if (edit.password && edit.password.length < 8) return toast.push('err', 'Contraseña muy corta', 'Usa al menos 8 caracteres.');
     if (edit.password && edit.password !== repeat) return toast.push('err', 'Las contraseñas no coinciden', 'Escríbela igual en los dos campos.');
-    if (edit.role !== 'admin' && edit.folders.length === 0) return toast.push('err', 'Faltan carpetas', 'Elige al menos una carpeta.');
+    const wholeFleet = edit.role === 'custom' && allFleet;
+    if (edit.role === 'custom' && !edit.roleId) return toast.push('err', 'Falta el rol', 'Elige el rol del usuario.');
+    if (edit.role !== 'admin' && !wholeFleet && edit.folders.length === 0) return toast.push('err', 'Faltan carpetas', 'Elige al menos una carpeta.');
     setBusy(true);
     try {
-      await saveUser(edit);
+      await saveUser(wholeFleet ? { ...edit, folders: [] } : edit);
       toast.push('ok', 'Usuario guardado', edit.login);
       setEdit(null); setRepeat('');
       load();
@@ -76,7 +89,7 @@ export function UsersPage() {
       <div className="page-head">
         <h1>Usuarios</h1>
         <div className="sp" />
-        {!edit && <button className="btn btn-primary" onClick={() => { setEdit({ ...EMPTY }); setRepeat(''); }} data-testid="user-new">Nuevo usuario</button>}
+        {!edit && <button className="btn btn-primary" onClick={() => { setEdit({ ...EMPTY }); setAllFleet(false); setRepeat(''); }} data-testid="user-new">Nuevo usuario</button>}
       </div>
       {folderManager ? (
         <p className="note" style={{ marginTop: 0 }}>
@@ -101,14 +114,41 @@ export function UsersPage() {
             <label>{edit.id ? 'Contraseña nueva (vacía = no cambia)' : 'Contraseña'}<input className="input" type="password" value={edit.password ?? ''} onChange={(e) => setEdit({ ...edit, password: e.target.value })} autoComplete="new-password" /></label>
             <label>Repite la contraseña<input className="input" type="password" value={repeat} onChange={(e) => setRepeat(e.target.value)} autoComplete="new-password" /></label>
             <label>Tipo
-              <select className="sel" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as SaveUser['role'] })} aria-label="Tipo de usuario">
+              <select className="sel" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as SaveUser['role'] })} aria-label="Tipo de usuario" data-testid="user-type">
                 <option value="foldersView">Carpetas — solo lectura (ver y acciones seguras)</option>
                 <option value="folders">Carpetas — con edición (modifica políticas y carpetas)</option>
+                {customRoles.length > 0 && <option value="custom">Rol personalizado…</option>}
                 {!folderManager && <option value="admin">Administrador (todo)</option>}
               </select>
             </label>
+            {edit.role === 'custom' && (
+              <label>Rol
+                <select className="sel" value={edit.roleId ?? ''} onChange={(e) => setEdit({ ...edit, roleId: e.target.value ? Number(e.target.value) : null })} aria-label="Rol del usuario" data-testid="user-role">
+                  <option value="">Elige un rol…</option>
+                  {customRoles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </label>
+            )}
           </div>
-          {edit.role !== 'admin' && (
+          {edit.role === 'custom' && (
+            <div className="user-folders" data-testid="user-role-info">
+              {!folderManager && (
+                <label>
+                  <input type="checkbox" className="dev-check" checked={allFleet} onChange={(e) => setAllFleet(e.target.checked)} data-testid="user-all-fleet" />
+                  {' '}Toda la flota <span className="muted small">(sin marcar: solo las carpetas que elijas abajo)</span>
+                </label>
+              )}
+              {edit.roleId ? (
+                <>
+                  <div className="sub-h">Qué podrá hacer con este rol</div>
+                  <ul className="role-summary">
+                    {describeRole(customRoles.find((r) => r.id === edit.roleId)?.permissions ?? []).can.map((s) => <li key={s}>{s}</li>)}
+                  </ul>
+                </>
+              ) : null}
+            </div>
+          )}
+          {edit.role !== 'admin' && !(edit.role === 'custom' && allFleet) && (
             <div className="user-folders">
               <div className="sub-h">Carpetas que maneja <span className="muted small">(con todas sus subcarpetas)</span></div>
               {tree.length === 0 ? <p className="muted small">No hay carpetas.</p> : (
@@ -146,11 +186,12 @@ export function UsersPage() {
                   <td data-label="Nombre">{u.name || '—'}{u.me ? <span className="muted small"> (tú)</span> : null}</td>
                   <td data-label="Usuario" className="mono">{u.login}</td>
                   <td data-label="Correo">{u.email || '—'}</td>
-                  <td data-label="Tipo">{u.role === 'admin' ? 'Administrador' : u.role === 'foldersView' ? 'Carpetas (solo lectura)' : 'Carpetas (edición)'}</td>
-                  <td data-label="Carpetas">{u.role === 'admin' ? 'Todas' : u.folders.map((f) => pathOf.get(f) ?? `#${f}`).join(' · ') || '—'}</td>
+                  <td data-label="Tipo">{u.role === 'admin' ? 'Administrador' : u.role === 'foldersView' ? 'Carpetas (solo lectura)' : u.role === 'custom' ? `Rol: ${u.roleName ?? '—'}` : 'Carpetas (edición)'}</td>
+                  <td data-label="Carpetas">{u.role === 'admin' || u.allFleet ? 'Todas' : u.folders.map((f) => pathOf.get(f) ?? `#${f}`).join(' · ') || '—'}</td>
                   <td>
                     <div className="gr-actions">
-                      <button className="btn btn-sm" onClick={() => { setEdit({ id: u.id, login: u.login, name: u.name ?? '', email: u.email ?? '', password: '', role: u.role, folders: u.folders }); setRepeat(''); }}>Editar</button>
+                      <button className="btn btn-sm" onClick={() => { setEdit({ id: u.id, login: u.login, name: u.name ?? '', email: u.email ?? '', password: '', role: u.role, roleId: u.roleId ?? null, folders: u.folders }); setAllFleet(u.role === 'custom' && !!u.allFleet); setRepeat(''); }}>Editar</button>
+                      {canSeeAudit && <button className="btn btn-sm btn-ghost" onClick={() => setActivityOf(u)} data-testid="user-activity">Actividad</button>}
                       {!u.me && <button className="btn btn-sm btn-ghost gr-del" onClick={() => void remove(u)}>Eliminar</button>}
                     </div>
                   </td>
@@ -160,6 +201,16 @@ export function UsersPage() {
           </table>
         )}
       </section>
+
+      {activityOf && (
+        <div className="modal-backdrop" onClick={() => setActivityOf(null)}>
+          <div className="modal audit-modal" role="dialog" aria-label={`Actividad de ${activityOf.login}`} onClick={(e) => e.stopPropagation()} data-testid="user-activity-modal">
+            <h3>Actividad reciente de «{activityOf.name || activityOf.login}»</h3>
+            <AuditActivity userId={activityOf.id} />
+            <div className="modal-actions"><button className="btn" onClick={() => setActivityOf(null)}>Cerrar</button></div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

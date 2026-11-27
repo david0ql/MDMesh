@@ -113,6 +113,8 @@ public final class AuditCatalog {
         public boolean sensitiveRead;
         /** Why a READ / DEVICE / MINOR route is not recorded. */
         public String reason;
+        /** The route belongs to a module still being merged: it may not exist yet (the stale-route check skips it). */
+        public boolean optional;
 
         Rule(String method, String template, Kind kind, String category, String action, String label) {
             this.method = method;
@@ -151,6 +153,11 @@ public final class AuditCatalog {
 
         Rule onFailure(String label) {
             this.failLabel = label;
+            return this;
+        }
+
+        Rule optional() {
+            this.optional = true;
             return this;
         }
 
@@ -193,10 +200,11 @@ public final class AuditCatalog {
         return r;
     }
 
-    private static void skip(Kind kind, String method, String template, String reason) {
+    private static Rule skip(Kind kind, String method, String template, String reason) {
         Rule r = new Rule(method, template, kind, OTHER, "skip", reason);
         r.reason = reason;
         RULES.add(r);
+        return r;
     }
 
     static {
@@ -438,6 +446,26 @@ public final class AuditCatalog {
         // --- auditoría ------------------------------------------------------------------------------------------
         sensitive("/private/audit/v1/export", AUDIT, "audit.export", "Exportación de la auditoría");
         audit("PUT", "/private/audit/v1/settings", AUDIT, "audit.retention", "Cambio de la retención de la auditoría");
+        audit("POST", "/private/audit/v1/purge", AUDIT, "audit.purge.request", "Aplicación manual de la retención de la auditoría");
+
+        // --- rutas de módulos que se integran en paralelo (marcadas optional: pueden no existir todavía) ----------
+        // Named here so that they arrive with a readable label; AuditCatalogCoverageTest does not report an optional
+        // rule as stale while its route does not exist. Remove .optional() once the module is merged.
+        audit("POST", "/private/support/v1/devices/{deviceId}/start", REMOTE, "remote.session.start",
+                "Inicio de sesión de soporte remoto").target("device", "path:deviceId").optional();
+        audit("POST", "/private/support/v1/devices/{deviceId}/stop", REMOTE, "remote.session.stop",
+                "Fin de sesión de soporte remoto").target("device", "path:deviceId").optional();
+        audit("POST", "/private/agent/v1/devices/{deviceId}/mobileData", DEVICES, "device.mobileData",
+                "Cambio de datos móviles del dispositivo").target("device", "path:deviceId").optional();
+        audit("POST", "/private/agent/v1/devices/{deviceId}/commands/{commandId}/cancel", COMMANDS, "device.command.cancel",
+                "Cancelación de un comando pendiente").target("device", "path:deviceId").optional();
+        audit("PUT", "/private/agent/v1/devices/{deviceId}/hardware", DEVICES, "device.hardware",
+                "Restricciones de hardware del dispositivo").target("device", "path:deviceId").optional();
+        audit("PUT", "/private/agent/v1/devices/{deviceId}/permissions", DEVICES, "device.permissions",
+                "Permisos de aplicaciones del dispositivo").target("device", "path:deviceId").optional();
+        audit("POST", "/private/wifi-certificates", POLICIES, "wifi.certificate.upload", "Carga de certificado Wi-Fi").optional();
+        audit("DELETE", "/private/wifi-certificates/{id}", POLICIES, "wifi.certificate.delete", "Eliminación de certificado Wi-Fi").optional();
+        skip(Kind.DEVICE, "POST", "/public/agent/v1/enroll/report", "Reporte de inscripción del dispositivo (lo envía el agente)").optional();
 
         // --- llamadas del agente del dispositivo (no son de un usuario de la consola) ----------------------------
         skip(Kind.DEVICE, "POST", "/public/agent/v1/enroll", "Inscripción del dispositivo (la hace el agente)");

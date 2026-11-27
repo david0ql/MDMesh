@@ -3573,7 +3573,7 @@
     <changeSet id="26.11.27-audit-trail" author="dallycontrol">
         <comment>Audit trail of what every console user does (who, when, from where, what, on what, result, change).
                  Append-only: UPDATE is always refused and DELETE only passes inside the retention purge, which sets
-                 dallycontrol.audit_purge for its own transaction. Rows are chained by hash (prevHash / hash).
+                 dallycontrol.audit_purge for its own transaction. Rows are chained by hash per customer (prevHash / hash).
                  audit_settings holds each customer's retention (default 365 days).</comment>
         <sql splitStatements="false">
             CREATE TABLE IF NOT EXISTS audit_trail (
@@ -3606,6 +3606,7 @@
                 hash VARCHAR(64) NOT NULL
             );
             CREATE INDEX IF NOT EXISTS audit_trail_customer_idx ON audit_trail (customerId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_chain_idx ON audit_trail (customerId, id);
             CREATE INDEX IF NOT EXISTS audit_trail_user_idx ON audit_trail (userId, createdAt DESC);
             CREATE INDEX IF NOT EXISTS audit_trail_devices_idx ON audit_trail USING GIN (deviceNumbers);
             CREATE INDEX IF NOT EXISTS audit_trail_groups_idx ON audit_trail USING GIN (groupIds);
@@ -3655,6 +3656,98 @@
         <rollback>
             DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'view_audit');
             DELETE FROM permissions WHERE name = 'view_audit';
+        </rollback>
+    </changeSet>
+
+    <!-- More objects that existed only in the production database (applied by hand), found by running the role and
+         audit tests on an empty database: the saved scripts, the policy change history and the permission that
+         gates script authoring. Without them a fresh install could not save a script nor record a policy edit.
+         Idempotent: a no-op where they already exist. Granted by role id (1 super-admin, 2 administrator). -->
+    <changeSet id="26.11.27-backfill-scripts-config-audit" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS savedScript (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                description TEXT,
+                body TEXT,
+                paramsJson TEXT,
+                quickAction BOOLEAN NOT NULL DEFAULT FALSE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS savedscript_customer_idx ON savedScript (customerId);
+
+            CREATE TABLE IF NOT EXISTS config_audit (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                configurationId INT,
+                configurationName VARCHAR(255),
+                userId INT,
+                userName VARCHAR(255),
+                action VARCHAR(32),
+                changesJson TEXT,
+                revision VARCHAR(64),
+                createdAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS config_audit_configuration_idx ON config_audit (configurationId, id);
+
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y eliminar scripts', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'manage_scripts'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-enroll-permission-enforced" author="dallycontrol">
+        <comment>enroll_devices is now checked by the server (enrollment tokens and codes; until now edit_devices
+                 opened them and enroll_devices was only a row in the role matrix). So that nobody loses what they
+                 can do today, every role that operates devices (edit_devices) receives enroll_devices; an
+                 administrator can then untick it per role. Idempotent.</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT DISTINCT urp.roleId, e.id
+                FROM userRolePermissions urp
+                    INNER JOIN permissions p ON p.id = urp.permissionId AND p.name = 'edit_devices'
+                    CROSS JOIN permissions e
+                WHERE e.name = 'enroll_devices'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = urp.roleId AND x.permissionId = e.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-role-templates" author="dallycontrol">
+        <comment>Two ready-made roles (by fixed id, like the view-only role 200) that an administrator can assign as
+                 they are or duplicate: 210 "Solo lectura" (sees devices, applications and files; changes nothing and
+                 sends no command) and 211 "Técnico de soporte" (operates devices with the safe actions and remote
+                 control, edits their description; no interrupting actions — lock, reboot, change passcode, wipe —
+                 and no fleet, policy or enrollment changes). Idempotent.</comment>
+        <sql>
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 210, 'Solo lectura', 'Solo ve: dispositivos, aplicaciones y archivos. No modifica nada ni envia comandos', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 210 OR name = 'Solo lectura');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 210, p.id FROM permissions p
+                WHERE p.name IN ('applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 210 AND name = 'Solo lectura')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 210 AND x.permissionId = p.id);
+
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 211, 'Técnico de soporte', 'Opera dispositivos con acciones seguras y control remoto, sin acciones que interrumpen (bloquear, reiniciar, cambiar clave, borrar)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 211 OR name = 'Técnico de soporte');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 211, p.id FROM permissions p
+                WHERE p.name IN ('edit_devices', 'edit_device_desc', 'applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 211 AND name = 'Técnico de soporte')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 211 AND x.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE roleId IN (210, 211);
+            DELETE FROM userRoles WHERE id IN (210, 211);
         </rollback>
     </changeSet>
 

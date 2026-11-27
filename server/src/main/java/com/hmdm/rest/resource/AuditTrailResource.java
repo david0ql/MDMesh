@@ -72,17 +72,20 @@ public class AuditTrailResource {
     private UserScope scope;
     private UnsecureDAO unsecureDAO;
     private AuditTrailService service;
+    private com.hmdm.audit.AuditPurgeTask purgeTask;
 
     /** A constructor required by Swagger. */
     public AuditTrailResource() {
     }
 
     @Inject
-    public AuditTrailResource(AuditTrailDAO dao, UserScope scope, UnsecureDAO unsecureDAO, AuditTrailService service) {
+    public AuditTrailResource(AuditTrailDAO dao, UserScope scope, UnsecureDAO unsecureDAO, AuditTrailService service,
+                              com.hmdm.audit.AuditPurgeTask purgeTask) {
         this.dao = dao;
         this.scope = scope;
         this.unsecureDAO = unsecureDAO;
         this.service = service;
+        this.purgeTask = purgeTask;
     }
 
     // --- who may see what ----------------------------------------------------------------------------------------
@@ -448,6 +451,28 @@ public class AuditTrailResource {
         return Response.OK(out);
     }
 
+    @ApiOperation(value = "Aplicar la retención ahora", notes = "Ejecuta de inmediato la purga diaria: elimina solo los "
+            + "registros más antiguos que la retención configurada (nunca los recientes) y deja constancia en la auditoría.")
+    @javax.ws.rs.POST
+    @Path("/purge")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response purgeNow() {
+        Optional<User> me = viewer();
+        if (!me.isPresent() || !canConfigure(me.get())) return Response.PERMISSION_DENIED();
+        try {
+            int removed = purgeTask.purge(System.currentTimeMillis());
+            service.flush();
+            logger.info("Audit retention applied on demand by {}: {} rows removed", me.get().getLogin(), removed);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("removed", removed);
+            out.put("retentionDays", dao.retentionDays(me.get().getCustomerId()));
+            return Response.OK(out);
+        } catch (Exception e) {
+            logger.error("Audit purge on demand failed", e);
+            return Response.INTERNAL_ERROR();
+        }
+    }
+
     // --- integrity -----------------------------------------------------------------------------------------------
 
     @ApiOperation(value = "Verificar la integridad", notes = "Recorre la cadena de hashes de todos los registros: cada uno "
@@ -461,20 +486,26 @@ public class AuditTrailResource {
         try {
             service.flush();
             long checked = 0;
-            long afterId = 0;
-            String prev = null;
-            boolean first = true;
             Long broken = null;
-            while (broken == null) {
-                List<AuditEntry> rows = dao.chain(afterId, 2000);
-                if (rows.isEmpty()) break;
-                // The oldest row kept points at a row the retention purge removed: its link cannot be checked.
-                broken = AuditHash.verify(rows, prev, !first);
-                checked += rows.size();
-                AuditEntry last = rows.get(rows.size() - 1);
-                afterId = last.id;
-                prev = last.hash;
-                first = false;
+            // The organisation's own chain, and (where the rows without organisation are shown) theirs too.
+            List<Integer> chains = new ArrayList<>();
+            chains.add(me.get().getCustomerId());
+            if (SecurityContext.get().isSuperAdmin() || unsecureDAO.isSingleCustomer()) chains.add(null);
+            for (Integer customerId : chains) {
+                long afterId = Long.MIN_VALUE;
+                String prev = null;
+                boolean first = true;
+                while (broken == null) {
+                    List<AuditEntry> rows = dao.chain(customerId, afterId, 2000);
+                    if (rows.isEmpty()) break;
+                    // The oldest row kept points at a row the retention purge removed: its link cannot be checked.
+                    broken = AuditHash.verify(rows, prev, !first);
+                    checked += rows.size();
+                    AuditEntry last = rows.get(rows.size() - 1);
+                    afterId = last.id;
+                    prev = last.hash;
+                    first = false;
+                }
             }
             ObjectNode out = JsonNodeFactory.instance.objectNode();
             out.put("ok", broken == null);
