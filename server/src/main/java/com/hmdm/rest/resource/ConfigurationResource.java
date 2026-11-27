@@ -190,6 +190,15 @@ public class ConfigurationResource {
         } catch (IllegalArgumentException e) {
             return Response.ERROR("error.configuration.dcpolicy.invalid");
         }
+        // A kiosk is always left with a password: a blank one is generated here (the saved policy returns it, so
+        // the console shows it), a too short one is refused. See KioskExitPolicy.
+        if (configuration.isKioskMode()) {
+            if (com.hmdm.util.KioskExitPolicy.isBlank(configuration.getPassword())) {
+                configuration.setPassword(com.hmdm.util.KioskExitPolicy.generate());
+            } else if (!com.hmdm.util.KioskExitPolicy.isAcceptable(configuration.getPassword())) {
+                return Response.ERROR("error.configuration.kiosk.password");
+            }
+        }
         try {
             Configuration dbConfiguration = this.configurationDAO.getConfigurationByName(configuration.getName());
             final Integer id = configuration.getId();

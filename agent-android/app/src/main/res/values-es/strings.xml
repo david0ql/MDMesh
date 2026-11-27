@@ -71,6 +71,13 @@
     <string name="notif_listener_label">Diagnóstico DallyControl</string>
     <string name="qs_font">Tamaño de letra</string>
     <string name="qs_font_now">Ahora: %1$d %%</string>
-    <string name="qs_font_needs">Para cambiar el tamaño de letra, permite que DallyControl modifique ajustes del sistema (una vez).</string>
+    <string name="qs_font_needs">El tamaño de letra se puede cambiar cuando tu administrador le dé el permiso a DallyControl (desde la consola o al enrolar).</string>
     <string name="qs_font_allow">Permitir</string>
+    <string name="kiosk_exit_title">Salir del quiosco</string>
+    <string name="kiosk_exit_password">Contraseña de salida</string>
+    <string name="kiosk_exit_confirm">Salir</string>
+    <string name="kiosk_exit_console_only">De este quiosco solo se sale desde la consola de administración. Pídelo a tu administrador.</string>
+    <string name="pin_wrong">Contraseña incorrecta.</string>
+    <string name="pin_wrong_wait">Contraseña incorrecta. Espera %1$s antes de intentar de nuevo.</string>
+    <string name="pin_locked">Demasiados intentos fallidos. Intenta de nuevo en %1$s.</string>
 </resources>

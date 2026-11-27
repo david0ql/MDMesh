@@ -40,4 +40,9 @@ public class DesiredKioskFeatures {
     private Boolean systemInfo;
     private Boolean keyguard;
     private Boolean lockButtons;
+    /**
+     * Android 16+ (kiosk without lock task): keep the status bar — and with it the system quick settings — usable.
+     * Only {@code true} when the policy explicitly says "Sí" to notifications; absent = closed (the safe default).
+     */
+    private Boolean softStatusBar;
 }

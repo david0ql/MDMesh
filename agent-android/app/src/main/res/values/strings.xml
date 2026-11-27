@@ -73,6 +73,13 @@
     <string name="notif_listener_label">DallyControl diagnosis</string>
     <string name="qs_font">Letter size</string>
     <string name="qs_font_now">Now: %1$d %%</string>
-    <string name="qs_font_needs">To change the letter size, allow DallyControl to modify system settings (once).</string>
+    <string name="qs_font_needs">The letter size can be changed once your administrator grants DallyControl the permission (from the console or at enrollment).</string>
     <string name="qs_font_allow">Allow</string>
+    <string name="kiosk_exit_title">Exit kiosk</string>
+    <string name="kiosk_exit_password">Exit password</string>
+    <string name="kiosk_exit_confirm">Exit</string>
+    <string name="kiosk_exit_console_only">This kiosk can only be left from the management console. Ask your administrator.</string>
+    <string name="pin_wrong">Wrong password.</string>
+    <string name="pin_wrong_wait">Wrong password. Wait %1$s before trying again.</string>
+    <string name="pin_locked">Too many wrong attempts. Try again in %1$s.</string>
 </resources>

@@ -64,4 +64,19 @@ object EventType {
      * recovers a real version (respects the install retry cache; no busy loop).
      */
     const val APP_NO_VERSION = "appNoVersion"
+
+    /** Someone left the kiosk on the device with the exit password. */
+    const val KIOSK_EXIT = "kioskExit"
+
+    /** A wrong kiosk exit password. `detail`: failures in a row and the wait it earned, e.g. `intento 3; espera 30 s`. */
+    const val KIOSK_EXIT_FAILED = "kioskExitFailed"
+
+    /** An exit attempt refused without comparing anything: no password in the policy, or still waiting. */
+    const val KIOSK_EXIT_DENIED = "kioskExitDenied"
+
+    /** A wrong anti-theft (power) PIN. Same `detail` as [KIOSK_EXIT_FAILED]. */
+    const val POWER_PIN_FAILED = "powerPinFailed"
+
+    /** Packages the kiosk wanted suspended but Android refused (`notSuspended=pkg[,pkg]`); emitted when it changes. */
+    const val KIOSK_LOCKDOWN_GAP = "kioskLockdownGap"
 }

@@ -316,9 +316,16 @@ object AgentModule {
         store: KioskStateStore,
         roles: RoleResolver,
         @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles)
+        // The lock-down keeps the kiosk closed beyond lock task: kiosk restrictions, Settings (and, on the soft
+        // kiosk, every app outside it) suspended, status bar. droidVNC-NG stays usable for remote support.
+        val lockdown = com.dallycontrol.agent.kiosk.AndroidKioskLockdown(
+            context, handle.dpm, handle.admin, events, supportPackages = listOf(DroidVncController.PACKAGE),
+        )
+        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles, lockdown)
     }
 
     /**

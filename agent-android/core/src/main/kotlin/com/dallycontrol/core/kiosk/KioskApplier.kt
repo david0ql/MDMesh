@@ -19,6 +19,7 @@ class KioskApplier(
     private val home: KioskHomeSwitch,
     private val homeComponent: ComponentName,
     private val roles: RoleResolver = NoRoles,
+    private val lockdown: KioskLockdown = NoLockdown,
 ) {
     suspend fun enter(p: KioskApplyPayload): KioskResult {
         val features = lockTaskFeatures(
@@ -39,7 +40,13 @@ class KioskApplier(
         val shown = if (resolved.launchable.isEmpty()) p else p.copy(allowedPackages = (p.allowedPackages + resolved.launchable).distinct())
         home.setClaimEnabled(true)
         return when (val r = kiosk.enter(homeComponent, allowed, features)) {
-            KioskResult.Ok -> { store.save(shown); home.showLauncher(); r }
+            KioskResult.Ok -> {
+                store.save(shown)
+                // Restrictions and suspended apps go up before the launcher shows: never a moment of open kiosk.
+                runCatching { lockdown.engage(shown, allowed) }
+                home.showLauncher()
+                r
+            }
             else -> { home.setClaimEnabled(false); r } // never leave a non-kiosk device claiming HOME
         }
     }
@@ -54,8 +61,11 @@ class KioskApplier(
      */
     suspend fun reassert() {
         val p = store.load() ?: return
+        // The lock-down (kiosk restrictions, suspended apps, status bar) is re-asserted on every cycle and on every
+        // kind of kiosk: an app installed since, or a restriction cleared out-of-band, is covered again.
+        runCatching { lockdown.engage(p, allowedFor(p)) }
         val current = kiosk.currentFeatures()
-        if (current < 0) return // soft kiosk or unreadable: nothing to re-apply here
+        if (current < 0) return // soft kiosk or unreadable: no lock-task mask to re-apply here
         val desired = lockTaskFeatures(
             KioskToggles(
                 home = p.features.home, recents = p.features.recents, notifications = p.features.notifications,
@@ -73,8 +83,22 @@ class KioskApplier(
     }
 
     suspend fun exit(): KioskResult = when (val r = kiosk.exit()) {
-        KioskResult.Ok -> { store.save(null); home.setClaimEnabled(false); home.showOemHome(); r }
+        KioskResult.Ok -> {
+            store.save(null)
+            runCatching { lockdown.release() }
+            home.setClaimEnabled(false)
+            home.showOemHome()
+            r
+        }
         else -> r
+    }
+
+    /** Everything the kiosk lets run for [p]: its apps, the pinned one, and the packages its functions resolve to. */
+    private fun allowedFor(p: KioskApplyPayload): List<String> {
+        val resolved = if (p.roles.isEmpty()) ResolvedRoles() else runCatching { roles.resolve(p.roles) }.getOrDefault(ResolvedRoles())
+        val supportCall = if (p.theme.supportPhone.isNullOrBlank() || com.dallycontrol.proto.KioskRoles.PHONE in p.roles) emptyList()
+        else runCatching { roles.resolve(listOf(com.dallycontrol.proto.KioskRoles.PHONE)).all }.getOrDefault(emptyList())
+        return (p.allowedPackages + listOfNotNull(p.pinPackage) + resolved.all + supportCall).distinct()
     }
 
     /** True when a kiosk payload is persisted (device believes it is / should be in kiosk). */

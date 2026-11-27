@@ -409,7 +409,9 @@ public class AgentAdminResource {
         AgentCommand command = new AgentCommand();
         command.setDeviceNumber(deviceId);
         command.setType(body.getType());
-        command.setPayload(body.getPayload());
+        // A kiosk sent without an exit password can only be left from the console (see KioskExitPolicy).
+        command.setPayload("kiosk.enter".equals(body.getType().trim())
+                ? com.hmdm.util.KioskExitPolicy.hardenEnterPayload(body.getPayload()) : body.getPayload());
         command.setRequiresCapability(body.getRequiresCapability());
         command.setStatus("pending");
         command.setCreatedAt(System.currentTimeMillis());
@@ -488,7 +490,8 @@ public class AgentAdminResource {
             AgentCommand command = new AgentCommand();
             command.setDeviceNumber(device.getNumber());
             command.setType(type);
-            command.setPayload(req.getCommand().getPayload());
+            command.setPayload("kiosk.enter".equals(type == null ? null : type.trim())
+                    ? com.hmdm.util.KioskExitPolicy.hardenEnterPayload(req.getCommand().getPayload()) : req.getCommand().getPayload());
             command.setRequiresCapability(req.getCommand().getRequiresCapability());
             command.setStatus("pending");
             command.setCreatedAt(System.currentTimeMillis());
