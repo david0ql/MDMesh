@@ -32,58 +32,63 @@ object PushRegistrar {
     @Synchronized
     fun ensure(context: Context, state: WakeState, config: PushConfig?) {
         val app = context.applicationContext
-        val appId = config?.appIdFor(app.packageName)
-        val usable = config != null && config.provider == PushState.PROVIDER_FCM &&
-            !config.projectId.isNullOrBlank() && !config.apiKey.isNullOrBlank() && !appId.isNullOrBlank()
-        if (!usable) {
-            if (state.pushToken != null || state.pushState != PushState.UNCONFIGURED) {
+        val appId = config?.takeIf { usable(it) }?.appIdFor(app.packageName)
+        when {
+            config == null || appId.isNullOrBlank() -> clear(state)
+            !googleServicesPresent(app) -> {
                 state.pushToken = null
-                state.pushProject = null
-                state.pushError = null
-                state.pushState = PushState.UNCONFIGURED
+                state.pushState = PushState.UNAVAILABLE
+                state.pushError = "sin servicios de Google"
             }
-            return
-        }
-        val key = listOf(config!!.projectId, appId, config.apiKey, config.senderId.orEmpty()).joinToString("|")
-        if (!googleServicesPresent(app)) {
-            state.pushToken = null
-            state.pushState = PushState.UNAVAILABLE
-            state.pushError = "sin servicios de Google"
-            return
-        }
-        val initialized = runCatching { initialize(app, config, appId!!) }
-            .onFailure {
-                Log.w(TAG, "FirebaseApp could not be initialized", it)
+            else -> runCatching {
+                initialize(app, config, appId)
+                requestToken(app, state, key(config, appId))
+            }.onFailure {
+                Log.w(TAG, "push registration could not start", it)
+                inFlight = false
                 fail(state, it)
-            }.isSuccess
-        if (!initialized) return
+            }
+        }
+    }
+
+    private fun usable(config: PushConfig): Boolean =
+        config.provider == PushState.PROVIDER_FCM && !config.projectId.isNullOrBlank() && !config.apiKey.isNullOrBlank()
+
+    private fun key(config: PushConfig, appId: String): String =
+        listOf(config.projectId, appId, config.apiKey, config.senderId.orEmpty()).joinToString("|")
+
+    /** The server has no push project (any more): forget the registration. */
+    private fun clear(state: WakeState) {
+        if (state.pushToken == null && state.pushState == PushState.UNCONFIGURED) return
+        state.pushToken = null
+        state.pushProject = null
+        state.pushError = null
+        state.pushState = PushState.UNCONFIGURED
+    }
+
+    private fun requestToken(app: Context, state: WakeState, key: String) {
         val registered = state.pushProject == key && state.pushToken != null && state.pushState == PushState.READY
         val now = System.currentTimeMillis()
         if (registered || inFlight || now - lastAttemptAt < RETRY_AFTER_MS) return
         lastAttemptAt = now
         inFlight = true
-        runCatching {
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                inFlight = false
-                if (task.isSuccessful && !task.result.isNullOrBlank()) {
-                    lastAttemptAt = 0L
-                    store(app, state, task.result, key)
-                } else {
-                    fail(state, task.exception ?: IllegalStateException("sin token"))
-                }
-            }
-        }.onFailure {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             inFlight = false
-            fail(state, it)
+            if (task.isSuccessful && !task.result.isNullOrBlank()) {
+                lastAttemptAt = 0L
+                store(app, state, task.result, key)
+            } else if (state.pushToken == null || state.pushState != PushState.READY) {
+                // (A token that arrived on its own while this request was out stays.)
+                fail(state, task.exception ?: IllegalStateException("sin token"))
+            }
         }
     }
 
     /** Google rotated the token (or issued the first one): keep it and tell the server with a check-in. */
     fun onNewToken(context: Context, state: WakeState, token: String) {
-        val config = state.config?.push ?: return
-        val appId = config.appIdFor(context.packageName) ?: return
-        store(context.applicationContext, state, token,
-            listOf(config.projectId, appId, config.apiKey, config.senderId.orEmpty()).joinToString("|"))
+        val config = state.config?.push
+        val appId = config?.appIdFor(context.packageName)
+        if (config != null && appId != null) store(context.applicationContext, state, token, key(config, appId))
     }
 
     private fun store(context: Context, state: WakeState, token: String, key: String) {

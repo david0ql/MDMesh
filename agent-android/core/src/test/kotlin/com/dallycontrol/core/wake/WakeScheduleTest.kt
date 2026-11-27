@@ -58,7 +58,10 @@ class WakeScheduleTest {
         var now = 100 * min
         val state = WakeState(disk) { now }
         assertNull(state.config)
-        state.config = WakeConfig(pollMinutes = 2, push = PushConfig(provider = "fcm", projectId = "p", appIds = mapOf("*" to "1:2:android:3")))
+        state.config = WakeConfig(
+            pollMinutes = 2,
+            push = PushConfig(provider = "fcm", projectId = "p", appIds = mapOf("*" to "1:2:android:3")),
+        )
         state.pushToken = "tok"
         state.noteActivity()
 

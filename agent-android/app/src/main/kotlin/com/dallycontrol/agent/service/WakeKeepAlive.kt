@@ -36,7 +36,7 @@ object WakeKeepAlive {
     fun schedule(context: Context) {
         val state = WakeStates.get(context)
         val plan = runCatching { state.plan() }
-            .getOrDefault(WakeSchedule.Plan(WakeSchedule.DEFAULT_POLL_MINUTES * 60_000L, fast = false))
+            .getOrDefault(WakeSchedule.Plan(WakeSchedule.DEFAULT_POLL_MINUTES * WakeSchedule.MINUTE_MS, fast = false))
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val triggerAt = System.currentTimeMillis() + plan.delayMs
         val pi = pendingIntent(context)

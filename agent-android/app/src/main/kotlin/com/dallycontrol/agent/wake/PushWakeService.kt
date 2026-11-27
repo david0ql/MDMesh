@@ -66,17 +66,25 @@ class PushTestReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION) return
         val token = intent.getStringExtra(EXTRA_TOKEN)
-        if (token != null) {
-            if (!BuildConfig.DEBUG) {
-                resultCode = Activity.RESULT_CANCELED
-                resultData = "error: a token can only be set on a debug build"
-                return
-            }
-            PushRegistrar.onNewToken(context, wake.state, token)
-            resultCode = Activity.RESULT_OK
-            resultData = if (wake.state.pushToken == token) "ok: token set" else "error: the server has not sent a push project yet"
+        if (token != null) setToken(context, token) else simulatePush()
+    }
+
+    private fun setToken(context: Context, token: String) {
+        if (!BuildConfig.DEBUG) {
+            resultCode = Activity.RESULT_CANCELED
+            resultData = "error: a token can only be set on a debug build"
             return
         }
+        PushRegistrar.onNewToken(context, wake.state, token)
+        resultCode = Activity.RESULT_OK
+        resultData = if (wake.state.pushToken == token) {
+            "ok: token set"
+        } else {
+            "error: the server has not sent a push project yet"
+        }
+    }
+
+    private fun simulatePush() {
         val pending = goAsync()
         val job = wake.onPush()
         scope.launch {

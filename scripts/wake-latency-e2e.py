@@ -429,7 +429,7 @@ class Run:
         self.sh(f"kill -9 {before.split()[0]}")
         self.until(lambda: self.pid() != before, 10, 0.3)
 
-    def killed(self, deliver, key, title, reps, timeout):
+    def killed(self, deliver, key, title, reps, timeout, settle=0):
         self.undoze()
         self.sim(f"/__sim/set?ws=open&deliver={1 if deliver else 0}")
         subprocess.run([self.a.adb, "-s", self.a.serial, "root"], capture_output=True, timeout=60)
@@ -448,7 +448,14 @@ class Run:
                              f"el proceso {'se reinició solo' if after else 'quedó detenido'} (pid {before} -> {after or 'ninguno'})."))
         print("     " + self.notes[-1], flush=True)
         self.until(self.pid, 120, 2)
-        self.measure(key, title, reps, timeout, before_each=self.kill)
+        def kill_after_settling():
+            # Android restarts a killed service after 1 s, but 4x later each time it dies again within a minute.
+            # Independent kills (not a kill loop) are what a battery manager does: let the process live a minute first.
+            if settle:
+                self.until(self.pid, 300, 2)
+                time.sleep(settle)
+            self.kill()
+        self.measure(key, title, reps, timeout, before_each=kill_after_settling)
         self.check("el agente revive tras matarlo (proceso en ejecución)", bool(self.until(self.pid, 120, 2)))
         self.check("y reabre el canal en vivo", self.until(self.live, 180, 3))
 
@@ -457,7 +464,7 @@ class Run:
 
     def c_kill_nofcm(self):
         self.killed(False, "kill-nofcm", "Proceso del agente muerto, sin despertador (reinicio de Android)",
-                    self.a.slow_reps, self.a.slow_timeout)
+                    self.a.slow_reps, self.a.slow_timeout, settle=65)
 
     def report(self):
         lines = ["| Condición | Orden | n | Sin ejecutar | p50 (s) | p90 (s) | máx (s) | Canal anunciado | Carga (1 min) |",

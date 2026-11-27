@@ -20,10 +20,13 @@ object WakeSchedule {
     const val DEFAULT_POLL_MINUTES = 5
     const val DEFAULT_FAST_MINUTES = 2
     const val DEFAULT_WINDOW_MINUTES = 10
-    private const val MINUTE_MS = 60_000L
-    private val POLL_RANGE = 1..15
-    private val FAST_RANGE = 1..5
-    private val WINDOW_RANGE = 0..60
+    const val MINUTE_MS = 60_000L
+    private const val MAX_POLL_MINUTES = 15
+    private const val MAX_FAST_MINUTES = 5
+    private const val MAX_WINDOW_MINUTES = 60
+    private val POLL_RANGE = 1..MAX_POLL_MINUTES
+    private val FAST_RANGE = 1..MAX_FAST_MINUTES
+    private val WINDOW_RANGE = 0..MAX_WINDOW_MINUTES
 
     data class Plan(val delayMs: Long, val fast: Boolean)
 
@@ -32,7 +35,8 @@ object WakeSchedule {
     fun fastMinutes(config: WakeConfig?): Int =
         (config?.fastPollMinutes ?: DEFAULT_FAST_MINUTES).coerceIn(FAST_RANGE).coerceAtMost(pollMinutes(config))
 
-    fun windowMinutes(config: WakeConfig?): Int = (config?.fastWindowMinutes ?: DEFAULT_WINDOW_MINUTES).coerceIn(WINDOW_RANGE)
+    fun windowMinutes(config: WakeConfig?): Int =
+        (config?.fastWindowMinutes ?: DEFAULT_WINDOW_MINUTES).coerceIn(WINDOW_RANGE)
 
     /** @param lastActivityAt when something last happened on the phone (0 = never noted). */
     fun plan(config: WakeConfig?, lastActivityAt: Long, now: Long): Plan {
