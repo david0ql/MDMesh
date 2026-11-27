@@ -13,7 +13,8 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -113,7 +114,9 @@ public final class DeviceExport {
     private DeviceExport() {}
 
     public static void write(Input in, OutputStream out) throws IOException {
-        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+        // Streaming workbook: rows go to a temporary file as they are written (only a window stays in memory), so a
+        // fleet of thousands of devices with a month of connection history does not build the whole file in the heap.
+        try (SXSSFWorkbook wb = new SXSSFWorkbook(WINDOW)) {
             Styles st = new Styles(wb);
             Inventory inv = inventory(in);
             Map<Integer, String> paths = inv.paths;
@@ -133,6 +136,7 @@ public final class DeviceExport {
             header(sd, dh, st);
             int r = 1;
             for (Map<String, Object> v : inv.rows) {
+                if (r == WIDTH_ROWS) widths(sd, dh.length, r);
                 Row row = sd.createRow(r++);
                 String number = str(v.get("number"));
                 boolean on = Boolean.TRUE.equals(v.get("online"));
@@ -194,6 +198,7 @@ public final class DeviceExport {
                     total += cnt[0];
                     on += cnt[1];
                 }
+                if (fr == WIDTH_ROWS) widths(sf, fh.length, fr);
                 Row row = sf.createRow(fr++);
                 link(row.createCell(0), paths.get(g.getId()), in.baseUrl + "/devices?group=" + g.getId(), st);
                 text(row.createCell(1), nonBlank(g.getConfigurationName(), "(hereda)"), st);
@@ -214,6 +219,7 @@ public final class DeviceExport {
                 if (d == null) continue;
                 long from = lng(c.get("connectedat")), last = lng(c.get("lastseenat"));
                 boolean open = in.now - last <= in.connectionGapMs;
+                if (cr == WIDTH_ROWS) widths(sc, ch.length, cr);
                 Row row = sc.createRow(cr++);
                 link(row.createCell(0), nonBlank(str(d.get("description")), number), in.baseUrl + "/devices/" + number, st);
                 text(row.createCell(1), number, st);
@@ -295,7 +301,7 @@ public final class DeviceExport {
     private static final class Styles {
         final CellStyle head, plain, link, date, ok, warn, title;
 
-        Styles(XSSFWorkbook wb) {
+        Styles(Workbook wb) {
             Font bold = wb.createFont();
             bold.setBold(true);
             bold.setColor(IndexedColors.WHITE.getIndex());
@@ -339,14 +345,23 @@ public final class DeviceExport {
         s.createFreezePane(1, 1);
     }
 
+    /** Rows the streaming workbook keeps in memory per sheet; more than {@link #WIDTH_ROWS}, which are read back. */
+    private static final int WINDOW = 256;
+    /** Column widths are taken from the first rows, while the streaming sheet still holds them. */
+    private static final int WIDTH_ROWS = 200;
+
     private static void finish(Sheet s, int cols, int rows) {
         if (rows > 1) s.setAutoFilter(new CellRangeAddress(0, rows - 1, 0, cols - 1));
+        if (rows <= WIDTH_ROWS) widths(s, cols, rows); // longer sheets set them when row WIDTH_ROWS was reached
+    }
+
+    private static void widths(Sheet s, int cols, int rows) {
         for (int i = 0; i < cols; i++) s.setColumnWidth(i, Math.min(60, Math.max(12, width(s, i, rows))) * 256);
     }
 
     private static int width(Sheet s, int col, int rows) {
         int w = 0;
-        for (int r = 0; r < Math.min(rows, 200); r++) {
+        for (int r = 0; r < Math.min(rows, WIDTH_ROWS); r++) {
             Row row = s.getRow(r);
             Cell c = row == null ? null : row.getCell(col);
             if (c != null) w = Math.max(w, c.toString().length() + 2);
