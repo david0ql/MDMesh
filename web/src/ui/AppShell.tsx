@@ -26,6 +26,7 @@ import {
   IconMenu,
   IconSun,
   IconMoon,
+  IconZone,
 } from './icons';
 
 // Cached across page navigations (AppShell remounts per page) so the header brand does not flicker.
@@ -70,6 +71,7 @@ const NAV: NavEntry[] = [
   { to: '/users', label: 'Usuarios', Icon: IconUsers, perm: 'manage_users' },
   { to: '/roles', label: 'Roles', Icon: IconRoles, adminOnly: true },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true },
+  { to: '/geofences', label: 'Geocercas', Icon: IconZone, perm: 'manage_fleet' },
 ];
 
 export function AppShell({

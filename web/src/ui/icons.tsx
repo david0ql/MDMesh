@@ -182,3 +182,10 @@ export const IconBoard = (p: P) => (
     <path d="M1.8 6h12.4M6.5 6v7.5" />
   </Svg>
 );
+
+export const IconZone = (p: P) => (
+  <Svg {...p}>
+    <path d="M3 4.5 8 2.5l5 2v5.5l-5 3.5-5-3.5z" strokeDasharray="2 1.5" />
+    <circle cx="8" cy="7.5" r="1.6" />
+  </Svg>
+);

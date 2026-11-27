@@ -156,7 +156,7 @@ public interface AgentDeviceMapper {
             "SELECT #{deviceNumber}, #{lat}, #{lon}, #{accuracy}, #{provider}, #{capturedAt}, #{recordedAt} " +
             "WHERE NOT EXISTS (SELECT 1 FROM device_location " +
             "WHERE deviceNumber = #{deviceNumber} AND capturedAt >= #{capturedAt})"})
-    void insertLocation(DeviceLocation location);
+    int insertLocation(DeviceLocation location);
 
     @Select({"SELECT * FROM device_location WHERE deviceNumber = #{deviceNumber} AND capturedAt >= #{since} " +
             "ORDER BY capturedAt DESC LIMIT #{limit}"})

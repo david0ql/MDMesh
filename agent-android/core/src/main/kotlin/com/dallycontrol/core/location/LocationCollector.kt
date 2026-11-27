@@ -20,8 +20,9 @@ import javax.inject.Singleton
 /**
  * Reads the device location for telemetry. Passive mode (default) returns the OS's freshest
  * last-known fix across providers — near-zero battery, no active GPS. Active mode requests one fresh
- * fix per call (getCurrentLocation on API 30+, requestSingleUpdate below) with a short timeout,
- * falling back to last-known. Never throws; returns
+ * fix per call (getCurrentLocation on API 30+, requestSingleUpdate below), waiting up to the configured
+ * time (25 s by default, see [FixPolicy]) and falling back to last-known. The fused provider of Google Play
+ * services is preferred when the device has it; without GMS it uses GPS, then network. Never throws; returns
  * null without a location permission, with location services off, or when no fix is available.
  */
 @Singleton
@@ -34,8 +35,11 @@ class LocationCollector @Inject constructor(
         if (!hasPermission()) return null
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
         val active = forceFresh || modeStore.isActive()
-        val fresh = if (active) currentFix(lm) else null
-        val loc = fresh ?: lastKnown(lm)
+        val known = lastKnown(lm)
+        val now = System.currentTimeMillis()
+        // A fix taken seconds ago (e.g. by the trail loop) is as good as a new one: do not wait again.
+        val fresh = if (active && !FixPolicy.freshEnough(known?.time, now)) currentFix(lm, now) else null
+        val loc = listOfNotNull(fresh, known).maxByOrNull { it.time }
         android.util.Log.d(TAG, "collect active=$active fresh=${fresh != null} loc=${loc?.time}")
         return loc?.let {
             LocationDto(
@@ -62,15 +66,33 @@ class LocationCollector @Inject constructor(
             .maxByOrNull { it.time }
     }.getOrNull()
 
-    /** A single fresh fix with a short timeout; null on timeout/failure. */
-    @SuppressLint("MissingPermission") // gated by collect()'s hasPermission() check
-    private fun currentFix(lm: LocationManager): Location? {
-        val provider = when {
-            lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-            lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-            else -> return null
+    /**
+     * A single fresh fix: the best provider is asked first and, if it gives nothing in its share of the wait, the
+     * next one gets the rest (GPS indoors never answers; network usually does). null on timeout/failure.
+     */
+    private fun currentFix(lm: LocationManager, now: Long): Location? {
+        val providers = FixPolicy.providers(runCatching { lm.allProviders }.getOrDefault(emptyList())) { lm.isProviderEnabled(it) }
+        if (providers.isEmpty()) return null
+        val total = FixPolicy.timeoutSec(modeStore.fixTimeoutSec(), now, lastTimeoutAt)
+        val deadline = android.os.SystemClock.elapsedRealtime() + total * 1000L
+        for ((i, provider) in providers.withIndex()) {
+            val left = deadline - android.os.SystemClock.elapsedRealtime()
+            if (left <= 0) break
+            // The last provider may use everything that is left; earlier ones leave a share for the fallbacks.
+            val wait = if (i == providers.lastIndex) left else left * 2 / 3
+            val fix = singleFix(lm, provider, wait)
+            if (fix != null) {
+                lastTimeoutAt = 0
+                return fix
+            }
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return legacySingleFix(lm, provider)
+        lastTimeoutAt = now
+        return null
+    }
+
+    @SuppressLint("MissingPermission") // gated by collect()'s hasPermission() check
+    private fun singleFix(lm: LocationManager, provider: String, waitMs: Long): Location? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return legacySingleFix(lm, provider, waitMs)
         // The callback runs on a dedicated thread, never the main looper: collect() blocks on the latch, and
         // when it ran on the main thread a main-executor callback could not be delivered until the wait
         // timed out, so active mode on API 30+ never produced a fix (and stalled that check-in).
@@ -82,7 +104,7 @@ class LocationCollector @Inject constructor(
             lm.getCurrentLocation(provider, cancel, executor) { loc ->
                 ref.set(loc); latch.countDown()
             }
-            if (!latch.await(FIX_TIMEOUT_SEC, TimeUnit.SECONDS)) {
+            if (!latch.await(waitMs, TimeUnit.MILLISECONDS)) {
                 cancel.cancel()
                 null
             } else {
@@ -98,7 +120,7 @@ class LocationCollector @Inject constructor(
      */
     @Suppress("DEPRECATION") // requestSingleUpdate is the pre-R single-fix API
     @SuppressLint("MissingPermission")
-    private fun legacySingleFix(lm: LocationManager, provider: String): Location? = runCatching {
+    private fun legacySingleFix(lm: LocationManager, provider: String, waitMs: Long): Location? = runCatching {
         val latch = CountDownLatch(1)
         val ref = AtomicReference<Location?>()
         val thread = android.os.HandlerThread("mdm-location-fix").apply { start() }
@@ -113,15 +135,17 @@ class LocationCollector @Inject constructor(
         }
         try {
             lm.requestSingleUpdate(provider, listener, thread.looper)
-            if (latch.await(FIX_TIMEOUT_SEC, TimeUnit.SECONDS)) ref.get() else null
+            if (latch.await(waitMs, TimeUnit.MILLISECONDS)) ref.get() else null
         } finally {
             runCatching { lm.removeUpdates(listener) }
             thread.quitSafely()
         }
     }.getOrNull()
 
+    /** When the last wait for a fresh fix ended with nothing (0 = the last one worked). */
+    @Volatile private var lastTimeoutAt = 0L
+
     private companion object {
-        const val FIX_TIMEOUT_SEC = 5L
         const val TAG = "LocationCollector"
     }
 }

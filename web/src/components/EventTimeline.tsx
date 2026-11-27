@@ -22,6 +22,8 @@ const LABELS: Record<string, string> = {
   announcementSeen: 'Anuncio visto',
   announcementAck: 'Anuncio confirmado',
   kioskExit: 'Salió del quiosco',
+  geofenceExit: 'Salió de una zona (geocerca)',
+  geofenceEnter: 'Entró a una zona (geocerca)',
   accountRemoved: 'Cuenta de Google quitada (no es del dominio permitido)',
   recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
   systemUpdated: 'Android actualizado',

@@ -3497,3 +3497,43 @@ a {
 .sched-form .field input, .sched-form .field select { width: 100%; }
 .sched-status.ok { color: var(--ok); }
 .sched-status.error, .sched-status.smtp { color: var(--warn); }
+
+/* --- Geocercas (zones editor, location history controls) --- */
+.gz-map.gz-drawing { cursor: crosshair; }
+.gz-handle { border-radius: 50%; background: #fff; border: 2px solid #111827; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.gz-handle.gz-centre { background: #111827; border-color: #fff; }
+.gz-handle.gz-edge { cursor: ew-resize; }
+.gz-handle.gz-mid { opacity: .55; transform-origin: center; scale: .7; cursor: copy; }
+.gz-cols { grid-template-columns: minmax(0, 1fr) 360px; }
+.gz-side { max-height: min(70vh + 56px, 780px); }
+.gz-new { display: flex; gap: 8px; margin-bottom: 10px; }
+.gz-meta { padding-left: 18px !important; }
+.gz-form { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
+.gz-form label.report-field { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; font-size: 12px; }
+.gz-form .input { width: 100%; }
+.gz-form .report-field-input .input { width: auto; }
+.gz-title { margin: 0; font-size: 15px; }
+.gz-help { font-size: 11px; line-height: 1.35; font-weight: 400; }
+.gz-colors { display: flex; gap: 6px; flex-wrap: wrap; }
+.gz-colors button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.gz-colors button.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface) inset; }
+.gz-folders { display: grid; gap: 2px; max-height: 170px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+.gz-folders label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; }
+.gz-matches { display: grid; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.gz-matches button { text-align: left; font: inherit; font-size: 13px; padding: 6px 9px; background: var(--surface); color: var(--text); border: 0; border-bottom: 1px solid var(--hairline); cursor: pointer; }
+.gz-matches button:hover { background: var(--hairline); }
+.gz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gz-x { border: 0; background: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
+.gz-days { display: flex; gap: 4px; }
+.gz-days button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.gz-days button.on { background: var(--text); color: var(--surface); border-color: var(--text); }
+.gz-buttons { display: flex; gap: 8px; margin-top: 14px; }
+.gz-types { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.gz-settings { display: grid; gap: 16px; max-width: 720px; }
+.gz-setting .gz-help { max-width: 640px; }
+.loc-controls { padding: 0 0 12px; margin: 0; }
+.loc-zones { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.loc-zones .chip i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.loc-latest { margin: 0 0 8px; }
+.loc-low { padding-bottom: 8px; }
+@media (max-width: 900px) { .gz-cols { grid-template-columns: minmax(0, 1fr); } }

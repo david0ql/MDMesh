@@ -9,7 +9,7 @@ import type { ReportColumn, ReportRow } from './reports';
 
 const BASE = '/private/alerts/v1';
 
-export type AlertType = 'disconnected' | 'kioskExit' | 'simChange';
+export type AlertType = 'disconnected' | 'kioskExit' | 'simChange' | 'geofenceExit' | 'geofenceEnter';
 export type AlertStatus = 'reviewed' | 'pending';
 
 /** One alert row. Carries the generic report cells plus the review bookkeeping. */
