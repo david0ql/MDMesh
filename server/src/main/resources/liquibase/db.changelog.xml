@@ -3410,4 +3410,39 @@
         </sql>
     </changeSet>
 
+    <changeSet id="26.11.27-report-schedule" author="dallycontrol">
+        <comment>Scheduled fleet reports sent by e-mail (daily / weekly / monthly). Additive: one new table.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS report_schedule (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name VARCHAR(120) NOT NULL,
+                report VARCHAR(40) NOT NULL DEFAULT 'inventory',
+                format VARCHAR(8) NOT NULL DEFAULT 'xlsx',
+                csvSeparator VARCHAR(8) NOT NULL DEFAULT ';',
+                frequency VARCHAR(12) NOT NULL DEFAULT 'daily',
+                runHour INT NOT NULL DEFAULT 7,
+                runMinute INT NOT NULL DEFAULT 0,
+                dayOfWeek INT,
+                dayOfMonth INT,
+                timezone VARCHAR(64) NOT NULL DEFAULT 'America/Bogota',
+                recipients TEXT NOT NULL,
+                groupId INT REFERENCES groups(id) ON DELETE CASCADE,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT,
+                lastRunAt BIGINT,
+                lastStatus VARCHAR(16),
+                lastError TEXT,
+                nextRunAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS report_schedule_due_idx ON report_schedule (nextRunAt) WHERE enabled;
+            CREATE INDEX IF NOT EXISTS report_schedule_customer_idx ON report_schedule (customerId);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS report_schedule;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>
