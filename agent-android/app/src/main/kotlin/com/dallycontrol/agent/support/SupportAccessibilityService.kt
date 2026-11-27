@@ -117,7 +117,8 @@ class SupportAccessibilityService : AccessibilityService() {
      * long press when [holdMs] is long); several are a swipe along them.
      */
     fun gesture(points: List<Triple<Double, Double, Long>>, holdMs: Long = TAP_MS): Boolean {
-        if (points.isEmpty()) return false
+        // dispatchGesture is Android 7; on Android 6 somebody may still switch the service on by hand.
+        if (points.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
         val (w, h) = screenSize()
         val path = Path()
         val first = points.first()

@@ -100,6 +100,9 @@ class RemoteSetupActivity : Activity() {
     private fun openSettings() {
         val component = SupportEngine.component(this).flattenToString()
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            // Its own task: stacked on this screen's task, Settings is cleared when the console asks for this screen
+            // again, and Android 11 then leaves this window without input focus (its buttons stop answering).
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra(EXTRA_FRAGMENT_ARG_KEY, component)
             putExtra(EXTRA_SHOW_FRAGMENT_ARGUMENTS, Bundle().apply { putString(EXTRA_FRAGMENT_ARG_KEY, component) })
         }

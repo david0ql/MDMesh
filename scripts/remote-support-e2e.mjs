@@ -90,12 +90,14 @@ const status = async () => (await rest('GET', `/private/support/v1/devices/${dev
 // (the agent's screen service too) and rebinds it a moment later. That is this test reading the screen, not something
 // a real session meets; after each dump the test waits for the service to be bound again (serviceBack).
 function dumpUi() {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     try {
       adb('shell', 'uiautomator', 'dump', '/sdcard/dc-ui.xml');
       const xml = adb('shell', 'cat', '/sdcard/dc-ui.xml');
-      if (xml.includes('<hierarchy')) return xml;
+      // A busy phone sometimes answers with an empty window (one node, no size): that is not the screen.
+      if (xml.includes('<hierarchy') && (xml.match(/<node /g) || []).length > 2) return xml;
     } catch { /* the UI was busy: try again */ }
+    execFileSync('sleep', ['0.7']);
   }
   return '';
 }
@@ -157,26 +159,38 @@ function noticeShown() {
 async function authorizeOnPhone() {
   const label = /Soporte remoto DallyControl|DallyControl remote support/i;
   // The guided screen opens by itself right after enrollment; the console can also bring it up.
-  let open = await waitUi((ns) => ns.find((n) => /Abrir ajustes|Open settings/i.test(n.text)), 6000);
+  let open = await waitUi((ns) => ns.find((n) => /^(Abrir ajustes|Open settings)$/i.test(n.text)), 6000);
   if (!open) {
     await rest('POST', `/private/agent/v1/devices/${device}/commands`, { type: 'remote.inputSetup' });
-    open = await waitUi((ns) => ns.find((n) => /Abrir ajustes|Open settings/i.test(n.text)), 25000);
+    open = await waitUi((ns) => ns.find((n) => /^(Abrir ajustes|Open settings)$/i.test(n.text)), 25000);
   }
   if (!check('the guided authorisation screen is shown on the phone', !!open)) return false;
   adbTap(open);
   // Accessibility list -> (Android 12+: "Downloaded apps" / "Installed apps" may be a sub-page) -> the service.
   let entry = null;
-  for (let i = 0; i < 8 && !entry; i++) {
-    const ns = nodes(dumpUi());
+  for (let i = 0; i < 14 && !entry; i++) {
+    const all = nodes(dumpUi());
+    const ns = all.filter((n) => n.pkg !== pkg); // Settings' own screens, not the guided screen's text
+    if (!ns.length) {
+      // Still (or again) on the guided screen: Settings has not come up yet, so tap the button again.
+      const again = all.find((n) => /^(Abrir ajustes|Open settings)$/i.test(n.text));
+      if (again && i > 0 && i % 5 === 0) adbTap(again);
+      await sleep(1500);
+      continue;
+    }
     entry = ns.find((n) => label.test(n.text));
     if (entry) break;
     const sub = ns.find((n) => /Downloaded apps|Installed (apps|services)|Apps descargadas|Apps instaladas|Servicios instalados|Servicios descargados/i.test(n.text));
     if (sub) adbTap(sub); else adb('shell', 'input', 'swipe', '500', '1500', '500', '700', '200');
     await sleep(900);
   }
-  if (!check('the agent\'s service is listed in Accessibility', !!entry)) return false;
+  if (!check('the agent\'s service is listed in Accessibility', !!entry,
+    entry ? '' : `on screen: ${nodes(dumpUi()).map((n) => n.text).filter(Boolean).slice(0, 6).join(' / ')} (${top()})`)) return false;
   adbTap(entry);
-  const sw = await waitUi((ns) => ns.find((n) => n.checkable && /Switch/i.test(n.cls)) || ns.find((n) => n.checkable), 8000);
+  const sw = await waitUi((ns) => {
+    const own = ns.filter((n) => n.pkg !== pkg);
+    return own.find((n) => n.checkable && /Switch/i.test(n.cls)) || own.find((n) => n.checkable);
+  }, 10000);
   if (!check('its switch is shown', !!sw)) return false;
   if (!sw.checked) adbTap(sw);
   // Android asks to confirm full control.
@@ -201,12 +215,18 @@ class Session {
     const r = await rest('POST', `/private/support/v1/devices/${device}/start`, { viewOnly });
     if (r.status !== 'OK') throw new Error(`start refused: ${r.message}`);
     this.info = r.data;
-    const ws = new WebSocket(api.replace(/^http/, 'ws') + r.data.socket);
-    ws.binaryType = 'arraybuffer';
+    let ws = null;
+    for (let attempt = 0; !ws; attempt++) { // a busy edge may refuse the upgrade for a moment
+      const candidate = new WebSocket(api.replace(/^http/, 'ws') + r.data.socket);
+      candidate.binaryType = 'arraybuffer';
+      const ok = await new Promise((res) => { candidate.onopen = () => res(true); candidate.onerror = () => res(false); });
+      if (ok) ws = candidate;
+      else if (attempt >= 4) throw new Error('the session socket could not be opened');
+      else await sleep(2000);
+    }
     this.ws = ws;
     ws.onmessage = (e) => this.on(e.data);
     ws.onclose = () => { this.closed = true; this.wake(); };
-    await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('socket failed')); });
     ws.send(JSON.stringify({ t: 'auth', token: r.data.token }));
     this.ping = setInterval(() => { try { ws.send('{"t":"ping"}'); } catch { /* closed */ } }, 20000);
     current = this;

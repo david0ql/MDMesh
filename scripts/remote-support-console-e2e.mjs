@@ -34,17 +34,18 @@ const adb = (...a) => execFileSync('adb', ['-s', serial, ...a], { encoding: 'utf
 const top = () => (adb('shell', 'dumpsys activity activities')
   .match(/(?:topResumedActivity|mResumedActivity|mFocusedActivity)[=:].*? (\S+\/\S+?)[ }]/) || [])[1] || '';
 function ui() {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     try {
       adb('shell', 'uiautomator', 'dump', '/sdcard/dc-ui.xml');
       const xml = adb('shell', 'cat', '/sdcard/dc-ui.xml');
-      if (xml.includes('<hierarchy')) {
+      if (xml.includes('<hierarchy') && (xml.match(/<node /g) || []).length > 2) {
         return [...xml.matchAll(/<node [^>]*>/g)].map((m) => {
           const a = (k) => (m[0].match(new RegExp(` ${k}="([^"]*)"`)) || [])[1] || '';
           return { text: a('text'), cls: a('class'), pkg: a('package'), b: (a('bounds').match(/\d+/g) || []).map(Number) };
         }).filter((n) => n.b.length === 4);
       }
     } catch { /* busy: again */ }
+    execFileSync('sleep', ['0.7']);
   }
   return [];
 }
