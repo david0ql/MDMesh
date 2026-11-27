@@ -9,8 +9,8 @@
 #
 #   scripts/schema-drift-check.sh --compare <schema.sql>
 #       The above, PLUS: does a fresh install have everything a real database has? <schema.sql> is a
-#       `pg_dump --schema-only` of production; every table, column (type, nullability, default), index and
-#       constraint is compared. Run it before each deployment:
+#       `pg_dump --schema-only` of production; every table, column (type, nullability, default), index,
+#       constraint, trigger and function (signature and body, whitespace aside) is compared. Run it before each deployment:
 #         docker compose exec -T postgres pg_dump --schema-only --no-owner --no-privileges -U dallycontrol dallycontrol > prod-schema.sql
 #       "only in the dump" = something was added to production by hand: write the changeSet (IF NOT EXISTS).
 #       "only in a fresh install" = migrations production has not run yet (normal before a deployment); listed, not
@@ -128,8 +128,10 @@ SELECT 'constraint ' || rel.relname || ' ' || pg_get_constraintdef(con.oid)
   FROM pg_constraint con JOIN pg_class rel ON rel.oid = con.conrelid JOIN pg_namespace n ON n.oid = rel.relnamespace
  WHERE n.nspname = 'public' AND rel.relname NOT LIKE 'databasechangelog%' AND con.contype IN ('p', 'f', 'u', 'c')
 UNION ALL
-SELECT 'function ' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
-  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'
+SELECT 'function ' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') returns ' ||
+       pg_get_function_result(p.oid) || ' ' || l.lanname || ' body:' ||
+       btrim(regexp_replace(p.prosrc, '\s+', ' ', 'g'))
+  FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'
 UNION ALL
 SELECT 'trigger ' || rel.relname || ' ' || regexp_replace(pg_get_triggerdef(t.oid), '^CREATE TRIGGER \S+ ', '')
   FROM pg_trigger t JOIN pg_class rel ON rel.oid = t.tgrelid JOIN pg_namespace n ON n.oid = rel.relnamespace
