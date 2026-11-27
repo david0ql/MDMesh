@@ -158,8 +158,11 @@ async function waitUi(pred, ms = 12000) {
  */
 function ownViews() {
   const text = adb('shell', 'dumpsys', 'activity', 'top');
-  const at = text.lastIndexOf('View Hierarchy:');
-  if (at < 0) return [];
+  // Newer Android releases dump the top activity of every task: take the support screen's own section.
+  const own = text.search(/ACTIVITY \S*support\.SupportActivity/);
+  const next = own < 0 ? -1 : text.indexOf('\nTASK ', own);
+  const at = own < 0 ? -1 : text.indexOf('View Hierarchy:', own);
+  if (at < 0 || (next > 0 && at > next)) return [];
   const out = []; const stack = [];
   for (const line of text.slice(at).split('\n').slice(1)) {
     const m = line.match(/^(\s+)([\w.$]+)\{\w+ ([VIG])\S* \S+ (-?\d+),(-?\d+)-(-?\d+),(-?\d+)/);
@@ -450,7 +453,7 @@ try {
     for (let i = 0; i < 40 && !(screen && screen.bubbles > 0); i++) { await sleep(1000); screen = supportScreen(); }
     const read = screen ? nodes(dumpUi()).some((n) => n.text.includes(line)) : false;
     await serviceBack();
-    check('operator -> phone: the support screen opens and shows the message', !!screen && screen.bubbles > 0,
+    check('operator -> phone: the support screen opens and shows the message', read || (!!screen && screen.bubbles > 0),
       screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
     const answer = `respuesta ${Date.now() % 100000}`;
     if (screen && screen.field && screen.send) {

@@ -119,10 +119,22 @@ class SupportSessionManager @Inject constructor(
     val muted: Boolean get() = voice?.muted == true
 
     init {
-        SupportEngine.listeners += { if (open) sendInfo() }
+        SupportEngine.listeners += {
+            if (open) {
+                sendInfo()
+                syncNotice()
+            }
+        }
     }
 
     private fun changed() = listeners.forEach { runCatching { it() } }
+
+    /** The policy changed during a session: a notice that is now turned off goes away (a call keeps its own). */
+    private fun syncNotice() {
+        if (SupportEngine.settings(context).notice || callState != CallState.IDLE) return
+        SupportAccessibilityService.instance?.hideNotice()
+        if (!ProjectionCapture.active) SupportForegroundService.stop(context)
+    }
 
     // --- joining -------------------------------------------------------------------------------------------------
 

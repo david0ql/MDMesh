@@ -74,8 +74,11 @@ async function serviceBack() {
  */
 function ownViews() {
   const text = adb('shell', 'dumpsys', 'activity', 'top');
-  const at = text.lastIndexOf('View Hierarchy:');
-  if (at < 0) return [];
+  // Newer Android releases dump the top activity of every task: take the support screen's own section.
+  const own = text.search(/ACTIVITY \S*support\.SupportActivity/);
+  const next = own < 0 ? -1 : text.indexOf('\nTASK ', own);
+  const at = own < 0 ? -1 : text.indexOf('View Hierarchy:', own);
+  if (at < 0 || (next > 0 && at > next)) return [];
   const out = []; const stack = [];
   for (const line of text.slice(at).split('\n').slice(1)) {
     const m = line.match(/^(\s+)([\w.$]+)\{\w+ ([VIG])\S* \S+ (-?\d+),(-?\d+)-(-?\d+),(-?\d+)/);
@@ -212,7 +215,7 @@ try {
   for (let i = 0; i < 40 && !(screen && screen.bubbles > 0); i++) { await sleep(1000); screen = supportScreen(); }
   const read = screen ? ui().some((n) => n.text.includes(line)) : false;
   await serviceBack();
-  check('a message typed in the console is shown on the phone', !!screen && screen.bubbles > 0,
+  check('a message typed in the console is shown on the phone', read || (!!screen && screen.bubbles > 0),
     screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
   const answer = `respuesta${Date.now() % 100000}`;
   if (screen && screen.field) {
@@ -233,8 +236,9 @@ try {
   if (accept && (await hook('s.callState')) !== 'active') { check('the phone rings: "Soporte quiere hablar contigo"', true); adbTap(accept); }
   else console.log('  (no Accept button: the policy answers calls unattended, or the call did not ring)');
   await page.waitForFunction(() => window.__dcSupport?.callState === 'active', null, { timeout: 40000 }).catch(() => null);
-  check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
+  const inCall = check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
   let phoneRxRms = 0; let pageRxRms = 0;
+  if (!inCall) throw new Error('no call: the rest of the voice checks cannot run');
   for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
     await sleep(500);
     phoneRxRms = Math.max(phoneRxRms, (await hook('s.callStats && s.callStats.rxRms')) || 0);
@@ -272,6 +276,8 @@ try {
   await shot('06-sesiones');
   const errors = consoleErrors.filter((e) => !/favicon|ERR_ABORTED/.test(e));
   check('no errors in the browser console', errors.length === 0, errors.slice(0, 3).join(' | '));
+} catch (e) {
+  check('run', false, String(e).split('\n')[0]);
 } finally {
   await browser.close();
   fs.rmSync(wav, { force: true });
