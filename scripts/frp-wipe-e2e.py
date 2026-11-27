@@ -24,7 +24,9 @@ Phases (each can be picked with --only):
                 is still pending; reconnect: delivered, announced and executed.
 
 Emulator images have no /misc partition, so the reset itself cannot finish there: the test accepts the wipe as handed
-to recovery (docs/TESTING.md). --debugging also checks "block USB debugging" (LAST: it cuts adb; emulator only).
+to recovery (docs/TESTING.md). On recent images (seen on API 35) the wipe with "SD card too" does erase the user data
+in place and the system restarts: run `--only wipe-offline` on a freshly enrolled emulator there, not after
+`wipe-online`. --debugging also checks "block USB debugging" (LAST: it cuts adb; emulator only).
 
 The database is touched only to move timestamps back (simulating elapsed time) and to write the protection rules of
 the device's policy (the console saves them through the policy editor; scripts/frp-console-e2e.mjs covers that

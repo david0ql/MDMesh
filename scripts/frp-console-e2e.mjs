@@ -187,7 +187,8 @@ try {
     await lost.getByRole('button', { name: /Activar modo perdido|Actualizar modo perdido/ }).click();
     msg = await lost.locator('.field-error').first().innerText().catch(() => '');
     check('lost mode needs a message or a phone', /mensaje o un teléfono/.test(msg), msg);
-    await lost.getByLabel('Mensaje').fill('Equipo de la empresa. Si lo encontró, llame.');
+    const tag = Math.random().toString(36).slice(2, 8); // tells this run's order apart in the history
+    await lost.getByLabel('Mensaje').fill(`Equipo de la empresa ${tag}. Si lo encontró, llame.`);
     await lost.getByLabel('Teléfono de contacto').fill('+57 300 1234567');
     await lost.getByLabel('Intentos fallidos').fill('2');
     await lost.getByRole('button', { name: /Activar modo perdido|Actualizar modo perdido/ }).click();
@@ -197,9 +198,12 @@ try {
     await page.screenshot({ path: `${shots}/lost-mode-dialog.png`, fullPage: true });
     if (has('--send-lost-mode')) {
       await lost.getByRole('button', { name: /Activar modo perdido|Actualizar modo perdido/ }).click();
-      const item = page.locator('.timeline-item', { hasText: 'Modo perdido' }).first();
+      const item = page.locator('.timeline-item', { hasText: tag }).first();
       await item.waitFor({ timeout: T });
+      // The device has to run it before the panel can show it.
+      await page.locator('.timeline-item.status-done', { hasText: tag }).first().waitFor({ timeout: 120000 }).catch(() => undefined);
       const text = await item.innerText();
+      check('the device ran the lost-mode order', /EJECUTADO/i.test(text), text.slice(0, 200));
       check('history shows lost mode with what was ordered and who sent it',
         /Activar modo perdido/.test(text) && /borrar tras 8 intentos/.test(text) && /Enviada por admin/.test(text), text.slice(0, 300));
       await page.locator('.prot-lost').waitFor({ timeout: 90000 }).catch(() => undefined);
@@ -207,8 +211,10 @@ try {
       await page.screenshot({ path: `${shots}/lost-mode-active.png`, fullPage: true });
       await panel.getByRole('button', { name: /^Modo perdido/ }).click();
       await page.getByRole('dialog', { name: 'Modo perdido' }).getByRole('button', { name: 'Desactivar modo perdido' }).click();
-      await page.locator('.timeline-item', { hasText: 'Desactivar modo perdido' }).first().waitFor({ timeout: T });
-      check('lost mode can be turned off from the same dialog', true);
+      await page.locator('.timeline-item.status-pending, .timeline-item.status-delivered', { hasText: 'Desactivar modo perdido' })
+        .first().waitFor({ timeout: T }).catch(() => undefined);
+      await page.locator('.prot-lost').waitFor({ state: 'detached', timeout: 120000 }).catch(() => undefined);
+      check('lost mode can be turned off from the same dialog (panel back to "Inactivo")', !(await visible(page.locator('.prot-lost'))));
     } else {
       await lost.getByRole('button', { name: 'Cancelar' }).click();
     }
