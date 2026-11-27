@@ -140,9 +140,18 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The app's launch intent. Android 16+ (no lock task): when the app had opened a screen the kiosk keeps closed
+     * inside its own task (Settings), that task is started clean once, or returning to the app would land on that
+     * screen again and be sent back here forever.
+     */
+    private fun cleanLaunchIntent(pkg: String): Intent? = packageManager.getLaunchIntentForPackage(pkg)?.apply {
+        if (com.dallycontrol.agent.kiosk.KioskForegroundGuard.consumeTainted(pkg)) addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    }
+
     /** Launch + show the pinned app (single mode), with a themed splash behind it. */
     private fun launchPinned(p: KioskApplyPayload) {
-        val intent = p.pinPackage?.let { packageManager.getLaunchIntentForPackage(it) }
+        val intent = p.pinPackage?.let { cleanLaunchIntent(it) }
         if (intent == null) {
             setContentView(launcherGrid(p)) // unknown package → fall back to the grid
             return
@@ -513,7 +522,7 @@ class KioskLauncherActivity : ComponentActivity() {
                 } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
                 } else {
-                    packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+                    cleanLaunchIntent(pkg)?.let { startActivity(it) }
                 }
             }
         }

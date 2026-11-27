@@ -228,6 +228,15 @@ internal object KioskForegroundGuard {
     private const val REPORT_EVERY_MS = 60_000L
     private var thread: android.os.HandlerThread? = null
 
+    /**
+     * Apps whose task was left with a closed screen on top (the allowed app opened Settings inside its own task):
+     * the kiosk opens them afresh once, or every return to the app would land on that screen and bounce again.
+     */
+    private val tainted: MutableSet<String> = java.util.Collections.synchronizedSet(mutableSetOf())
+
+    /** True (once) when [pkg] must be opened with a clean task. */
+    fun consumeTainted(pkg: String): Boolean = tainted.remove(pkg)
+
     fun canWatch(context: Context): Boolean = runCatching {
         val ops = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
         @Suppress("DEPRECATION")
@@ -250,8 +259,9 @@ internal object KioskForegroundGuard {
                 if (thread !== t) return
                 runCatching {
                     if (!power.isInteractive) return@runCatching
-                    val front = foreground(usage) ?: return@runCatching
-                    if (front !in closed || letThrough(front)) return@runCatching
+                    val (front, before) = foreground(usage)
+                    if (front == null || front !in closed || letThrough(front)) return@runCatching
+                    if (before != null && before != app.packageName) tainted += before
                     app.startActivity(
                         Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
@@ -272,17 +282,24 @@ internal object KioskForegroundGuard {
         thread = null
     }
 
-    /** The package whose screen was resumed last, or null when unknown (no usage access, nothing recent). */
-    private fun foreground(usage: android.app.usage.UsageStatsManager): String? {
+    /**
+     * The package whose screen was resumed last and the one in front just before it; nulls when unknown (no usage
+     * access, nothing recent).
+     */
+    private fun foreground(usage: android.app.usage.UsageStatsManager): Pair<String?, String?> {
         val now = System.currentTimeMillis()
-        val events = usage.queryEvents(now - LOOKBACK_MS, now) ?: return null
+        val events = usage.queryEvents(now - LOOKBACK_MS, now) ?: return null to null
         val e = android.app.usage.UsageEvents.Event()
         var front: String? = null
+        var before: String? = null
         while (events.hasNextEvent()) {
             events.getNextEvent(e)
             @Suppress("DEPRECATION")
-            if (e.eventType == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) front = e.packageName
+            if (e.eventType == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND && e.packageName != front) {
+                before = front
+                front = e.packageName
+            }
         }
-        return front
+        return front to before
     }
 }

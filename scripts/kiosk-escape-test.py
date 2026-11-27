@@ -308,6 +308,14 @@ def t_settings_intents(mode):
                   not settings_in_front(), top() + " | " + (log[-1][-90:] if log else "sin log"))
             sh("input keyevent KEYCODE_BACK")
     home()
+    if mode == "launcher":
+        tile = find(ui(), **{"content-desc": "kiosk-app-" + APP})
+        if tile:
+            tap(tile)
+    time.sleep(4)
+    check("tras los intentos, la app de trabajo se abre normalmente (no queda Ajustes encima)",
+          until(lambda: top().startswith(APP + "/"), 8), top())
+    home()
 
 
 def t_status_bar(mode):
@@ -412,7 +420,9 @@ def t_tether(mode):
     else:
         check("Compartir datos abre solo la pantalla de zona Wi‑Fi", "ether" in t or "otspot" in t, t)
         acts = sh("dumpsys activity activities | grep -E 'Hist +#|Hist #' | grep com.android.settings").strip().splitlines()
-        check("…sola en su tarea (sin el resto de Ajustes detrás)", len(acts) == 1, " / ".join(a.strip()[-60:] for a in acts))
+        task = re.search(r" (t\d+)\}", next((a for a in acts if "ether" in a or "otspot" in a), ""))
+        same = [a for a in acts if task and (" " + task.group(1) + "}") in a]
+        check("…sola en su tarea (sin el resto de Ajustes detrás)", len(same) == 1, " / ".join(a.strip()[-60:] for a in acts))
         sh("input keyevent KEYCODE_BACK")
         time.sleep(2)
         check("Atrás desde zona Wi‑Fi vuelve al quiosco", kiosk_home_in_front(), top())
@@ -453,7 +463,10 @@ def t_exit(mode):
 
 
 def not_exited():
-    return sh(f"dumpsys package {A.pkg} | grep -c KioskHomeAlias").strip() != "" and (kiosk_home_in_front() or top().startswith(APP + "/") or lock_task() == "LOCKED" or suspended("com.android.settings"))
+    """Still in the kiosk: lock task on, or (Android 16+) a kiosk screen / allowed app in front and the HOME claim kept."""
+    if SDK < 36:
+        return lock_task() == "LOCKED"
+    return in_kiosk_front() and "KioskHomeAlias" in sh("cmd package resolve-activity --brief -c android.intent.category.HOME -a android.intent.action.MAIN")
 
 
 def t_no_password(mode):
@@ -461,7 +474,8 @@ def t_no_password(mode):
     check("quiosco sin contraseña: aplicado", s == "done", f"{s} {d}")
     msg = try_exit(mode, PASSWORD)
     check("sin contraseña: los 7 toques no ofrecen salida", msg in ("no dialog", "no exit screen") or "consola" in msg or "console" in msg, msg)
-    check("sin contraseña: sigue en el quiosco", not_exited() and (lock_task() == "LOCKED" or SDK >= 36), top())
+    check("sin contraseña: sigue en el quiosco", not_exited(), top())
+    sh("input keyevent KEYCODE_BACK")  # the taps may have opened the kiosk's own quick-settings panel
 
 
 def t_legacy(mode):
@@ -529,6 +543,7 @@ def main():
     if APP not in sh(f"pm list packages {APP}"):
         print(adb("install", "-r", A.app_apk).strip())
     sh("settings put secure show_ime_with_hard_keyboard 1")
+    sh("settings put global power_button_long_press 1")  # Pixel images: long press = assistant; 1 = the power menu
     sh("input keyevent KEYCODE_WAKEUP"); sh("wm dismiss-keyguard")
     modes = [m for m in A.modes.split(",") if m]
     run("kiosk.exit", timeout=60)

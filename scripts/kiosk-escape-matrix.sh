@@ -5,8 +5,11 @@
 # Environment:
 #   EMU_PORT   emulator console port (default 5600; serial emulator-$EMU_PORT)
 #   WEB_PORT   the dev stack's console port on this machine (default 8088; the emulator reaches it at 10.0.2.2)
+#   EMU_ARGS   extra emulator arguments (e.g. -read-only when another emulator already runs the same AVD)
 #   OUT        where logs and the per-release result tables go (default /tmp/dallycontrol-kiosk)
-#   TEST_ARGS  extra arguments for kiosk-escape-test.py (e.g. --legacy-psql "docker compose ... psql -U dallycontrol -d dallycontrol")
+#   LEGACY_PSQL  psql command of the stack (e.g. "docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol
+#              -d dallycontrol"): also sends the kiosk an old server would have sent (see --legacy-psql)
+#   TEST_ARGS  extra (space-separated) arguments for kiosk-escape-test.py, e.g. "--modes single"
 # Needs scripts/testapp/escapetest.apk (scripts/build-escapeapp.sh) and the dev stack seeded (admin/admin).
 set -uo pipefail
 APK=$1; shift
@@ -19,10 +22,10 @@ OUT=${OUT:-/tmp/dallycontrol-kiosk}; mkdir -p "$OUT"
 for AVD in "$@"; do
   SER=emulator-$PORT; LOG=$OUT/$AVD.log
   echo "=== $AVD ($SER)" | tee "$LOG"
-  "$SDK/emulator/emulator" -avd "$AVD" -port "$PORT" -no-window -no-audio -no-snapshot -no-boot-anim -wipe-data >"$OUT/$AVD.emu.log" 2>&1 &
+  "$SDK/emulator/emulator" -avd "$AVD" -port "$PORT" -no-window -no-audio -no-snapshot -no-boot-anim -wipe-data ${EMU_ARGS:-} >"$OUT/$AVD.emu.log" 2>&1 &
   EMU=$!
-  ok=0; for _ in $(seq 1 200); do [ "$($ADB -s "$SER" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { ok=1; break; }; sleep 3; done
-  if [ $ok != 1 ]; then echo "RESULT $AVD: BOOT-FAILED" | tee -a "$LOG"; kill $EMU; sleep 5; continue; fi
+  ok=0; for _ in $(seq 1 200); do kill -0 $EMU 2>/dev/null || break; [ "$($ADB -s "$SER" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && { ok=1; break; }; sleep 3; done
+  if [ $ok != 1 ]; then echo "RESULT $AVD: BOOT-FAILED ($(tail -1 "$OUT/$AVD.emu.log"))" | tee -a "$LOG"; kill $EMU; sleep 5; continue; fi
   sleep 20   # the device-policy service refuses a Device Owner for a few seconds after boot
   for _ in 1 2 3; do
     DALLYCONTROL_ADMIN_PASSWORD=${DALLYCONTROL_ADMIN_PASSWORD:-admin} "$HERE/adb-enroll.sh" --serial "$SER" --server "http://10.0.2.2:$WEB" \
@@ -36,9 +39,10 @@ for AVD in "$@"; do
   else
     echo "device id $DID" >>"$LOG"
     sleep 8
+    LEGACY=(); [ -n "${LEGACY_PSQL:-}" ] && LEGACY=(--legacy-psql "$LEGACY_PSQL")
     # shellcheck disable=SC2086
     python3 -u "$HERE/kiosk-escape-test.py" --serial "$SER" --device-id "$DID" --api "http://localhost:$WEB" \
-        --reboot --summary "$OUT/$AVD.md" ${TEST_ARGS:-} >>"$LOG" 2>&1
+        --reboot --summary "$OUT/$AVD.md" ${LEGACY[@]+"${LEGACY[@]}"} ${TEST_ARGS:-} >>"$LOG" 2>&1
     echo "RESULT $AVD: $(grep 'RESULT:' "$LOG" | tail -1)" | tee -a "$LOG"
   fi
   $ADB -s "$SER" emu kill >/dev/null 2>&1
