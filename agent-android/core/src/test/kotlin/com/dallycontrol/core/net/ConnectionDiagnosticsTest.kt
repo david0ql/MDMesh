@@ -164,6 +164,20 @@ class ConnectionDiagnosticsTest {
         assertNull(back.pendingReport().lastStop)
     }
 
+    @Test fun `a restart the server was told about is closed even when it took a minute`() {
+        val d = diagnostics()
+        d.recordStop(StopReason.SHUTDOWN)
+        d.delivered(d.pendingReport(goodbye = true), goodbye = true)
+        now += minute
+        val report = diagnostics().pendingReport()
+        assertEquals(now, report.lastStop!!.resumedAt)
+        // ...while one the server never heard of is not worth a report.
+        val quiet = ConnectionDiagnostics(MemoryKeyValueStore(), clock = { now })
+        quiet.recordStop(StopReason.SHUTDOWN)
+        now += minute
+        assertNull(quiet.pendingReport().lastStop)
+    }
+
     @Test fun `another boot without a shutdown notice is lost power`() {
         diagnostics().also { it.onProcessStart(7); it.markAlive() }
         val aliveAt = now

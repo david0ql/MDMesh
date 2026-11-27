@@ -33,6 +33,8 @@ class ConnectionDiagnostics(
         val aliveAt: Long = 0,
         val shutdownAt: Long = 0,
         val bootCount: Int = NO_BOOT_COUNT,
+        /** The server already knows about [stop] (goodbye report): its end must be reported however short. */
+        val stopAnnounced: Boolean = false,
     )
 
     private var state: State = runCatching {
@@ -170,7 +172,7 @@ class ConnectionDiagnostics(
         val reported = when {
             stop == null -> null
             goodbye -> stop.takeIf { it.reason == StopReason.SHUTDOWN }
-            now - stop.at >= MIN_GAP_MS -> stop.copy(resumedAt = now)
+            now - stop.at >= MIN_GAP_MS || s.stopAnnounced -> stop.copy(resumedAt = now)
             else -> null
         }
         return ConnectionReport(
@@ -197,6 +199,7 @@ class ConnectionDiagnostics(
                 reconnects = (it.reconnects - (report?.reconnects ?: 0)).coerceAtLeast(0),
                 failure = failure,
                 stop = if (report == null) it.stop else stop,
+                stopAnnounced = stop != null,
                 lastSuccessAt = clock(),
                 aliveAt = clock(),
             )
