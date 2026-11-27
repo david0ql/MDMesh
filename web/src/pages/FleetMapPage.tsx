@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { AppShell } from '../ui/AppShell';
 import { escapeHtml } from '../ui/html';
 import { listFleetLocations, type FleetDevice, type FleetFix, type FleetLocations } from '../api/fleetLocations';
+import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
+import { useDevices } from '../data/useDevices';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -60,6 +62,36 @@ export function FleetMapPage() {
   const [showTrails, setShowTrails] = useState(true);
   const [at, setAt] = useState<number>(range[1]);
   const [q, setQ] = useState('');
+  const [folder, setFolder] = useState('all');
+
+  // Folders (scoped to what the signed-in admin can see) and the device→folder map used to
+  // filter the map by carpeta. The locations endpoint has no folder, so we match by `number`
+  // against the device list, which carries each device's groups.
+  const [groups, setGroups] = useState<FleetGroup[]>([]);
+  useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
+  const tree = useMemo(() => groupTree(groups), [groups]);
+  const { devices: allDevices } = useDevices('', 1000);
+  const deviceGroups = useMemo(() => {
+    const m = new Map<string, Set<number>>();
+    for (const d of allDevices) if (d.number) m.set(d.number, new Set((d.groups ?? []).map((g) => g.id)));
+    return m;
+  }, [allDevices]);
+
+  // The selected folder and every folder below it (null = a specific selection isn't a folder subtree).
+  const subtree = useMemo(
+    () => (folder !== 'all' && folder !== 'none'
+      ? tree.find((n) => String(n.group.id) === folder)?.subtree ?? null : null),
+    [folder, tree]);
+
+  // Does the device (by number) belong to the chosen folder — its own folder or a sub-folder?
+  const matchesFolder = useCallback((number: string) => {
+    if (folder === 'all') return true;
+    const gids = deviceGroups.get(number);
+    if (folder === 'none') return !gids || gids.size === 0;
+    if (!gids) return false;
+    for (const id of gids) if (subtree ? subtree.has(id) : String(id) === folder) return true;
+    return false;
+  }, [folder, subtree, deviceGroups]);
 
   const mapEl = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
@@ -84,14 +116,15 @@ export function FleetMapPage() {
     return m;
   }, [data]);
 
-  // The map shows the devices that are not hidden AND, when the search box has text, only those matching it —
-  // so filtering by a phone leaves only that phone's points and trail on the map (not just the list).
+  // The map shows the devices that are not hidden AND match the folder filter AND, when the search box has
+  // text, only those matching it — so points, trails and the list all narrow to the chosen carpeta/phone.
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return (data?.devices ?? []).filter((d) =>
       !hidden.has(d.number) &&
+      matchesFolder(d.number) &&
       (!needle || nameOf(d).toLowerCase().includes(needle) || d.number.toLowerCase().includes(needle)));
-  }, [data, hidden, q]);
+  }, [data, hidden, q, matchesFolder]);
 
   // Map instance.
   useEffect(() => {
@@ -161,8 +194,8 @@ export function FleetMapPage() {
     setHidden((h) => { const s = new Set(h); if (s.has(n)) s.delete(n); else s.add(n); return s; });
   }
 
-  const list = (data?.devices ?? []).filter((d) => !q || nameOf(d).toLowerCase().includes(q.toLowerCase())
-    || d.number.toLowerCase().includes(q.toLowerCase()));
+  const list = (data?.devices ?? []).filter((d) => matchesFolder(d.number)
+    && (!q || nameOf(d).toLowerCase().includes(q.toLowerCase()) || d.number.toLowerCase().includes(q.toLowerCase())));
   const fixCount = visible.reduce((n, d) => n + d.fixes.length, 0);
   const placed = visible.filter((d) => positionAt(d.fixes, at)).length;
 
@@ -171,7 +204,7 @@ export function FleetMapPage() {
       <div className="dv-head">
         <h1>Mapa</h1>
         <span className="dv-count">
-          {loading ? 'Cargando…' : `${plural(data?.devices.length ?? 0, 'dispositivo')} · ${plural(fixCount, 'posición', 'posiciones')} en el rango`}
+          {loading ? 'Cargando…' : `${plural(visible.length, 'dispositivo')} · ${plural(fixCount, 'posición', 'posiciones')} en el rango`}
         </span>
       </div>
 
@@ -218,6 +251,14 @@ export function FleetMapPage() {
         <aside className="panel fm-list">
           <input type="search" className="fm-search" placeholder="Filtrar dispositivos" value={q}
                  onChange={(e) => setQ(e.target.value)} />
+          <select className="fm-search" value={folder} onChange={(e) => setFolder(e.target.value)}
+                  aria-label="Filtrar por carpeta">
+            <option value="all">Carpeta: todas</option>
+            {tree.map((n) => (
+              <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>
+            ))}
+            <option value="none">Sin carpeta</option>
+          </select>
           {!loading && data && data.devices.length === 0 && (
             <p className="muted">Ningún dispositivo reportó ubicación en este rango.</p>
           )}
