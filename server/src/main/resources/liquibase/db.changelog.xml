@@ -3426,7 +3426,6 @@
         </sql>
     </changeSet>
 
-</databaseChangeLog>
     <changeSet id="26.11.27-enroll-reliability" author="dallycontrol">
         <comment>QR enrollment that always works (MDM-01): a single-use token remembers the device that consumed it
                  (that device may retry when the answer was lost), hidden Wi-Fi on folder codes, and the log of
