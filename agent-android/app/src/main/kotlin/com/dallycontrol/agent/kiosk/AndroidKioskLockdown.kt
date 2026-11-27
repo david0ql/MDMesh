@@ -242,6 +242,9 @@ internal object KioskForegroundGuard {
     private const val REPORT_EVERY_MS = 60_000L
     private var thread: android.os.HandlerThread? = null
 
+    /** The app seen in front last and the one before it (kept between polls and guard restarts). */
+    @Volatile private var last: Pair<String?, String?> = null to null
+
     /**
      * Apps whose task was left with a closed screen on top (the allowed app opened Settings inside its own task):
      * the kiosk opens them afresh once, or every return to the app would land on that screen and bounce again.
@@ -274,7 +277,11 @@ internal object KioskForegroundGuard {
                 if (thread !== t) return
                 runCatching {
                     if (!power.isInteractive) return@runCatching
-                    val (front, before) = foreground(usage)
+                    // What was seen last is remembered: a closed screen that stays in front (the return home was slow, or
+                    // refused) keeps being sent back, also after its "came to the front" event is no longer recent.
+                    val seen = foreground(usage)
+                    if (seen.first != null) last = seen
+                    val (front, before) = last
                     if (front == null || front !in closed || letThrough(front)) return@runCatching
                     if (before != null && before != app.packageName) tainted += before
                     val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
