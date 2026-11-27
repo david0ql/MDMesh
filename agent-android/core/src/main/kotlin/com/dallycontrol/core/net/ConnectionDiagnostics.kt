@@ -172,7 +172,9 @@ class ConnectionDiagnostics(
         val reported = when {
             stop == null -> null
             goodbye -> stop.takeIf { it.reason == StopReason.SHUTDOWN }
-            now - stop.at >= MIN_GAP_MS || s.stopAnnounced -> stop.copy(resumedAt = now)
+            // A shutdown is known for certain, so it is always reported, however short the restart was.
+            now - stop.at >= MIN_GAP_MS || s.stopAnnounced || stop.reason == StopReason.SHUTDOWN ->
+                stop.copy(resumedAt = now)
             else -> null
         }
         return ConnectionReport(

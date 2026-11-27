@@ -61,3 +61,37 @@ origin (encrypted); the server then sends `transport: "wss"` in `remote.vnc.star
 | `device.dataSharing` | `device.dataSharing` | `{ enabled: true \| false }` — per-device "share data" (tethering) override: `true` lifts `DISALLOW_CONFIG_TETHERING`, `false` blocks it; idempotent, wins over the policy |
 
 Per-type payload JSON Schemas go in `proto/payloads/` as the registry grows.
+
+## Hardware and ports rules (`config.apply` → `hardware.rules`)
+
+Value `allow` | `block`; a missing key is not managed. The agent reports each one in the result as `hardware.<key>`
+(`applied`, `unsupported: sdk-<N>` below the listed Android, `unsupported: device`, `failed: <why>`).
+
+| key | Android mechanism | since API |
+|---|---|---|
+| `camera` | `DevicePolicyManager.setCameraDisabled` (also sent as `policies.camera` for agents before this section) | 21 |
+| `usbDebug` | `DISALLOW_DEBUGGING_FEATURES` (ADB over USB and Wi-Fi, developer options) | 21 |
+| `usbData` | `setUsbDataSignalingEnabled(false)` when `canUsbDataSignalingBeDisabled()`; charging keeps working | 31 |
+| `physicalMedia` | `DISALLOW_MOUNT_PHYSICAL_MEDIA` | 21 |
+| `bluetoothSharing` | `DISALLOW_BLUETOOTH_SHARING` | 26 |
+| `bluetoothConfig` | `DISALLOW_CONFIG_BLUETOOTH` | 21 |
+| `nfc` | `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` (the API 35 emulator image refuses it → `unsupported: platform`; works on API 36) | 35 |
+| `nfcBeam` | `DISALLOW_OUTGOING_BEAM` | 22 |
+| `microphone` | `DISALLOW_UNMUTE_MICROPHONE` | 21 |
+| `airplaneMode` | `DISALLOW_AIRPLANE_MODE` | 28 |
+| `wifiDirect` | `DISALLOW_WIFI_DIRECT` | 33 |
+| `printing` | `DISALLOW_PRINTING` | 28 |
+| `networkReset` | `DISALLOW_NETWORK_RESET` | 23 |
+| `dateTime` | `DISALLOW_CONFIG_DATE_TIME` (API 28+); before: `setAutoTimeRequired` | 21 |
+| `unknownSources` | `DISALLOW_INSTALL_UNKNOWN_SOURCES` (+ `_GLOBALLY` from API 29) | 21 |
+| `locationConfig` | `DISALLOW_CONFIG_LOCATION` | 28 |
+| `locationSharing` | `DISALLOW_SHARE_LOCATION` | 21 |
+| `contentCapture` | `DISALLOW_CONTENT_CAPTURE` + `DISALLOW_CONTENT_SUGGESTIONS` | 29 |
+| `assistContent` | `DISALLOW_ASSIST_CONTENT` | 35 |
+
+Older fields that complete the set: `policies.screenshots` (`setScreenCaptureDisabled`), `policies.usbStorage`
+(`DISALLOW_USB_FILE_TRANSFER` + `DISALLOW_MOUNT_PHYSICAL_MEDIA`), `policies.bluetooth` (`DISALLOW_BLUETOOTH`, API 26) and
+`device.tethering` (`DISALLOW_CONFIG_TETHERING`: Wi-Fi hotspot, USB and Bluetooth tethering).
+
+`hardware.restrictions` carries extra `UserManager.DISALLOW_*` values (reported as `restrictions.<no_xxx>`). Server and
+agent accept only the list in `HardwarePolicy.java` / `HardwareCatalog.kt`.

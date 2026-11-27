@@ -50,6 +50,8 @@ export interface DcPolicy {
   };
   /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
   mobileData?: import('../api/mobileData').MobileDataPolicy;
+  /** Hardware and ports: rule key → allow / block (see data/hardwareRules.ts); a missing key is not managed. */
+  hardware?: Record<string, 'allow' | 'block'>;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -82,6 +84,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
   const mobileData = cleanMobileData(p.mobileData);
   if (mobileData) out.mobileData = mobileData;
+  if (p.hardware && Object.keys(p.hardware).length) out.hardware = p.hardware;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 

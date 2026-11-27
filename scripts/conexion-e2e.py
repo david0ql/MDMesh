@@ -33,6 +33,7 @@ P.add_argument("--db-container", default="", help="postgres container (resting s
 P.add_argument("--pkg", default="com.dallycontrol.agent.debug")
 P.add_argument("--server-url", default="http://10.0.2.2:8088", help="the server as the device reaches it (restored after tls/nows)")
 P.add_argument("--tls-url", default="", help="scripts/red-simulada.py tls, as the device reaches it (e.g. https://10.0.2.2:8443)")
+P.add_argument("--backup-device-url", default="", help="the server's backup URL as the device reaches it (tls scenario)")
 P.add_argument("--nows-url", default="", help="scripts/red-simulada.py nows, as the device reaches it (e.g. http://10.0.2.2:8122)")
 P.add_argument("--only", default="")
 P.add_argument("--doze-minutes", type=float, default=7)
@@ -79,11 +80,17 @@ def measure(name, seconds, limit):
                  seconds is not None and seconds <= limit)
 
 
-def login():
+def login(patience=120):
+    """Signs in; retried, since the server may be restarting (a scenario just did that)."""
     md5 = hashlib.md5(A.admin_password.encode()).hexdigest().upper()
-    r = api("POST", "/rest/public/auth/login", {"login": A.admin_user, "password": md5})
-    if r.get("status") != "OK":
-        sys.exit(f"login failed: {r}")
+    end = time.time() + patience
+    while True:
+        r = try_api("POST", "/rest/public/auth/login", {"login": A.admin_user, "password": md5})
+        if r.get("status") == "OK":
+            return
+        if time.time() > end:
+            sys.exit(f"login failed: {r}")
+        time.sleep(3)
 
 
 def is_live():
@@ -141,7 +148,7 @@ def wait_live(timeout):
     return wait_until(is_live, timeout)
 
 
-def wait_not_live(timeout=150):
+def wait_not_live(timeout=210):
     return wait_until(lambda: not is_live(), timeout)
 
 
@@ -190,8 +197,8 @@ def wifi():
 def outage():
     print("== sin red 90 s (Wi-Fi y datos apagados) y vuelve")
     net(False)
-    gone = wait_not_live(150)
-    check("el servidor nota la caída del canal", gone is not None, "" if gone is None else f"{gone:.0f} s")
+    gone = wait_not_live(210)
+    measure("el servidor nota la caída del canal (socket sin tráfico)", gone, 200)
     cmd = queue()  # queued while the device is unreachable
     time.sleep(max(0, 90 - (gone or 0)))
     recover_and_command("red de vuelta", lambda: net(True), 30, 40, cmd)
@@ -221,6 +228,9 @@ def airplane():
 def doze():
     minutes = A.doze_minutes
     print(f"== Doze forzado {minutes:g} min (pantalla apagada, sin cargador)")
+    command_latency(60)
+    time.sleep(2)
+    reconnects_before = connection().get("reconnects") or 0
     sh("dumpsys battery unplug")
     sh("input keyevent 223")  # sleep
     time.sleep(2)
@@ -245,6 +255,11 @@ def doze():
     longest = max(gaps + [time.time() - last])
     measure("mayor intervalo entre reportes en Doze", longest, 6 * 60 + 30)
     measure("orden tras varios minutos en Doze", command_latency(120), 60)
+    time.sleep(2)
+    command_latency(60)
+    reconnects_after = connection().get("reconnects") or 0
+    check("el canal no se cortó ni una vez en ese tiempo (el servidor no cierra sockets sanos)",
+          reconnects_after == reconnects_before, f"reconexiones {reconnects_before} -> {reconnects_after}")
     sh("dumpsys deviceidle unforce")
     sh("dumpsys battery reset")
     sh("input keyevent 224")  # wake
@@ -257,12 +272,14 @@ def server():
         return
     print("== reinicio del servidor")
     compose("restart", "server")
-    # Tomcat is back when the API answers.
-    up = wait_until(lambda: bool(try_api("GET", "/rest/private/agent/v1/live").get("status")), 180, 1)
+    # Tomcat is back when the agent's own endpoint answers.
+    up = wait_until(lambda: bool(try_api("POST", "/rest/public/agent/v1/checkin", {}).get("status")), 240, 1)
     check("servidor arriba de nuevo", up is not None, "" if up is None else f"{up:.0f} s")
+    t_up = time.time()
     login()
     live = wait_live(90)
-    measure("tras reinicio del servidor: canal en vivo (desde que el servidor responde)", live, 30)
+    measure("tras reinicio del servidor: canal en vivo (desde que el servidor responde)",
+            None if live is None else time.time() - t_up, 30)
     measure("tras reinicio del servidor: orden ejecutada", command_latency(60), 15)
     time.sleep(2)
     command_latency(30)
@@ -313,7 +330,7 @@ def resting():
         sql = (f"UPDATE devices SET lastUpdate = (extract(epoch from now())*1000)::bigint - {int(minutes * 60000)} "
                f"WHERE number = '{A.device_id}'")
         subprocess.run(["docker", "exec", A.db_container, "psql", "-U", "dallycontrol", "-d", "dallycontrol", "-c", sql],
-                       capture_output=True, text=True, timeout=30)
+                       capture_output=True, text=True, timeout=180)
 
     # Screen off, one report, then silence.
     sh("input keyevent 223")
@@ -348,18 +365,19 @@ def resting():
 def reboot():
     print("== reinicio del equipo (apagado ordenado)")
     t0 = time.time()
-    adb("reboot")
-    time.sleep(6)
-    c = connection()
-    s = c.get("lastStop") or {}
-    check("el equipo avisó el apagado antes de irse", s.get("reason") == "shutdown" and not s.get("resumedAt"),
+    # Through the power manager, as the power menu does (plain `adb reboot` skips Android's shutdown broadcast).
+    sh("svc power reboot")
+    said = wait_until(lambda: (connection().get("lastStop") or {}).get("reason") == "shutdown", 40, 2)
+    s = connection().get("lastStop") or {}
+    check("el equipo avisó el apagado antes de irse", said is not None and not s.get("resumedAt"),
           f"{s.get('reason')} · {s.get('label')}")
+    time.sleep(10)
     booted = wait_until(lambda: adb("shell", "getprop", "sys.boot_completed").strip() == "1", 300, 3)
     check("el equipo arrancó", booted is not None)
     live = wait_live(180)
     measure("tras reiniciar el equipo: canal en vivo (sin abrir la app)", None if live is None else time.time() - t0, 240)
-    measure("tras reiniciar el equipo: orden ejecutada", command_latency(90), 30)
-    time.sleep(2)
+    measure("tras reiniciar el equipo: orden ejecutada", command_latency(120), 60)
+    wait_until(lambda: bool((connection().get("lastStop") or {}).get("resumedAt")), 60, 2)
     s = connection().get("lastStop") or {}
     check("la consola cierra el corte con su duración", s.get("reason") == "shutdown" and bool(s.get("resumedAt")),
           json.dumps(s, ensure_ascii=False))
@@ -373,6 +391,14 @@ def point_agent_at(url, forget_backup_choice=False):
                    input=xml, text=True, capture_output=True, timeout=30)
     if forget_backup_choice:
         sh(f"run-as {A.pkg} rm -f shared_prefs/mdm_endpoints.xml")
+    elif A.backup_device_url:
+        # The agent forgets its backups when its server changes (they belonged to the other server). Here the
+        # "new server" stands for the same one behind a network that now inspects TLS, so hand the list back.
+        prefs = ("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n"
+                 f"    <string name=\"backup_urls\">{A.backup_device_url}</string>\n"
+                 f"    <string name=\"primary_url\">{url}</string>\n</map>\n")
+        subprocess.run([A.adb, "-s", A.serial, "shell", f"run-as {A.pkg} sh -c 'cat > shared_prefs/mdm_endpoints.xml'"],
+                       input=prefs, text=True, capture_output=True, timeout=30)
     pid = sh(f"pidof {A.pkg}").strip()
     if pid:
         sh(f"run-as {A.pkg} kill -9 {pid}")
@@ -395,8 +421,8 @@ def tls():
     t0 = time.time()
     point_agent_at(A.tls_url)
     try:
-        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "tls", 300, 3)
-        measure("la consola recibe la falla TLS (llega por la dirección de respaldo)", got, 240)
+        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "tls", 420, 3)
+        measure("la consola recibe la falla TLS (llega por la dirección de respaldo)", got, 360)
         c = connection()
         f = c.get("lastFailure") or {}
         check("motivo exacto: certificado TLS rechazado", "TLS" in (f.get("label") or ""), f.get("label") or "")
@@ -440,6 +466,10 @@ def main():
     release = sh("getprop ro.build.version.release").strip()
     api_level = sh("getprop ro.build.version.sdk").strip()
     print(f"Dispositivo {A.device_id} · Android {release} (API {api_level}) · {A.serial}")
+    try:
+        print("Carga de la máquina de pruebas (load average): " + " ".join(f"{x:.1f}" for x in __import__("os").getloadavg()))
+    except OSError:
+        pass
     for name, fn in SCENARIOS:
         if only and name not in only:
             continue

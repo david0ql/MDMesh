@@ -8,7 +8,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
  * back to an URL that is blocked on this network.
  *
  * Switches after [FAILOVER_FAILURES] consecutive unreachable-failures spread over at least [FAILOVER_AFTER_MS]
- * (a server restart of a few seconds must not move the fleet), and goes back to try the primary every
+ * (an ordinary server restart must not move the fleet), and goes back to try the primary every
  * [RETRY_PRIMARY_MS].
  */
 class ServerEndpoints(
@@ -24,6 +24,7 @@ class ServerEndpoints(
     @Synchronized
     fun activeUrl(): String {
         val primaryUrl = primary().trimEnd('/')
+        forgetIfPrimaryChanged(primaryUrl)
         val backups = backups()
         val index = index()
         val onBackup = index in 1..backups.size
@@ -69,6 +70,21 @@ class ServerEndpoints(
         failures = 0
     }
 
+    /**
+     * Re-provisioned to another server: the backups (and the choice among them) belonged to the previous one.
+     * The new server sends its own list with the first check-in.
+     */
+    private fun forgetIfPrimaryChanged(primaryUrl: String) {
+        val known = store.getString(KEY_PRIMARY)
+        if (known == primaryUrl) return
+        if (known != null) {
+            store.putString(KEY_BACKUPS, null)
+            store.putString(KEY_INDEX, null)
+            failures = 0
+        }
+        store.putString(KEY_PRIMARY, primaryUrl)
+    }
+
     private fun index(): Int = store.getString(KEY_INDEX)?.toIntOrNull() ?: 0
     private fun switchedAt(): Long = store.getString(KEY_SWITCHED_AT)?.toLongOrNull() ?: 0L
 
@@ -86,13 +102,14 @@ class ServerEndpoints(
     }
 
     companion object {
-        const val FAILOVER_FAILURES = 3
-        const val FAILOVER_AFTER_MS = 60_000L
+        const val FAILOVER_FAILURES = 4
+        const val FAILOVER_AFTER_MS = 120_000L
         const val RETRY_PRIMARY_MS = 15L * 60_000L
         const val MAX_BACKUPS = 3
         private const val KEY_BACKUPS = "backup_urls"
         private const val KEY_INDEX = "active_index"
         private const val KEY_SWITCHED_AT = "switched_at"
+        private const val KEY_PRIMARY = "primary_url"
     }
 }
 

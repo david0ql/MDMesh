@@ -492,6 +492,38 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
 
+## Hardware y puertos (MDM-12)
+
+`scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
+device uses (restored at the end) it: blocks every hardware rule, the older toggles (screenshots, USB storage,
+Bluetooth), data sharing and a free list of Android restrictions; checks the server status ("Restricciones aplicadas")
+rule by rule, `dumpsys user`, `dumpsys device_policy`, that a screenshot fails or is black, that the camera is refused,
+that MTP is refused (`svc usb`) and that the hotspot cannot be switched on in Settings; blocks USB debugging and checks
+that adb stops answering; reverts everything and checks that adb comes back by itself and nothing is left; and sets and
+removes a per-device camera exception. Rules newer than the device's Android must be reported `unsupported: sdk-N`.
+
+```bash
+scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <device number>
+# on a phone you reach only by cable, keep adb: --keep-usb-debug
+
+(cd scripts/shots && npm ci)       # once: Playwright
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```
+
+Result (2026-11-27, own stack + debug agent on clean emulators; a rule the release cannot honour must be reported, so
+the totals differ):
+
+| Android | API | `hardware-e2e.py` | Notes |
+|---|---|---|---|
+| 9 | 28 | 57/57 | USB data, NFC, Wi-Fi Direct, content capture and assistant reported `unsupported: sdk-N`; date/time with the restriction; no camera app on the image (camera check skipped, policy state verified) |
+| 15 | 35 | 58/58 | after merging the base branch; NFC reported `unsupported: platform` (this image refuses the restriction); `hardware-console-e2e.mjs --device` 26/26 |
+| 16 | 36 | 57/58 | NFC applied; the one failure was the script counting `dumpsys user`'s per-user-type templates as restrictions in force (fixed, re-verified on API 35) |
+
+On every release: adb stopped answering when USB debugging was blocked and came back by itself after the revert; the
+emulators report `canUsbDataSignalingBeDisabled() = true`, so "USB data" was applied and reverted there. `svc usb
+getFunctions` gives no answer on these images, so the MTP check is skipped (the `no_usb_file_transfer` restriction is
+verified instead).
+
 ## Corporate Wi-Fi (MDM-13)
 
 `scripts/wifi-policy-e2e.py` checks the policy's Wi-Fi against a real enrolled Device Owner (see [WIFI.md](WIFI.md)):

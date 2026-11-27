@@ -98,6 +98,8 @@ public class DcPolicy {
         private String pkg;
         private Long limitMb;
     }
+    /** Hardware and ports: rule key → allow / block (see {@link HardwarePolicy}); a missing key is not managed. */
+    private java.util.Map<String, String> hardware;
     /** Wi-Fi lock-down: what the user may change and which networks the phones may join (see {@link DcWifi}). */
     private WifiRules wifiRules;
 
@@ -268,7 +270,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null
+                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
                 && wifiRules == null;
     }
 
@@ -351,6 +353,7 @@ public class DcPolicy {
                     && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
         }
         c.mobileData = MobileDataPolicy.clean(mobileData);
+        c.hardware = HardwarePolicy.clean(hardware, true);
         return c;
     }
 

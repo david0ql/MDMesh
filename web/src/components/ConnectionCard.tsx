@@ -20,7 +20,7 @@ export function ConnectionCard({ connection }: { connection?: DeviceConnection }
       <div className="grp">Última falla de conexión</div>
       {!connection || (!f && !s) ? (
         <p className="muted">
-          Sin fallas reportadas. El agente informa la causa de cada corte desde la versión 0.9.9.
+          Sin fallas reportadas. El agente informa la causa de cada corte en las versiones posteriores a la 0.9.8.
         </p>
       ) : null}
       {f ? (

@@ -56,7 +56,10 @@ public class ConfigReconciler {
                 : new java.util.HashSet<String>(commandDAO.listDeviceKioskApps(device.getId()));
         // Per-device "share data" override: when set it wins over the policy's device.tethering.
         String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
-        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
+        // Per-device hardware and ports override: wins over the policy's rules.
+        java.util.Map<String, String> hardware = device.getId() == null ? null
+                : com.hmdm.util.HardwarePolicy.parseOverride(commandDAO.getDeviceHardwareOverride(device.getId()));
+        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing, hardware);
         return withWifiCertificates(cfg, withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc)));
     }
 
