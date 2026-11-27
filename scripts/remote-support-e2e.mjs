@@ -30,6 +30,7 @@
 //              off, a call is established with nobody at the phone and no notice is shown (the policy is restored)
 import { execFileSync } from 'child_process';
 import crypto from 'crypto';
+import os from 'os';
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const flag = (k) => process.argv.includes(k);
@@ -617,6 +618,8 @@ if (want('policy')) {
   }
 }
 
+// Times measured on a busy test machine are not the product's: the host's load goes with them.
+measures.hostLoad = +os.loadavg()[0].toFixed(1);
 console.log(`  measures: ${JSON.stringify(measures)}`);
 console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
 process.exit(fail ? 1 : 0);

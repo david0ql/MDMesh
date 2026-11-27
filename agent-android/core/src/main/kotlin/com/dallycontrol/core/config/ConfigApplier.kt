@@ -100,7 +100,10 @@ class ConfigApplier(
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         runCatching { setRemoteSupport(doc.remoteSupport) }
             .onSuccess { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.APPLIED }
-            .onFailure { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.failed(it.message ?: "remote support") }
+            .onFailure {
+                val reason = ConfigOutcome.failed(it.message ?: "remote support")
+                if (doc.remoteSupport != null) outcomes["remoteSupport"] = reason
+            }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result

@@ -645,11 +645,13 @@ object AgentModule {
 
     @Provides
     @IntoSet
-    fun provideRemoteSessionStartHandler(sessions: com.dallycontrol.agent.support.SupportSessionManager): CommandHandler =
-        com.dallycontrol.agent.support.RemoteSessionStartHandler(sessions)
+    fun provideRemoteSessionStartHandler(
+        sessions: com.dallycontrol.agent.support.SupportSessionManager,
+    ): CommandHandler = com.dallycontrol.agent.support.RemoteSessionStartHandler(sessions)
 
     @Provides
     @IntoSet
-    fun provideRemoteSessionStopHandler(sessions: com.dallycontrol.agent.support.SupportSessionManager): CommandHandler =
-        com.dallycontrol.agent.support.RemoteSessionStopHandler(sessions)
+    fun provideRemoteSessionStopHandler(
+        sessions: com.dallycontrol.agent.support.SupportSessionManager,
+    ): CommandHandler = com.dallycontrol.agent.support.RemoteSessionStopHandler(sessions)
 }
