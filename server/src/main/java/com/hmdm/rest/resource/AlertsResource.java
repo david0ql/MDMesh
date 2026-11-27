@@ -91,7 +91,8 @@ public class AlertsResource {
 
     // --- alert type ----------------------------------------------------------------------------------------------
 
-    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter"};
+    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter",
+            "dataWarning", "dataLimit"};
 
     private static String typeLabel(String type) {
         if (type == null) return "";
@@ -101,6 +102,8 @@ public class AlertsResource {
             case "simChange": return "Cambio de SIM";
             case "geofenceExit": return "Salida de zona";
             case "geofenceEnter": return "Entrada a zona";
+            case "dataWarning": return "Datos móviles: cerca del límite";
+            case "dataLimit": return "Datos móviles: límite superado";
             default: return type;
         }
     }
@@ -278,8 +281,9 @@ public class AlertsResource {
 
     /** Reader = any signed-in user of a customer (folder administrators are then narrowed by {@link #scoped}). */
     private Optional<Integer> reader() {
-        return SecurityContext.get() == null ? Optional.empty()
-                : SecurityContext.get().getCurrentCustomerId();
+        // Same gate as the console (Alertas sits with Reportes behind manage_fleet): the API refuses without it.
+        if (SecurityContext.get() == null || !SecurityContext.get().hasPermission("manage_fleet")) return Optional.empty();
+        return SecurityContext.get().getCurrentCustomerId();
     }
 
     /** Narrow the rows to the devices a folder administrator may reach (every alert carries a device number). */

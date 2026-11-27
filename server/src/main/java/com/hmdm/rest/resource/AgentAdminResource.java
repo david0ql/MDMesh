@@ -133,6 +133,19 @@ public class AgentAdminResource {
         return false;
     }
 
+    /**
+     * Enrolling devices (tokens, reusable codes and their list) has its own permission, {@code enroll_devices}:
+     * a support role can act on devices without being able to add new ones to the fleet, and the other way round.
+     */
+    private static boolean canEnroll(String action) {
+        if (SecurityContext.get().hasPermission("enroll_devices")) {
+            return true;
+        }
+        logger.warn("Permission denied: {} requires enroll_devices (user {})", action,
+                SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
+        return false;
+    }
+
     // =================================================================================================================
     @ApiOperation(value = "Mint enrollment token", notes = "Creates a single-use enrollment token for the current customer. "
             + "An optional configurationId pins the enrolled device to that configuration; an optional groupId puts it "
@@ -142,7 +155,7 @@ public class AgentAdminResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response mintToken(AgentEnrollmentToken body) {
-        if (!canEditDevices("mint enrollment token")) {
+        if (!canEnroll("mint enrollment token")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -213,6 +226,8 @@ public class AgentAdminResource {
         public Long expiresAt;
         /** Optional Wi-Fi the code's QR provisions the phone on. */
         public String wifiSsid;
+        /** The Wi-Fi does not broadcast its name: the QR tells Android to look for it (PROVISIONING_WIFI_HIDDEN). */
+        public Boolean wifiHidden;
         public String wifiPassword;
         /** WPA (default), WEP or NONE. */
         public String wifiSecurity;
@@ -228,7 +243,7 @@ public class AgentAdminResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response createCode(CodeBody body) {
-        if (!canEditDevices("create enrollment code")) {
+        if (!canEnroll("create enrollment code")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -285,6 +300,9 @@ public class AgentAdminResource {
                 }
             }
         }
+        if (token.getWifiSsid() != null && Boolean.TRUE.equals(body.wifiHidden)) {
+            tokenDAO.updateWifiHidden(token.getId(), true);
+        }
         logger.info("Reusable enrollment code {} created for group {} (customer {})", token.getId(), body.groupId,
                 customerId.get());
         return Response.OK(tokenDAO.listCodes(customerId.get()).stream()
@@ -296,6 +314,10 @@ public class AgentAdminResource {
     @Path("/codes")
     @Produces(MediaType.APPLICATION_JSON)
     public Response listCodes() {
+        // The list shows each code (anyone holding one can enroll a phone into the folder): enrollment only.
+        if (!canEnroll("list enrollment codes")) {
+            return Response.PERMISSION_DENIED();
+        }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
@@ -315,7 +337,7 @@ public class AgentAdminResource {
     @Path("/codes/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response revokeCode(@PathParam("id") int id, @QueryParam("purge") boolean purge) {
-        if (!canEditDevices("revoke enrollment code")) {
+        if (!canEnroll("revoke enrollment code")) {
             return Response.PERMISSION_DENIED();
         }
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
@@ -338,6 +360,92 @@ public class AgentAdminResource {
         }
         logger.info("Reusable enrollment code {} revoked (customer {})", id, customerId.get());
         return Response.OK();
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Enrollment token status", notes = "What became of a single-use token: still waiting, expired, "
+            + "or the device it enrolled, plus the attempts made with it. The Enroll page polls this while its QR is shown.")
+    @GET
+    @Path("/token/status")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response tokenStatus(@QueryParam("token") String value) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        AgentEnrollmentToken token = value == null ? null : tokenDAO.findByToken(value.trim());
+        if (token == null || token.getCustomerId() != customerId.get()
+                || (scope.restricted() && (token.getGroupId() == null || !scope.canGroup(token.getGroupId())))) {
+            return Response.ERROR("error.agent.token.invalid");
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("used", token.isUsed());
+        out.put("usedAt", token.getUsedAt());
+        out.put("expiresAt", token.getExpiresAt());
+        out.put("expired", !token.isUsed() && token.getExpiresAt() != null
+                && token.getExpiresAt() < System.currentTimeMillis());
+        out.put("deviceNumber", token.getDeviceNumber());
+        if (token.getDeviceNumber() != null) {
+            Device device = unsecureDAO.getDeviceByNumber(token.getDeviceNumber());
+            if (device != null) {
+                out.put("deviceId", device.getId());
+                if (device.getConfigurationId() != null) {
+                    com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                    out.put("configurationName", cfg == null ? null : cfg.getName());
+                }
+            }
+        }
+        out.put("attempts", tokenDAO.listAttemptsOfToken(token.getId()));
+        return Response.OK(out);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Enrollment attempts", notes = "The latest enrollment attempts the server saw (agent downloads, "
+            + "refused and successful enrolls) with the reason and the phone's maker, model and Android release.")
+    @GET
+    @Path("/enroll/attempts")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollAttempts(@QueryParam("limit") Integer limit) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        // Who sees what is decided in EnrollAttemptAccess: coded attempts by folder scope; attempts without a
+        // recognised code only by a full administrator, and never across customers.
+        com.hmdm.persistence.domain.User user = SecurityContext.get().getCurrentUser().orElse(null);
+        boolean includeUnknown = com.hmdm.rest.resource.support.EnrollAttemptAccess.seesUnknown(user,
+                tokenDAO.countCustomers());
+        java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> rows =
+                tokenDAO.listAttempts(customerId.get(), includeUnknown, limit == null ? 100 : limit);
+        return Response.OK(com.hmdm.rest.resource.support.EnrollAttemptAccess.visible(rows, user, customerId.get(),
+                scope.groups(), includeUnknown));
+    }
+
+    @ApiOperation(value = "Enrollment attempts summary", notes = "How many phones tried to enroll in the last 7 days and "
+            + "still are not enrolled, and how many of them are Device Owner without a token.")
+    @GET
+    @Path("/enroll/attempts/summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollAttemptsSummary() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        // Counted over the whole customer (and, for a full administrator, the attempts without a code): a folder
+        // administrator or a view-only user sees the list of what they may see, not this total.
+        com.hmdm.persistence.domain.User user = SecurityContext.get().getCurrentUser().orElse(null);
+        if (!com.hmdm.rest.resource.support.EnrollAttemptAccess.isFullAdmin(user)) {
+            out.put("unresolvedDevices", null);
+            out.put("ownerWithoutToken", null);
+        } else {
+            int[] n = tokenDAO.countUnresolved(customerId.get(),
+                    com.hmdm.rest.resource.support.EnrollAttemptAccess.seesUnknown(user, tokenDAO.countCustomers()), 7);
+            out.put("unresolvedDevices", n[0]);
+            out.put("ownerWithoutToken", n[1]);
+        }
+        out.put("days", 7);
+        return Response.OK(out);
     }
 
     // =================================================================================================================
@@ -422,7 +530,78 @@ public class AgentAdminResource {
 
         logger.info("Agent command {} queued for device {}", command.getId(), deviceId);
         // Payload-free view (same shape as the history): never echo a payload back to the console.
-        return Response.OK(CommandHistoryView.from(command));
+        CommandHistoryView view = CommandHistoryView.from(command);
+        // Not connected right now: the command is not lost, it waits in the queue; the console says so.
+        view.setDeviceOnline(wakeHub.isOnline(deviceId));
+        return Response.OK(view);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Cancel a queued command", notes = "Withdraws a command the device has not run yet (pending, or "
+            + "delivered without an answer). Needs the same permissions as queueing that type of command.")
+    @POST
+    @Path("/devices/{deviceId}/commands/{commandId}/cancel")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response cancelCommand(@PathParam("deviceId") String deviceId, @PathParam("commandId") Integer commandId) {
+        if (!canEditDevices("cancel agent command")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get() || !scope.canDeviceNumber(customerId.get(), deviceId)) {
+            return Response.PERMISSION_DENIED();
+        }
+        AgentCommand command = commandId == null ? null : commandDAO.findByDeviceAndId(deviceId, commandId);
+        if (command == null) {
+            return Response.ERROR("error.agent.command.unknown");
+        }
+        // Whoever may not send a lock or an install may not withdraw somebody else's either.
+        if (requiresDisruptivePermission(command.getType()) && !SecurityContext.get().hasPermission("disruptive_actions")) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (requiresFleetPermission(command.getType()) && !SecurityContext.get().hasPermission("manage_fleet")) {
+            return Response.PERMISSION_DENIED();
+        }
+        String who = SecurityContext.get().getCurrentUserName();
+        boolean wasDelivered = "delivered".equals(command.getStatus());
+        String detail = "Cancelado por " + who + (wasDelivered
+                ? " (ya se había entregado al equipo: no se reenvía, pero pudo haberse ejecutado)" : "");
+        if (!commandDAO.cancel(deviceId, commandId, detail)) {
+            // Already ran, expired or was cancelled: nothing left to withdraw.
+            return Response.ERROR("error.agent.command.notCancellable");
+        }
+        logger.info("Agent command {} ({}) of device {} cancelled by {}", commandId, command.getType(), deviceId, who);
+        return Response.OK(CommandHistoryView.from(commandDAO.findByDeviceAndId(deviceId, commandId)));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Wiped devices", notes = "Devices that received a remote wipe and stopped reporting: number -> "
+            + "{wipedAt, wipedBy}. The device row is kept; the mark goes away if the device reports again.")
+    @GET
+    @Path("/wiped")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response wipedDevices() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.Set<String> visible = scope.deviceNumbers();
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> row : commandDAO.refreshWipedDevices(customerId.get())) {
+            String number = String.valueOf(row.get("number"));
+            if (visible != null && !visible.contains(number)) continue;
+            Map<String, Object> mark = new LinkedHashMap<>();
+            mark.put("wipedAt", row.get("wipedat"));
+            mark.put("wipedBy", row.get("wipedby"));
+            out.put(number, mark);
+        }
+        return Response.OK(out);
     }
 
     /** Actions that interrupt the user (lock/reboot/change passcode/wipe). A role without the
@@ -472,6 +651,12 @@ public class AgentAdminResource {
                     type, SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
         }
+        // Same rule as the per-device call: installing / uninstalling apps needs manage_fleet, also in bulk.
+        if (requiresFleetPermission(type) && !SecurityContext.get().hasPermission("manage_fleet")) {
+            logger.warn("Permission denied: bulk {} requires manage_fleet (user {})",
+                    type, SecurityContext.get().getCurrentUserName());
+            return Response.PERMISSION_DENIED();
+        }
 
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
@@ -479,6 +664,7 @@ public class AgentAdminResource {
         }
 
         int queued = 0;
+        int offline = 0;
         List<Integer> skipped = new ArrayList<>();
         for (Integer id : req.getDeviceIds()) {
             if (id == null) { continue; }
@@ -496,6 +682,7 @@ public class AgentAdminResource {
             command.setStatus("pending");
             command.setCreatedAt(System.currentTimeMillis());
             commandDAO.insert(command);
+            if (!wakeHub.isOnline(device.getNumber())) offline++;
             wakeHub.wake(device.getNumber(), "commands");
             queued++;
         }
@@ -504,6 +691,8 @@ public class AgentAdminResource {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("queued", queued);
         result.put("skipped", skipped);
+        // Of the queued ones, how many devices are not connected now: theirs run when they come back.
+        result.put("offline", offline);
         return Response.OK(result);
     }
 
@@ -841,6 +1030,14 @@ public class AgentAdminResource {
             return Response.PERMISSION_DENIED();
         }
         long sinceMillis = since == null ? 0L : since;
+        // A phone that is not checking in gets no sweep of its own: close here what already expired, so the
+        // history never shows "pending" for a command that will no longer run. Redelivery is decided only on
+        // the phone's own check-in, right after its results were recorded.
+        try {
+            commandDAO.expireOverdue(deviceId);
+        } catch (Exception e) {
+            logger.warn("Could not expire overdue commands of {}: {}", deviceId, e.getMessage());
+        }
         return Response.OK(CommandHistoryView.fromAll(commandDAO.listHistory(deviceId, sinceMillis, 200)));
     }
 

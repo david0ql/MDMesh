@@ -30,6 +30,8 @@ const LABELS: Record<string, string> = {
   kioskLockdownGap: 'Quiosco: algo no quedó bloqueado (ver detalle)',
   geofenceExit: 'Salió de una zona (geocerca)',
   geofenceEnter: 'Entró a una zona (geocerca)',
+  dataWarning: 'Datos móviles: cerca del límite',
+  dataLimit: 'Datos móviles: límite superado (apps sin datos móviles)',
   accountRemoved: 'Cuenta de Google quitada (no es del dominio permitido)',
   recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
   systemUpdated: 'Android actualizado',
@@ -38,6 +40,8 @@ const LABELS: Record<string, string> = {
   soundAlert: 'Está sonando (alarma o timbre)',
   agentExit: 'DallyControl se detuvo (no responde, error o cerrado por el sistema)',
   soundEnded: 'Dejó de sonar',
+  connectionFailure: 'Falla de conexión',
+  connectionGap: 'Corte de conexión',
 };
 
 export function EventTimeline({ device }: { device: Device }) {

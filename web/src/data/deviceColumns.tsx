@@ -9,7 +9,7 @@ export interface DeviceColumn {
   label: string;
   /** Grid track, e.g. '110px'. */
   width: string;
-  render: (d: DeviceView, s: DeviceSummary | undefined, ctx: { online: boolean; policy: string; group: string }) => ReactNode;
+  render: (d: DeviceView, s: DeviceSummary | undefined, ctx: { online: boolean; policy: string; group: string; resting?: string }) => ReactNode;
 }
 
 const gb = (n?: number | null) => (n == null ? '—' : `${(n / 1024 ** 3).toLocaleString('es-CO', { maximumFractionDigits: 1 })} GB`);
@@ -78,7 +78,18 @@ export function NetworkCell({ s }: { s?: DeviceSummary }) {
 }
 
 /** On/off icon: lit when the device is online (live channel open, or reported in the last 20 minutes). */
-export function PowerIcon({ online }: { online: boolean }) {
+export function PowerIcon({ online, resting }: { online: boolean; resting?: string }) {
+  // Silent for a known, harmless reason (switched off, battery spent, screen off): "En reposo", not "Sin conexión".
+  if (!online && resting) {
+    return (
+      <span className="pwr rest" title={`En reposo · ${resting}`} aria-label={`En reposo · ${resting}`}>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />
+        </svg>
+        <span className="pwr-t">En reposo</span>
+      </span>
+    );
+  }
   return (
     <span className={`pwr ${online ? 'on' : 'off'}`} title={online ? 'En línea' : 'Sin conexión'} aria-label={online ? 'En línea' : 'Sin conexión'}>
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -91,7 +102,7 @@ export function PowerIcon({ online }: { online: boolean }) {
 }
 
 export const DEVICE_COLUMNS: DeviceColumn[] = [
-  { key: 'status', label: 'Estado', width: '104px', render: (_d, _s, c) => <PowerIcon online={c.online} /> },
+  { key: 'status', label: 'Estado', width: '104px', render: (_d, _s, c) => <PowerIcon online={c.online} resting={c.resting} /> },
   { key: 'network', label: 'Red', width: '150px', render: (_d, s) => <NetworkCell s={s} /> },
   { key: 'model', label: 'Modelo', width: '130px', render: (_d, s) => orDash(s?.model ?? undefined) },
   { key: 'android', label: 'Android', width: '72px', render: (d, s) => orDash(s?.androidVersion ?? d.androidVersion) },

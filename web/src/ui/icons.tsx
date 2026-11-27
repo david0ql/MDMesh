@@ -189,3 +189,11 @@ export const IconZone = (p: P) => (
     <circle cx="8" cy="7.5" r="1.6" />
   </Svg>
 );
+
+export const IconAudit = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 2.5h6l2.5 2.5v8.5H4z" />
+    <path d="M10 2.5V5h2.5" />
+    <path d="M6 8h4.5M6 10.5h3" />
+  </Svg>
+);

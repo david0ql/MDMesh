@@ -19,6 +19,10 @@ public class EnrollmentCodeView {
     public String getAccountEmail() { return accountEmail; }
     public void setAccountEmail(String accountEmail) { this.accountEmail = accountEmail; }
 
+    private boolean wifiHidden;
+    public boolean isWifiHidden() { return wifiHidden; }
+    public void setWifiHidden(boolean wifiHidden) { this.wifiHidden = wifiHidden; }
+
     public String getWifiSsid() { return wifiSsid; }
     public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }
     public String getWifiPassword() { return wifiPassword; }

@@ -70,6 +70,16 @@ services:
       JAVA_OPTS: ${SERVER_JAVA_OPTS:-}
     volumes:
       - dallycontroldata:/opt/dallycontrol
+    # Healthy = answers AND reaches the database and the file store (/rest/public/health); an older image without that
+    # endpoint (404) falls back to the plain liveness probe. Same check as docker-compose.yml.
+    healthcheck:
+      test: ["CMD-SHELL", "c=$$(curl -s -o /dev/null -m 8 -w '%{http_code}' http://127.0.0.1:8080/rest/public/health); [ \"$$c\" = 200 ] || { [ \"$$c\" = 404 ] && curl -fsS -m 8 -o /dev/null http://127.0.0.1:8080/rest/public/name; }"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+      start_interval: 5s
+    stop_grace_period: 30s
 
   caddy:
     image: ${WEB_IMAGE:-ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-web:${WEB_VERSION:-latest}}
@@ -96,6 +106,13 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://127.0.0.1:2019/config/apps/http/servers"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
 
   supervisor:
     image: ghcr.io/${IMAGE_OWNER:-david0ql}/dallycontrol-supervisor:${SUPERVISOR_VERSION:-latest}
@@ -129,8 +146,10 @@ services:
       - ALL
     restart: unless-stopped
     profiles: ["cloudflare"]
+    # Only once the edge really listens: a connector that starts first answers "connection refused" to Cloudflare.
     depends_on:
-      - caddy
+      caddy:
+        condition: service_healthy
     command: tunnel --no-autoupdate run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}

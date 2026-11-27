@@ -128,9 +128,15 @@ else
   say "setting Device Owner"
   # Retried: right after boot the device-policy service can refuse transiently. `|| true` keeps set -e from
   # aborting silently on a non-zero adb exit, so the real error is reported below.
-  for _try in 1 2 3; do
+  # "already some accounts" with no account on the phone (checked above) is Android still working out, after boot,
+  # whether its accounts allow a Device Owner (seen on Android 16 with Google services: ~40 s after boot). That
+  # answer arrives on its own, so this case is retried for up to 2 minutes; any other refusal, three times.
+  for _try in $(seq 1 24); do
     OUT=$("${A[@]}" shell dpm set-device-owner "$ADMIN_COMPONENT" 2>&1 | tr -d '\r') || true
     echo "$OUT" | grep -qi "success" && break
+    # A try that failed after making the agent an admin still left it Device Owner on some releases: check.
+    "${A[@]}" shell dumpsys device_policy 2>/dev/null | grep -A4 -i "Device Owner" | grep -q "$PKG/" && { OUT="Success"; break; }
+    if [ "$_try" -ge 3 ] && ! echo "$OUT" | grep -qi "accounts on the device"; then break; fi
     sleep 5
   done
   echo "$OUT" | grep -qi "success" || die "dpm set-device-owner failed: $OUT (the device must have no accounts; factory reset it)"

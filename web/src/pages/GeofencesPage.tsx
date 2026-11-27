@@ -25,6 +25,8 @@ const ALERT_TYPES: { id: string; label: string }[] = [
   { id: 'disconnected', label: 'Desconexión' },
   { id: 'kioskExit', label: 'Salida de kiosko' },
   { id: 'simChange', label: 'Cambio de SIM' },
+  { id: 'dataWarning', label: 'Datos móviles: cerca del límite' },
+  { id: 'dataLimit', label: 'Datos móviles: límite superado' },
 ];
 
 type Tab = 'zones' | 'mail' | 'settings';

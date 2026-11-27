@@ -257,6 +257,16 @@ public class ScriptsResource {
         if (specs.isEmpty()) {
             return Response.ERROR("error.script.run.empty");
         }
+        // A script is not a way around the permissions of the commands it queues: its interrupting steps
+        // (lock / reboot) need disruptive_actions, exactly as when the same command is sent by hand.
+        for (CommandSpec spec : specs) {
+            if (com.hmdm.audit.AuditCatalog.isDisruptive(spec.type)
+                    && !SecurityContext.get().hasPermission("disruptive_actions")) {
+                logger.warn("Permission denied: script {} queues {} which requires disruptive_actions (user {})",
+                        id, spec.type, SecurityContext.get().getCurrentUserName());
+                return Response.PERMISSION_DENIED();
+            }
+        }
 
         int ranDevices = 0;
         int queued = 0;

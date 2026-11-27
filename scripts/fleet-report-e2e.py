@@ -37,6 +37,8 @@ P.add_argument("--skip-network", action="store_true", help="do not switch Wi-Fi 
 P.add_argument("--fill-mb", type=int, default=300, help="size of the file written to use storage")
 P.add_argument("--expect-offline", action="store_true", help="only check that the device shows as offline (no adb)")
 P.add_argument("--expect-no-smtp", action="store_true", help="check that 'Enviar ahora' reports the missing SMTP without failing")
+P.add_argument("--max-refresh-seconds", type=float, default=15, help="'Actualizar ahora' must refresh within this (raise it on a loaded machine)")
+P.add_argument("--slow", type=float, default=1, help="multiply every wait by this on a loaded machine")
 P.add_argument("--out", default="", help="directory to keep the downloaded files in")
 A = P.parse_args()
 
@@ -58,7 +60,7 @@ def check(name, ok, detail=""):
 def raw(method, path, body=None, base=None):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request((base or A.api) + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    with OP.open(req, timeout=120) as r:
+    with OP.open(req, timeout=120 * A.slow) as r:
         return r.read(), dict(r.headers)
 
 
@@ -193,18 +195,23 @@ def summary():
 
 
 def refresh(wait_for=None, timeout=60):
+    timeout *= A.slow
     """'Actualizar ahora': returns the seconds until the device's data was newer than the request (None = never)."""
     r = api("POST", f"{FLEET}/devices/refresh", {"numbers": [A.device_id]})
     t0 = time.time()
     while time.time() - t0 < timeout:
-        s = summary()
-        if (s.get("stateAt") or 0) >= r["at"] and (wait_for is None or wait_for(s)):
-            return time.time() - t0, r
-        time.sleep(0.5)
+        # The device's own state is a cheap read; the fleet summary (every device) is asked only once it is fresh.
+        st = api("GET", f"/rest/private/agent/v1/devices/{urllib.parse.quote(A.device_id)}/state") or {}
+        if (st.get("updatedAt") or 0) >= r["at"]:
+            if wait_for is None or wait_for(summary()):
+                return time.time() - t0, r
+            time.sleep(1)
+        time.sleep(0.3)
     return None, r
 
 
 def wait_summary(pred, timeout=120):
+    timeout *= A.slow
     t0 = time.time()
     while time.time() - t0 < timeout:
         refresh(timeout=8)
@@ -257,7 +264,7 @@ def device_checks():
     check("'Actualizar ahora': fresh data arrived", secs is not None, "timeout 60 s" if secs is None else f"{secs:.1f} s")
     if secs is not None:
         print(f"INFO  refresh latency (request -> new battery level visible in the console API): {secs:.1f} s")
-        check("'Actualizar ahora' refreshes in under 15 s", secs < 15, f"{secs:.1f} s")
+        check(f"'Actualizar ahora' refreshes in under {A.max_refresh_seconds:g} s", secs < A.max_refresh_seconds, f"{secs:.1f} s")
 
     # 2. Storage: write a file, the free space must drop in the export.
     free0, _ = dev_storage()
@@ -356,6 +363,7 @@ def mp(path, method="GET"):
 
 
 def wait_mail(subject_part, timeout):
+    timeout *= A.slow
     t0 = time.time()
     while time.time() - t0 < timeout:
         for m in json.loads(mp("/api/v1/messages?limit=50")).get("messages", []):

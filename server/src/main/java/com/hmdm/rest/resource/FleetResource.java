@@ -226,7 +226,8 @@ public class FleetResource {
         }
         com.hmdm.rest.resource.support.FleetExportService.Request rq = new com.hmdm.rest.resource.support.FleetExportService.Request();
         rq.groupId = groupId;
-        rq.days = days;
+        // The CSV has no connection-history sheet: it only needs the sessions still open.
+        rq.days = "csv".equalsIgnoreCase(format) ? Integer.valueOf(1) : days;
         rq.tz = tz;
         rq.numbers = numbers;
         // A folder administrator exports only their folders' devices.
@@ -872,6 +873,13 @@ public class FleetResource {
     // --- helpers --------------------------------------------------------------------------------------------------
 
     private Response fanOut(int customerId, CommandBody body, Predicate<DeviceScopeRow> which, String target) {
+        // A command is a device action wherever it is sent from: edit_devices, like the per-device and bulk calls
+        // (manage_fleet alone lets a role organise folders and policies, not operate the phones).
+        if (!SecurityContext.get().hasPermission("edit_devices")) {
+            logger.warn("Permission denied: fan-out to {} requires edit_devices (user {})", target,
+                    SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
+            return Response.PERMISSION_DENIED();
+        }
         AgentCommand cmd = body == null ? null : body.command;
         if (cmd == null || cmd.getType() == null || cmd.getType().trim().isEmpty()) {
             return Response.ERROR("error.agent.command.invalid");
@@ -888,9 +896,10 @@ public class FleetResource {
                 && !SecurityContext.get().hasPermission("disruptive_actions")) {
             logger.warn("Permission denied: fan-out {} requires disruptive_actions (user {})", type,
                     SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
-            return Response.ERROR("error.agent.command.bulkForbidden");
+            return Response.PERMISSION_DENIED();
         }
         int queued = 0;
+        int offline = 0;
         long now = System.currentTimeMillis();
         for (DeviceScopeRow row : commandDAO.listDeviceScopes(customerId)) {
             if (!which.test(row)) {
@@ -904,12 +913,15 @@ public class FleetResource {
             c.setStatus("pending");
             c.setCreatedAt(now);
             commandDAO.insert(c);
+            if (!wakeHub.isOnline(row.getNumber())) offline++;
             wakeHub.wake(row.getNumber(), "commands");
             queued++;
         }
         logger.info("Command {} queued for {} device(s) of {} (customer {})", type, queued, target, customerId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("queued", queued);
+        // Of those, the devices not connected now: their command waits and runs when they come back.
+        out.put("offline", offline);
         return Response.OK(out);
     }
 

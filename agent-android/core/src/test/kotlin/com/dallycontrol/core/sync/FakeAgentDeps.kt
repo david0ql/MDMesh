@@ -81,6 +81,13 @@ class FakeMdmApi : MdmApi {
         return enrollResponse
     }
 
+    val reportRequests = mutableListOf<AgentEnrollRequest>()
+
+    override suspend fun enrollReport(request: AgentEnrollRequest): ResponseEnvelope<AgentEnrollResponse> {
+        reportRequests += request
+        return ResponseEnvelope(status = "OK")
+    }
+
     override suspend fun checkIn(
         authorization: String,
         request: AgentCheckInRequest,
