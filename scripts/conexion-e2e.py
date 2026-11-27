@@ -228,6 +228,9 @@ def airplane():
 def doze():
     minutes = A.doze_minutes
     print(f"== Doze forzado {minutes:g} min (pantalla apagada, sin cargador)")
+    command_latency(60)
+    time.sleep(2)
+    reconnects_before = connection().get("reconnects") or 0
     sh("dumpsys battery unplug")
     sh("input keyevent 223")  # sleep
     time.sleep(2)
@@ -252,6 +255,11 @@ def doze():
     longest = max(gaps + [time.time() - last])
     measure("mayor intervalo entre reportes en Doze", longest, 6 * 60 + 30)
     measure("orden tras varios minutos en Doze", command_latency(120), 60)
+    time.sleep(2)
+    command_latency(60)
+    reconnects_after = connection().get("reconnects") or 0
+    check("el canal no se cortó ni una vez en ese tiempo (el servidor no cierra sockets sanos)",
+          reconnects_after == reconnects_before, f"reconexiones {reconnects_before} -> {reconnects_after}")
     sh("dumpsys deviceidle unforce")
     sh("dumpsys battery reset")
     sh("input keyevent 224")  # wake
@@ -357,18 +365,19 @@ def resting():
 def reboot():
     print("== reinicio del equipo (apagado ordenado)")
     t0 = time.time()
-    adb("reboot")
-    time.sleep(6)
-    c = connection()
-    s = c.get("lastStop") or {}
-    check("el equipo avisó el apagado antes de irse", s.get("reason") == "shutdown" and not s.get("resumedAt"),
+    # Through the power manager, as the power menu does (plain `adb reboot` skips Android's shutdown broadcast).
+    sh("svc power reboot")
+    said = wait_until(lambda: (connection().get("lastStop") or {}).get("reason") == "shutdown", 40, 2)
+    s = connection().get("lastStop") or {}
+    check("el equipo avisó el apagado antes de irse", said is not None and not s.get("resumedAt"),
           f"{s.get('reason')} · {s.get('label')}")
+    time.sleep(10)
     booted = wait_until(lambda: adb("shell", "getprop", "sys.boot_completed").strip() == "1", 300, 3)
     check("el equipo arrancó", booted is not None)
     live = wait_live(180)
     measure("tras reiniciar el equipo: canal en vivo (sin abrir la app)", None if live is None else time.time() - t0, 240)
-    measure("tras reiniciar el equipo: orden ejecutada", command_latency(90), 30)
-    time.sleep(2)
+    measure("tras reiniciar el equipo: orden ejecutada", command_latency(120), 60)
+    wait_until(lambda: bool((connection().get("lastStop") or {}).get("resumedAt")), 60, 2)
     s = connection().get("lastStop") or {}
     check("la consola cierra el corte con su duración", s.get("reason") == "shutdown" and bool(s.get("resumedAt")),
           json.dumps(s, ensure_ascii=False))

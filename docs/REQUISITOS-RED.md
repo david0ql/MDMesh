@@ -93,7 +93,7 @@ Las **alertas de desconexión** y los reportes no cambian: siguen contando el ti
 
 ### Última falla de conexión (detalle del dispositivo)
 
-Desde la versión 0.9.9 del agente, cada equipo guarda la última falla de red y la envía en su siguiente reporte. En
+En las versiones del agente posteriores a la 0.9.8, cada equipo guarda la última falla de red y la envía en su siguiente reporte. En
 el detalle del dispositivo, la tarjeta **Última falla de conexión** muestra:
 
 - **Falla**: DNS, certificado TLS rechazado, tiempo de espera agotado, conexión rechazada/cortada, respuesta HTTP
@@ -129,7 +129,7 @@ Si su red filtra por dominio, permita también el dominio de respaldo con los mi
 *Para el operador del servidor:* se configura con la variable de entorno `AGENT_BACKUP_URLS` (lista separada por
 comas) en el `.env` del despliegue, o el parámetro `agent.backup.urls` en instalaciones sin Docker. El dominio de
 respaldo debe servir la misma aplicación con un certificado público válido. Los agentes reciben la lista en su
-siguiente reporte; los anteriores a 0.9.9 la ignoran.
+siguiente reporte; los de la versión 0.9.8 o anterior la ignoran.
 
 ## 6. Comportamiento del agente (para dimensionar)
 
