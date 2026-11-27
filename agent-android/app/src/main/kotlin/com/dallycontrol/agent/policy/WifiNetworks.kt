@@ -288,7 +288,10 @@ class WifiNetworks(private val context: Context) {
     ) {
         val b = StaticIpConfiguration.Builder().setIpAddress(link).setDnsServers(dns)
         if (gateway != null) b.setGateway(gateway)
-        conf.setIpConfiguration(IpConfiguration.Builder().setStaticIpConfiguration(b.build()).build())
+        // The IP configuration carries the proxy too: keep the one already set on the network.
+        val ipConfiguration = IpConfiguration.Builder().setStaticIpConfiguration(b.build())
+        conf.httpProxy?.let { ipConfiguration.setHttpProxy(it) }
+        conf.setIpConfiguration(ipConfiguration.build())
     }
 
     /** An IPv4 literal only — never a name, so nothing is resolved. */

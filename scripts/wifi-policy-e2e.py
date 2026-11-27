@@ -39,6 +39,7 @@ P.add_argument("--pkg", default="com.dallycontrol.agent.debug")
 P.add_argument("--adb", default="adb")
 P.add_argument("--only", default="", help="comma-separated sections (default: all)")
 P.add_argument("--skip-safeguard", action="store_true")
+P.add_argument("--keep", action="store_true", help="leave the test policy and certificates in place (to inspect the device)")
 P.add_argument("--open-ssid", default="AndroidWifi", help="an OPEN network in range the device can really join")
 A = P.parse_args()
 
@@ -141,29 +142,27 @@ def save_config(cfg, dc, radio="keep"):
     return r.get("status") == "OK", r.get("message"), r.get("data")
 
 
-def wait_applied(timeout=120):
-    """Wake the agent and wait until it reports the policy's current revision. @return the status."""
-    def done():
-        st = config_status()
-        return st if st.get("currentRevision") and st.get("appliedRevision") == st.get("currentRevision") else None
-    sh(f"am broadcast -a com.dallycontrol.agent.CHECK_IN_NOW -p {A.pkg} >/dev/null 2>&1; true")
+def wait_applied(timeout=480):
+    """Wait until the agent reports the policy's current revision (asking it to check in meanwhile). @return the status.
+    A Wi-Fi change can take the phone off its network: the agent then needs a few minutes to reach the server again."""
     end = time.time() + timeout
-    st = None
     while time.time() < end:
-        st = done()
-        if st:
+        st = config_status()
+        if st.get("currentRevision") and st.get("appliedRevision") == st.get("currentRevision"):
             return st
         poke()
-        time.sleep(4)
+        time.sleep(5)
     return config_status()
 
 
 def poke():
-    """Ask the agent for a check-in now (its own receiver; harmless when the build has none)."""
-    sh(f"am start-foreground-service -n {A.pkg}/com.dallycontrol.agent.service.CheckInService >/dev/null 2>&1; true")
+    """Ask the agent for a check-in now: run its pending WorkManager jobs (they are what a check-in is)."""
+    out = sh(f"dumpsys jobscheduler | grep -E 'JOB #.*{A.pkg}/' ; true")
+    for job in sorted(set(re.findall(r"JOB #\S+/(\d+):", out)))[:6]:
+        sh(f"cmd jobscheduler run -f {A.pkg} {job} >/dev/null 2>&1; true")
 
 
-def managed_report(pred=None, timeout=90):
+def managed_report(pred=None, timeout=240):
     """The agent's own state report (telemetry dynamic.managedWifi), waiting until pred(report) holds."""
     def get():
         rep = (telemetry().get("dynamic") or {}).get("managedWifi")
@@ -188,14 +187,29 @@ def net_status(rep, ssid):
 
 
 def list_networks():
-    """SSID -> (network id, security text) from `cmd wifi list-networks` (Android 11+); {} when not available."""
+    """SSID -> (network id, security types joined by space) from `cmd wifi list-networks` (Android 11+); {} when not available.
+    Android 12+ prints one line per security type of a network (a '^' marks the ones the system added itself)."""
     out = sh("cmd wifi list-networks")
     nets = {}
     for line in out.splitlines():
         m = re.match(r"^\s*(\d+)\s+(.+?)\s{2,}(\S.*)$", line)
         if m:
-            nets[m.group(2).strip()] = (int(m.group(1)), m.group(3).strip())
+            ssid = m.group(2).strip()
+            before = nets.get(ssid, (int(m.group(1)), ""))[1]
+            nets[ssid] = (int(m.group(1)), (before + " " + m.group(3).strip()).strip())
     return nets
+
+
+def restricted(key):
+    """Is this user restriction in force for the main user? (`dumpsys user` also lists the defaults for guests.)"""
+    header = ""
+    for line in sh("dumpsys user").splitlines():
+        t = line.strip()
+        if not t.startswith("no_"):
+            header = t
+        elif t == key and not header.startswith(("Guest restrictions", "mDefaultRestrictions")):
+            return True
+    return False
 
 
 def wifi_dump():
@@ -209,8 +223,8 @@ def config_blocks(dump=None):
     end = dump.find("Configured networks End", start)
     body = dump[start:end] if start >= 0 else dump
     blocks = {}
-    for part in re.split(r"\n(?=\s*ID: \d+ SSID: )", body):
-        m = re.match(r"\s*ID: (\d+) SSID: \"(.*?)\"", part)
+    for part in re.split(r"(?=\bID: \d+ SSID: \")", body):  # a block does not always start on its own line
+        m = re.match(r"ID: (\d+) SSID: \"(.*?)\"", part)
         if m:
             blocks[m.group(2)] = part
     return blocks
@@ -219,10 +233,6 @@ def config_blocks(dump=None):
 def saved_ssids():
     nets = list_networks()
     return set(nets) if nets else set(config_blocks())
-
-
-def restrictions():
-    return sh("dumpsys device_policy") + sh("dumpsys user | grep -i -E 'no_[a-z_]*wifi[a-z_]*' ; true")
 
 
 def wifi_connected_ssid():
@@ -387,7 +397,8 @@ def t_networks(state):
     check("the phone applied the policy", st.get("appliedRevision") == st.get("currentRevision"), st)
     detail = json.loads((st.get("lastCommand") or {}).get("detail") or "{}").get("outcomes", {})
     check("config.apply reports wifi and wifiRules applied", detail.get("wifi") == "applied" and detail.get("wifiRules") == "applied", detail)
-    blocks = until(lambda: (lambda b: b if NETS["psk"] in b else None)(config_blocks()), 30) or {}
+    last = "tls" if SDK >= 29 else "opt"  # saved in order: wait for the last one
+    blocks = until(lambda: (lambda b: b if NETS[last] in b and NETS["opt"] in b else None)(config_blocks()), 60) or {}
     listed = list_networks()
 
     def has(key, *patterns):
@@ -403,11 +414,12 @@ def t_networks(state):
     else:
         check("WPA3-SAE and OWE are not saved on this Android (no API for them)", NETS["sae"] not in blocks and NETS["owe"] not in blocks)
     check("PEAP: EAP network with PEAP/MSCHAPv2, identities and domain",
-          has("peap", r"KeyMgmt:.*(WPA_EAP|IEEE8021X)", r"eap\W+PEAP", r"MSCHAPV2", r"equipo@e2e\.test", r"anonimo@e2e\.test", r"radius\.e2e\.test"),
+          has("peap", r"KeyMgmt:.*(WPA_EAP|IEEE8021X)", r"eap[_ ]method:? *\"?PEAP|eap PEAP", r"MSCHAPV2", r"equipo@e2e\.test", r"anonimo@e2e\.test",
+              r"domain_suffix_match \"radius\.e2e\.test\""),
           blocks.get(NETS["peap"], "")[-900:])
-    check("PEAP: the CA is referenced by the network (not 'do not validate')", has("peap", r"ca_cert\W+\S*(keystore|CACERT|[A-Za-z0-9_]+)"), blocks.get(NETS["peap"], "")[-900:])
-    check("TTLS: EAP network with TTLS/PAP and the alternative-subject match", has("ttls", r"eap\W+TTLS", r"PAP", r"DNS:radius\.e2e\.test"), blocks.get(NETS["ttls"], "")[-900:])
-    check("EAP-TLS: EAP network with TLS and a client certificate", has("tls", r"eap\W+TLS", r"(client_cert|key_id|engine_id|private_key)\W+\S+"), blocks.get(NETS["tls"], "")[-900:])
+    check("PEAP: the CA is referenced by the network (not 'do not validate')", has("peap", r"ca_cert \"keystore://CACERT"), blocks.get(NETS["peap"], "")[-900:])
+    check("TTLS: EAP network with TTLS/PAP and the alternative-subject match", has("ttls", r"eap[_ ]method:? *\"?TTLS|eap TTLS", r"PAP", r"altsubject_match \"DNS:radius\.e2e\.test\""), blocks.get(NETS["ttls"], "")[-900:])
+    check("EAP-TLS: EAP network with TLS and a client certificate", has("tls", r"eap[_ ]method:? *\"?TLS|eap TLS", r"client_cert \"keystore://", r"(key_id|private_key|engine_id) \"\S+"), blocks.get(NETS["tls"], "")[-900:])
     check("no EAP password shows in the dump", EAP_PW not in "".join(blocks.values()))
     check("options: static IP, gateway and DNS", has("opt", r"IP assignment: STATIC", r"192\.168\.77\.50/24", r"192\.168\.77\.1"), blocks.get(NETS["opt"], "")[-900:])
     check("options: manual proxy with its exclusion", has("opt", r"Proxy settings: STATIC", r"proxy\.e2e\.test", r"3128"), blocks.get(NETS["opt"], "")[-900:])
@@ -427,13 +439,17 @@ def t_networks(state):
     if listed:
         types = {k: listed.get(NETS[k], (None, ""))[1] for k in NETS}
         check("`cmd wifi list-networks` lists them with their security",
-              "psk" in types["psk"] and "sae" in types["sae"] and "owe" in types["owe"] and "eap" in types["peap"] and "eap" in types["tls"], types)
+              "psk" in types["psk"] and "sae" in types["sae"] and "owe" in types["owe"] and "enterprise" in types["peap"].replace("eap", "enterprise")
+              and "enterprise" in types["tls"].replace("eap", "enterprise"), types)
         if SDK >= 31:
             check("WPA2/WPA3 mixed carries both types on Android 12+", "psk" in types["mix"] and "sae" in types["mix"], types["mix"])
-    dp = sh("dumpsys device_policy")
-    check("the CA is installed by the Device Owner (owner-installed CA certs)",
-          bool(re.search(r"(Owner-installed CA|mOwnerInstalledCaCerts|OwnerInstalledCaCerts)[^\n]*\n?[^\n]*\w", dp)) or "installed-ca" in dp.lower(),
-          dp[dp.lower().find("ca cert") - 100:dp.lower().find("ca cert") + 300] if "ca cert" in dp.lower() else "no CA section")
+    store = sh("su 0 ls /data/misc/user/0/cacerts-added/ 2>&1 || su root ls /data/misc/user/0/cacerts-added/ 2>&1")
+    if re.search(r"^[0-9a-f]{8}\.\d+$", store, re.M):
+        check("the CA is in the user's trusted store (installCaCert)", True)
+    elif "not found" in store or "denied" in store or "inaccessible" in store:
+        skip("the CA is in the user's trusted store", "no root on this device to list it; the agent's record follows")
+    else:
+        check("the CA is in the user's trusted store (installCaCert)", False, store)
     keys = sh(f"run-as {A.pkg} cat shared_prefs/mdm_wifi_certs.xml")
     check("the agent installed the CA and the EAP-TLS key pair (its record)", "ca:" in keys and "dc-wifi-" in keys, keys[:300])
 
@@ -492,13 +508,13 @@ def t_lockdown(state, cfg, base):
     ok, msg, _ = save_config(get_config(cfg["id"]), dc)
     check("policy saved with every block (deny list, minimum security personal)", ok, msg)
     wait_applied()
-    dp = restrictions()
-    check("DISALLOW_CONFIG_WIFI is set", "no_config_wifi" in dp)
+    dp = sh("dumpsys device_policy")
+    check("DISALLOW_CONFIG_WIFI is set", until(lambda: restricted("no_config_wifi"), 20))
     rep = managed_report(lambda r: "blockConfig" in ((r.get("rules") or {}).get("applied") or []))
     applied = (rep.get("rules") or {}).get("applied") or []
     unsupported = (rep.get("rules") or {}).get("unsupported") or []
     if SDK >= 33:
-        check("DISALLOW_ADD_WIFI_CONFIG and DISALLOW_CHANGE_WIFI_STATE are set", "no_add_wifi_config" in dp and "no_change_wifi_state" in dp)
+        check("DISALLOW_ADD_WIFI_CONFIG and DISALLOW_CHANGE_WIFI_STATE are set", restricted("no_add_wifi_config") and restricted("no_change_wifi_state"))
         check("the SSID deny list is in the device policy", "DC-Prohibida" in dp or "WifiSsidPolicy" in dp or "mWifiSsidPolicy" in dp, "")
         check("report: every rule applied", all(k in applied for k in ("lockManaged", "blockAdd", "blockConfig", "blockState", "ssidPolicy", "minSecurity")), rep.get("rules"))
         out = sh("cmd wifi add-network DC-NoDebe open")
@@ -527,8 +543,7 @@ def t_lockdown(state, cfg, base):
         check("allow list: once listed, the same network connects", until(lambda: wifi_connected_ssid() == A.open_ssid, 60), wifi_connected_ssid())
     ok, msg, _ = save_config(get_config(cfg["id"]), full_policy(state, base))
     wait_applied()
-    dp = restrictions()
-    check("lifting the rules clears the restrictions", "no_config_wifi" not in sh("dumpsys user | grep -i no_config_wifi; true") or True)
+    check("lifting the rules clears the restrictions", not restricted("no_config_wifi") and not restricted("no_add_wifi_config"))
     until(lambda: wifi_connected_ssid() == A.open_ssid, 60)
 
 
@@ -574,10 +589,9 @@ def t_safeguard(state, cfg, base):
     cut()
     print("        ... no Wi-Fi and no mobile data; waiting for the agent to relax the lock-down", flush=True)
     if SDK >= 33:
-        relaxed = until(lambda: "WifiSsidPolicy" not in sh("dumpsys device_policy | grep -i -A2 ssidpolicy; true")
-                        and "no_add_wifi_config" not in sh("dumpsys user | grep no_add_wifi_config; true"), 240, 10)
+        relaxed = until(lambda: not restricted("no_add_wifi_config"), 240, 10)
     else:
-        relaxed = until(lambda: "no_config_wifi" not in sh("dumpsys user | grep no_config_wifi; true"), 240, 10)
+        relaxed = until(lambda: not restricted("no_config_wifi"), 240, 10)
     check("after the grace period the phone lifts the restrictive rules by itself", relaxed)
     check("the managed networks stay locked meanwhile", sh("settings get global wifi_device_owner_configs_lockdown").strip() == "1")
     sh("svc wifi enable")
@@ -628,7 +642,11 @@ def main():
     original = cfg.get("dcPolicy")
     original_radio = cfg.get("wifi")
     base = json.loads(original) if original else {}
-    if base.get("wifi"):
+    leftover = all(str(n.get("id", "")).startswith("e2e") for n in base.get("wifi") or [])  # an earlier --keep run
+    if leftover:
+        original = json.dumps({k: v for k, v in base.items() if k not in ("wifi", "wifiRules")}) or None
+        original = None if original == "{}" else original
+    if base.get("wifi") and not leftover:
         sys.exit("the device's policy already has Wi-Fi networks; their passwords cannot be read back to restore them. "
                  "Run this on a device whose policy has none.")
     base.pop("wifi", None)
@@ -657,13 +675,18 @@ def main():
             t_removal(state, cfg, base)
     finally:
         sh("svc data enable; svc wifi enable")
-        now = get_config(cfg["id"])
+        now = None if A.keep else get_config(cfg["id"])
         if now:
             now["dcPolicy"] = original
             now["wifi"] = original_radio
             # the original policy may have Wi-Fi passwords: they were never read, so they are kept by passwordSet
             api("PUT", "/rest/private/configurations", now)
-        cleanup_certificates(state)
+        if not A.keep:
+            cleanup_certificates(state)
+            # the open network was managed during the test, so it left with the policy: give it back to the device
+            if SDK >= 30:
+                time.sleep(5)
+                sh("cmd wifi connect-network %s open" % A.open_ssid)
     failed = [r for r in RESULTS if not r[1]]
     print(f"\nRESULT: PASS={len(RESULTS) - len(failed)} FAIL={len(failed)}")
     for name, _, detail in failed:
