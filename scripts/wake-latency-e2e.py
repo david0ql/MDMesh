@@ -239,7 +239,9 @@ class Run:
             try:
                 with self.op.open(req, timeout=60) as r:
                     return json.loads(r.read() or b"{}")
-            except (urllib.error.HTTPError, urllib.error.URLError, ConnectionError, TimeoutError) as e:
+            except (urllib.error.HTTPError, urllib.error.URLError, ConnectionError, TimeoutError, ValueError) as e:
+                # ValueError: a gateway's HTML error page instead of JSON (a loaded test machine). A GET is retried;
+                # a POST is not, so the test itself never queues a command twice.
                 code = getattr(e, "code", None)
                 if method != "GET" or attempt == 4 or (code is not None and code not in (502, 503, 504)):
                     raise
@@ -349,9 +351,12 @@ class Run:
             ("Alarma", "device.ring", lambda i: {"durationMs": 1500}),
             ("Mensaje", "device.alert", lambda i: {"title": f"Latencia {i}", "body": "prueba de latencia"})]
 
-    def measure(self, key, title, reps, timeout, before_each=None, expect_channel=None):
+    def measure(self, key, title, reps, timeout, before_each=None, expect_channel=None, slow=False):
         print(f"== {title}  ({reps} repeticiones, espera máx. {timeout} s)", flush=True)
+        wanted = self.a.slow_commands.split(",") if slow else None
         for label, type_, payload in self.PLAN:
+            if wanted and type_ not in wanted:
+                continue
             total, delivery, bad, channels, loads = [], [], 0, set(), []
             for i in range(reps):
                 if before_each:
@@ -402,7 +407,7 @@ class Run:
         self.undoze()
         if self.cut(False):
             self.measure("down-nofcm", "Canal caído, sin despertador (solo sondeo del agente)", self.a.slow_reps,
-                         self.a.slow_timeout)
+                         self.a.slow_timeout, slow=True)
 
     def dozed(self, deliver, key, title, reps, timeout):
         if not self.cut(deliver):
@@ -418,7 +423,7 @@ class Run:
                 print(f"     (el equipo salió de Doze: {s}; se fuerza de nuevo)", flush=True)
         try:
             self.measure(key, title + ("" if self.a.doze_exempt else " — agente SIN exención de batería"),
-                         reps, timeout, before_each=again)
+                         reps, timeout, before_each=again, slow=not deliver)
         finally:
             self.undoze()
             self.exempt(True)
@@ -463,7 +468,7 @@ class Run:
                 self.until(self.pid, 300, 2)
                 time.sleep(settle)
             self.kill()
-        self.measure(key, title, reps, timeout, before_each=kill_after_settling)
+        self.measure(key, title, reps, timeout, before_each=kill_after_settling, slow=not deliver)
         self.check("el agente revive tras matarlo (proceso en ejecución)", bool(self.until(self.pid, 120, 2)))
         self.check("y reabre el canal en vivo", self.until(self.live, 180, 3))
 
@@ -542,6 +547,8 @@ def main():
     r.add_argument("--reps", type=int, default=10)
     r.add_argument("--slow-reps", type=int, default=3, help="repetitions of the conditions without a wake (minutes each)")
     r.add_argument("--slow-timeout", type=int, default=480)
+    r.add_argument("--slow-commands", default="device.lock,device.ring,device.alert",
+                   help="command types measured in the conditions without a wake (each repetition takes minutes)")
     r.add_argument("--doze-timeout", type=int, default=1200)
     r.add_argument("--doze-exempt", action="store_true", help="keep the agent battery-exempt in the Doze conditions")
     r.add_argument("--only", default="")
