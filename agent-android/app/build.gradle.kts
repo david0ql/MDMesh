@@ -112,13 +112,10 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
 
-<<<<<<< HEAD
-    // Push wake channel (docs/DESPERTADOR-FCM.md). The library alone: no analytics, no google-services plugin.
-    implementation(libs.firebase.messaging)
-=======
     // The agent's own enrollment QR scanner (EnrollScanActivity)
     implementation(libs.zxing.core)
->>>>>>> integration/mobicontrol
+    // Push wake channel (docs/DESPERTADOR-FCM.md). The library alone: no analytics, no google-services plugin.
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

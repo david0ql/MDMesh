@@ -44,10 +44,6 @@ class MdmApplication : Application(), Configuration.Provider {
         // WebSocket are not Doze-throttled — the push channel only exists where the server has a project.
         // Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
-<<<<<<< HEAD
-        // Push wake channel: bring the stored registration back up (a no-op without a project or Google).
-        wakeChannel.onStart()
-=======
         // Safety net for the Device-Owner baseline (a no-op once applied): covers phones provisioned through a path
         // that skipped it - the older QR flow of agents up to 0.9.8, or a maker that dropped a provisioning callback.
         Thread { runCatching { com.dallycontrol.agent.provisioning.ProvisioningBaseline.ensure(this) } }.start()
@@ -55,6 +51,7 @@ class MdmApplication : Application(), Configuration.Provider {
         runCatching { com.dallycontrol.agent.provisioning.ProvisioningIntake.adoptPendingSoon(this) }
         // And if this phone is Device Owner with nothing to enroll with, say so instead of staying silent.
         runCatching { com.dallycontrol.agent.provisioning.EnrollPrompt.watch(this) }
->>>>>>> integration/mobicontrol
+        // Push wake channel: bring the stored registration back up (a no-op without a project or Google).
+        wakeChannel.onStart()
     }
 }
