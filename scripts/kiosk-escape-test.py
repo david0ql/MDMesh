@@ -208,7 +208,7 @@ def seven_taps():
     """7 quick taps on the kiosk's invisible top-right corner (they must land within 3 s: one shell, in parallel)."""
     w, _, dp = screen()
     x, y = int(w - 20 * dp), int(52 * dp)
-    sh("for i in 1 2 3 4 5 6 7; do input tap %d %d & sleep 0.12; done; wait" % (x, y), timeout=60)
+    sh("for i in 1 2 3 4 5 6 7; do input tap %d %d & done; wait" % (x, y), timeout=90)
     time.sleep(1.5)
 
 
@@ -240,8 +240,14 @@ def try_exit(mode, typed):
     """7 taps, type `typed`, confirm. Returns the dialog message when no password field was offered, else ''."""
     if not to_exit_screen(mode):
         return "no exit screen"
-    seven_taps()
-    field, ok, message = exit_dialog()
+    field = ok = None
+    message = ""
+    for _ in range(3):  # on a slow device the 7 taps may not all land inside the kiosk's 3-second window
+        seven_taps()
+        field, ok, message = exit_dialog()
+        if field or ok:
+            break
+        time.sleep(3.5)
     if not field:
         if ok:
             tap(ok)
@@ -338,7 +344,7 @@ def t_status_bar(mode):
     gear = find(nodes, **{"resource-id": "settings_button"}) or find(nodes, **{"content-desc": "Open settings"}) \
         or find(nodes, **{"content-desc": "Abrir configuración"}) or find(nodes, **{"content-desc": "Settings"})
     panel = any("com.android.systemui" == (n.get("package") or "") and "quick" in (n.get("resource-id") or "").lower() for n in nodes)
-    info("barra de estado", "panel de ajustes rápidos " + ("ABIERTO" if panel or gear else "cerrado") + (", con engranaje" if gear else ""))
+    info("barra de estado", ("se despliega" if panel or gear else "no se despliega") + (", con engranaje a Ajustes" if gear else ", sin engranaje"))
     if SDK >= 36:
         check("Android 16+: la barra de estado no se despliega (por defecto)", not (panel or gear))
     if gear:
