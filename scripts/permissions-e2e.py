@@ -474,12 +474,21 @@ def body(sdk, cfg_id, storage):
     sh(f"pm uninstall {PKG}")
     sh("pm install -r /data/local/tmp/permtest.apk")
     check("fresh install with no rule: camera not granted yet", granted("CAMERA") is False)
-    log, top = launch_and_read()
-    time.sleep(3)
-    log = sh("logcat -d -s PermTest:I | grep missing= | tail -1").strip()
+    check_policy("the system holds permission policy 1 (grant) before the app asks", 1)
+    launch_and_read()
+
+    # Android answers the request itself: its (invisible) permission activity passes by and closes with everything
+    # granted — background location in a second round, as Android requires. On a slow phone that takes some seconds.
+    def answered():
+        line = sh("logcat -d -s PermTest:I | grep missing= | tail -1").strip()
+        return line if log_value(line, "missing") == 0 and no_permission_dialog(top_activity()) else ""
+    log = until(answered, 90)
     top = top_activity()
-    check("the app asked, Android granted without showing a dialog", no_permission_dialog(top) and log_value(log, "CAMERA") == 1
+    check("the app asked, Android granted everything on its own and the app is back in front",
+          bool(log) and log_value(log, "asked") > 0 and log_value(log, "CAMERA") == 1
           and log_value(log, "ACCESS_FINE_LOCATION") == 1 and log_value(log, storage) == 1, f"{log} | {top}")
+    check("…and nobody was asked: the permissions are marked as granted by policy", fixed("CAMERA") and fixed("ACCESS_FINE_LOCATION"),
+          str(package_perms().get(PERM + "CAMERA")))
     sh("input keyevent KEYCODE_HOME")
 
     section("8. special accesses: what Android lets a Device Owner do, and the rest with one tap")
