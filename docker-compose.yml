@@ -31,6 +31,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    mem_limit: ${POSTGRES_MEM_LIMIT:-0}
+    cpus: ${POSTGRES_CPUS:-0}
+    # /dev/shm for parallel queries (Docker's default 64 MB is small once work_mem grows).
+    shm_size: ${POSTGRES_SHM_SIZE:-128m}
 
   server:
     # Pull-based updates use the versioned GHCR image; `build:` is the source-deploy fallback (when an
@@ -75,6 +79,30 @@ services:
       JAVA_OPTS: ${SERVER_JAVA_OPTS:-}
     volumes:
       - dallycontroldata:/opt/dallycontrol
+    # Healthy = this instance answers AND reaches the database and the file store (GET /rest/public/health, see
+    # HealthResource). An older image without that endpoint (404) falls back to the plain liveness probe, so a rollback
+    # to an older release is not reported unhealthy. start_period covers a first boot (Liquibase on an empty database).
+    healthcheck:
+      test: ["CMD-SHELL", "c=$$(curl -s -o /dev/null -m 4 -w '%{http_code}' http://127.0.0.1:8080/rest/public/health); [ \"$$c\" = 200 ] || { [ \"$$c\" = 404 ] && curl -fsS -m 4 -o /dev/null http://127.0.0.1:8080/rest/public/name; }"]
+      interval: 10s
+      timeout: 6s
+      retries: 3
+      start_period: 300s
+      start_interval: 5s
+    # Tomcat finishes in-flight requests on SIGTERM; give it time before Docker kills it.
+    stop_grace_period: 30s
+    # Resource ceilings for a shared host. 0 = no limit (the default, so an existing install behaves as before);
+    # recommended values are in .env.example ("Resource limits").
+    mem_limit: ${SERVER_MEM_LIMIT:-0}
+    cpus: ${SERVER_CPUS:-0}
+
+  # Relay instance for deployments without a cut (scripts/deploy.sh): a second, identical server that takes the
+  # traffic while `server` is recreated, then is removed. Caddy already lists it as an upstream and routes to
+  # whichever instance is healthy. Never started by a plain `docker compose up` (profile `relay`).
+  server-b:
+    extends:
+      service: server
+    profiles: ["relay"]
 
   caddy:
     # The web image (Caddy + baked SPA). Same pull/build duality as `server`; WEB_VERSION tracks the
@@ -105,6 +133,8 @@ services:
         VITE_AGENT_CHECKSUM: ${VITE_AGENT_CHECKSUM:-}
         VITE_AGENT_APK_URL: ${VITE_AGENT_APK_URL:-}
     restart: unless-stopped
+    # Started, not healthy: the edge must come up even when the server is broken, because it is what serves the
+    # recovery page (handle_errors -> supervisor) in that case.
     depends_on:
       - server
       - supervisor
@@ -112,9 +142,23 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       CF_IP_HEADER_STRIP: ${CF_IP_HEADER_STRIP:-CF-Connecting-IP}
       ACME_EMAIL: ${ACME_EMAIL:-}
+      # How long a request waits for a healthy server instance before the recovery page is served (a restart or a
+      # deployment shorter than this is invisible apart from the delay).
+      LB_TRY_DURATION: ${LB_TRY_DURATION:-20s}
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+    # Healthy = Caddy runs with a loaded configuration (its admin API, loopback only). Independent of the server on
+    # purpose: the edge is healthy while it can serve the recovery page. cloudflared waits for this.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://127.0.0.1:2019/config/apps/http/servers"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+      start_interval: 2s
+    mem_limit: ${CADDY_MEM_LIMIT:-0}
+    cpus: ${CADDY_CPUS:-0}
 
   # Decoupled updater/recovery service. Polls GitHub for new releases, verifies the signed manifest,
   # exposes /update/status, serves /recovery, and (Phase 4) applies updates by driving compose against
@@ -153,6 +197,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - .:/project
       - backups:/backups
+    mem_limit: ${SUPERVISOR_MEM_LIMIT:-0}
+    cpus: ${SUPERVISOR_CPUS:-0}
 
   # Remote control (ADR 0010), opt-in: COMPOSE_PROFILES=remote. Devices reach the repeater through an
   # encrypted WebSocket on this server's HTTPS origin (Caddy's /remote/device, gated on the device secret +
@@ -215,15 +261,160 @@ services:
       - ALL
     restart: unless-stopped
     profiles: ["cloudflare"]
+    # Only once the edge really listens: a connector that starts first answers "connection refused" to Cloudflare.
     depends_on:
-      - caddy
-    command: tunnel --no-autoupdate run
+      caddy:
+        condition: service_healthy
+    # --metrics: /ready (200 while at least one edge connection is up) for the monitor; internal network only.
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:20241 run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    mem_limit: ${CLOUDFLARED_MEM_LIMIT:-0}
+    cpus: ${CLOUDFLARED_CPUS:-0}
+
+  # Second connector of the SAME tunnel (same token): Cloudflare balances between the connectors that are up, so one
+  # can be restarted or updated without a cut. Opt-in: COMPOSE_PROFILES=cloudflare,cloudflare-replica. For real
+  # redundancy run the replica on another host (docs/ops/TUNEL.md).
+  cloudflared-2:
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    profiles: ["cloudflare-replica"]
+    depends_on:
+      caddy:
+        condition: service_healthy
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:20241 run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    mem_limit: ${CLOUDFLARED_MEM_LIMIT:-0}
+    cpus: ${CLOUDFLARED_CPUS:-0}
+
+  # Monitoring + alerts + status page (docs/ops/MONITOREO.md), opt-in: COMPOSE_PROFILES=...,monitor. Every minute it
+  # checks the public URL, the edge, the server (database included), the supervisor, the tunnel, disk space, the age of
+  # the last backup and the share of devices that reported recently; it alerts by e-mail and/or webhook/Telegram and
+  # serves /estado. Read-only everywhere except its own volume.
+  monitor:
+    image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-ops:${OPS_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    build:
+      context: .
+      dockerfile: docker/ops.Dockerfile
+    restart: unless-stopped
+    profiles: ["monitor"]
+    command: ["node", "/ops/monitor/monitor.js"]
+    environment:
+      TZ: ${OPS_TZ:-America/Bogota}
+      MONITOR_SERVICE_NAME: ${MONITOR_SERVICE_NAME:-DallyControl}
+      MONITOR_INTERVAL_SECONDS: ${MONITOR_INTERVAL_SECONDS:-60}
+      MONITOR_PUBLIC_URL: ${MONITOR_PUBLIC_URL:-}
+      MONITOR_EDGE_URL: ${MONITOR_EDGE_URL:-http://caddy:80/healthz/deep}
+      MONITOR_SERVER_URL: ${MONITOR_SERVER_URL:-}
+      MONITOR_SUPERVISOR_URL: ${MONITOR_SUPERVISOR_URL:-http://supervisor:9000/healthz}
+      MONITOR_TUNNEL_URLS: ${MONITOR_TUNNEL_URLS:-}
+      MONITOR_DISK_PATHS: ${MONITOR_DISK_PATHS:-/data,/backups}
+      MONITOR_DISK_WARN_PERCENT: ${MONITOR_DISK_WARN_PERCENT:-85}
+      MONITOR_BACKUP_MAX_AGE_HOURS: ${MONITOR_BACKUP_MAX_AGE_HOURS:-0}
+      MONITOR_DEVICES: ${MONITOR_DEVICES:-1}
+      MONITOR_DEVICES_ONLINE_MINUTES: ${MONITOR_DEVICES_ONLINE_MINUTES:-30}
+      MONITOR_DEVICES_DROP_PERCENT: ${MONITOR_DEVICES_DROP_PERCENT:-40}
+      MONITOR_DEVICES_MIN_FLEET: ${MONITOR_DEVICES_MIN_FLEET:-5}
+      MONITOR_FAIL_AFTER: ${MONITOR_FAIL_AFTER:-2}
+      MONITOR_RECOVER_AFTER: ${MONITOR_RECOVER_AFTER:-2}
+      MONITOR_REMINDER_MINUTES: ${MONITOR_REMINDER_MINUTES:-60}
+      MONITOR_STATUS_PUBLIC: ${MONITOR_STATUS_PUBLIC:-1}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-${SMTP_FROM:-mdm@localhost}}
+      ALERT_SMTP_HOST: ${ALERT_SMTP_HOST:-${SMTP_HOST:-}}
+      ALERT_SMTP_PORT: ${ALERT_SMTP_PORT:-${SMTP_PORT:-25}}
+      ALERT_SMTP_USERNAME: ${ALERT_SMTP_USERNAME:-${SMTP_USERNAME:-}}
+      ALERT_SMTP_PASSWORD: ${ALERT_SMTP_PASSWORD:-${SMTP_PASSWORD:-}}
+      ALERT_SMTP_TLS: ${ALERT_SMTP_TLS:-auto}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:-}
+      PGHOST: ${MONITOR_DB_HOST:-postgres}
+      PGPORT: ${MONITOR_DB_PORT:-5432}
+      PGDATABASE: ${DB_NAME:-dallycontrol}
+      PGUSER: ${DB_USER:-dallycontrol}
+      PGPASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - monitordata:/var/lib/monitor
+      - dallycontroldata:/data:ro
+      - backups:/backups:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 -O /dev/null http://127.0.0.1:9100/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: ${MONITOR_MEM_LIMIT:-128m}
+    cpus: ${MONITOR_CPUS:-0.25}
+
+  # Scheduled backups (docs/ops/RESPALDOS.md), opt-in: COMPOSE_PROFILES=...,backup. Daily compressed + verified
+  # pg_dump, snapshot of the uploaded files (APKs), retention, optional encryption and off-site copy.
+  # One-off run:  docker compose run --rm backup /ops/backup.sh
+  backup:
+    image: ghcr.io/${IMAGE_OWNER:-local}/dallycontrol-ops:${OPS_VERSION:-latest}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    build:
+      context: .
+      dockerfile: docker/ops.Dockerfile
+    restart: unless-stopped
+    profiles: ["backup"]
+    command: ["/ops/backup-scheduler.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: ${OPS_TZ:-America/Bogota}
+      BACKUP_TIME: ${BACKUP_TIME:-02:30}
+      BACKUP_DIR: /backups/scheduled
+      BACKUP_FILES_DIR: /data/files
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-30}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-8}
+      BACKUP_KEEP_MONTHLY: ${BACKUP_KEEP_MONTHLY:-12}
+      BACKUP_FILES: ${BACKUP_FILES:-1}
+      BACKUP_VERIFY_RESTORE: ${BACKUP_VERIFY_RESTORE:-weekly}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${BACKUP_ENCRYPTION_PASSPHRASE:-}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-dallycontrol}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
+      BACKUP_S3_SECRET_KEY: ${BACKUP_S3_SECRET_KEY:-}
+      BACKUP_RCLONE_REMOTE: ${BACKUP_RCLONE_REMOTE:-}
+      BACKUP_RSYNC_TARGET: ${BACKUP_RSYNC_TARGET:-}
+      BACKUP_REMOTE_REQUIRED: ${BACKUP_REMOTE_REQUIRED:-0}
+      PGHOST: ${BACKUP_DB_HOST:-postgres}
+      PGPORT: ${BACKUP_DB_PORT:-5432}
+      PGDATABASE: ${DB_NAME:-dallycontrol}
+      PGUSER: ${DB_USER:-dallycontrol}
+      PGPASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - backups:/backups
+      - dallycontroldata:/data:ro
+      # Optional operator files: rclone.conf (BACKUP_RCLONE_REMOTE) and id_ed25519/known_hosts (BACKUP_RSYNC_TARGET).
+      - ${BACKUP_CONFIG_DIR:-./ops/backup-config}:/config:ro
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    cpus: ${BACKUP_CPUS:-1.0}
 
 volumes:
   pgdata:
   dallycontroldata:
   caddy_data:
   caddy_config:
-  backups:   # supervisor pre-update DB dumps + version snapshots + auto.json (survives recreate)
+  backups:   # supervisor pre-update DB dumps + version snapshots + auto.json (survives recreate); scheduled/ = backup service
+  monitordata:   # monitor: check history (availability), incident log, alert state

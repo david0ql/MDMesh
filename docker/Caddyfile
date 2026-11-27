@@ -11,6 +11,29 @@
 	servers {
 		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32 ::1/128}
 	}
+	# The relay upstream (server-b) only exists during a deployment; the rest of the time its health check cannot
+	# resolve the name. Keep that expected failure out of the log (it would be a line every two seconds).
+	log {
+		exclude http.handlers.reverse_proxy.health_checker.active
+	}
+}
+
+# The API server(s). `server` is the instance that normally runs; `server-b` is the relay scripts/deploy.sh starts
+# while `server` is recreated. Active health checks (the deep probe: database + file store, and "draining") decide
+# which one gets the traffic, with no reload and no restart of the edge. A request that finds no healthy instance is
+# held and retried for LB_TRY_DURATION instead of failing at once, so a short restart is only a delay.
+(api_upstreams) {
+	to server:8080 server-b:8080
+	lb_policy first
+	lb_try_duration {$LB_TRY_DURATION:20s}
+	lb_try_interval 250ms
+	health_uri /rest/public/health
+	health_interval 2s
+	health_timeout 4s
+	health_fails 2
+	health_passes 1
+	fail_duration 4s
+	max_fails 2
 }
 
 {$SITE_ADDRESS} {
@@ -61,7 +84,8 @@
 	@api path /rest/*
 	header @api Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 	handle @backend {
-		reverse_proxy server:8080 {
+		reverse_proxy {
+			import api_upstreams
 			header_down -Server
 		}
 	}
@@ -77,7 +101,8 @@
 	# sessions: forward_auth asks the server (403 without a session). Without the `remote` compose profile
 	# websockify is absent and this answers 502.
 	handle_path /remote/vnc/* {
-		forward_auth server:8080 {
+		forward_auth {
+			import api_upstreams
 			uri /rest/private/users/current
 		}
 		# The unmodified noVNC viewer has an inline module script; it may only be framed by the console itself.
@@ -89,7 +114,8 @@
 	# WebSocket, so the session is encrypted by the same TLS as the API. forward_auth lets it through only with
 	# the device's own secret (Authorization) and a remote.vnc.start queued for it in the last 15 minutes.
 	handle_path /remote/device/* {
-		forward_auth server:8080 {
+		forward_auth {
+			import api_upstreams
 			uri /rest/public/agent/v1/remote/tunnel
 		}
 		reverse_proxy websockify-device:6081
@@ -112,13 +138,35 @@
 	#                       an update healthy: GET /rest/public/name, no DB round-trip, no auth)
 	#   /healthz/supervisor the updater/recovery supervisor answers (update checks, recovery page, and the
 	#                       /files/agent.apk mirror that new enrollments download)
+	#   /healthz/deep       the server ALSO reaches its database and file store, and is not draining: the server's own
+	#                       JSON ({"status":"ok","checks":{"db":"ok","files":"ok"}}, 200) or 503. What monitors should
+	#                       watch; no authentication, no data. /healthz stays the cheap liveness probe.
+	#   /healthz/edge       only the edge answers (200 "ok" even with the server down)
 	# Each also answers with a trailing slash (exact paths only, nothing below them), so /healthz/ cannot fall through
 	# to the SPA's 200. `rewrite` inside reverse_proxy changes only the upstream request, so handle_errors below still
 	# sees the probe path.
 	@healthz path /healthz /healthz/
 	@healthzSupervisor path /healthz/supervisor /healthz/supervisor/
+	@healthzDeep path /healthz/deep /healthz/deep/
+	@healthzEdge path /healthz/edge /healthz/edge/
+	handle @healthzEdge {
+		header Cache-Control "no-store"
+		respond "ok" 200
+	}
+	handle @healthzDeep {
+		header Cache-Control "no-store"
+		reverse_proxy {
+			import api_upstreams
+			# A probe must answer now, not after waiting for an instance to come back.
+			lb_try_duration 0s
+			rewrite /rest/public/health
+			header_down -Server
+		}
+	}
 	handle @healthz {
-		reverse_proxy server:8080 {
+		reverse_proxy {
+			import api_upstreams
+			lb_try_duration 0s
 			rewrite /rest/public/name
 			@up status 2xx
 			handle_response @up {
@@ -139,6 +187,17 @@
 			handle_response {
 				respond "supervisor unavailable" 503
 			}
+		}
+	}
+
+	# Public status page (docs/ops/MONITOREO.md): served by the optional `monitor` service. Without the `monitor`
+	# compose profile these answer 404 (see handle_errors).
+	@estado path /estado /estado/ /estado.json
+	handle @estado {
+		header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+		header Cache-Control "no-store"
+		reverse_proxy monitor:9100 {
+			header_down -Server
 		}
 	}
 
@@ -167,6 +226,13 @@
 		}
 		handle @healthzSupervisor {
 			respond "supervisor unavailable" 503
+		}
+		handle @healthzDeep {
+			header Content-Type "application/json"
+			respond `{"status":"down","checks":{"server":"fail"}}` 503
+		}
+		handle @estado {
+			respond "not found" 404
 		}
 		handle {
 			reverse_proxy supervisor:9000
