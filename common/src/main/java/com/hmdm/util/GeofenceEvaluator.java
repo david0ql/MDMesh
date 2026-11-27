@@ -24,8 +24,12 @@ import java.util.Set;
  *   <li>{@link Settings#confirmFixes} consecutive fixes agree (one jumpy point never alerts). The event carries the
  *       time of the FIRST of those fixes — when the device actually crossed.</li>
  * </ul>
- * The first fix seen for a zone only sets the baseline (no alert). A violation that happens outside the zone's
- * schedule is tracked silently and alerted on the first fix inside the schedule, if it still holds.
+ * A zone that has not placed the device yet (just created or assigned) settles its first state the same way: the
+ * same number of consecutive, accurate fixes on one side. If that first state is already the violating one — the
+ * device was outside a "must stay inside" zone, or inside a "must not enter" one, when the zone began to apply —
+ * the alert is raised then, flagged {@link Outcome#initial} ("since the first position"). A first state on the
+ * allowed side raises nothing. A violation that happens outside the zone's schedule is tracked silently and
+ * alerted on the first fix inside the schedule, if it still holds.
  */
 public final class GeofenceEvaluator {
 
@@ -110,6 +114,8 @@ public final class GeofenceEvaluator {
         public long alertAt;
         /** The alert/event is the device going back to where it should be. */
         public boolean returned;
+        /** The device was already on the violating side when the zone began to apply (no crossing was seen). */
+        public boolean initial;
         public boolean ignoredLowAccuracy;
         public double distanceM;
     }
@@ -127,17 +133,42 @@ public final class GeofenceEvaluator {
         s.lastFixAt = ts;
         String violating = z.violatingState();
 
+        double acc = accuracy == null ? 0 : Math.max(0, accuracy);
+        double margin = Math.min(cfg.hysteresisM + acc, z.innerScaleM() * 0.5);
+
         if (s.state == null) {
-            // Baseline: where the device is when the zone starts to apply. Not an event, not an alert.
-            s.state = d < 0 ? INSIDE : OUTSIDE;
-            s.since = ts;
-            s.alerted = true;
+            // Where the device is when the zone starts to apply. It counts as on the violating side only when it is
+            // beyond the border by the margin; anything else is the allowed side (benefit of the doubt).
+            String allowed = INSIDE.equals(violating) ? OUTSIDE : INSIDE;
+            double beyond = OUTSIDE.equals(violating) ? d : -d;
+            String side = beyond > margin ? violating : allowed;
+            if (side.equals(s.pending)) {
+                s.pendingCount++;
+            } else {
+                s.pending = side;
+                s.pendingCount = 1;
+                s.pendingSince = ts;
+            }
+            if (s.pendingCount < Math.max(1, cfg.confirmFixes)) return o;
+            s.state = side;
+            s.since = s.pendingSince;
+            long at = s.pendingSince;
             clearPending(s);
+            s.alerted = true;
+            if (side.equals(violating)) {
+                o.initial = true;
+                o.event = INSIDE.equals(side) ? "enter" : "exit";
+                o.eventAt = at;
+                if (z.schedule == null || z.schedule.applies(at)) {
+                    o.alertType = INSIDE.equals(side) ? ALERT_ENTER : ALERT_EXIT;
+                    o.alertAt = at;
+                } else {
+                    s.alerted = false;
+                }
+            }
             return o;
         }
 
-        double acc = accuracy == null ? 0 : Math.max(0, accuracy);
-        double margin = Math.min(cfg.hysteresisM + acc, z.innerScaleM() * 0.5);
         String other = INSIDE.equals(s.state) ? OUTSIDE : INSIDE;
         boolean towardsViolation = other.equals(violating);
         // Signed "how far on the other side": positive once the point is across the border.

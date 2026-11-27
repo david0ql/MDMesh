@@ -22,6 +22,25 @@ data class AgentEnrollRequest(
     /** Stable, permission-free device id (enrollment-specific id / ANDROID_ID) so the server
      *  can recognise a re-enrolling physical device and flag duplicate rows. */
     val hardwareId: String? = null,
+    /** Serial and first IMEI when the agent may read them (Device Owner): the server recognises the phone after a
+     *  factory reset below Android 12, where [hardwareId] is ANDROID_ID and changes. */
+    val serial: String? = null,
+    val imei: String? = null,
+    /** How this agent was provisioned and what failed before this call. */
+    val diagnostics: EnrollDiagnostics? = null,
+)
+
+/** Sent with each enroll call; the server keeps it in its log of enrollment attempts. */
+@Serializable
+data class EnrollDiagnostics(
+    /** qr-modern (Android 12+), qr-legacy, adb, code or unknown. */
+    val path: String? = null,
+    /** Enroll calls made so far, this one included. */
+    val attempts: Int? = null,
+    /** Reason code of the failure before this call (it could not be reported while the server was unreachable). */
+    val lastError: String? = null,
+    val lastErrorDetail: String? = null,
+    val lastErrorAt: Long? = null,
 )
 
 /**
@@ -53,6 +72,8 @@ data class AgentCheckInRequest(
     val events: List<TelemetryEventDto> = emptyList(),
     /** Same stable device id as enroll — lets already-enrolled devices backfill it. */
     val hardwareId: String? = null,
+    /** Connection diagnostics since the last delivered report. Null on older agents. */
+    val connection: ConnectionReport? = null,
 )
 
 /** Compact device-state snapshot (device -> server) reported on each check-in. */
@@ -77,4 +98,6 @@ data class AgentDeviceStateDto(
 data class AgentCheckInResponse(
     val protocolVersion: String = ProtocolJson.PROTOCOL_VERSION,
     val commands: List<CommandEnvelope> = emptyList(),
+    /** Backup server URLs (https) to try when the primary keeps failing. Null: an older server, keep what is stored. */
+    val backupUrls: List<String>? = null,
 )

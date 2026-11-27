@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../ui/toast';
 import { fmtDateTime } from '../ui/format';
 import { QrCanvas, downloadQrPng } from './QrCanvas';
-import { buildProvisioningPayload, serverBaseUrl } from '../enroll/provisioning';
+import { buildProvisioningPayload, clockNow, serverBaseUrl, type WifiConfig } from '../enroll/provisioning';
+import { ZeroTouchExport } from './ZeroTouchExport';
 import { groupTree, type FleetGroup } from '../api/fleet';
 import {
   createEnrollmentCode, deleteEnrollmentCode, displayCode, listEnrollmentCodes, revokeEnrollmentCode, type EnrollmentCode,
@@ -23,8 +24,19 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
   const [ssid, setSsid] = useState('');
   const [wifiPass, setWifiPass] = useState('');
   const [wifiSec, setWifiSec] = useState<'WPA' | 'WEP' | 'NONE'>('WPA');
+  const [wifiHidden, setWifiHidden] = useState(false);
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState<EnrollmentCode | null>(null);
+  const [exported, setExported] = useState<EnrollmentCode | null>(null);
+  // The QR on screen carries the current time (see EnrollPage); the printed PNG does not (see below).
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  const wifiOf = (c: EnrollmentCode): WifiConfig | undefined => (c.wifiSsid
+    ? { ssid: c.wifiSsid, password: c.wifiPassword ?? '', security: (c.wifiSecurity ?? 'WPA') as 'WPA' | 'WEP' | 'NONE', hidden: !!c.wifiHidden }
+    : undefined);
   const tree = useMemo(() => groupTree(groups), [groups]);
   const pathOf = useMemo(() => new Map(tree.map((n) => [n.group.id, n.path])), [tree]);
 
@@ -38,10 +50,10 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
     setBusy(true);
     try {
       const c = await createEnrollmentCode(Number(folder), label.trim() || undefined, undefined,
-        ssid.trim() ? { ssid: ssid.trim(), password: wifiPass, security: wifiSec } : undefined,
+        ssid.trim() ? { ssid: ssid.trim(), password: wifiPass, security: wifiSec, hidden: wifiHidden } : undefined,
         email.trim() || undefined);
       toast.push('ok', 'Código creado', `${displayCode(c.code)} → ${pathOf.get(c.groupId ?? -1) ?? c.groupName}`);
-      setLabel(''); setEmail(''); setSsid(''); setWifiPass('');
+      setLabel(''); setEmail(''); setSsid(''); setWifiPass(''); setWifiHidden(false);
       setShown(c);
       await load();
     } catch (e) {
@@ -102,6 +114,10 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
           <select className="sel" value={wifiSec} onChange={(e) => setWifiSec(e.target.value as 'WPA' | 'WEP' | 'NONE')} aria-label="Seguridad del Wi‑Fi">
             <option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="NONE">Abierta</option>
           </select>
+          <label className="muted" style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12.5 }}>
+            <input type="checkbox" checked={wifiHidden} onChange={(e) => setWifiHidden(e.target.checked)} data-testid="code-wifi-hidden" />
+            Red oculta
+          </label>
         </div>
         <p className="note" style={{ marginTop: -8 }}>
           Con Wi‑Fi, el QR del código conecta el teléfono formateado a esa red para descargar el agente. Para que la red quede
@@ -129,6 +145,8 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
                     ) : (
                       <div className="gr-actions">
                         <button className="btn btn-sm" onClick={() => setShown(c)}>QR</button>
+                        <button className="btn btn-sm" data-testid="code-zt" onClick={() => setExported(exported?.id === c.id ? null : c)}
+                          title="Exportar configuración Zero‑Touch / KME">Zero‑Touch / KME</button>
                         <button className="btn btn-sm btn-ghost gr-del" onClick={() => void revoke(c)}>Revocar</button>
                       </div>
                     )}
@@ -141,31 +159,39 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
 
         {shown && !shown.revoked && (
           <div className="codes-qr">
-            <div className="qr-frame"><QrCanvas text={buildProvisioningPayload(shown.code, shown.wifiSsid
-              ? { ssid: shown.wifiSsid, password: shown.wifiPassword ?? '', security: (shown.wifiSecurity ?? 'WPA') as 'WPA' | 'WEP' | 'NONE' }
-              : undefined)} size={260} /></div>
+            <div className="qr-frame"><QrCanvas text={buildProvisioningPayload(shown.code, wifiOf(shown), { clock: clockNow(nowTick) })}
+              size={320} level="L" /></div>
             <div>
               <div className="mono code-big" style={{ fontSize: 28 }}>{displayCode(shown.code)}</div>
               <p className="note">
                 {(shown.groupId != null && pathOf.get(shown.groupId)) || shown.groupName}
-                {shown.label ? ` · ${shown.label}` : ''}{shown.wifiSsid ? ` · Wi‑Fi ${shown.wifiSsid}` : ''}. Reutilizable: imprímelo para el equipo que inscribe estos teléfonos.
+                {shown.label ? ` · ${shown.label}` : ''}{shown.wifiSsid ? ` · Wi‑Fi ${shown.wifiSsid}${shown.wifiHidden ? ' (oculta)' : ''}` : ''}. Reutilizable: imprímelo para el equipo que inscribe estos teléfonos.
+                {' '}El QR en pantalla lleva la hora actual y pone en fecha un teléfono recién sacado de la caja; el impreso no puede
+                llevarla, así que un teléfono con la fecha de fábrica debe escanear el de la pantalla (o corregir su fecha).
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-sm" data-testid="code-qr-download" onClick={() => {
                   const folder = (shown.groupId != null && pathOf.get(shown.groupId)) || shown.groupName || '';
                   void downloadQrPng(
-                    buildProvisioningPayload(shown.code, shown.wifiSsid
-                      ? { ssid: shown.wifiSsid, password: shown.wifiPassword ?? '', security: (shown.wifiSecurity ?? 'WPA') as 'WPA' | 'WEP' | 'NONE' }
-                      : undefined),
+                    // No clock in a QR meant for paper: weeks later it would set the phone's clock back to the print
+                    // date, and a certificate renewed since then would be rejected.
+                    buildProvisioningPayload(shown.code, wifiOf(shown)),
                     `qr-${folder || 'carpeta'}-${shown.code}.png`,
                     [folder ? `Carpeta: ${folder}` : 'Inscripción DallyControl', `Código ${displayCode(shown.code)}${shown.label ? ` · ${shown.label}` : ''}`,
-                      shown.wifiSsid ? `Wi‑Fi: ${shown.wifiSsid}` : ''],
+                      shown.wifiSsid ? `Wi‑Fi: ${shown.wifiSsid}` : '',
+                      'Si el teléfono trae la fecha mal, escanea el QR desde la consola',
+                      `Impreso ${new Date().toLocaleDateString()}`],
+                    'M',
                   );
                 }}>Descargar QR</button>
                 <button className="btn btn-sm" onClick={() => setShown(null)}>Cerrar</button>
               </div>
             </div>
           </div>
+        )}
+        {exported && !exported.revoked && (
+          <ZeroTouchExport code={exported.code} wifi={wifiOf(exported)}
+            label={`${(exported.groupId != null && pathOf.get(exported.groupId)) || exported.groupName || ''} · ${displayCode(exported.code)}`} />
         )}
       </div>
     </section>

@@ -41,8 +41,12 @@ Por cada equipo y zona el servidor guarda un estado (dentro / fuera). Una posici
 3. **Se confirma.** Hacen falta *Posiciones de confirmación* (2) seguidas. Un punto saltón del GPS no alerta. La
    alerta lleva la hora de la **primera** de esas posiciones, que es cuando el equipo cruzó.
 
-La primera posición que ve una zona solo fija el punto de partida; no alerta. Si se cambia la forma o la regla de
-una zona, vuelve a empezar desde ahí.
+**Equipo que ya está fuera de lugar al crear o asignar la zona.** La zona fija su primer estado con las mismas
+reglas (posiciones precisas y confirmadas). Si ese primer estado ya incumple — el equipo estaba fuera de una zona
+"debe permanecer dentro", o dentro de una "no debe entrar" — se genera la alerta en ese momento, con el texto
+«…desde la primera posición», y la consola lo muestra *fuera* (o *dentro*) y en alerta. Si el primer estado es el
+permitido no se alerta. Al cambiar la forma o la regla de una zona, vuelve a empezar desde ahí (y vuelve a alertar a
+los equipos que queden fuera de lugar).
 
 Cuando un teléfono se reconecta después de estar sin red, sube todas las posiciones acumuladas (hasta 288). El
 servidor las recorre **en orden**, de la más antigua a la más reciente, por la misma máquina de estados: las alertas
@@ -67,6 +71,8 @@ Para no inundar:
   primera alerta sale de inmediato (el envío corre cada minuto); lo que ocurra dentro del intervalo se junta en un
   solo mensaje cuando termina;
 - dentro del mensaje, las repeticiones del mismo equipo, tipo y zona son una línea con su conteo;
+- la alerta de *desconexión* usa el umbral que el administrador fija en **Alertas → Umbral desconexión** (se guarda
+  al pulsar *Actualizar*; 20 min por defecto), el mismo para la página y para los correos;
 - un destinatario recién agregado solo recibe alertas ocurridas desde ese momento; nunca se envían alertas de más
   de 24 horas ni las ya marcadas como revisadas.
 
@@ -83,14 +89,16 @@ SMTP_PORT=587
 SMTP_FROM=alertas@ejemplo.com
 SMTP_USERNAME=usuario           # opcional
 SMTP_PASSWORD=clave             # opcional
+SMTP_STARTTLS=true              # puerto 587 (STARTTLS); o bien…
+SMTP_SSL=false                  # …true con el puerto 465 (TLS implícito)
 BASE_URL=https://mdm.ejemplo.com   # ya existe; es la base de los enlaces del correo
 ```
 
 y luego `docker compose up -d server`. Si `SMTP_HOST` está vacío **nada falla**: las alertas se generan y se ven en
 la consola, y tanto Alertas como Geocercas → Notificaciones muestran el aviso «El servidor no tiene correo saliente
 (SMTP) configurado». Con SMTP configurado, *Enviar prueba* (en esa misma pestaña) confirma que el servidor de correo
-acepta los mensajes. Nota: la imagen actual arranca Tomcat con `smtp.ssl=false` y `smtp.starttls=false`
-(`docker/entrypoint.sh`); un proveedor que exija STARTTLS/SSL necesita habilitarlo ahí.
+acepta los mensajes. El certificado del servidor de correo se valida contra las autoridades públicas;
+solo para un servidor de pruebas con certificado autofirmado, `SMTP_SSL_TRUST=<host>` omite esa validación.
 
 ## 4. Precisión y frecuencia de la ubicación
 
@@ -99,8 +107,13 @@ acepta los mensajes. Nota: la imagen actual arranca Tomcat con `smtp.ssl=false` 
   *Espera de posición precisa*, 5–60 s. Tras una espera sin resultado (bajo techo) las siguientes son cortas durante
   2 minutos para no frenar los reportes.
 - **Proveedor**: el agente prefiere el proveedor *fused* (Google Play services: mezcla GPS, Wi-Fi y celdas) cuando el
-  equipo lo tiene; si no (equipos sin GMS), GPS y luego red. Si el primero no responde en su parte de la espera, se
-  intenta el siguiente.
+  equipo lo tiene **y está habilitado**; si no existe (equipos sin GMS) pasa directo a GPS, sin esperar. A *fused* se le
+  da como máximo un tercio de la espera (tope 8 s); si no responde sigue GPS y luego red, y si GPS sí respondió no se
+  vuelve a preguntar a *fused* durante 10 minutos.
+- **Diagnóstico**: cada petición de posición nueva queda en el log del agente (`LocationCollector: fresh fix: fused
+  812 ms: respondió …`) y en el *Diagnóstico* del dispositivo (fila **Ubicación**): proveedores disponibles, cuáles se
+  intentaron, cuánto tardó cada uno y cuál respondió. El proveedor que respondió también va en cada posición del
+  historial.
 - **Frecuencia**: los equipos reportan posición al hacer check-in. Para detectar a tiempo una salida, una zona puede
   pedir una *Frecuencia de ubicación*: mientras esté activa, sus equipos toman una posición al menos cada N minutos
   (el servidor ajusta el intervalo de recorrido de la configuración del equipo al menor entre el de la política y el
@@ -179,8 +192,10 @@ posición y precisión, alertas, historial y correo:
 scripts/geofence-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <número> --mailpit http://localhost:8025
 ```
 
-Usa un AVD con API ≤ 29: en las imágenes API 30+ el GNSS emulado solo acepta la primera posición inyectada después
-del arranque (ver [TESTING.md](TESTING.md)).
+En las imágenes API 30+ el GNSS emulado solo acepta la primera posición inyectada después del arranque (ver
+[TESTING.md](TESTING.md)). Ahí agrega `--mock-provider`: las posiciones entran por el proveedor de prueba de Android
+(`adb shell cmd location providers add-test-provider gps` / `set-test-provider-location`, Android 12+), que las acepta
+todas; el script lo reenvía cada 3 s como un receptor real y, si el equipo tiene *fused*, lo alimenta también.
 
 ### Con un teléfono
 

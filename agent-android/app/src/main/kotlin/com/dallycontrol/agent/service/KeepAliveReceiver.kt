@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.dallycontrol.core.sync.CheckInCoordinator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,12 @@ class KeepAliveReceiver : BroadcastReceiver() {
         // Re-arm the next alarm BEFORE the check-in (FLAG_UPDATE_CURRENT makes it idempotent):
         // if the check-in hangs or the process is killed mid-flight, the heartbeat chain survives.
         WakeKeepAlive.schedule(context)
+        // Bring the foreground service (the wake socket and its watchdog) back if the system took it down: some
+        // makers' battery managers stop it and never restart it, leaving only this alarm. A Device Owner may start
+        // a foreground service from the background; where that is still refused the check-in below covers.
+        runCatching {
+            ContextCompat.startForegroundService(context, Intent(context, CheckInService::class.java))
+        }
         // Another cycle is already running (service, WebSocket wake, worker): it reports for us.
         if (coordinator.isBusy) return
 

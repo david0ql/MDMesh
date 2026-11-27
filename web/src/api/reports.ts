@@ -67,10 +67,17 @@ export const reportOutdatedApps = () => apiClient.get<ReportResult>(`${BASE}/out
 export const reportDataUsage = (days: number, limit: number) =>
   apiClient.get<ReportResult>(`${BASE}/data-usage${qs({ days, limit })}`);
 
+/** Mobile data: consumption of the period against the policy's limits, per device and per app with a limit. */
+export const reportDataLimits = () => apiClient.get<ReportResult>(`${BASE}/data-limits`);
+
 export const reportNonCompliance = () => apiClient.get<ReportResult>(`${BASE}/non-compliance`);
 
 export const reportDecommissioned = (from: number, to: number) =>
   apiClient.get<ReportResult>(`${BASE}/decommissioned${qs({ from, to })}`);
+
+/** Per command type: sent, % executed and p50/p90/max latency, for a date range and (optionally) a folder. */
+export const reportCommandLatency = (from: number, to: number, groupId?: number | null) =>
+  apiClient.get<ReportResult>(`${BASE}/command-latency${qs({ from, to, groupId })}`);
 
 // --- export (CSV / Excel) ------------------------------------------------------------------------
 

@@ -73,6 +73,9 @@ public class IconResource {
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createIcon(Icon icon) {
+        if (!SecurityContext.get().hasPermission("settings")) {
+            return Response.PERMISSION_DENIED();
+        }
         try {
             final Icon newIcon = icon.getId() == null ?
                         iconDAO.insertIcon(icon) :

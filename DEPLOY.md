@@ -291,19 +291,55 @@ the JVM flag `-Dlog4j.configuration=file:///opt/dallycontrol/log4j-debug.xml`:
 
 Undo it the same way afterwards: DEBUG logs every SQL statement.
 
+## Operations: updates without a cut, monitoring, backups, high availability
+
+Everything an operator needs to run the service to an SLA lives in [`docs/ops/`](docs/ops/) (Spanish). All of it is
+opt-in (compose profiles and `.env` variables, listed and explained at the end of `.env.example`): an existing
+install behaves as before until it is switched on.
+
+| Need | Use | Guide |
+|------|-----|-------|
+| Update a running install **without a cut**, with automatic rollback | `scripts/deploy.sh` (instead of re-running `./setup.sh`); `scripts/deploy.sh --rollback` | [DESPLIEGUE.md](docs/ops/DESPLIEGUE.md) |
+| Real health (database included), container health checks, resource limits | `/healthz/deep`; `SERVER_MEM_LIMIT`, `POSTGRES_MEM_LIMIT`, ... | [MONITOREO.md](docs/ops/MONITOREO.md) |
+| Alerts (e-mail, Telegram, webhook), status page, monthly availability | profile `monitor`; `https://<host>/estado` | [MONITOREO.md](docs/ops/MONITOREO.md) |
+| Daily verified backups, retention, encryption, off-site copy, tested restore | profile `backup`; `scripts/restore-backup.sh`; `scripts/backup-restore-test.sh` | [RESPALDOS.md](docs/ops/RESPALDOS.md) |
+| Second tunnel connector; direct route without the tunnel | profile `cloudflare-replica` | [TUNEL.md](docs/ops/TUNEL.md) |
+| Standby server with PostgreSQL streaming replication, failover | `docker-compose.ha-primary.yml`, `docker-compose.ha-standby.yml`, `scripts/ha-*.sh` | [ALTA-DISPONIBILIDAD.md](docs/ops/ALTA-DISPONIBILIDAD.md) |
+| Incidents | | [RUNBOOK.md](docs/ops/RUNBOOK.md), [SLA.md](docs/ops/SLA.md), [POSTMORTEM-PLANTILLA.md](docs/ops/POSTMORTEM-PLANTILLA.md) |
+| Schema drift (production changed by hand; a fresh install that cannot start) | `scripts/schema-drift-check.sh [--compare prod-schema.sql] [--compare-roles prod-roles.csv]` | [RUNBOOK.md](docs/ops/RUNBOOK.md#antes-de-desplegar) |
+
+Typical production `.env` once everything is on:
+
+```ini
+COMPOSE_PROFILES=cloudflare,cloudflare-replica,remote,monitor,backup
+```
+
+**Updating from source** is now `git pull && scripts/deploy.sh`. It builds the new images first, takes a verified
+database backup, starts the new server next to the running one and only switches when it is healthy (Caddy follows
+the health of both instances; it is never restarted for a server update), updates the console files inside the running
+edge, and rolls back by itself if the new version does not come up healthy. `./setup.sh` remains the installer (first
+install, `--reset`, repairs); re-running it still works but recreates containers the old way, with a cut. The first
+`scripts/deploy.sh` on an install that predates it also has that one cut, because the running edge does not know the
+relay instance yet: do it in a maintenance window.
+
 ## Health checks
 
-Docker installs answer two unauthenticated probes at the edge, for uptime monitors. Each returns `200 ok` or a
+Docker installs answer unauthenticated probes at the edge, for uptime monitors. Each returns `200` or a
 `503` with a short reason, never the console page. A trailing slash (`/healthz/`, `/healthz/supervisor/`) works too.
 
 | Probe | `200 ok` when | `503` when |
 |-------|---------------|------------|
 | `https://<host>/healthz` | Caddy is up **and** the API server answers `GET /rest/public/name` with a 2xx (the probe an update uses to decide the new version is healthy) | `server unavailable`: the server is stopped, still starting, or answering with errors |
+| `https://<host>/healthz/deep` | the above **and** the server reaches its database and its file store. Body: `{"status":"ok","checks":{"db":"ok","files":"ok"}}`. **This is the one to monitor.** | `{"status":"down","checks":{"db":"fail",...}}` (database unreachable), or `{"status":"down","checks":{"server":"fail"}}` from the edge when no server answers; the database check is time-limited (5 s) and cached (2 s) |
+| `https://<host>/healthz/edge` | Caddy itself answers, even with the server down | never, while the edge runs |
 | `https://<host>/healthz/supervisor` | the updater/recovery supervisor answers its own `/healthz` | `supervisor unavailable`: the supervisor is down. The console, the API and enrolled devices keep working, but update checks, the recovery page and the `/files/agent.apk` mirror that new enrollments download do not |
 
-No answer at all means the edge itself is down. Neither probe queries the database: `docker compose ps` shows
-`postgres` as `healthy` from its own `pg_isready` check. `/healthz` also fails, as it should, for the minute or so
-an update takes to recreate the server.
+No answer at all means the edge itself is down. `/healthz` and `/healthz/supervisor` do not query the database;
+`/healthz/deep` does. The `server` and `caddy` containers have Docker health checks too (`docker compose ps` shows
+`healthy`), `cloudflared` starts only once `caddy` is healthy, and a request that finds no healthy server instance is
+held for `LB_TRY_DURATION` (20 s) before the recovery page is served, so a short restart is a delay, not an error. An
+update applied with `scripts/deploy.sh` does not fail these probes; one applied by recreating the server
+(`./setup.sh`, the supervisor's one-click apply) still does for the time the server takes to start.
 
 **Native installs** have no edge probes: `/healthz` and `/healthz/supervisor` answer `404`, never the console page
 (an install from before this release serves the console there until its next installer run, `sudo ./setup.sh
@@ -355,8 +391,16 @@ and the residual risks. `scripts/security-check.sh` re-checks the fixes against 
    (Observer for read-only) instead of sharing `admin`.
 5. Run the checks against the install (or a staging copy — it creates and deletes one temporary read-only user):
    `ADMIN_PW='<admin password>' scripts/security-check.sh https://mdm.example.com` — every line must PASS.
-6. Configure SMTP in `.env` if you want email password recovery.
-7. Keep backups of the `pgdata` and `dallycontroldata` volumes off the host.
+6. Configure SMTP in `.env` if you want email (password recovery, alert and scheduled-report emails): `SMTP_HOST`,
+   `SMTP_PORT`, `SMTP_FROM`, `SMTP_USERNAME`, `SMTP_PASSWORD` and the TLS mode your provider asks for —
+   `SMTP_STARTTLS=true` (usually port 587) or `SMTP_SSL=true` (implicit TLS, usually port 465); both default to `false`.
+   Then `docker compose up -d server`. The server checks the mail server's certificate against the public CAs; for a
+   test server with a self-signed certificate only, `SMTP_SSL_TRUST=<host>` (or `*`) skips that check. *Geocercas →
+   Notificaciones por correo → Enviar prueba* confirms the server can send.
+7. Turn the `backup` profile on with an off-site destination and run `scripts/restore-backup.sh verify` once
+   ([docs/ops/RESPALDOS.md](docs/ops/RESPALDOS.md)); keep a copy of `.env` (it holds `HASH_SECRET`) off the host.
+8. Turn the `monitor` profile on, set an alert channel that does not depend on this host, and trigger a test alert
+   ([docs/ops/MONITOREO.md](docs/ops/MONITOREO.md)).
 
 ### Existing installs on PostgreSQL 14
 

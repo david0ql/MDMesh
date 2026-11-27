@@ -23,6 +23,9 @@ import java.util.Map;
 @Singleton
 public class GeofenceDAO {
 
+    /** Stored state of a zone that has not confirmed where the device is yet. */
+    public static final String UNKNOWN = "unknown";
+
     private final GeofenceMapper mapper;
 
     @Inject
@@ -94,7 +97,8 @@ public class GeofenceDAO {
         Map<Integer, GeofenceEvaluator.State> out = new HashMap<>();
         for (Map<String, Object> r : mapper.statesOfDevice(deviceNumber)) {
             GeofenceEvaluator.State s = new GeofenceEvaluator.State();
-            s.state = (String) r.get("state");
+            // 'unknown' = the zone has seen positions but has not confirmed a first state yet.
+            s.state = UNKNOWN.equals(r.get("state")) ? null : (String) r.get("state");
             s.since = longOf(r.get("since"));
             s.pending = (String) r.get("pending");
             s.pendingCount = (int) longOf(r.get("pendingcount"));
@@ -107,7 +111,7 @@ public class GeofenceDAO {
     }
 
     public void saveState(int zoneId, String deviceNumber, GeofenceEvaluator.State s) {
-        mapper.upsertState(zoneId, deviceNumber, s.state, s.since, s.pending, s.pendingCount, s.pendingSince, s.alerted, s.lastFixAt);
+        mapper.upsertState(zoneId, deviceNumber, s.state == null ? UNKNOWN : s.state, s.since, s.pending, s.pendingCount, s.pendingSince, s.alerted, s.lastFixAt);
     }
 
     public List<Map<String, Object>> listStates(int customerId) {
@@ -149,6 +153,8 @@ public class GeofenceDAO {
         /** 0 = keep the location history forever. */
         public int retentionDays = 0;
         public int emailIntervalMin = 10;
+        /** A device silent for longer than this is "disconnected" (Alerts page and alert e-mails). */
+        public int offlineMinutes = 20;
 
         public GeofenceEvaluator.Settings evaluator() {
             GeofenceEvaluator.Settings s = new GeofenceEvaluator.Settings();
@@ -165,6 +171,7 @@ public class GeofenceDAO {
             confirmFixes = clamp(confirmFixes, 1, 10);
             retentionDays = clamp(retentionDays, 0, 3650);
             emailIntervalMin = clamp(emailIntervalMin, 1, 1440);
+            offlineMinutes = clamp(offlineMinutes, 1, 60 * 24 * 30);
             return this;
         }
 
@@ -182,13 +189,14 @@ public class GeofenceDAO {
             s.confirmFixes = (int) longOf(r.get("confirmfixes"));
             s.retentionDays = (int) longOf(r.get("retentiondays"));
             s.emailIntervalMin = (int) longOf(r.get("emailintervalmin"));
+            if (r.get("offlineminutes") != null) s.offlineMinutes = (int) longOf(r.get("offlineminutes"));
         }
         return s.clamped();
     }
 
     public void saveSettings(int customerId, Settings s) {
         s.clamped();
-        mapper.upsertSettings(customerId, s.maxAccuracyM, s.hysteresisM, s.confirmFixes, s.retentionDays, s.emailIntervalMin);
+        mapper.upsertSettings(customerId, s.maxAccuracyM, s.hysteresisM, s.confirmFixes, s.retentionDays, s.emailIntervalMin, s.offlineMinutes);
     }
 
     public List<Map<String, Object>> listRetention() {

@@ -20,8 +20,8 @@ Two modes:
                                [--mailpit http://localhost:8025]
 
    Emulator note: on API 30+ images the emulated GNSS only accepts the first injected fix after boot (see
-   docs/TESTING.md), so use an API <= 29 AVD for the whole trip; on newer images --first-fix-only checks that the
-   position, its accuracy and the inside state arrive.
+   docs/TESTING.md). There, pass --mock-provider: the positions go through Android's test location provider
+   (`cmd location providers add-test-provider`, Android 12+), which accepts every one of them.
 
 Needs a database seeded like a real install (scripts/dev-seed.sh on the dev stack). It creates e2e-* zones and
 restores the geofence settings on exit. Exit code 0 = every check passed.
@@ -33,6 +33,7 @@ import json
 import random
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -113,8 +114,11 @@ class Cleanup:
         self.recipients_before = None
         self.settings = None
         self.device_ids = []
+        self.movers = []
 
     def run(self):
+        for m in self.movers:
+            m.close()
         for z in self.zones:
             self.api.delete(f"/geofences/v1/zones/{z}")
         if self.settings:
@@ -222,7 +226,7 @@ def simulated(api, args, clean):
     print("== settings + zone ==")
     clean.settings = api.data("/geofences/v1/settings")
     chk("settings have defaults", sorted(clean.settings.keys()),
-        ["confirmFixes", "emailIntervalMin", "hysteresisM", "maxAccuracyM", "retentionDays"])
+        ["confirmFixes", "emailIntervalMin", "hysteresisM", "maxAccuracyM", "offlineMinutes", "retentionDays"])
     s = api.put("/geofences/v1/settings", dict(clean.settings, maxAccuracyM=100, hysteresisM=15, confirmFixes=2, emailIntervalMin=1))
     chk("settings saved", s.get("status"), "OK")
     address = f"e2e-{random.randint(100000, 999999)}@example.test"
@@ -251,11 +255,13 @@ def simulated(api, args, clean):
     if cfg:
         chk("tracking interval comes from the zone", (cfg[0]["payload"].get("tracking") or {}).get("intervalMinutes"), 3)
 
-    print("== baseline, jumpy point, inaccurate points ==")
+    print("== first state, jumpy point, inaccurate points ==")
     send(0)
+    chk("one position does not place the device yet", zone_state(api, zone["id"], number), None)
+    send(3)
     st = zone_state(api, zone["id"], number)
-    chk("first position: inside, not in alert", (st or {}).get("state"), "inside")
-    chk("no alert for the baseline", len(alerts(api, number)), 0)
+    chk("two positions inside: inside, not in alert", ((st or {}).get("state"), (st or {}).get("violating")), ("inside", False))
+    chk("no alert for a first state on the allowed side", len(alerts(api, number)), 0)
     send(1000)          # one jumpy point…
     send(5)             # …and back
     chk("a single jumpy point does not alert", len(alerts(api, number)), 0)
@@ -312,8 +318,10 @@ def simulated(api, args, clean):
     poly = p["data"]
     clean.zones.append(poly["id"])
     chk("polygon keeps its 4 vertices", len(poly["points"]), 4)
-    send(0)                                   # baseline for the new zone: outside it
-    chk("baseline of the restricted zone: outside", zone_state(api, poly["id"], number)["state"], "outside")
+    send(0)                                   # first state for the new zone: outside it (two positions)
+    send(2)
+    chk("first state of the restricted zone: outside, no alert",
+        (zone_state(api, poly["id"], number)["state"], len([a for a in alerts(api, number) if pname in a["detail"]])), ("outside", 0))
     t_p = send(0, lat=plat)
     send(10, lat=plat)
     inside = [a for a in alerts(api, number, "geofenceEnter") if pname in a["detail"]]
@@ -338,10 +346,53 @@ def simulated(api, args, clean):
     chk("scheduled zone created", sz.get("status"), "OK")
     clean.zones.append(sz["data"]["id"])
     send(0, lat=plat)
+    send(2, lat=plat)
     send(900, lat=plat)
     send(950, lat=plat)
     chk("left the scheduled zone: state tracked", zone_state(api, sz["data"]["id"], number)["state"], "outside")
     chk("…but no alert outside its hours", len([a for a in alerts(api, number) if sname in a["detail"]]), 0)
+
+    print("== device already out of place when the zone is created ==")
+    # The device is ~1 km north of this new «debe permanecer dentro» zone from its very first position.
+    far = LAT + 0.2
+    oname = f"e2e-ya-fuera-{random.randint(1000, 9999)}"
+    oz = api.post("/geofences/v1/zones", {
+        "name": oname, "shape": "circle", "centerLat": far, "centerLon": LON, "radiusM": 200, "rule": "stayInside",
+        "active": True, "alertOnReturn": True, "groupIds": [], "deviceIds": [dev_id]})
+    chk("zone created around a place the device is not in", oz.get("status"), "OK")
+    clean.zones.append(oz["data"]["id"])
+    kname = f"e2e-ya-dentro-{random.randint(1000, 9999)}"
+    kz = api.post("/geofences/v1/zones", {
+        "name": kname, "shape": "circle", "centerLat": far + 1000 * M, "centerLon": LON, "radiusM": 200, "rule": "keepOut",
+        "active": True, "alertOnReturn": True, "groupIds": [], "deviceIds": [dev_id]})
+    chk("«no debe entrar» zone created around where the device is", kz.get("status"), "OK")
+    clean.zones.append(kz["data"]["id"])
+    t_first = send(1000, lat=far)
+    chk("the zone is applied to the very next position (cache dropped on save)",
+        [x["name"] for x in api.data(f"/geofences/v1/devices/{number}/zones") if x["name"] in (oname, kname)], [oname, kname])
+    chk("one position: no alert yet", len([a for a in alerts(api, number) if oname in a["detail"] or kname in a["detail"]]), 0)
+    send(1010, lat=far)
+    out_first = [a for a in alerts(api, number, "geofenceExit") if oname in a["detail"]]
+    chk("already outside: exit alert once confirmed", len(out_first), 1)
+    if out_first:
+        ok("…flagged «desde la primera posición»", "desde la primera posición" in out_first[0]["detail"], out_first[0]["detail"])
+        chk("…dated at the first position", out_first[0]["createdat"], t_first)
+    st = zone_state(api, oz["data"]["id"], number)
+    chk("console state: outside and in alert", ((st or {}).get("state"), (st or {}).get("violating")), ("outside", True))
+    in_first = [a for a in alerts(api, number, "geofenceEnter") if kname in a["detail"]]
+    chk("already inside a restricted zone: entry alert once confirmed", len(in_first), 1)
+    if in_first:
+        ok("…flagged «desde la primera posición»", "Dentro de la zona restringida" in in_first[0]["detail"] and "primera posición" in in_first[0]["detail"], in_first[0]["detail"])
+    st = zone_state(api, kz["data"]["id"], number)
+    chk("console state: inside and in alert", ((st or {}).get("state"), (st or {}).get("violating")), ("inside", True))
+    send(1015, lat=far)
+    chk("not repeated while it stays there", len([a for a in alerts(api, number) if oname in a["detail"] or kname in a["detail"]]), 2)
+
+    print("== disconnection threshold is saved and shared with the e-mails ==")
+    cur = api.data("/geofences/v1/settings")
+    chk("default threshold", clean.settings.get("offlineMinutes"), 20)
+    chk("threshold saved", api.put("/geofences/v1/settings", dict(cur, offlineMinutes=45)).get("data", {}).get("offlineMinutes"), 45)
+    chk("Alerts list uses the saved threshold when none is passed", (api.get("/alerts/v1/list?from=0&type=disconnected") or {}).get("status"), "OK")
 
     print("== history: paginated track, accuracy tag, export ==")
     now = int(time.time() * 1000)
@@ -400,7 +451,76 @@ def simulated(api, args, clean):
 # ------------------------------------------------------------------------------------------------- real emulator
 
 def adb(serial, *cmd, timeout=60):
-    return subprocess.run(["adb", "-s", serial, *cmd], capture_output=True, text=True, timeout=timeout).stdout.strip()
+    r = subprocess.run(["adb", "-s", serial, *cmd], capture_output=True, text=True, timeout=timeout)
+    return (r.stdout + (r.stderr if "Exception" in r.stderr else "")).strip()
+
+
+class Mover:
+    """
+    Puts the emulator at a position. Default: `adb emu geo fix` (the emulated GNSS). With --mock-provider the
+    position is fed through Android's test location provider instead (`cmd location providers …`, Android 12+),
+    re-sent every few seconds like a live receiver; that is how the whole trip runs on API 30+ images, whose
+    emulated GNSS only accepts the first injected fix after boot.
+    """
+
+    def __init__(self, serial, mock):
+        self.serial, self.mock = serial, mock
+        self.target = None
+        self.stop = threading.Event()
+        self.thread = None
+        self.providers = ["gps"]
+        self.warned = False
+        if mock:
+            # A device with Google Play services serves "fused" from the same satellites: mock both so they agree.
+            if "fused" in adb(serial, "shell", "dumpsys", "location"):
+                self.providers.append("fused")
+            # The shell may only mock locations once its uid holds the mock_location app-op.
+            adb(serial, "shell", "appops", "set", "2000", "android:mock_location", "allow")
+            adb(serial, "shell", "appops", "set", "com.android.shell", "android:mock_location", "allow")
+            for p in self.providers:
+                adb(serial, "shell", "cmd", "location", "providers", "add-test-provider", p,
+                    "--supportsAltitude", "--supportsSpeed", "--powerRequirement", "1", "--accuracy", "1")
+                adb(serial, "shell", "cmd", "location", "providers", "set-test-provider-enabled", p, "true")
+            self.thread = threading.Thread(target=self._loop, daemon=True)
+            self.thread.start()
+
+    def _push(self):
+        lat, lon = self.target
+        for p in self.providers:
+            out = adb(self.serial, "shell", "cmd", "location", "providers", "set-test-provider-location", p,
+                      "--location", f"{lat:.6f},{lon:.6f}", "--accuracy", "6")
+            if "Exception" in out and not self.warned:
+                self.warned = True
+                print(f"    WARN: the test provider «{p}» refused the position: {out.splitlines()[1] if len(out.splitlines()) > 1 else out}")
+
+    def _loop(self):
+        while not self.stop.wait(3):
+            if self.target:
+                try:
+                    self._push()
+                except Exception:
+                    pass
+
+    def go(self, lat, lon):
+        self.target = (lat, lon)
+        if self.mock:
+            self._push()
+        else:
+            adb(self.serial, "emu", "geo", "fix", f"{lon:.6f}", f"{lat:.6f}")  # longitude first
+
+    def close(self):
+        self.stop.set()
+        if self.thread:
+            self.thread.join(timeout=10)
+        if self.mock:
+            for p in self.providers:
+                adb(self.serial, "shell", "cmd", "location", "providers", "remove-test-provider", p)
+
+
+def fix_trace(serial):
+    """The agent's own account of its last fresh-position requests (logcat: providers tried, time, who answered)."""
+    out = adb(serial, "logcat", "-d", "-s", "LocationCollector:I")
+    return [ln.split("fresh fix: ", 1)[1] for ln in out.splitlines() if "fresh fix: " in ln]
 
 
 def emulator(api, args, clean):
@@ -413,9 +533,9 @@ def emulator(api, args, clean):
     in_lat, in_lon = LAT, LON
     out_lat, out_lon = LAT + 0.02, LON          # ~2.2 km north
 
-    def geo(lat, lon):
-        # `geo fix` takes longitude first.
-        adb(serial, "emu", "geo", "fix", f"{lon:.6f}", f"{lat:.6f}")
+    mover = Mover(serial, args.mock_provider)
+    clean.movers.append(mover)
+    geo = mover.go
 
     def latest():
         now = int(time.time() * 1000)
@@ -451,8 +571,12 @@ def emulator(api, args, clean):
         print(f"    lat={f['lat']:.5f} lon={f['lon']:.5f} ±{f['accuracy']} m provider={f['provider']}")
         ok("it carries an accuracy", f["accuracy"] is not None and f["accuracy"] > 0)
         ok("it is not tagged low accuracy", f["lowAccuracy"] is False)
-    st = wait_for(120, lambda: zone_state(api, zone["id"], number), every=5)
-    chk("state: inside", (st or {}).get("state"), "inside")
+    st = wait_for(240, lambda: zone_state(api, zone["id"], number), every=5)
+    chk("state: inside (confirmed by two positions)", (st or {}).get("state"), "inside")
+    traces = wait_for(150, lambda: fix_trace(serial), every=5)   # the next once-a-minute fresh request
+    ok("the agent logs which providers it tried and which answered", len(traces) >= 1)
+    for t in traces[-3:]:
+        print(f"    agente: {t}")
     if args.first_fix_only:
         return
 
@@ -498,6 +622,43 @@ def emulator(api, args, clean):
     if ex and en:
         ok("in order: left, then came back", ex[0]["createdat"] < en[0]["createdat"])
 
+    print("== zone created while the phone is already outside it ==")
+    oname = f"e2e-emulador-fuera-{random.randint(1000, 9999)}"
+    t_c = int(time.time() * 1000)
+    oz = api.post("/geofences/v1/zones", {
+        "name": oname, "shape": "circle", "centerLat": out_lat, "centerLon": out_lon, "radiusM": 300, "rule": "stayInside",
+        "active": True, "alertOnReturn": True, "trackingMinutes": 1, "groupIds": [], "deviceIds": [dev_id]})
+    chk("second zone created around the other place", oz.get("status"), "OK")
+    clean.zones.append(oz["data"]["id"])
+    got = wait_for(300, lambda: [a for a in alerts(api, number, "geofenceExit") if oname in a["detail"]], every=5)
+    ok("already outside: exit alert without ever having been inside", len(got) == 1, str(got))
+    if got:
+        ok("…flagged «desde la primera posición»", "desde la primera posición" in got[0]["detail"], got[0]["detail"])
+        ok("…dated after the zone was created", got[0]["createdat"] >= t_c - 90_000)
+    st = zone_state(api, oz["data"]["id"], number)
+    chk("console state: outside and in alert", ((st or {}).get("state"), (st or {}).get("violating")), ("outside", True))
+
+    print("== diagnosis: providers tried ==")
+    for t in fix_trace(serial)[-4:]:
+        print(f"    agente: {t}")
+    d = api.post(f"/agent/v1/devices/{number}/commands", {"type": "device.diagnose", "requiresCapability": "device.diagnose"})
+    cmd_id = (d.get("data") or {}).get("id")
+
+    def diag():
+        for c in api.data(f"/agent/v1/devices/{number}/commands?since={t_a}") or []:
+            if c.get("id") == cmd_id and c.get("status") == "done":
+                try:
+                    return json.loads(c.get("detail") or "{}").get("location")
+                except ValueError:
+                    return None
+        return None
+    loc = wait_for(90, diag, every=5) if cmd_id else None
+    ok("the diagnosis snapshot reports the last position request", bool(loc), str(d.get("message")))
+    if loc:
+        print(f"    diagnóstico: {loc.get('summary')} · respondió {loc.get('answeredBy')} · disponibles {loc.get('available')}")
+        ok("…with the providers tried (or the recent position reused) and who answered",
+           bool(loc.get("attempts") or loc.get("answeredBy")) and "available" in loc)
+
     print("== history ==")
     now = int(time.time() * 1000)
     tr = api.data(f"/geofences/v1/devices/{number}/track?from={t_a - 600_000}&to={now}&page=0&size=2000")
@@ -520,6 +681,9 @@ def main():
     ap.add_argument("--mailpit", help="Mailpit/MailHog-compatible API base (e.g. http://localhost:8025) to verify the e-mail")
     ap.add_argument("--serial", help="adb serial of an enrolled emulator (enables the emulator mode)")
     ap.add_argument("--device", help="its device number in the console")
+    ap.add_argument("--mock-provider", action="store_true",
+                    help="emulator mode: feed positions through Android's test location provider (Android 12+) instead of "
+                         "`adb emu geo fix`; needed for the whole trip on API 30+ images")
     ap.add_argument("--first-fix-only", action="store_true",
                     help="emulator mode: stop after the first position (API 30+ images accept only one injected fix)")
     args = ap.parse_args()

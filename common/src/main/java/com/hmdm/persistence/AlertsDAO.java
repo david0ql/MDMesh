@@ -32,6 +32,7 @@ public class AlertsDAO {
         mapper.generateDisconnected(customerId, cutoff, now, zone);
         mapper.generateKioskExit(customerId, eventSince);
         mapper.generateSimChange(customerId, eventSince);
+        mapper.generateDataLimits(customerId, eventSince);
     }
 
     public List<Map<String, Object>> list(int customerId, String type, Long from, Long to, String status, int limit) {

@@ -73,13 +73,17 @@ public class AlertsResource {
     private AlertsDAO alertsDAO;
     private AgentCommandDAO commandDAO;
     private UserScope scope;
+    /** Holds the customer's saved "offline" threshold (shared with the alert e-mails). */
+    private com.hmdm.persistence.GeofenceDAO settingsDAO;
 
     /** A constructor required by Swagger. */
     public AlertsResource() {
     }
 
     @Inject
-    public AlertsResource(AlertsDAO alertsDAO, AgentCommandDAO commandDAO, UserScope scope) {
+    public AlertsResource(AlertsDAO alertsDAO, AgentCommandDAO commandDAO, UserScope scope,
+                          com.hmdm.persistence.GeofenceDAO settingsDAO) {
+        this.settingsDAO = settingsDAO;
         this.alertsDAO = alertsDAO;
         this.commandDAO = commandDAO;
         this.scope = scope;
@@ -87,7 +91,8 @@ public class AlertsResource {
 
     // --- alert type ----------------------------------------------------------------------------------------------
 
-    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter"};
+    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter",
+            "dataWarning", "dataLimit"};
 
     private static String typeLabel(String type) {
         if (type == null) return "";
@@ -97,6 +102,8 @@ public class AlertsResource {
             case "simChange": return "Cambio de SIM";
             case "geofenceExit": return "Salida de zona";
             case "geofenceEnter": return "Entrada a zona";
+            case "dataWarning": return "Datos móviles: cerca del límite";
+            case "dataLimit": return "Datos móviles: límite superado";
             default: return type;
         }
     }
@@ -247,7 +254,15 @@ public class AlertsResource {
 
     /** Generate (idempotent), load, enrich, decorate and scope the alert rows for the current filters. */
     private List<Map<String, Object>> loadRows(int c, String type, Long from, Long to, String status, Integer minutes) {
-        int m = clamp(minutes, DEFAULT_OFFLINE_MINUTES, 1, 60 * 24 * 30);
+        // No explicit threshold = the one saved for the customer (Geocercas settings: offlineMinutes), which is also
+        // what the alert e-mails use.
+        int saved = DEFAULT_OFFLINE_MINUTES;
+        try {
+            if (settingsDAO != null) saved = settingsDAO.getSettings(c).offlineMinutes;
+        } catch (Exception e) {
+            logger.warn("Offline threshold of customer {} not read: {}", c, e.getMessage());
+        }
+        int m = clamp(minutes, saved, 1, 60 * 24 * 30);
         long now = System.currentTimeMillis();
         long cutoff = now - m * 60_000L;
         alertsDAO.generate(c, cutoff, now, DEFAULT_ZONE.getId(), now - EVENT_LOOKBACK_MS);
@@ -266,8 +281,9 @@ public class AlertsResource {
 
     /** Reader = any signed-in user of a customer (folder administrators are then narrowed by {@link #scoped}). */
     private Optional<Integer> reader() {
-        return SecurityContext.get() == null ? Optional.empty()
-                : SecurityContext.get().getCurrentCustomerId();
+        // Same gate as the console (Alertas sits with Reportes behind manage_fleet): the API refuses without it.
+        if (SecurityContext.get() == null || !SecurityContext.get().hasPermission("manage_fleet")) return Optional.empty();
+        return SecurityContext.get().getCurrentCustomerId();
     }
 
     /** Narrow the rows to the devices a folder administrator may reach (every alert carries a device number). */

@@ -706,7 +706,8 @@ function ConfigEditor({
         onChange={(dc) => set('dcPolicy', serializeDcPolicy(dc))}
       />
 
-      <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
+      <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)}
+        apps={allowed.filter((a) => !!a.pkg && a.action !== 2).map((a) => ({ pkg: a.pkg as string, name: a.name }))} />
 
       <HardwarePolicyPanel draft={draft} disabled={readOnly} set={set} />
 
