@@ -40,6 +40,8 @@ class ConfigApplier(
     private val setLocationFixTimeout: (Int?) -> Unit = {},
     /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
     private val mobileData: ((com.dallycontrol.proto.ConfigMobileData?) -> String)? = null,
+    /** Remote-support settings of the configuration (null = defaults). */
+    private val setRemoteSupport: (com.dallycontrol.proto.ConfigRemoteSupport?) -> Unit = {},
     /**
      * Apply the hardware and ports rules (null = clear what an earlier document set). Receives the restrictions other
      * sections of the document keep on; returns one outcome per rule (`hardware.<key>` / `restrictions.<key>`).
@@ -106,6 +108,12 @@ class ConfigApplier(
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         applyMobileData(doc, previous)?.let { outcomes["mobileData"] = it }
+        runCatching { setRemoteSupport(doc.remoteSupport) }
+            .onSuccess { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.APPLIED }
+            .onFailure {
+                val reason = ConfigOutcome.failed(it.message ?: "remote support")
+                if (doc.remoteSupport != null) outcomes["remoteSupport"] = reason
+            }
         outcomes.putAll(applyHardware(doc, previous))
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)

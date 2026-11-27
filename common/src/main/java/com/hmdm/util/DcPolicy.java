@@ -101,6 +101,9 @@ public class DcPolicy {
     /** Hardware and ports: rule key → allow / block (see {@link HardwarePolicy}); a missing key is not managed. */
     private java.util.Map<String, String> hardware;
 
+    /** Remote support: who shows the screen, the on-phone notice, how voice calls are answered (ADR 0012). */
+    private com.hmdm.rest.json.agent.DesiredRemoteSupport remoteSupport;
+
     @Getter
     @Setter
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -183,7 +186,8 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null;
+                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
+                && remoteSupport == null;
     }
 
     private DcPolicy cleaned() {
@@ -283,6 +287,7 @@ public class DcPolicy {
         }
         c.mobileData = MobileDataPolicy.clean(mobileData);
         c.hardware = HardwarePolicy.clean(hardware, true);
+        c.remoteSupport = remoteSupport == null ? null : remoteSupport.cleaned();
         return c;
     }
 

@@ -127,7 +127,12 @@ public class UserScopeFilter implements Filter {
             // The device export the console uses (POST with the list's filters) and its CSV twin: the resource
             // builds them from the user's own folders only, like export.xlsx above.
             new Rule("POST", "/fleet/v1/export", null),
-            new Rule("GET", "/fleet/v1/export.csv", null)
+            new Rule("GET", "/fleet/v1/export.csv", null),
+            // Remote support: per-device calls are checked here against the device's folder; the session log is
+            // filtered by the resource (and a session's events are checked against its device).
+            new Rule(ANY, "/support/v1/devices/([^/]+)(/.*)?", "device"),
+            new Rule("GET", "/support/v1/sessions", null),
+            new Rule("GET", "/support/v1/sessions/(\\d+)/events", null)
     );
 
     private final UserScope scope;

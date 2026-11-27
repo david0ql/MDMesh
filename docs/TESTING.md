@@ -523,3 +523,70 @@ On every release: adb stopped answering when USB debugging was blocked and came 
 emulators report `canUsbDataSignalingBeDisabled() = true`, so "USB data" was applied and reverted there. `svc usb
 getFunctions` gives no answer on these images, so the MTP check is skipped (the `no_usb_file_transfer` restriction is
 verified instead).
+
+## Remote support through the agent (ADR 0012)
+
+Screen, touch, voice, chat and files over the agent's own session channel, with no droidVNC-NG. Unit tests:
+`SupportSessionsTest` (relay rules, view-only, audit, capabilities, policy), `SupportHubTest` (when a session ends by
+itself), `UserScopeFilterTest#remoteSupportIsScopedToTheirDevices`, and on the agent `SupportProtocolTest` (µ-law
+codec, frame layout, scaling, typing, readiness, compatibility with older servers) and `SupportChannelTest` (the
+device's socket against a real WebSocket server).
+
+End to end, on an emulator or a phone (`scripts/remote-e2e.mjs --support …` runs both):
+
+```bash
+# the operator's side of the session socket, no browser: every check is on the wire or read back over adb
+node scripts/remote-support-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554 [--authorize]
+# the console's screen in headless Chromium (synthetic microphone): image, soft keys, click, chat, call, history
+node scripts/remote-support-console-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554
+# from a shell: status, start (prints key + token), stop, log
+scripts/remote-session.sh --api http://localhost:8088 --device <id> --support --status
+```
+
+**QR-style enrollment on an emulator.** `adb install -g` (what `scripts/adb-enroll.sh --apk …` does) grants the agent
+WRITE_SECURE_SETTINGS, so that device needs no tap at all. To reproduce a QR / zero-touch enrollment, install the
+agent first **without** `-g` (`adb install agent.apk`) and run `scripts/adb-enroll.sh` without `--apk`: the agent then
+holds nothing a Device Owner cannot grant itself, shows the guided screen by itself after enrolling, and
+`remote-support-e2e.mjs --authorize` does the one tap on the phone's real Settings screens before going on.
+
+`uiautomator dump` (used by both scripts to read what is on the phone) makes Android unbind every accessibility
+service for a moment, the agent's screen service included; the scripts wait for it to be bound again. A real session
+never meets that.
+
+Voice on an emulator started with `-no-audio`: the phone's microphone records silence, so a debug agent sends a 440 Hz
+tone when the call is started with `testTone` (the scripts do), and the checks are on level and pitch at both ends;
+the real microphone path is still opened and checked (`recording`, frames flowing).
+
+Results (2026-11-27, own stack, debug agent merged with `integration/mobicontrol`, emulators at 720x1600, enrolled
+QR-style: no adb grant). **The test machine was at load 20-35 (15 cores) during every run, so the times are upper
+bounds, not the product's speed**; the host load is printed with each run's measures.
+
+| | Android 11 (API 30) | Android 15 (API 35) |
+|---|---|---|
+| Device-Owner self-authorisation (`info.probe`) | grant refused, `setSecureSetting` SecurityException | same |
+| Guided screen after enrollment, one tap in the real Settings screens, console goes from "Falta autorización" to "Remoto listo" | pass | pass |
+| Authorisation kept after a reboot and after updating the agent | pass | pass |
+| `remote-support-e2e.mjs` (merged agent) | 35/40 | 37/40 |
+| `remote-support-console-e2e.mjs` (merged agent) | 20/20 | 19/20 (the one miss was the test's own mute check, since fixed; 20/20 on API 30 with the fix) |
+| Device joins after "start" | 0.4 s | 1.1 s |
+| First image (protocol / console click) | 0.7 s / 2.4 s | 2.3 s / 1.8 s |
+| Touch to image | 1.2 s at load 29 | 0.26 s at load 22 (0.7 s at load 27, 2.3 s at load 35) |
+| Images while scrolling | 0.6 /s at load 29 | 2.1 /s at load 22 |
+| Capture / encode per image | 204 ms / 28 ms | 209 ms / 28 ms |
+
+What did not pass in the protocol script, and why:
+
+- **Typing a reply through the remote session and tapping Enviar** (API 30 and 35): the reply typed *on the phone*
+  (console script, over adb) arrives and is logged; the variant where the operator taps the reply box, types and taps
+  Enviar through the session did not complete in any run. Typing into a focused field through the session was seen
+  working once (API 35, text read back with uiautomator); the script's way of finding the box and the button on a
+  busy emulator is the suspect, but it is **not confirmed**. Check on a phone: open a text field, type from the console.
+- **Notice turned off by the policy while a session is open** (API 35, 2 of 3 runs): the session notification stayed.
+  A session opened after the policy has arrived shows no notice (API 30 pass).
+- **Touch-to-image under 1 s and images while scrolling** on API 30 at load 29: see the table; Android 11 also
+  refused some screenshots as "too soon" at 340 ms spacing, so the agent backed off to 500 ms there.
+- **The support screen for a chat line** was not seen on top in the last API 30 protocol run (it was in the console run
+  of the same boot and in the earlier ones).
+
+Not run: Android 7-10 (the screen-capture path with its consent pressed by the service), kiosk, a physical phone.
+

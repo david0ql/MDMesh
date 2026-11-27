@@ -29,6 +29,7 @@ import {
   IconZone,
   IconAudit,
   IconHelp,
+  IconSupport,
 } from './icons';
 import { HelpLink } from '../components/HelpLink';
 import { topicForPath } from '../data/help';
@@ -77,6 +78,7 @@ const NAV: NavEntry[] = [
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true, perm: 'settings' },
   { to: '/geofences', label: 'Geocercas', Icon: IconZone, perm: 'manage_fleet' },
   { to: '/audit', label: 'Auditoría', Icon: IconAudit, perm: 'view_audit' },
+  { to: '/soporte', label: 'Sesiones de soporte', Icon: IconSupport },
   { to: '/ayuda', label: 'Ayuda', Icon: IconHelp },
 ];
 

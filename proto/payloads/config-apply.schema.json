@@ -52,6 +52,11 @@
         },
         "restrictions": { "type": "array", "items": { "type": "string", "pattern": "^no_[a-z0-9_]+$" }, "description": "Extra UserManager.DISALLOW_* values from the validated list." }
       }
+    },
+    "remoteSupport": {
+      "type": "object", "additionalProperties": true,
+      "description": "Remote support through the agent (ADR 0012). Absent = the agent's defaults (engine auto, notice shown, calls accepted by the person, authorisation asked after enrollment).",
+      "properties": { "engine": { "enum": ["builtin", "droidvnc"] }, "notice": {"type":"boolean"}, "callAccept": { "enum": ["auto"] }, "setupPrompt": {"type":"boolean"} }
     }
   }
 }

@@ -62,4 +62,6 @@ public class DesiredConfig {
     private DesiredMobileData mobileData;
     /** Hardware and ports rules (absent = not managed). */
     private DesiredHardware hardware;
+    /** Remote support settings (engine, notice, call acceptance); null = the agent's defaults. */
+    private DesiredRemoteSupport remoteSupport;
 }
