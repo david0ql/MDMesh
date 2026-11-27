@@ -420,7 +420,78 @@ public class AgentAdminResource {
 
         logger.info("Agent command {} queued for device {}", command.getId(), deviceId);
         // Payload-free view (same shape as the history): never echo a payload back to the console.
-        return Response.OK(CommandHistoryView.from(command));
+        CommandHistoryView view = CommandHistoryView.from(command);
+        // Not connected right now: the command is not lost, it waits in the queue; the console says so.
+        view.setDeviceOnline(wakeHub.isOnline(deviceId));
+        return Response.OK(view);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Cancel a queued command", notes = "Withdraws a command the device has not run yet (pending, or "
+            + "delivered without an answer). Needs the same permissions as queueing that type of command.")
+    @POST
+    @Path("/devices/{deviceId}/commands/{commandId}/cancel")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response cancelCommand(@PathParam("deviceId") String deviceId, @PathParam("commandId") Integer commandId) {
+        if (!canEditDevices("cancel agent command")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get() || !scope.canDeviceNumber(customerId.get(), deviceId)) {
+            return Response.PERMISSION_DENIED();
+        }
+        AgentCommand command = commandId == null ? null : commandDAO.findByDeviceAndId(deviceId, commandId);
+        if (command == null) {
+            return Response.ERROR("error.agent.command.unknown");
+        }
+        // Whoever may not send a lock or an install may not withdraw somebody else's either.
+        if (requiresDisruptivePermission(command.getType()) && !SecurityContext.get().hasPermission("disruptive_actions")) {
+            return Response.PERMISSION_DENIED();
+        }
+        if (requiresFleetPermission(command.getType()) && !SecurityContext.get().hasPermission("manage_fleet")) {
+            return Response.PERMISSION_DENIED();
+        }
+        String who = SecurityContext.get().getCurrentUserName();
+        boolean wasDelivered = "delivered".equals(command.getStatus());
+        String detail = "Cancelado por " + who + (wasDelivered
+                ? " (ya se había entregado al equipo: no se reenvía, pero pudo haberse ejecutado)" : "");
+        if (!commandDAO.cancel(deviceId, commandId, detail)) {
+            // Already ran, expired or was cancelled: nothing left to withdraw.
+            return Response.ERROR("error.agent.command.notCancellable");
+        }
+        logger.info("Agent command {} ({}) of device {} cancelled by {}", commandId, command.getType(), deviceId, who);
+        return Response.OK(CommandHistoryView.from(commandDAO.findByDeviceAndId(deviceId, commandId)));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Wiped devices", notes = "Devices that received a remote wipe and stopped reporting: number -> "
+            + "{wipedAt, wipedBy}. The device row is kept; the mark goes away if the device reports again.")
+    @GET
+    @Path("/wiped")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response wipedDevices() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.Set<String> visible = scope.deviceNumbers();
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> row : commandDAO.refreshWipedDevices(customerId.get())) {
+            String number = String.valueOf(row.get("number"));
+            if (visible != null && !visible.contains(number)) continue;
+            Map<String, Object> mark = new LinkedHashMap<>();
+            mark.put("wipedAt", row.get("wipedat"));
+            mark.put("wipedBy", row.get("wipedby"));
+            out.put(number, mark);
+        }
+        return Response.OK(out);
     }
 
     /** Actions that interrupt the user (lock/reboot/change passcode/wipe). A role without the
@@ -477,6 +548,7 @@ public class AgentAdminResource {
         }
 
         int queued = 0;
+        int offline = 0;
         List<Integer> skipped = new ArrayList<>();
         for (Integer id : req.getDeviceIds()) {
             if (id == null) { continue; }
@@ -493,6 +565,7 @@ public class AgentAdminResource {
             command.setStatus("pending");
             command.setCreatedAt(System.currentTimeMillis());
             commandDAO.insert(command);
+            if (!wakeHub.isOnline(device.getNumber())) offline++;
             wakeHub.wake(device.getNumber(), "commands");
             queued++;
         }
@@ -501,6 +574,8 @@ public class AgentAdminResource {
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         result.put("queued", queued);
         result.put("skipped", skipped);
+        // Of the queued ones, how many devices are not connected now: theirs run when they come back.
+        result.put("offline", offline);
         return Response.OK(result);
     }
 
@@ -838,6 +913,14 @@ public class AgentAdminResource {
             return Response.PERMISSION_DENIED();
         }
         long sinceMillis = since == null ? 0L : since;
+        // A phone that is not checking in gets no sweep of its own: close here what already expired, so the
+        // history never shows "pending" for a command that will no longer run. Redelivery is decided only on
+        // the phone's own check-in, right after its results were recorded.
+        try {
+            commandDAO.expireOverdue(deviceId);
+        } catch (Exception e) {
+            logger.warn("Could not expire overdue commands of {}: {}", deviceId, e.getMessage());
+        }
         return Response.OK(CommandHistoryView.fromAll(commandDAO.listHistory(deviceId, sinceMillis, 200)));
     }
 

@@ -243,7 +243,11 @@ object AgentModule {
     @Singleton
     fun provideCommandDispatcher(
         handlers: Set<@JvmSuppressWildcards CommandHandler>,
-    ): CommandDispatcher = CommandDispatcher(handlers.toList())
+        @ApplicationContext context: Context,
+    ): CommandDispatcher = CommandDispatcher(
+        handlers.toList(),
+        ledger = com.dallycontrol.agent.command.PrefsCommandLedger(context),
+    )
 
     // --- Kiosk (lock-task) ---
 

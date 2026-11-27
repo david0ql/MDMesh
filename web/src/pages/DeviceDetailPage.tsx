@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
+import { connectionLabel, useConnectionStates } from '../ui/connection';
+import { ConnectionCard } from '../components/ConnectionCard';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -22,7 +24,7 @@ import { DeviceScopeCard } from '../components/DeviceScopeCard';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import { getConfigStatus, type ConfigStatus } from '../api/configSync';
 import {
-  getDeviceState, forceSync, queueCommand, syncConfigApps, type DeviceState,
+  getDeviceState, forceSync, queueCommand, syncConfigApps, listWipedDevices, type DeviceState, type WipedMark,
 } from '../api/commands';
 import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
@@ -134,6 +136,7 @@ function freeOf(free: unknown, total: unknown): string {
 
 export function DeviceDetailPage() {
   useLiveDevices(); // a device with its live channel open shows connected
+  const connections = useConnectionStates();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
@@ -151,6 +154,15 @@ export function DeviceDetailPage() {
     new URLSearchParams(window.location.search).get('tab') === 'location' ? 'location' : 'control');
   const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
+  const [wiped, setWiped] = useState<WipedMark | null>(null);
+  useEffect(() => {
+    if (!device?.number) return;
+    let on = true;
+    const check = () => listWipedDevices().then((m) => { if (on) setWiped(m[device.number] ?? null); }).catch(() => undefined);
+    void check();
+    const t = setInterval(() => void check(), 60_000);
+    return () => { on = false; clearInterval(t); };
+  }, [device?.number]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -291,7 +303,9 @@ export function DeviceDetailPage() {
   // Online/offline is recency of last check-in — NOT statusCode (which is config compliance and
   // stays green for a device that was factory-reset and stopped reporting).
   const online = isOnlineByRecency(device.lastUpdate, undefined, device.number);
-  const statusLabel = online ? 'En línea' : 'Sin conexión';
+  const connection = connections.get(device.number);
+  const conn = connectionLabel(online, connection);
+  const statusLabel = conn.hint ? `${conn.label} · ${conn.hint}` : conn.label;
 
   const statusRows: Row[] = [
     { k: 'Batería', v: ds ? (ds.battery < 0 ? '—' : `${ds.battery}% · ${ds.charging ? 'cargando' : 'sin cargar'}`) : '—' },
@@ -376,11 +390,16 @@ export function DeviceDetailPage() {
         <aside className="panel detail-rail">
           <div className="top">
             <DeviceStatusIcon online={online} name={device.description || device.number} size={30} />
-            <span className={`st ${online ? 'on' : 'off'}`}>{statusLabel}</span>
+            <span className={`st ${online ? 'on' : conn.tone === 'resting' ? 'rest' : 'off'}`}>{statusLabel}</span>
             <span className="ago">· {fmtRelative(device.lastUpdate)}</span>
           </div>
           <DataFreshness number={device.number} updatedAt={ds?.updatedAt ?? device.lastUpdate} onState={setDs} />
           <h1>{device.number}</h1>
+          {wiped && (
+            <div className="wiped-badge" title="El equipo recibió el borrado remoto y no volvió a reportar. El registro se conserva.">
+              Borrado · {new Date(wiped.wipedAt).toLocaleString('es-CO')}{wiped.wipedBy ? ` · por ${wiped.wipedBy}` : ''}
+            </div>
+          )}
           <NameField
             device={device}
             onSaved={(desc) => setDevice((d) => (d ? { ...d, description: desc } : d))}
@@ -450,6 +469,8 @@ export function DeviceDetailPage() {
           />
 
           <ConfigStatusCard status={cfgStatus} />
+
+          <ConnectionCard connection={connection} />
         </aside>
 
         {/* RIGHT: work */}

@@ -69,6 +69,8 @@ services:
       # Optional; unset = the key the server keeps in its volume. Prefixed .env key for the reason given at JAVA_OPTS.
       JWT_SECRET: ${SERVER_JWT_SECRET:-}
       SECURE_ENROLLMENT: ${SECURE_ENROLLMENT:-0}
+      # Optional backup URLs handed to the Android agents (comma separated, https only); see docs/REQUISITOS-RED.md.
+      AGENT_BACKUP_URLS: ${AGENT_BACKUP_URLS:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-25}
       SMTP_FROM: ${SMTP_FROM:-mdm@localhost}

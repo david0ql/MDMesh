@@ -209,6 +209,28 @@ crash-loop guard released the kiosk (4× Back was a way out) and, once fixed, mi
 kiosk home; after a re-enrollment the wake socket kept the old device id; the in-call screen could lose the race with
 the phone-state broadcast; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.
 
+## Remote commands that are never lost (MDM-07 / MDM-09)
+
+`scripts/command-reliability-e2e.py` drives an enrolled device (emulator or USB) against the dev stack and checks,
+on the device itself, that commands survive a lost link and that their latency can be shown:
+
+```bash
+scripts/command-reliability-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> \
+    [--reps 10] [--pg-container dallycontrol-dev-postgres-1] [--only latency,offline,lostack,reboot,report] [--wipe]
+```
+
+- `latency`: lock, alarm, message and lock-screen message, `--reps` times each, device online; prints p50/p90/max
+  from the server's timestamps (created → delivered → completed).
+- `offline`: airplane mode, queue lock + message + alert, move them 2 h back in the database (past the old
+  60-minute expiry), cancel one, reconnect: the kept ones run, the cancelled one never reaches the device.
+- `lostack`: a delivered command without answer is handed out again after 2 minutes; one that already ran is not run
+  twice; a lost state change is not replayed over a newer one.
+- `reboot`: the reboot's answer is really lost; the repeat is answered from the agent's ledger, no second reboot.
+- `report`: the "Latencia de comandos" report (JSON, Excel, CSV) and the issuer stored on each command.
+- `wipe` (`--wipe`, last, destructive): wipe queued without link, delivered on reconnect, device marked "Borrado".
+
+The per-type waiting times and resend rules are `CommandPolicy` (common), pinned by `CommandPolicyTest`.
+
 ## App management: big uploads, silent install, failures (MDM-04 / MDM-05)
 
 `scripts/app-install-e2e.py` checks the whole path of a private APK. It puts a local proxy that refuses request bodies

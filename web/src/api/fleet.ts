@@ -153,14 +153,14 @@ export function targetLabel(t: Target): string {
 }
 
 /** Queue one command for the target. Destructive commands are refused for groups and all devices. */
-export async function queueForTarget(t: Target, req: QueueCommandRequest): Promise<{ queued: number; skipped: number }> {
+export async function queueForTarget(t: Target, req: QueueCommandRequest): Promise<{ queued: number; skipped: number; offline: number }> {
   if (t.kind === 'devices') {
     const r = await bulkQueueCommand(t.ids, req);
-    return { queued: r.queued, skipped: r.skipped?.length ?? 0 };
+    return { queued: r.queued, skipped: r.skipped?.length ?? 0, offline: r.offline ?? 0 };
   }
   const path = t.kind === 'group' ? `${BASE}/groups/${t.id}/commands` : `${BASE}/global/commands`;
-  const r = await apiClient.post<{ queued: number }>(path, { command: req });
-  return { queued: r.queued, skipped: 0 };
+  const r = await apiClient.post<{ queued: number; offline?: number }>(path, { command: req });
+  return { queued: r.queued, skipped: 0, offline: r.offline ?? 0 };
 }
 
 /** Kiosk branding (see common KioskBrand): logos, wallpaper, serial and a support line. */

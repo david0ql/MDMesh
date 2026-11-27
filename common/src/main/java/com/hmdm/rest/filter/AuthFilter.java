@@ -113,8 +113,12 @@ public class AuthFilter implements Filter {
             // Changing user data in cookies may be used, for example, to elevate user's permissions to admin
             SecurityContext.release();
             SecurityContext.init(dbUser);
+            if (servletRequest instanceof HttpServletRequest) {
+                com.hmdm.security.RequestOrigin.set((HttpServletRequest) servletRequest);
+            }
             filterChain.doFilter(servletRequest, servletResponse);
         } finally {
+            com.hmdm.security.RequestOrigin.clear();
             SecurityContext.release();
         }
     }

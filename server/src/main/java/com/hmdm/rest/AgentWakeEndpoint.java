@@ -60,8 +60,14 @@ public class AgentWakeEndpoint {
             closeQuietly(session, CloseReason.CloseCodes.VIOLATED_POLICY, "unauthorized");
             return;
         }
+        // The agent pings every 50 s. A socket silent for this long is dead (the phone lost its network without a
+        // TCP close): drop it, or the device stays "live" in the console and wakes are written into the void.
+        session.setMaxIdleTimeout(IDLE_TIMEOUT_MS);
         hub.register(deviceNumber, session);
     }
+
+    /** Three missed pings. */
+    static final long IDLE_TIMEOUT_MS = 150_000L;
 
     @OnClose
     public void onClose(Session session, @PathParam("deviceNumber") String deviceNumber) {

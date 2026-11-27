@@ -813,6 +813,9 @@ a {
 .detail-rail .st.off {
   color: var(--secondary);
 }
+.detail-rail .st.rest {
+  color: var(--resting, #6f7fb3);
+}
 .detail-rail .ago {
   font-size: 12px;
   color: var(--faint);
@@ -3030,6 +3033,7 @@ a {
 .pwr { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
 .pwr.on { color: var(--ok, #1aa766); }
 .pwr.off { color: var(--faint, #9aa3b0); }
+.pwr.rest { color: var(--resting, #6f7fb3); }
 .net { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
 .net-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 15px; }
 .net-bars i { display: inline-block; width: 3px; border-radius: 1px; background: var(--border, #e7e9ee); }
@@ -3537,3 +3541,16 @@ a {
 .loc-latest { margin: 0 0 8px; }
 .loc-low { padding-bottom: 8px; }
 @media (max-width: 900px) { .gz-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* Command history: lifecycle steps, latency and issuer under each order. */
+.timeline-item { flex-wrap: wrap; }
+.timeline-item .t-steps,
+.timeline-item .t-who,
+.timeline-item .t-detail { flex-basis: 100%; }
+.timeline-item .t-steps { display: flex; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.timeline-item .t-cancel { margin-left: 8px; }
+.status-cancelled { color: var(--faint); }
+.wiped-badge {
+  display: inline-block; margin: 6px 0; padding: 3px 9px; border-radius: 999px;
+  background: var(--alert); color: #fff; font-size: 12px; font-weight: 600;
+}

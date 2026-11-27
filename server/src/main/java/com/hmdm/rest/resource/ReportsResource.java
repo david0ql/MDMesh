@@ -108,7 +108,8 @@ public class ReportsResource {
     public enum Report {
         OFFLINE, SIM, SIM_MISMATCH, APP_INSTALLS, APP_INSTALL_DEVICES, BY_APP, APPS_CATALOG,
         NO_COMMANDS, OUTDATED_AGENTS, OUTDATED_APPS, DATA_USAGE, NON_COMPLIANCE, DECOMMISSIONED,
-        INVENTORY;
+        INVENTORY,
+        COMMAND_LATENCY;
 
         static Report of(String name) {
             if (name == null) return null;
@@ -226,6 +227,16 @@ public class ReportsResource {
         return json(c -> decommissioned(c, from, to));
     }
 
+    @ApiOperation(value = "Latencia de comandos", notes = "?from=&to= (epoch ms)&groupId= — por tipo de comando: enviados, "
+            + "% ejecutados y latencia p50/p90/máxima (segundos) de entrega y de ejecución, en el rango y la carpeta.")
+    @GET
+    @Path("/command-latency")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response commandLatency(@QueryParam("from") Long from, @QueryParam("to") Long to,
+                                   @QueryParam("groupId") Integer groupId) {
+        return json(c -> commandLatency(c, from, to, groupId));
+    }
+
     // --- export (CSV / Excel) ------------------------------------------------------------------------------------
 
     @ApiOperation(value = "Exportar un reporte", notes = "?report=<nombre>&format=csv|xlsx + los parámetros del reporte.")
@@ -241,7 +252,8 @@ public class ReportsResource {
                                             @QueryParam("pkgs") String pkgs,
                                             @QueryParam("minutes") Integer minutes,
                                             @QueryParam("limit") Integer limit,
-                                            @QueryParam("tz") String tz) {
+                                            @QueryParam("tz") String tz,
+                                            @QueryParam("groupId") Integer groupId) {
         Optional<Integer> customerId = reader();
         if (!customerId.isPresent()) {
             return javax.ws.rs.core.Response.status(403).build();
@@ -253,7 +265,8 @@ public class ReportsResource {
         final int c = customerId.get();
         final ReportData data;
         try {
-            data = scoped(build(rep, c, days, from, to, pkg, pkgs, minutes, limit));
+            data = rep == Report.COMMAND_LATENCY ? commandLatency(c, from, to, groupId)
+                    : scoped(build(rep, c, days, from, to, pkg, pkgs, minutes, limit));
         } catch (Exception e) {
             logger.warn("Report export {} failed for customer {}", reportName, c, e);
             return javax.ws.rs.core.Response.status(500).build();
@@ -301,8 +314,56 @@ public class ReportsResource {
             case NON_COMPLIANCE: return nonCompliance(c);
             case DECOMMISSIONED: return decommissioned(c, from, to);
             case INVENTORY: return inventory(c, null, null, null, days);
+            case COMMAND_LATENCY: return commandLatency(c, from, to, null);
             default: throw new IllegalArgumentException("unknown report");
         }
+    }
+
+    // --- Command latency (evidence for the remote-command criteria) --------------------------------------------
+
+    /**
+     * Per command type, over the commands created in the range: how many were sent, how many ran, and the
+     * p50/p90/maximum latency in seconds. The rows carry no device number, so the narrowing to a folder (and to a
+     * folder administrator's own devices) happens here, before the figures are computed.
+     */
+    private ReportData commandLatency(int c, Long from, Long to, Integer groupId) {
+        long[] r = range(from, to, 30);
+        java.util.Set<String> visible = scope == null ? null : scope.deviceNumbers();
+        java.util.Set<Integer> folder = null;
+        String folderName = null;
+        if (groupId != null) {
+            folder = new java.util.HashSet<>(commandDAO.groupSubtree(c, groupId));
+            folderName = groupPaths(c).get(groupId);
+        }
+        List<com.hmdm.util.CommandLatencyStats.Sample> samples = new ArrayList<>();
+        for (Map<String, Object> row : reportsDAO.commandTimings(c, r[0], r[1])) {
+            if (visible != null && !visible.contains(str(row.get("number")))) continue;
+            if (folder != null && !folder.contains(intOf(row.get("groupid")))) continue;
+            samples.add(new com.hmdm.util.CommandLatencyStats.Sample(str(row.get("type")), str(row.get("status")),
+                    longOf(row.get("createdat")), longOf(row.get("deliveredat")), longOf(row.get("completedat"))));
+        }
+        List<Map<String, Object>> rows = com.hmdm.util.CommandLatencyStats.byType(samples);
+        for (Map<String, Object> row : rows) {
+            String type = str(row.get("type"));
+            row.put("comando", com.hmdm.util.CommandLatencyStats.ALL.equals(type) ? "Todos los comandos"
+                    : com.hmdm.util.CommandLabels.of(type));
+        }
+        List<Column> cols = Arrays.asList(
+                col("comando", "Comando", "text"), col("type", "Tipo", "text"),
+                col("total", "Enviados", "number"), col("done", "Ejecutados", "number"),
+                col("donepct", "% ejecutados", "number"), col("failed", "Fallidos", "number"),
+                col("expired", "Vencidos", "number"), col("cancelled", "Cancelados", "number"),
+                col("open", "En curso", "number"),
+                col("deliveryp50", "Entrega p50 (s)", "number"), col("deliveryp90", "Entrega p90 (s)", "number"),
+                col("deliverymax", "Entrega máx. (s)", "number"),
+                col("execp50", "Ejecución p50 (s)", "number"), col("execp90", "Ejecución p90 (s)", "number"),
+                col("execmax", "Ejecución máx. (s)", "number"));
+        String title = "Latencia de comandos" + (folderName == null ? "" : " — " + folderName);
+        return new ReportData("command-latency", title, cols, rows);
+    }
+
+    private static Long longOf(Object o) {
+        return o instanceof Number ? ((Number) o).longValue() : null;
     }
 
     // --- 1. Offline --------------------------------------------------------------------------------------------
@@ -798,6 +859,7 @@ public class ReportsResource {
             case "failed": return "Fallido";
             case "unsupported": return "No soportado";
             case "expired": return "Expirado";
+            case "cancelled": return "Cancelado";
             default: return status;
         }
     }

@@ -32,6 +32,8 @@ const LABELS: Record<string, string> = {
   soundAlert: 'Está sonando (alarma o timbre)',
   agentExit: 'DallyControl se detuvo (no responde, error o cerrado por el sistema)',
   soundEnded: 'Dejó de sonar',
+  connectionFailure: 'Falla de conexión',
+  connectionGap: 'Corte de conexión',
 };
 
 export function EventTimeline({ device }: { device: Device }) {

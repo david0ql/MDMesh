@@ -36,7 +36,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttp(
-        serverConfig: ServerConfigStore,
+        endpoints: com.dallycontrol.core.net.ServerEndpoints,
         @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
     ): OkHttpClient {
         val dnsPrefs = context.getSharedPreferences("mdm_dns", android.content.Context.MODE_PRIVATE)
@@ -64,10 +64,34 @@ object NetworkModule {
             .readTimeout(READ_TIMEOUT_SEC, TimeUnit.SECONDS)
             // Resolve the real server (provisioned at enrollment) per-request, so the Retrofit base
             // below is only a placeholder and one APK serves every deployment.
-            .addInterceptor(BaseUrlInterceptor(serverConfig))
+            .addInterceptor(BaseUrlInterceptor(endpoints::activeUrl))
             .addInterceptor(logging)
             .build()
     }
+
+    /** Primary + backup server URLs (see [com.dallycontrol.core.net.ServerEndpoints]); plain http only in debug. */
+    @Provides
+    @Singleton
+    fun provideServerEndpoints(
+        serverConfig: ServerConfigStore,
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+    ): com.dallycontrol.core.net.ServerEndpoints = com.dallycontrol.core.net.ServerEndpoints(
+        primary = serverConfig::baseUrl,
+        store = com.dallycontrol.core.net.PrefsKeyValueStore(context, "mdm_endpoints"),
+        allowInsecure = BuildConfig.DEBUG,
+    )
+
+    @Provides
+    @Singleton
+    fun provideConnectionDiagnostics(
+        endpoints: com.dallycontrol.core.net.ServerEndpoints,
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+    ): com.dallycontrol.core.net.ConnectionDiagnostics = com.dallycontrol.core.net.ConnectionDiagnostics(
+        store = com.dallycontrol.core.net.PrefsKeyValueStore(context, "mdm_connection"),
+        endpoints = endpoints,
+        network = com.dallycontrol.core.net.AndroidNetworkState(context),
+        issuerProbe = com.dallycontrol.core.net.TlsProbe::issuerOf,
+    )
 
     @Provides
     @Singleton

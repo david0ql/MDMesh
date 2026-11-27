@@ -141,7 +141,8 @@ export function BulkActionModal({
       const skipped = res.skipped;
       toast.push('ok', `${t.label}: en cola`,
         `En cola para ${res.queued} dispositivo${res.queued === 1 ? '' : 's'}` +
-        (skipped ? ` (${skipped} omitido${skipped === 1 ? '' : 's'})` : '') + '.');
+        (skipped ? ` (${skipped} omitido${skipped === 1 ? '' : 's'})` : '') + '.' +
+        (res.offline ? ` ${res.offline} sin enlace ahora: se ejecutará cuando vuelvan a conectarse.` : ''));
       onDone();
       onClose();
     } catch (e) {
