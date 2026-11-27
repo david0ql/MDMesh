@@ -148,28 +148,39 @@ class SupportSessionManager @Inject constructor(
         val deviceId = identity.current()
         val secret = identity.secret()
         if (deviceId == null || secret == null) return "not enrolled"
-        val fresh = synchronized(this) {
-            if (sessionId == id && connection != null) {
-                false
-            } else {
+        if (sessionId == id && connection != null) return null // already dialling it (the wake and the command both name it)
+        // A session is live: the one asked for replaces it only once the server has accepted it. A start command
+        // that sat in the queue for a session long over (the phone was off) must not take a live session down.
+        val candidate = sessionId != null && open
+        if (!candidate) {
+            synchronized(this) {
                 if (sessionId != null) teardown("replaced", tellPeer = true)
                 sessionId = id
                 chat.clear()
                 lostAt = 0
-                true
             }
         }
-        if (!fresh) return null // already dialling this session (the wake and the queued command both name it)
         val opened = CompletableDeferred<String>()
-        dial(id, deviceId, secret, opened)
+        dial(id, deviceId, secret, opened, candidate)
         val error = withTimeoutOrNull(JOIN_TIMEOUT_MS) { opened.await() } ?: "the server did not answer"
         return error.ifEmpty { null }
     }
 
-    private fun dial(id: String, deviceId: String, secret: String, opened: CompletableDeferred<String>?) {
-        connection = channel.connect(serverConfig.baseUrl(), deviceId, secret, id, object : SupportChannel.Listener {
+    private fun dial(
+        id: String,
+        deviceId: String,
+        secret: String,
+        opened: CompletableDeferred<String>?,
+        candidate: Boolean = false,
+    ) {
+        val holder = java.util.concurrent.atomic.AtomicReference<SupportChannel.Connection?>()
+        val listener = object : SupportChannel.Listener {
             override fun onOpen() {
-                if (sessionId != id) return
+                if (candidate && sessionId != id) adopt(id, holder)
+                if (sessionId != id) {
+                    holder.get()?.close()
+                    return
+                }
                 open = true
                 lostAt = 0
                 opened?.complete("")
@@ -186,16 +197,36 @@ class SupportSessionManager @Inject constructor(
             }
 
             override fun onClosed(refused: Boolean, reason: String) {
-                if (sessionId != id) return
-                open = false
                 opened?.complete(if (refused) "session refused: $reason" else "network: $reason")
+                if (sessionId != id) return // a candidate the server refused: the live session goes on
+                open = false
                 if (refused) {
                     teardown(reason, tellPeer = false)
                 } else {
                     retry(id, deviceId, secret)
                 }
             }
-        })
+        }
+        val conn = channel.connect(serverConfig.baseUrl(), deviceId, secret, id, listener)
+        holder.set(conn)
+        if (!candidate) connection = conn
+    }
+
+    /** The server accepted session [id] while another one was live: the new one takes over. */
+    @Synchronized
+    private fun adopt(id: String, holder: java.util.concurrent.atomic.AtomicReference<SupportChannel.Connection?>) {
+        var conn = holder.get()
+        var spins = 0
+        while (conn == null && spins++ < ADOPT_SPINS) {
+            Thread.sleep(ADOPT_SPIN_MS)
+            conn = holder.get()
+        }
+        if (conn == null) return
+        teardown("replaced", tellPeer = true)
+        sessionId = id
+        connection = conn
+        chat.clear()
+        lostAt = 0
     }
 
     /** The network dropped: keep trying for [REJOIN_MS], then give the session up. */
@@ -740,6 +771,8 @@ class SupportSessionManager @Inject constructor(
     companion object {
         private const val TAG = "SupportSession"
         private const val JOIN_TIMEOUT_MS = 15_000L
+        private const val ADOPT_SPINS = 50
+        private const val ADOPT_SPIN_MS = 10L
         private const val RETRY_MS = 2_000L
         /** Same window the server gives a device to come back (SupportSessions.REJOIN_MILLIS). */
         private const val REJOIN_MS = 45_000L

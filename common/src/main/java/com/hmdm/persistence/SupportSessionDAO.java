@@ -37,6 +37,11 @@ public class SupportSessionDAO {
         mapper.end(id, at, reason, chat, files, voiceSeconds, input);
     }
 
+    /** Expire the still-pending start command of an ended session. */
+    public int expireStart(String deviceNumber, String sessionKey, long at) {
+        return mapper.expireStart(deviceNumber, "%" + sessionKey + "%", at);
+    }
+
     public int closeOrphans(long at) {
         return mapper.closeOrphans(at);
     }

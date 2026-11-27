@@ -286,6 +286,11 @@ public class SupportHub {
         } catch (Exception e) {
             log.warn("Remote support: could not close session {}: {}", live.dbId, e.getMessage());
         }
+        try {
+            dao.expireStart(live.deviceNumber, live.key, System.currentTimeMillis());
+        } catch (Exception e) {
+            log.debug("Remote support: could not expire the start command: {}", e.getMessage());
+        }
         log.info("Remote support session {} on {} ended ({})", live.dbId, live.deviceNumber, reason);
     }
 

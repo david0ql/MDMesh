@@ -52,6 +52,12 @@ public interface SupportSessionMapper {
                               @Param("numbers") List<String> numbers, @Param("from") Long from, @Param("to") Long to,
                               @Param("limit") int limit);
 
+    /** The start command of a session that is over must not reach a phone that was off meanwhile. */
+    @Update({"UPDATE agentcommand SET status = 'expired', detail = 'support session ended', completedAt = #{at} "
+            + "WHERE deviceNumber = #{deviceNumber} AND type = 'remote.session.start' AND status = 'pending' "
+            + "AND payload LIKE #{keyPattern}"})
+    int expireStart(@Param("deviceNumber") String deviceNumber, @Param("keyPattern") String keyPattern, @Param("at") long at);
+
     @Insert("INSERT INTO support_session_event (sessionId, ts, kind, origin, detail) VALUES (#{sessionId}, #{ts}, #{kind}, #{origin}, #{detail})")
     void insertEvent(SupportSessionEvent event);
 
