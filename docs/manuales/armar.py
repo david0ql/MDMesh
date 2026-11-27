@@ -181,9 +181,9 @@ def revisar(nombre, pdf, fuente_final, pie, con_portada=True):
             errores.append("página %d sin el pie «%s»" % (i, pie))
         cuerpo = re.sub(r"\s+", " ", t).replace(pie, "")
         if len(cuerpo) < MIN_TEXTO_PAGINA and imgs.get(i, 0) <= 1:      # 1 = el logo del encabezado
-            avisos.append("página %d casi vacía (%d caracteres)" % (i, len(cuerpo)))
+            avisos.append("página %d casi vacía (%d caracteres): %s…" % (i, len(cuerpo), cuerpo.strip()[:110]))
     todo = "\n".join(pags)
-    if "{{" in fuente_final or "{{" in todo:
+    if re.search(r"\{\{[A-Z_]+\}\}", fuente_final + todo):
         errores.append("quedan marcadores {{…}} sin resolver")
     for ip in set(re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", todo)):
         errores.append("dirección IP en el texto: %s" % ip)

@@ -5,6 +5,332 @@
  "version": "1.0",
  "manuales": [
   {
+   "id": "01-manual-administrador",
+   "archivo": "01-manual-administrador.pdf",
+   "titulo": "Manual del administrador",
+   "descripcion": "Cómo usar la consola para administrar usuarios, carpetas, políticas, aplicaciones y equipos, pantalla por pantalla.",
+   "publico": "Administradores de la consola y mesa de ayuda",
+   "paginas": 35,
+   "kb": 3172,
+   "secciones": [
+    {
+     "id": "acceso",
+     "titulo": "Cada persona entra con su usuario y ve solo lo que su rol permite",
+     "pagina": 3,
+     "temas": "acceso, iniciar sesión, login, contraseña, menú, tema, cerrar sesión"
+    },
+    {
+     "id": "tablero",
+     "titulo": "Dos pantallas muestran el estado de la flota sin abrir ningún equipo",
+     "pagina": 4,
+     "temas": "resumen, tablero, indicadores, en línea, sin conexión, requieren atención"
+    },
+    {
+     "id": "usuarios",
+     "titulo": "Un usuario se define por su tipo y por las carpetas que maneja",
+     "pagina": 6,
+     "temas": "usuarios, crear usuario, contraseña, restablecer contraseña, eliminar usuario, tipo, carpetas del usuario"
+    },
+    {
+     "id": "roles",
+     "titulo": "Cada casilla de un rol es un permiso que el servidor comprueba en cada operación",
+     "pagina": 8,
+     "temas": "roles, permisos, matriz de permisos, rol personalizado, plantillas de rol"
+    },
+    {
+     "id": "carpetas",
+     "titulo": "La carpeta decide la política del equipo y quién lo administra",
+     "pagina": 10,
+     "temas": "carpetas, herencia, política por defecto, política global, subcarpeta, mover carpeta, marca de consola"
+    },
+    {
+     "id": "dispositivos",
+     "titulo": "La lista encuentra y agrupa equipos; la ficha concentra todo sobre uno",
+     "pagina": 12,
+     "temas": "dispositivos, lista, buscar, filtrar, columnas, exportar, mover a carpeta, cambiar política, eliminar dispositivo, ficha del dispositivo, pestañas"
+    },
+    {
+     "id": "politicas",
+     "titulo": "Una política reúne lo que el equipo debe tener y lo que no puede hacer",
+     "pagina": 14,
+     "temas": "políticas, configuraciones, crear política, copiar política, editor de política, cumplimiento, historial de cambios, asignar a carpetas"
+    },
+    {
+     "id": "aplicaciones",
+     "titulo": "La biblioteca guarda las aplicaciones; la política decide dónde se instalan",
+     "pagina": 16,
+     "temas": "aplicaciones, apps, biblioteca, subir APK, versiones, grupo de versiones, grupos de aplicaciones, desplegar, instalación en la flota, desinstalar, obtener APK"
+    },
+    {
+     "id": "quiosco",
+     "titulo": "El quiosco limita el equipo a las aplicaciones de trabajo",
+     "pagina": 19,
+     "temas": "quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo"
+    },
+    {
+     "id": "hardware",
+     "titulo": "La política controla radios, almacenamiento externo y capturas",
+     "pagina": 21,
+     "temas": "restricciones de hardware, cámara, USB, bluetooth, capturas de pantalla, compartir datos, puertos"
+    },
+    {
+     "id": "permisos-app",
+     "titulo": "Permisos de las aplicaciones",
+     "pagina": 21,
+     "temas": "permisos por app, permisos de aplicaciones, conceder permisos, ubicación, cámara"
+    },
+    {
+     "id": "wifi",
+     "titulo": "La política entrega las redes Wi-Fi y decide qué aplicaciones usan datos móviles",
+     "pagina": 22,
+     "temas": "Wi-Fi corporativo, redes Wi-Fi, SSID, WPA, datos móviles por app, lista negra, lista blanca, límite de datos, VPN local"
+    },
+    {
+     "id": "ubicacion",
+     "titulo": "El mapa muestra dónde está la flota; las geocercas avisan cuando un equipo cruza un límite",
+     "pagina": 23,
+     "temas": "ubicación, mapa, recorridos, geocercas, zonas, círculo, polígono, horario, precisión"
+    },
+    {
+     "id": "alertas",
+     "titulo": "Las alertas se revisan en la consola y, si hay correo configurado, llegan a los destinatarios",
+     "pagina": 25,
+     "temas": "alertas, correos, notificaciones por correo, desconexión, cambio de SIM, salida de kiosko, destinatarios, umbral de desconexión"
+    },
+    {
+     "id": "comandos",
+     "titulo": "Cada orden queda registrada con su estado, su autor y su tiempo de entrega",
+     "pagina": 27,
+     "temas": "comandos remotos, órdenes, bloquear, hacer sonar, alarma, mensaje, reiniciar, borrar, restablecer de fábrica, modo perdido, cancelar orden, estados de la orden, acciones masivas"
+    },
+    {
+     "id": "remoto",
+     "titulo": "La pestaña «Remoto» muestra la pantalla del equipo y permite manejarlo",
+     "pagina": 29,
+     "temas": "control remoto, ver pantalla, controlar, sesión remota, soporte remoto, voz, chat"
+    },
+    {
+     "id": "anuncios",
+     "titulo": "Un anuncio llega a muchos teléfonos; un script repite una secuencia de acciones",
+     "pagina": 30,
+     "temas": "anuncios, mensajes, obligatorio, opcional, video, imagen, confirmado, scripts, acción rápida"
+    },
+    {
+     "id": "reportes",
+     "titulo": "Cada reporte se consulta en pantalla, se exporta y se puede programar por correo",
+     "pagina": 32,
+     "temas": "reportes, inventario, exportar, Excel, CSV, envíos programados, programar reporte, latencia de comandos, sin conexión"
+    },
+    {
+     "id": "auditoria",
+     "titulo": "La auditoría responde quién hizo qué, cuándo y sobre qué equipo",
+     "pagina": 34,
+     "temas": "auditoría, registro de acciones, quién hizo qué, exportar auditoría, retención, integridad"
+    },
+    {
+     "id": "ajustes",
+     "titulo": "Ajustes reúne los parámetros generales y la actualización del agente",
+     "pagina": 35,
+     "temas": "ajustes, actualizar el agente, despliegue del agente, canario, actualizaciones, política global, apariencia"
+    }
+   ]
+  },
+  {
+   "id": "02-guia-enrolamiento",
+   "archivo": "02-guia-enrolamiento.pdf",
+   "titulo": "Guía de enrolamiento",
+   "descripcion": "Todos los métodos para inscribir un equipo Android, qué exige cada versión y qué hacer cuando la inscripción no termina.",
+   "publico": "Administradores de la consola y técnicos que preparan los equipos",
+   "paginas": 15,
+   "kb": 902,
+   "secciones": [
+    {
+     "id": "antes",
+     "titulo": "Todo método deja el equipo en el mismo modo: totalmente administrado",
+     "pagina": 3,
+     "temas": "requisitos, antes de empezar, device owner, cuentas, formatear, permiso inscribir"
+    },
+    {
+     "id": "qr",
+     "titulo": "El QR de la consola instala el agente y deja el equipo inscrito",
+     "pagina": 4,
+     "temas": "QR, escanear QR, equipo formateado, 6 toques, nuevo código, Wi-Fi en el QR, token"
+    },
+    {
+     "id": "codigos",
+     "titulo": "Un código de carpeta inscribe cualquier cantidad de equipos",
+     "pagina": 6,
+     "temas": "códigos de carpeta, código reutilizable, crear código, revocar código, QR impreso"
+    },
+    {
+     "id": "sin-formatear",
+     "titulo": "Un equipo en uso se inscribe sin borrar sus datos, con un computador",
+     "pagina": 7,
+     "temas": "sin formatear, inscriptor Windows, conservar datos, quitar cuentas, depuración USB, depuración inalámbrica"
+    },
+    {
+     "id": "usb",
+     "titulo": "El cable inscribe los equipos donde el QR no está disponible",
+     "pagina": 9,
+     "temas": "USB, cable, herramienta Windows, Android 6, Android 15, Android 16, Play Protect"
+    },
+    {
+     "id": "zero-touch",
+     "titulo": "La consola exporta la configuración que piden los portales de inscripción automática",
+     "pagina": 10,
+     "temas": "Zero-Touch, KME, Knox Mobile Enrollment, Samsung, revendedor, DPC extras, exportar JSON"
+    },
+    {
+     "id": "si-falla",
+     "titulo": "El panel «Intentos de inscripción» dice hasta dónde llegó cada teléfono",
+     "pagina": 11,
+     "temas": "QR no funciona, intentos de inscripción, motivos, no se puede configurar el dispositivo, fecha y hora, portal cautivo"
+    },
+    {
+     "id": "agente",
+     "titulo": "Un equipo administrado que no se inscribió se recupera sin formatear",
+     "pagina": 13,
+     "temas": "agente, escanear el QR de la consola, código de inscripción, equipo ya administrado, pantalla del agente"
+    },
+    {
+     "id": "frp",
+     "titulo": "Tras un restablecimiento, el equipo vuelve a su ficha y a su carpeta",
+     "pagina": 14,
+     "temas": "FRP, protección contra restablecimiento, cuenta de Google, reinscripción, reset, restablecer de fábrica, re-enrolamiento"
+    },
+    {
+     "id": "versiones",
+     "titulo": "El agente funciona desde Android 6; el QR, desde Android 7",
+     "pagina": 15,
+     "temas": "versiones de Android, requisitos por versión, qué se probó, emulador, teléfono físico, fabricantes"
+    }
+   ]
+  },
+  {
+   "id": "03-arquitectura-requisitos",
+   "archivo": "03-arquitectura-requisitos.pdf",
+   "titulo": "Arquitectura y requisitos técnicos",
+   "descripcion": "Qué componentes tiene el servicio, cómo se comunican con los equipos y qué deben cumplir la red, los dispositivos y el servidor.",
+   "publico": "Áreas de TI, redes y seguridad del cliente; equipo que opera el servidor",
+   "paginas": 12,
+   "kb": 431,
+   "secciones": [
+    {
+     "id": "componentes",
+     "titulo": "Tres piezas: un agente en cada equipo, un servidor y una consola web",
+     "pagina": 3,
+     "temas": "arquitectura, componentes, diagrama, servidor, agente, consola, base de datos, borde"
+    },
+    {
+     "id": "flujos",
+     "titulo": "El equipo siempre inicia la conexión; el servidor nunca lo busca",
+     "pagina": 4,
+     "temas": "flujos, check-in, reporte, canal en vivo, WebSocket, despertador, órdenes, comandos, instalación, política"
+    },
+    {
+     "id": "dispositivos",
+     "titulo": "Android 6 o superior, administrado como propietario del dispositivo",
+     "pagina": 6,
+     "temas": "requisitos de dispositivos, versiones de Android, Device Owner, propietario del dispositivo, compatibilidad"
+    },
+    {
+     "id": "red",
+     "titulo": "Un dominio, el puerto 443 y sin inspección del tráfico cifrado",
+     "pagina": 7,
+     "temas": "requisitos de red, firewall, puerto 443, dominio, WebSocket, inspección TLS, proxy, prueba de red, portal cautivo, DNS"
+    },
+    {
+     "id": "seguridad",
+     "titulo": "Cifrado en tránsito, identidad por equipo y registro de cada acción",
+     "pagina": 9,
+     "temas": "seguridad, cifrado, TLS, firma del agente, contraseñas, roles, auditoría, endurecimiento, sesiones"
+    },
+    {
+     "id": "dimensionamiento",
+     "titulo": "Un servidor pequeño atiende la flota actual; el tamaño final se mide en producción",
+     "pagina": 11,
+     "temas": "dimensionamiento, tamaño del servidor, memoria, disco, capacidad, flotas grandes"
+    }
+   ]
+  },
+  {
+   "id": "04-solucion-problemas",
+   "archivo": "04-solucion-problemas.pdf",
+   "titulo": "Solución de problemas",
+   "descripcion": "Por cada síntoma: la causa probable, cómo verificarla en la consola y cómo resolverla. Incluye preguntas frecuentes.",
+   "publico": "Administradores de la consola, mesa de ayuda y técnicos de campo",
+   "paginas": 16,
+   "kb": 774,
+   "secciones": [
+    {
+     "id": "diagnostico",
+     "titulo": "La ficha del equipo responde cuatro preguntas antes de cualquier cambio",
+     "pagina": 3,
+     "temas": "diagnóstico, por dónde empezar, última falla de conexión, eventos, estado de la política, historial de órdenes"
+    },
+    {
+     "id": "enrolamiento",
+     "titulo": "Si un equipo no se inscribe, el panel de intentos dice en qué paso se detuvo",
+     "pagina": 5,
+     "temas": "enrolamiento, inscripción, QR no funciona, intentos de inscripción, no aparece en la consola"
+    },
+    {
+     "id": "conexion",
+     "titulo": "«En reposo» es normal; «Sin conexión» pide revisar la red o el equipo",
+     "pagina": 6,
+     "temas": "sin conexión, en reposo, equipo no reporta, desconectado, apagado, ahorro de batería, siempre conectado"
+    },
+    {
+     "id": "ordenes",
+     "titulo": "Una orden en «Pendiente» espera al equipo; no hay que enviarla de nuevo",
+     "pagina": 7,
+     "temas": "comandos que no llegan, órdenes, pendiente, vencido, fallido, no soportado, cancelar, bloquear, reiniciar, borrar"
+    },
+    {
+     "id": "apps",
+     "titulo": "La ventana «Instalación en la flota» da el motivo de cada equipo",
+     "pagina": 8,
+     "temas": "instalación de apps, aplicaciones, fallida, retenida, motivo de fallo, firma, espacio, subida por partes, APK"
+    },
+    {
+     "id": "quiosco",
+     "titulo": "El quiosco sigue a la política; un cambio se confirma en la ficha del equipo",
+     "pagina": 10,
+     "temas": "quiosco, kiosco, no entra, no sale, contraseña de salida, se cerró varias veces, Android 16"
+    },
+    {
+     "id": "ubicacion",
+     "titulo": "Sin posiciones precisas no hay recorrido ni alertas de zona",
+     "pagina": 11,
+     "temas": "ubicación, geocercas, mapa, no reporta ubicación, alertas de zona, baja precisión"
+    },
+    {
+     "id": "remoto",
+     "titulo": "La pestaña «Remoto» indica qué le falta al equipo antes de iniciar",
+     "pagina": 12,
+     "temas": "control remoto, no conecta, solo ver, pantalla negra, sesión remota, accesibilidad, Xiaomi"
+    },
+    {
+     "id": "correo",
+     "titulo": "Sin servidor de correo configurado, las alertas se registran pero no se envían",
+     "pagina": 13,
+     "temas": "correo, SMTP, alertas por correo, no llegan correos, reportes programados, exportar, Excel, CSV"
+    },
+    {
+     "id": "consola",
+     "titulo": "Lo que un usuario no ve en el menú depende de su rol y de sus carpetas",
+     "pagina": 14,
+     "temas": "consola, inicio de sesión, contraseña, bloqueo de cuenta, permisos, no veo el menú, códigos de error"
+    },
+    {
+     "id": "faq",
+     "titulo": "Respuestas cortas a las dudas más comunes",
+     "pagina": 15,
+     "temas": "preguntas frecuentes, FAQ, dudas"
+    }
+   ]
+  },
+  {
    "id": "05-operacion-soporte-sla",
    "archivo": "05-operacion-soporte-sla.pdf",
    "titulo": "Operación, soporte y nivel de servicio",
@@ -95,6 +421,41 @@
      "titulo": "Verificar que el equipo quedó bien",
      "pagina": 2,
      "temas": "verificar, comprobar equipo, lista de comprobación, entrega"
+    }
+   ]
+  },
+  {
+   "id": "07-notas-de-version",
+   "archivo": "07-notas-de-version.pdf",
+   "titulo": "Notas de versión",
+   "descripcion": "Qué cambia en esta entrega frente a la evaluación, criterio por criterio, y con qué alcance se probó cada cambio.",
+   "publico": "Responsables de la evaluación del producto y administradores de la consola",
+   "paginas": 7,
+   "kb": 243,
+   "secciones": [
+    {
+     "id": "resumen",
+     "titulo": "Esta entrega trae cambios para los 17 criterios, probados en emulador",
+     "pagina": 2,
+     "temas": "resumen, qué cambia, entrega, novedades"
+    },
+    {
+     "id": "criterios-integrados",
+     "titulo": "Once criterios tienen cambios en la versión que se entrega",
+     "pagina": 3,
+     "temas": "criterios, MDM-01, MDM-02, MDM-04, MDM-05, MDM-07, MDM-09, MDM-11, MDM-14, MDM-15, MDM-16, MDM-17, integrado"
+    },
+    {
+     "id": "criterios-por-integrar",
+     "titulo": "Siete criterios tienen el desarrollo terminado y entran en la integración siguiente",
+     "pagina": 5,
+     "temas": "criterios, MDM-03, MDM-06, MDM-08, MDM-10, MDM-12, MDM-13, por integrar, pendiente"
+    },
+    {
+     "id": "alcance-pruebas",
+     "titulo": "Lo probado en emulador no reemplaza la prueba en los teléfonos de la flota",
+     "pagina": 7,
+     "temas": "alcance de las pruebas, emulador, teléfono físico, pendiente de validar, compatibilidad"
     }
    ]
   }

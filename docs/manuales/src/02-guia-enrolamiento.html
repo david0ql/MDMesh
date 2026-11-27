@@ -83,7 +83,7 @@
   <p class="k">3 · Códigos de carpeta</p>
   <h1>Un código de carpeta inscribe cualquier cantidad de equipos</h1>
   <p>Un código de carpeta es reutilizable y no vence: cada teléfono inscrito con él queda en esa carpeta y toma su política. Tiene la forma ABCD-EFGH. Sirve para inscribir lotes, para el QR impreso de una bodega y para los métodos con computador.</p>
-  <div class="fig">
+  <div class="fig m">
     <img src="img/e02-codigos-carpeta.jpg" alt="Pestaña Códigos de carpeta">
     <p class="cap">Figura 2. Pestaña «Códigos de carpeta». La columna «Teléfonos» cuenta los equipos inscritos con cada código.</p>
   </div>
@@ -95,7 +95,7 @@
     <li>Pulse <span class="ui">Crear código</span>. El código aparece en la tabla.</li>
   </ol>
   <h2>Usar el código</h2>
-  <table>
+  <table class="compact">
     <thead><tr><th style="width:44mm">Forma</th><th>Cómo</th></tr></thead>
     <tbody>
       <tr><td>QR en un equipo formateado</td><td>En la fila del código pulse <span class="ui">QR</span>. Siga los pasos del capítulo 2 con ese QR. Sirve para todos los teléfonos de la carpeta.</td></tr>
@@ -106,8 +106,7 @@
     </tbody>
   </table>
   <h2>Revocar un código</h2>
-  <p>Pulse <span class="ui">Revocar</span> en la fila y confirme. Los teléfonos ya inscritos se quedan; el código deja de funcionar para equipos nuevos. Un código revocado se puede quitar de la lista con <span class="ui">Eliminar</span>.</p>
-  <div class="callout"><b>Trate el código como una llave.</b> Quien lo tenga puede inscribir equipos en esa carpeta. Revóquelo cuando termine una jornada de inscripción con personal externo y cree otro para la siguiente.</div>
+  <p>Pulse <span class="ui">Revocar</span> en la fila y confirme. Los teléfonos ya inscritos se quedan; el código deja de funcionar para equipos nuevos. Un código revocado se puede quitar de la lista con <span class="ui">Eliminar</span>. Trate el código como una llave: quien lo tenga puede inscribir equipos en esa carpeta. Revóquelo al terminar una jornada con personal externo.</p>
 </section>
 
 <section class="sec pb" id="sin-formatear" data-temas="sin formatear, inscriptor Windows, conservar datos, quitar cuentas, depuración USB, depuración inalámbrica">
@@ -156,7 +155,7 @@
   <h1>El cable inscribe los equipos donde el QR no está disponible</h1>
   <p>Este método parte de un equipo formateado y usa un computador con Windows. Es la vía para Android 6, que no tiene lector de QR en la bienvenida, y para los modelos en que el QR falla.</p>
   <div class="callout"><b>Android 15 y 16.</b> La consola advierte que en estas versiones la protección de Google Play puede bloquear la instalación del agente por QR con el mensaje «Se produjo un error». Si ocurre, inscriba ese equipo por cable. El QR en Android 11 a 17 no quedó probado de punta a punta en emulador (capítulo 10).</div>
-  <div class="fig m">
+  <div class="fig s">
     <img src="img/e05-usb.jpg" alt="Pestaña Por cable (USB)">
     <p class="cap">Figura 4. Pestaña «Por cable (USB)» con el botón de descarga de la herramienta.</p>
   </div>
@@ -170,7 +169,7 @@
     <li>Verifique: en 1 o 2 minutos el equipo aparece en <span class="ui">Dispositivos</span>, en línea.</li>
   </ol>
   <h2>Si algo falla</h2>
-  <table>
+  <table class="compact">
     <thead><tr><th style="width:62mm">Mensaje</th><th>Qué hacer</th></tr></thead>
     <tbody>
       <tr><td>«no autorizado / unauthorized»</td><td>Acepte el permiso de depuración USB en el teléfono y ejecute de nuevo.</td></tr>
@@ -185,10 +184,6 @@
   <p class="k">6 · Zero-Touch y Samsung KME</p>
   <h1>La consola exporta la configuración que piden los portales de inscripción automática</h1>
   <p>Con Android Zero-Touch y con Samsung Knox Mobile Enrollment, un equipo comprado a un revendedor autorizado se inscribe solo al encenderse por primera vez. La consola entrega el texto de configuración que cada portal pide; el registro de los equipos lo hace el revendedor.</p>
-  <div class="fig m">
-    <img src="img/e03-zero-touch.jpg" alt="Ventana Configuración Zero-Touch / KME">
-    <p class="cap">Figura 5. Ventana «Configuración Zero‑Touch / KME» de un código de carpeta.</p>
-  </div>
   <h2>Android Zero-Touch</h2>
   <ol class="steps">
     <li>Cree un código de carpeta para los equipos (capítulo 3) y pulse <span class="ui">Zero‑Touch / KME</span> en su fila.</li>
@@ -215,7 +210,7 @@
   <p>Al pie de la pantalla <span class="ui">Inscribir</span>, el panel <span class="ui">Intentos de inscripción</span> muestra lo que el servidor vio de cada teléfono: la descarga del agente que dispara el QR y cada inscripción aceptada o rechazada, con su motivo. Se actualiza solo cada 10 segundos. La casilla <span class="ui">Solo con problemas</span> deja a la vista los que no terminaron.</p>
   <div class="fig">
     <img src="img/e06-intentos.jpg" alt="Panel Intentos de inscripción">
-    <p class="cap">Figura 6. Panel «Intentos de inscripción»: resultado, equipo, versión de Android, vía y carpeta de cada intento.</p>
+    <p class="cap">Figura 5. Panel «Intentos de inscripción»: resultado, equipo, versión de Android, vía y carpeta de cada intento.</p>
   </div>
   <div class="callout"><b>Regla práctica.</b> Si un teléfono escaneó el QR y en el panel no aparece ni la descarga, el problema está antes del servidor: Wi-Fi sin internet o con página de inicio de sesión, o fecha del teléfono incorrecta.</div>
 
@@ -300,7 +295,7 @@
   <h1>Tras un restablecimiento, el equipo vuelve a su ficha y a su carpeta</h1>
   <h2>Qué es la protección contra restablecimiento</h2>
   <p>Android protege un equipo restablecido con los botones físicos: al encender pide la cuenta de Google que tenía antes. Se conoce como FRP. Si esa cuenta no se conoce, el equipo no se puede usar ni inscribir. Ningún sistema de administración puede saltar esa pantalla.</p>
-  <table>
+  <table class="compact">
     <thead><tr><th style="width:60mm">Situación</th><th>Qué hacer</th></tr></thead>
     <tbody>
       <tr><td>Equipo usado que se va a inscribir</td><td>Quite todas las cuentas desde Ajustes antes de restablecerlo. Restablezca desde Ajustes, no con los botones.</td></tr>
@@ -317,7 +312,7 @@
   </ul>
   <p>Con esas cuentas definidas, un equipo robado y restablecido con los botones queda inservible para quien no tenga una de ellas, y la empresa lo recupera ingresando con la cuenta corporativa.</p>
   <p class="pend">Llega con la integración de protección y borrado remoto</p>
-  <p>La versión que se integra a continuación agrega cuentas de reactivación por empresa y por carpeta, el estado de la protección en la ficha de cada equipo, el modo perdido y opciones de borrado remoto. Este capítulo se ampliará entonces; ver el archivo de pendientes de los manuales.</p>
+  <p>La versión que se integra a continuación agrega cuentas de reactivación por empresa y por carpeta, el estado de la protección en la ficha de cada equipo, el modo perdido y opciones de borrado remoto. Este capítulo se ampliará entonces.</p>
 
   <h2>Reinscribir un equipo que ya estuvo inscrito</h2>
   <p>Inscriba el equipo con cualquiera de los métodos de esta guía. El servidor lo reconoce por su identificador de hardware, su serie o su IMEI, y reutiliza su ficha: conserva nombre, carpeta e historial. No aparece duplicado.</p>
@@ -332,7 +327,7 @@
 <section class="sec pb" id="versiones" data-temas="versiones de Android, requisitos por versión, qué se probó, emulador, teléfono físico, fabricantes">
   <p class="k">10 · Requisitos por versión de Android</p>
   <h1>El agente funciona desde Android 6; el QR, desde Android 7</h1>
-  <table>
+  <table class="compact">
     <thead><tr><th style="width:24mm">Android</th><th>Qué cambia en la inscripción</th></tr></thead>
     <tbody>
       <tr><td>6</td><td>Sin lector de QR en la bienvenida. Se inscribe por cable.</td></tr>
@@ -346,7 +341,7 @@
   </table>
 
   <h2>Qué se probó</h2>
-  <table>
+  <table class="compact">
     <thead><tr><th style="width:52mm">Prueba (27 de noviembre de 2026)</th><th style="width:38mm">Dónde</th><th>Resultado</th></tr></thead>
     <tbody>
       <tr><td>QR, Android 7.0 a 9</td><td>Emulador</td><td>Inscritos al primer intento, de 52 a 56 segundos después de quedar administrados.</td></tr>
