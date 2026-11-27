@@ -23,8 +23,8 @@ internal class PermissionGrants(private val context: Context, private val handle
     private val dpm: DevicePolicyManager get() = handle.dpm
     private val pm: PackageManager get() = context.packageManager
 
-    /** Runtime permissions exist since Android 6; fixing them needs Device Owner. */
-    fun usable(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && isOwner()
+    /** Fixing permissions needs Device Owner (runtime permissions exist on every Android this agent runs on). */
+    fun usable(): Boolean = isOwner()
 
     fun isOwner(): Boolean = runCatching { dpm.isDeviceOwnerApp(context.packageName) }.getOrDefault(false)
 

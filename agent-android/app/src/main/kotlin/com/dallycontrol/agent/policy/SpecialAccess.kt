@@ -1,5 +1,6 @@
 package com.dallycontrol.agent.policy
 
+import android.annotation.SuppressLint
 import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Context
@@ -95,6 +96,7 @@ internal class SpecialAccess(
     }
 
     /** The Android screen of [access] for the app, or null when this Android version has none. */
+    @SuppressLint("InlinedApi") // the actions are plain strings; each is only used on the versions that have it
     private fun screen(info: PackageInfo, access: String): Intent? {
         val uri = Uri.parse("package:${info.packageName}")
         val sdk = Build.VERSION.SDK_INT
@@ -115,6 +117,7 @@ internal class SpecialAccess(
     }
 
     /** Android's one-tap dialog when the app declares the request permission; else the list of apps. */
+    @SuppressLint("BatteryLife") // a managed device: the administrator asks for it, for an app of the policy
     private fun batteryScreen(info: PackageInfo, uri: Uri): Intent =
         if (REQUEST_IGNORE_BATTERY in info.requestedPermissions.orEmpty()) {
             Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, uri)
@@ -244,6 +247,6 @@ internal class SpecialAccess(
         const val WRITE_SETTINGS = "android.permission.WRITE_SETTINGS"
         const val REQUEST_INSTALL_PACKAGES = "android.permission.REQUEST_INSTALL_PACKAGES"
         const val ACCESSIBILITY_SERVICES = Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        const val DATA_SAVER_SCREEN = Settings.ACTION_IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS
+        const val DATA_SAVER_SCREEN = "android.settings.IGNORE_BACKGROUND_DATA_RESTRICTIONS_SETTINGS"
     }
 }

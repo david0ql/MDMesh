@@ -95,6 +95,11 @@ el usuario lo activa.
 - Apps que apuntan a Android 5.1 o anterior (targetSdk < 23) no tienen permisos de tiempo de ejecución: Android puede
   rechazar el cambio; el resultado lo dice («Android no dejó fijar: …») sin dar la política por fallida.
 - Los permisos «normales» (Internet, vibración…) y los de firma no se piden ni se conceden: los da la instalación.
+- Android 14 o superior recuerda un permiso fijado aunque la app se desinstale y lo vuelve a aplicar al reinstalarla
+  (el permiso llega concedido antes incluso de que el agente actúe). Por eso el agente conserva el registro de lo que
+  fijó: si la regla se quitó mientras la app no estaba, lo libera en cuanto la app vuelve.
+- Con «Conceder todo», lo que Android concede al pedirlo la app también queda marcado como fijado por política
+  (`POLICY_FIXED`): el usuario no puede retirarlo en Ajustes.
 
 ## 3. Inventario
 
