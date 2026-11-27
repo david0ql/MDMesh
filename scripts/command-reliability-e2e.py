@@ -25,7 +25,7 @@ Phases (each can be picked with --only):
 The database is touched only to move timestamps back (simulating elapsed time) and to simulate a lost answer; that
 needs the dev stack's postgres container. Exit code 0 only when every check passed.
 """
-import argparse, hashlib, http.cookiejar, json, subprocess, sys, time, urllib.request
+import argparse, hashlib, http.cookiejar, json, os, subprocess, sys, time, urllib.error, urllib.request
 
 P = argparse.ArgumentParser()
 P.add_argument("--api", default="http://localhost:8088")
@@ -50,10 +50,19 @@ HOUR = 3600_000
 
 def api(method, path, body=None, raw=False):
     data = None if body is None else json.dumps(body).encode()
-    req = urllib.request.Request(A.api + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    with OP.open(req, timeout=30) as r:
-        content = r.read()
-        return content if raw else json.loads(content or b"{}")
+    # A GET is retried on a gateway hiccup or a dropped connection (a loaded dev machine); a POST is not, so a
+    # command is never queued twice by the test itself.
+    for attempt in range(4):
+        req = urllib.request.Request(A.api + path, data=data, method=method, headers={"Content-Type": "application/json"})
+        try:
+            with OP.open(req, timeout=30) as r:
+                content = r.read()
+                return content if raw else json.loads(content or b"{}")
+        except (urllib.error.HTTPError, urllib.error.URLError, ConnectionError, TimeoutError) as e:
+            code = getattr(e, "code", None)
+            if method != "GET" or attempt == 3 or (code is not None and code not in (502, 503, 504)):
+                raise
+            time.sleep(1.5)
 
 
 def login():
@@ -234,8 +243,14 @@ def t_latency():
                "exec_p50_s": None if not total else percentile(total, 50) / 1000,
                "exec_p90_s": None if not total else percentile(total, 90) / 1000,
                "exec_max_s": None if not total else max(total) / 1000,
-               "console_wall_p90_s": round(percentile(wall, 90) / 1000, 2)}
+               # Seen from this script (queue + polling the history), not what the report shows.
+               "observed_by_test_p90_s": round(percentile(wall, 90) / 1000, 2),
+               # 1-minute load of the machine running the stack and the emulator: figures taken under a high
+               # load are not representative.
+               "host_load_1m": round(os.getloadavg()[0], 1)}
         FIGURES[type_] = fig
+        print(f"     [carga del equipo de pruebas: {fig['host_load_1m']}] (latencia medida por el servidor: "
+              "creado -> entregado -> completado)")
         print(f"     {label:20s} n={fig['n']}  entrega p50={fig['delivery_p50_s']}s p90={fig['delivery_p90_s']}s   "
               f"ejecución p50={fig['exec_p50_s']}s p90={fig['exec_p90_s']}s máx={fig['exec_max_s']}s", flush=True)
         check(f"{label}: {A.reps}/{A.reps} executed", bad == 0 and len(total) == A.reps, f"{bad} not done")
