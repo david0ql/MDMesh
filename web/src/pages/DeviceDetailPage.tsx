@@ -146,7 +146,9 @@ export function DeviceDetailPage() {
   const [cfgStatus, setCfgStatus] = useState<ConfigStatus | null>(null);
   // Installs of this device that are held back (not Device Owner…) or failed, with the reason.
   const [installProblems, setInstallProblems] = useState<DeviceInstallProblem[]>([]);
-  const [tab, setTab] = useState<Tab>('control');
+  // Links from alert e-mails and the Geocercas page open the map directly: /devices/<n>?tab=location
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(window.location.search).get('tab') === 'location' ? 'location' : 'control');
   const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
 

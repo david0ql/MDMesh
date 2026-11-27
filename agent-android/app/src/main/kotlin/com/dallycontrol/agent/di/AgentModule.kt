@@ -603,6 +603,7 @@ object AgentModule {
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
+        setLocationFixTimeout = location::setFixTimeoutSec,
     )
 
     @Provides

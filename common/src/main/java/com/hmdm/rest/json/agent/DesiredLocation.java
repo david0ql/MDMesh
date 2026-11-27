@@ -35,4 +35,6 @@ import lombok.Setter;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DesiredLocation {
     private String mode;
+    /** Seconds an active fix may wait for a fresh position; absent = the agent's default. Old agents ignore it. */
+    private Integer fixTimeoutSec;
 }

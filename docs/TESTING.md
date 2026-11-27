@@ -126,6 +126,34 @@ Android 6 has no remote view (droidVNC-NG needs Android 7).
 The native installer was verified separately on a root-only Debian 12 container (no sudo, no systemd):
 it installs, migrates, seeds, and the Agent v1 suite passes 56/56 against it.
 
+## Geofences, alert e-mails and location history ([GEOFENCES.md](GEOFENCES.md))
+
+```bash
+scripts/geofence-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]        # this script plays the device
+scripts/geofence-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <number> \
+                        [--mailpit http://localhost:8025]                                     # a real agent, moved with `adb emu geo fix`
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```
+
+- Simulated device: zones (circle, polygon, schedule), inside → outside → inside, a jumpy point, inaccurate points, a
+  batch of buffered positions sent out of order, the tracking interval a zone pushes into `config.apply`, the paginated
+  track and its CSV/Excel export, alert filter/review and, with `--mailpit`, the grouped e-mail.
+- Emulator: the agent takes a position every minute (the zone asks for it); the script moves the phone out and back,
+  then repeats the trip with Wi-Fi and data off so the positions arrive as one batch. Needs an API ≤ 29 AVD for the
+  whole trip (see the GNSS quirk above); `--first-fix-only` covers newer images.
+- Console (headless Chromium): draws a circle and a polygon on the map (click, drag the radius/centre/vertex handles,
+  remove and add vertices), saves, edits, deletes; recipients and thresholds tabs; the zone types in Alertas; the zones
+  on the fleet map and on the device's Ubicación tab with its history, accuracy and CSV download.
+
+### Results (2026-11-27, isolated dev stack + Mailpit, debug agent built from this branch)
+
+| Suite | Result |
+|---|---|
+| `geofence-e2e.py` (simulated device, with e-mail) | 73/73 |
+| `geofence-e2e.py --serial` on Android 10 (API 29, Google APIs image), with e-mail | 31/31 |
+| `geofence-console-e2e.mjs --device` | 35/35 |
+| server/common unit tests (geometry, hysteresis, schedule, e-mail debounce, scope filter) | all green |
+
 ## Security regression checks
 
 `scripts/security-check.sh [BASE_URL] [SERVER_URL]` re-checks the pre-launch hardening (docs/SECURITY-HARDENING.md)

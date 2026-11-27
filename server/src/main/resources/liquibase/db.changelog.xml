@@ -3461,4 +3461,98 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-geofences" author="dallycontrol">
+        <comment>Geofences (zones with enter/exit alerts): zones, their folder/device assignments, the per-device state
+                 machine, per-customer thresholds + location retention, and e-mail notification of fleet alerts
+                 (recipients per folder, per-recipient cursor for grouping/debounce). device_alert gains the zone.</comment>
+        <sql>
+            ALTER TABLE device_alert ADD COLUMN IF NOT EXISTS zoneId INT;
+
+            CREATE TABLE geofence (
+                id              SERIAL PRIMARY KEY,
+                customerId      INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name            VARCHAR(100) NOT NULL,
+                color           VARCHAR(16) NOT NULL DEFAULT '#2563eb',
+                shape           VARCHAR(16) NOT NULL,
+                centerLat       DOUBLE PRECISION,
+                centerLon       DOUBLE PRECISION,
+                radiusM         DOUBLE PRECISION,
+                polygon         TEXT,
+                rule            VARCHAR(16) NOT NULL DEFAULT 'stayInside',
+                active          BOOLEAN NOT NULL DEFAULT TRUE,
+                alertOnReturn   BOOLEAN NOT NULL DEFAULT TRUE,
+                allDevices      BOOLEAN NOT NULL DEFAULT FALSE,
+                schedule        TEXT,
+                emails          TEXT,
+                trackingMinutes INT,
+                createdAt       BIGINT NOT NULL,
+                updatedAt       BIGINT NOT NULL
+            );
+            CREATE INDEX geofence_customer_idx ON geofence (customerId);
+
+            CREATE TABLE geofence_group (
+                geofenceId INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                groupId    INT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                PRIMARY KEY (geofenceId, groupId)
+            );
+            CREATE TABLE geofence_device (
+                geofenceId INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                deviceId   INT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                PRIMARY KEY (geofenceId, deviceId)
+            );
+            CREATE INDEX geofence_device_dev_idx ON geofence_device (deviceId);
+
+            CREATE TABLE geofence_state (
+                geofenceId   INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                deviceNumber VARCHAR(255) NOT NULL,
+                state        VARCHAR(16) NOT NULL,
+                since        BIGINT NOT NULL DEFAULT 0,
+                pending      VARCHAR(16),
+                pendingCount INT NOT NULL DEFAULT 0,
+                pendingSince BIGINT NOT NULL DEFAULT 0,
+                alerted      BOOLEAN NOT NULL DEFAULT TRUE,
+                lastFixAt    BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (geofenceId, deviceNumber)
+            );
+            CREATE INDEX geofence_state_dev_idx ON geofence_state (deviceNumber);
+
+            CREATE TABLE geofence_settings (
+                customerId       INT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+                maxAccuracyM     INT NOT NULL DEFAULT 100,
+                hysteresisM      INT NOT NULL DEFAULT 15,
+                confirmFixes     INT NOT NULL DEFAULT 2,
+                retentionDays    INT NOT NULL DEFAULT 0,
+                emailIntervalMin INT NOT NULL DEFAULT 10
+            );
+
+            CREATE TABLE alert_recipient (
+                id         SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                groupId    INT REFERENCES groups(id) ON DELETE CASCADE,
+                emails     TEXT NOT NULL,
+                types      TEXT,
+                active     BOOLEAN NOT NULL DEFAULT TRUE
+            );
+            CREATE INDEX alert_recipient_customer_idx ON alert_recipient (customerId);
+
+            CREATE TABLE alert_email_state (
+                customerId  INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                email       VARCHAR(254) NOT NULL,
+                lastSentAt  BIGINT NOT NULL DEFAULT 0,
+                lastAlertId BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (customerId, email)
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS alert_email_state;
+            DROP TABLE IF EXISTS alert_recipient;
+            DROP TABLE IF EXISTS geofence_settings;
+            DROP TABLE IF EXISTS geofence_state;
+            DROP TABLE IF EXISTS geofence_device;
+            DROP TABLE IF EXISTS geofence_group;
+            DROP TABLE IF EXISTS geofence;
+            ALTER TABLE device_alert DROP COLUMN IF EXISTS zoneId;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

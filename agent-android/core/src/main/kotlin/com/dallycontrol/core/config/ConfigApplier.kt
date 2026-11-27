@@ -36,6 +36,8 @@ class ConfigApplier(
     private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     /** Apply (or clear, with null) the device security rules; returns a ConfigOutcome. Runs after the browser section. */
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
+    /** Seconds an active location fix may wait (null = the agent's default). */
+    private val setLocationFixTimeout: (Int?) -> Unit = {},
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -54,7 +56,11 @@ class ConfigApplier(
         val previous = store.load()
         applyKiosk(doc)?.let { outcomes["kiosk"] = it }
         doc.location?.let { loc ->
-            outcomes["location"] = runCatching { setLocationMode(loc.mode); ConfigOutcome.APPLIED }
+            outcomes["location"] = runCatching {
+                setLocationMode(loc.mode)
+                setLocationFixTimeout(loc.fixTimeoutSec)
+                ConfigOutcome.APPLIED
+            }
                 .getOrElse { ConfigOutcome.failed(it.message ?: "location mode") }
         }
         // Browser and app policy: a section that disappears is undone (lists cleared, apps unsuspended), since

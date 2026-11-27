@@ -29,5 +29,20 @@ class LocationModeStore @Inject constructor(@ApplicationContext context: Context
 
     fun isActive(): Boolean = get() == DeviceAction.LOCATION_ACTIVE
 
-    private companion object { const val KEY = "mode" }
+    /** Seconds an active fix may wait for a fresh position (5–60, default 25). */
+    fun fixTimeoutSec(): Int = FixPolicy.clampTimeout(prefs.getInt(KEY_TIMEOUT, FixPolicy.DEFAULT_TIMEOUT_SEC))
+
+    /** null restores the default. */
+    fun setFixTimeoutSec(seconds: Int?) {
+        if (seconds == null) {
+            prefs.edit().remove(KEY_TIMEOUT).apply()
+        } else {
+            prefs.edit().putInt(KEY_TIMEOUT, FixPolicy.clampTimeout(seconds)).apply()
+        }
+    }
+
+    private companion object {
+        const val KEY = "mode"
+        const val KEY_TIMEOUT = "fix_timeout_sec"
+    }
 }

@@ -45,6 +45,8 @@ public class DcPolicy {
     private Browser browser;
     private Apps apps;
     private Integer trackingMinutes;
+    /** Seconds an active ("precisa") location fix may wait for a fresh position (5–60); null = the agent's default (25). */
+    private Integer locationFixSeconds;
     /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth): on by default, false = off. */
     private Boolean kioskQuickSettings;
     /** Automatic device name: serial (default) / imei / model-serial / none. */
@@ -146,7 +148,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null;
+                && powerPin == null && device == null && locationFixSeconds == null;
     }
 
     private DcPolicy cleaned() {
@@ -177,6 +179,7 @@ public class DcPolicy {
             }
         }
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
+        if (locationFixSeconds != null && locationFixSeconds >= 5 && locationFixSeconds <= 60) c.locationFixSeconds = locationFixSeconds;
         c.kioskQuickSettings = Boolean.FALSE.equals(kioskQuickSettings) ? Boolean.FALSE : null; // on unless turned off
         c.deviceName = DeviceNaming.normalizeRule(deviceName);
         if (wifi != null) {

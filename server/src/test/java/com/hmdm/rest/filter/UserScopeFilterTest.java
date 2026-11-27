@@ -87,4 +87,23 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("DELETE", "/rest/private/reports/v1/schedules", 1));
         assertFalse(f.allowed("POST", "/rest/private/reports/v1/schedules/4/other", 1));
     }
+
+    /** Geofences: zones/recipients reach the resource (it scopes them); a device's track only for their devices. */
+    @Test
+    public void geofencesAreScoped() {
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/zones", 1));
+        assertTrue(f.allowed("POST", "/rest/private/geofences/v1/zones", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/geofences/v1/zones/4", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/states", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/mail", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/track", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/track/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/zones", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/track", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/track/export", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/zones", 1));
+        // Thresholds/retention and the test e-mail are for full administrators.
+        assertFalse(f.allowed("PUT", "/rest/private/geofences/v1/settings", 1));
+        assertFalse(f.allowed("POST", "/rest/private/geofences/v1/mail/test", 1));
+    }
 }

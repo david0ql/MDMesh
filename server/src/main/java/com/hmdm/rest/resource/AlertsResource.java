@@ -87,7 +87,7 @@ public class AlertsResource {
 
     // --- alert type ----------------------------------------------------------------------------------------------
 
-    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange"};
+    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter"};
 
     private static String typeLabel(String type) {
         if (type == null) return "";
@@ -95,6 +95,8 @@ public class AlertsResource {
             case "disconnected": return "Desconexión";
             case "kioskExit": return "Salida de kiosko";
             case "simChange": return "Cambio de SIM";
+            case "geofenceExit": return "Salida de zona";
+            case "geofenceEnter": return "Entrada a zona";
             default: return type;
         }
     }
@@ -129,7 +131,7 @@ public class AlertsResource {
     // --- read ----------------------------------------------------------------------------------------------------
 
     @ApiOperation(value = "Listar alertas",
-            notes = "?type=disconnected|kioskExit|simChange &from=&to= (epoch ms) &status=reviewed|pending &minutes=<umbral de desconexión>")
+            notes = "?type=disconnected|kioskExit|simChange|geofenceExit|geofenceEnter &from=&to= (epoch ms) &status=reviewed|pending &minutes=<umbral de desconexión>")
     @GET
     @Path("/list")
     @Produces(MediaType.APPLICATION_JSON)

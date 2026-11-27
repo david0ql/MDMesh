@@ -3,6 +3,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { LocationFix } from '../api/deviceLocations';
 import { escapeHtml } from '../ui/html';
+import type { Zone } from '../api/geofences';
+import { drawZones } from '../ui/zoneLayer';
 
 /** The fix at or before time [t] (binary search over an ASCENDING-by-time array). */
 function positionAt(chrono: LocationFix[], t: number): LocationFix | null {
@@ -21,22 +23,28 @@ function positionAt(chrono: LocationFix[], t: number): LocationFix | null {
  *
  * When [highlightAt] is set (the time slider), a big marker shows where the device was at that moment
  * (its last fix at or before it) and the map pans to it — same idea as the fleet map's time scrubber.
+ *
+ * [zones] (optional) are the geofences that apply to the device, drawn under the trail. The latest fix shows its
+ * accuracy as a translucent circle; fixes tagged lowAccuracy are drawn grey.
  */
-export function LocationMap({ fixes, highlightAt }: { fixes: LocationFix[]; highlightAt?: number }) {
+export function LocationMap({ fixes, highlightAt, zones }: { fixes: LocationFix[]; highlightAt?: number; zones?: Zone[] }) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const hlRef = useRef<L.LayerGroup | null>(null);
+  const zoneRef = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     const el = elRef.current;
     if (!el) return;
     if (!mapRef.current) {
-      mapRef.current = L.map(el, { worldCopyJump: true });
+      // Canvas: a long history is thousands of markers.
+      mapRef.current = L.map(el, { worldCopyJump: true, preferCanvas: true });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© colaboradores de OpenStreetMap',
       }).addTo(mapRef.current);
+      zoneRef.current = L.layerGroup().addTo(mapRef.current);
       layerRef.current = L.layerGroup().addTo(mapRef.current);
       hlRef.current = L.layerGroup().addTo(mapRef.current);
     }
@@ -44,19 +52,29 @@ export function LocationMap({ fixes, highlightAt }: { fixes: LocationFix[]; high
     const layer = layerRef.current!;
     layer.clearLayers();
 
+    const zoneBounds = zoneRef.current ? drawZones(zoneRef.current, zones ?? []) : null;
     if (!fixes.length) {
-      map.setView([20, 0], 2);
+      if (zoneBounds?.isValid()) map.fitBounds(zoneBounds, { padding: [24, 24], maxZoom: 17 });
+      else map.setView([20, 0], 2);
+      setTimeout(() => map.invalidateSize(), 0);
       return;
     }
     const chrono = [...fixes].reverse();
     const pts = chrono.map((f) => [f.lat, f.lon] as [number, number]);
     L.polyline(pts, { color: '#3b82f6', weight: 3, opacity: 0.65 }).addTo(layer);
+    // How precise the latest position is: a circle of its ± metres.
+    if (fixes[0].accuracy != null && Number(fixes[0].accuracy) > 0) {
+      L.circle([fixes[0].lat, fixes[0].lon], {
+        radius: Number(fixes[0].accuracy), color: '#16a34a', weight: 1, opacity: 0.6, fillOpacity: 0.08, interactive: false,
+      }).addTo(layer);
+    }
     fixes.forEach((f, i) => {
       const latest = i === 0;
+      const tone = latest ? '#16a34a' : f.lowAccuracy ? '#9ca3af' : '#3b82f6';
       L.circleMarker([f.lat, f.lon], {
         radius: latest ? 7 : 4,
-        color: latest ? '#16a34a' : '#3b82f6',
-        fillColor: latest ? '#16a34a' : '#3b82f6',
+        color: tone,
+        fillColor: tone,
         fillOpacity: latest ? 0.9 : 0.5,
         weight: latest ? 2 : 1,
       })
@@ -64,18 +82,20 @@ export function LocationMap({ fixes, highlightAt }: { fixes: LocationFix[]; high
           // Leaflet renders popup strings as HTML and the provider comes from the device: escape everything.
           escapeHtml(new Date(f.capturedAt).toLocaleString()) +
             (f.accuracy != null ? ` · ±${escapeHtml(Math.round(Number(f.accuracy)))} m` : '') +
-            (f.provider ? ` · ${escapeHtml(f.provider)}` : ''),
+            (f.provider ? ` · ${escapeHtml(f.provider)}` : '') +
+            (f.lowAccuracy ? ' · baja precisión' : ''),
         )
         .addTo(layer);
     });
     // Only auto-fit when the slider is not driving the view (otherwise it fights the pan-to).
     if (highlightAt == null) {
-      map.fitBounds(L.latLngBounds(pts), { padding: [24, 24], maxZoom: 17 });
+      const b = L.latLngBounds(pts);
+      map.fitBounds(zoneBounds?.isValid() ? b.extend(zoneBounds) : b, { padding: [24, 24], maxZoom: 17 });
     }
     // Container is often sized by layout after first paint; recompute so tiles fill it.
     setTimeout(() => map.invalidateSize(), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixes]);
+  }, [fixes, zones]);
 
   // Time-slider highlight: a big marker at the position for [highlightAt], and pan to it.
   useEffect(() => {

@@ -239,8 +239,13 @@ public class AgentCommandDAO {
      * inside the INSERT itself (single statement), so concurrent check-ins can't double-insert.
      */
     public void recordLocation(com.hmdm.persistence.domain.DeviceLocation location) {
+        recordLocationIfNew(location);
+    }
+
+    /** Same as {@link #recordLocation}; @return true when the fix was new and stored (geofences evaluate only those). */
+    public boolean recordLocationIfNew(com.hmdm.persistence.domain.DeviceLocation location) {
         location.setRecordedAt(System.currentTimeMillis());
-        deviceMapper.insertLocation(location);
+        return deviceMapper.insertLocation(location) > 0;
     }
 
     public java.util.List<com.hmdm.persistence.domain.DeviceLocation> listLocations(

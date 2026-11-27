@@ -108,7 +108,15 @@ public class UserScopeFilter implements Filter {
             new Rule("POST", "/fleet/v1/devices/refresh", null),
             new Rule("POST", "/reports/v1/schedules", null),
             new Rule("PUT DELETE", "/reports/v1/schedules/(\\d+)", null),
-            new Rule("POST", "/reports/v1/schedules/(\\d+)/send", null)
+            new Rule("POST", "/reports/v1/schedules/(\\d+)/send", null),
+            // Geofences: the resource shows a folder editor only the zones of their folders/devices and checks every
+            // folder/device a zone is assigned to; the track history is checked here against the device's folder.
+            new Rule("GET", "/geofences/v1/devices/([^/]+)/(track|track/export|zones)", "device"),
+            new Rule("GET POST", "/geofences/v1/zones", null),
+            new Rule("PUT DELETE", "/geofences/v1/zones/(\\d+)", null),
+            new Rule("GET", "/geofences/v1/(states|settings|mail)", null),
+            new Rule("GET POST", "/geofences/v1/recipients", null),
+            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null)
     );
 
     private final UserScope scope;
