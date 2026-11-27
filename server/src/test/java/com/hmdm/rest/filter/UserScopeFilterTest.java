@@ -31,6 +31,12 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("DELETE", "/rest/private/fleet/v1/groups/6", 1));
         assertFalse(f.allowed("POST", "/rest/private/fleet/v1/groups/6/commands", 1));
         assertTrue(f.allowed("GET", "/rest/private/fleet/v1/devices/7/scope", 1));
+        // Mobile data per app: a device's state and its override, only for devices of their folders.
+        assertTrue(f.allowed("GET", "/rest/private/agent/v1/devices/mine-1/mobileData", 1));
+        assertTrue(f.allowed("POST", "/rest/private/agent/v1/devices/mine-1/mobileData", 1));
+        assertFalse(f.allowed("GET", "/rest/private/agent/v1/devices/other-2/mobileData", 1));
+        assertFalse(f.allowed("POST", "/rest/private/agent/v1/devices/other-2/mobileData", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/data-limits", 1));
     }
 
     @Test

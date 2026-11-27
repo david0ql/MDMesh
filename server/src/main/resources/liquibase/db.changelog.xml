@@ -3764,4 +3764,19 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-mobile-data" author="dallycontrol">
+        <comment>Mobile data per app: a device's own override of its policy's mobile-data section (apps always allowed
+                 or blocked on that device, limits ignored, or no restriction at all). Removed with the device.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_mobile_data (
+                deviceId  INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                settings  TEXT NOT NULL,
+                updatedAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_mobile_data;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

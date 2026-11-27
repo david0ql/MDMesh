@@ -19,6 +19,7 @@ class MdmApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var connection: com.dallycontrol.core.net.ConnectionDiagnostics
+    @Inject lateinit var mobileData: dagger.Lazy<com.dallycontrol.agent.data.MobileDataEnforcer>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -49,5 +50,7 @@ class MdmApplication : Application(), Configuration.Provider {
         runCatching { com.dallycontrol.agent.provisioning.ProvisioningIntake.adoptPendingSoon(this) }
         // And if this phone is Device Owner with nothing to enroll with, say so instead of staying silent.
         runCatching { com.dallycontrol.agent.provisioning.EnrollPrompt.watch(this) }
+        // Mobile-data policy: resume the limits' clock and the network watch of the local VPN (no-op when not managed).
+        runCatching { mobileData.get().start() }
     }
 }

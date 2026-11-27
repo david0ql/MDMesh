@@ -3554,3 +3554,34 @@ a {
   display: inline-block; margin: 6px 0; padding: 3px 9px; border-radius: 999px;
   background: var(--alert); color: #fff; font-size: 12px; font-weight: 600;
 }
+/* Mobile data per app: device card (MobileDataCard) */
+.md-card { margin: 0 0 14px; padding: 14px 16px; }
+.md-card h4 { margin: 14px 0 6px; font-size: 13px; }
+.md-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 8px; }
+.md-head h3 { margin: 0; font-size: 15px; }
+.md-head .muted, .md-note { font-size: 12px; }
+.md-facts { display: grid; gap: 4px; margin: 0 0 10px; font-size: 13px; }
+.md-facts div { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 10px; }
+.md-facts dt { color: var(--muted); }
+.md-facts dd { margin: 0; overflow-wrap: anywhere; }
+.md-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.md-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); }
+.md-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.md-meter { height: 6px; margin-top: 5px; max-width: 320px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.md-fill { display: block; height: 100%; border-radius: 3px; background: var(--ok); }
+.md-fill.md-warn { background: var(--warn); }
+.md-fill.md-over { background: var(--danger); }
+.md-level { font-weight: 600; }
+.md-level.md-warn { color: var(--warn); }
+.md-level.md-over { color: var(--danger); }
+.md-level.md-none { color: var(--muted); font-weight: 400; }
+.md-blocked, .md-top { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.md-blocked li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 3px 0; overflow-wrap: anywhere; }
+.md-top li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; max-width: 420px; border-bottom: 1px solid var(--hairline); }
+.md-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.md-editor { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--border); display: grid; gap: 8px; max-width: 640px; }
+.md-editor p { margin: 0; font-size: 12px; }
+.md-radio { display: flex; align-items: flex-start; gap: 6px; font-size: 13px; }
+.md-field { display: grid; gap: 4px; font-size: 13px; }
+.md-field textarea { width: 100%; resize: vertical; }
+@media (max-width: 700px) { .md-facts div { grid-template-columns: minmax(0, 1fr); gap: 0; } }

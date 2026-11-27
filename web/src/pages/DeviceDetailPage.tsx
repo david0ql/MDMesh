@@ -12,6 +12,7 @@ import { ActionConsole } from '../components/ActionConsole';
 import { TelemetryCard } from '../components/TelemetryCard';
 import { DeviceHistory } from '../components/DeviceHistory';
 import { AppUsagePanel } from '../components/AppUsagePanel';
+import { MobileDataCard } from '../components/MobileDataCard';
 import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import { StoragePanel } from '../components/StoragePanel';
 import { UpdateTrail } from '../components/UpdateTrail';
@@ -525,6 +526,7 @@ export function DeviceDetailPage() {
               />
             )}
             {tab === 'history' && <DeviceHistory device={device} />}
+            {tab === 'usage' && <MobileDataCard device={device} />}
             {tab === 'usage' && <AppUsagePanel device={device} usageAccess={typeof dyn.usageAccess === 'boolean' ? dyn.usageAccess : undefined} />}
             {tab === 'storage' && <StoragePanel device={device} />}
             {tab === 'telemetry' && <TelemetryCard device={device} />}

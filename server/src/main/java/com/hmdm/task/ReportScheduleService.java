@@ -54,6 +54,7 @@ public class ReportScheduleService implements Runnable {
         REPORTS.put("data-usage", "Consumo de datos móviles");
         REPORTS.put("sim", "Retiro/cambio de SIM");
         REPORTS.put("decommissioned", "Equipos dados de baja");
+        REPORTS.put("data-limits", "Datos móviles: uso vs. límite");
     }
 
     private final ReportScheduleMapper mapper;

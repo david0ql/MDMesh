@@ -380,3 +380,55 @@ the dev server answered 502, and on the last Android 13 attempt the emulator's s
 token-replay and de-dup behaviour is covered at the API by `enroll_api_check.py` (24 checks), the agent's handling of
 each callback by unit tests; neither replaces the device run. The Windows enroller was run under PowerShell 7 on
 macOS with a simulated adb (`scripts/windows-enroller-sim.sh`), not on Windows PowerShell 5.1.
+## Mobile data per app ([DATOS-MOVILES.md](DATOS-MOVILES.md))
+
+`scripts/mobile-data-e2e.py` has two modes. Without a device it plays the phone over the Agent v1 API and checks the
+server: the policy's section in the device document (megabytes → bytes), the per-device override and its revision,
+the device card's "use against limit", limit events → alerts (not duplicated), the report "Datos móviles: uso vs.
+límite" with its CSV/Excel export, and with `--mailpit` the alert e-mail. With `--serial` it drives a real agent on an
+emulator, where `adb shell svc wifi disable` leaves the emulated (metered) cellular network: three test apps that make
+one HTTP request per launch (`scripts/build-netprobe-testapps.sh`), one blocked, one allowed, one essential.
+
+```bash
+scripts/mobile-data-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]
+
+scripts/build-netprobe-testapps.sh
+scripts/adb-enroll.sh --server http://10.0.2.2:8088 --api-url http://localhost:8088 --debug-build \
+    --apk agent-android/app/build/outputs/apk/debug/app-debug.apk --admin-user admin --serial emulator-5554
+scripts/mobile-data-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <device number>
+
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/mobile-data-console-e2e.mjs --api http://localhost:8088
+```
+
+The emulator run covers: nothing restricted → blocklist with the system restriction (`setMeteredDataDisabledPackages`:
+the blocked app fails on mobile data and works on Wi-Fi, the allowed app and the agent keep working, Wi-Fi ↔ mobile) →
+the same with the agent's local VPN forced (always-on VPN = the agent, no consent dialog, `no_config_vpn`, idle on
+Wi-Fi) → allowlist → per-device override (allow / block / unrestricted) → app limit (warning alert, then limit alert
+and automatic block; Wi-Fi still works; announced once per period) → device limit (every app but the essential one) →
+"ignore limits" on the device → section removed (no admin-restricted uid, no always-on VPN, VPN settings unlocked).
+It reads `dumpsys netpolicy`, `dumpsys device_policy` and `dumpsys connectivity` on the way.
+
+Emulator notes: a busy dev stack's Caddy can answer 502 while the agent enrolls and the agent then keeps retrying a
+used token; enrolling against Tomcat's own port (`DEV_API_PORT`) avoids it. `dumpsys device_policy` prints the
+metered-disabled list only on recent Android versions; `dumpsys netpolicy` ("Admin restricted uids for metered
+data") shows it on all of them. Newer images do not always rejoin "AndroidWifi" after `svc wifi enable`; the script
+asks for it (`cmd wifi connect-network AndroidWifi open`).
+
+### Results (2026-11-27, own stack + debug agent built from this branch)
+
+Machine under heavy load (load average 45+, a dozen stacks and five emulators), so the waits are long but nothing was
+timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over adb as Device Owner.
+
+| What | Result |
+|------|--------|
+| Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
+| Console in headless Chromium | 37/37 |
+| Emulator API 30 (Android 11) | 94/95 — the one miss was a check of this script (it looked for the metered list in `dumpsys device_policy`, which Android 11 does not print); fixed |
+| Emulator API 35 (Android 15) | 93/95 — both misses were checks of this script, not of the product: it read a stale state while the phone switched from the VPN to the system restriction, and it looked for `no_config_vpn` in `dumpsys device_policy`, where Android 15 keeps an empty entry after the restriction is lifted (`dumpsys user` showed it gone); both fixed |
+
+On both emulators, with both mechanisms: the blocked app failed on mobile data and worked on Wi-Fi, the allowed app
+and the agent's check-in kept working on mobile data, and switching Wi-Fi ↔ mobile changed the outcome each time. With
+the local VPN there was no consent dialog, `always_on_vpn_app` was the agent and it was removed when the policy was.
+The emulated cellular network is counted per app by `NetworkStatsManager`, so the limits ran for real: a 1.3 MB
+download against a 2 MB app limit with a 50 % threshold raised the warning, the next one the limit alert, and the app
+lost mobile data without the server telling it to.
