@@ -148,7 +148,8 @@ class SupportSessionManager @Inject constructor(
         val deviceId = identity.current()
         val secret = identity.secret()
         if (deviceId == null || secret == null) return "not enrolled"
-        if (sessionId == id && connection != null) return null // already dialling it (the wake and the command both name it)
+        // Already dialling it: the wake and the queued command both name the same session.
+        if (sessionId == id && connection != null) return null
         // A session is live: the one asked for replaces it only once the server has accepted it. A start command
         // that sat in the queue for a session long over (the phone was off) must not take a live session down.
         val candidate = sessionId != null && open
@@ -299,7 +300,9 @@ class SupportSessionManager @Inject constructor(
             "screen.stop" -> stopStream()
             "ack" -> m.int("seq")?.let { ackedSeq = it }
             "tap", "swipe", "key", "text", "wake" -> if (!viewOnly) {
-                inputExecutor.execute { runCatching { input(type, m) }.onFailure { Log.w(TAG, "input $type failed", it) } }
+                inputExecutor.execute {
+                    runCatching { input(type, m) }.onFailure { Log.w(TAG, "input $type failed", it) }
+                }
             }
             "chat" -> m.str("s")?.takeIf { it.isNotBlank() }?.let(::onChat)
             "call.start" -> onCallStart(m.bool("testTone") == true)

@@ -74,6 +74,7 @@ class SupportActivity : Activity() {
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
+    @Suppress("CyclomaticComplexMethod", "LongMethod") // one screen built top to bottom
     private fun build(): View {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -126,7 +127,8 @@ class SupportActivity : Activity() {
             // "Send" on the on-screen keyboard, or Enter on a physical one.
             setOnEditorActionListener { _, action, event ->
                 val enter = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER
-                val send = action == EditorInfo.IME_ACTION_SEND || (enter && event?.action == android.view.KeyEvent.ACTION_DOWN)
+                val down = event?.action == android.view.KeyEvent.ACTION_DOWN
+                val send = action == EditorInfo.IME_ACTION_SEND || (enter && down)
                 if (send) sendReply()
                 send || enter
             }
