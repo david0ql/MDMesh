@@ -327,7 +327,9 @@ def wait_enrolled(a, serial, payload):
 
 
 SLOTS = "/private/tmp/mdm-emu-slots"
-SLOT_PORT = {1: 5600, 2: 5610, 3: 5620}
+SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630}
+# QR_MATRIX_SLOTS=4 keeps a run on a reserved turn; the default is the three shared ones.
+SLOTS_USED = [int(x) for x in os.environ.get("QR_MATRIX_SLOTS", "1,2,3").split(",") if x.strip()]
 
 
 def take_slot(owner):
@@ -335,7 +337,8 @@ def take_slot(owner):
     if not os.path.isdir(SLOTS):
         return None, 5600
     while True:
-        for n, port in SLOT_PORT.items():
+        for n in SLOTS_USED:
+            port = SLOT_PORT[n]
             try:
                 os.mkdir(f"{SLOTS}/slot{n}")
             except OSError:

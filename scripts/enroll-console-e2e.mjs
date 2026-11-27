@@ -48,7 +48,10 @@ try {
   // --- the QR panel ---
   await page.goto(`${api}/enroll`);
   await page.waitForSelector('.qr-frame canvas', { timeout: 15000 });
-  check('the QR is drawn', await page.locator('.qr-frame canvas').count() === 1);
+  check('the QR is drawn', await page.locator('.qr-frame canvas').first().isVisible());
+  await page.click('[data-testid="agent-qr"] summary');
+  check('the short QR for a phone that is managed but not enrolled is offered', await page.locator('[data-testid="agent-qr"] canvas').isVisible()
+    && /Escanear el QR de la consola/.test(await page.locator('[data-testid="agent-qr"]').innerText()));
   const cap = await page.locator('.qr-cap').innerText();
   check('the caption says it carries the current time and when it expires', /lleva la hora actual/.test(cap) && /vence/.test(cap), cap);
   check('the status line waits for a phone', /Esperando a que un teléfono escanee/.test(await page.locator('[data-testid="qr-status"]').innerText()));
@@ -61,7 +64,7 @@ try {
   check('hidden network shows in the caption', /Bodega-Oculta”? \(oculta\)/.test(await page.locator('.qr-cap').innerText()), await page.locator('.qr-cap').innerText());
   await page.selectOption('.wifi-fields select:has(option[value="EAP"])', 'EAP');
   check('802.1X fields appear', await page.locator('text=Dominio del servidor RADIUS').count() === 1);
-  check('the QR is still drawn with every option on', await page.locator('.qr-frame canvas').count() === 1);
+  check('the QR is still drawn with every option on', await page.locator('.qr-frame canvas').first().isVisible());
   await page.screenshot({ path: `${shots}/enroll-qr.png`, fullPage: true });
 
   // --- a refused enroll made "by a phone" shows up in the attempts log, and in the QR's own status line ---
