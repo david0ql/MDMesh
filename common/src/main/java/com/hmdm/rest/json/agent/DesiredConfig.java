@@ -58,4 +58,11 @@ public class DesiredConfig {
     private DesiredSystemUpdate systemUpdate;
     /** Device security rules (data sharing, Google accounts, factory reset); null = none. */
     private DesiredDevice device;
+    /**
+     * Wi-Fi networks whose security an agent older than the Wi-Fi rework cannot save (WPA3, OWE, Enterprise): kept out
+     * of {@link #wifi} so those agents ignore them instead of saving a broken network.
+     */
+    private java.util.List<DesiredWifi> wifiAdvanced;
+    /** Wi-Fi lock-down rules; null = none. */
+    private com.hmdm.util.DcPolicy.WifiRules wifiRules;
 }

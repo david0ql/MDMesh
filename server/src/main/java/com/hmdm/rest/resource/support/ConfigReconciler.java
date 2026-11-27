@@ -33,9 +33,12 @@ public class ConfigReconciler {
     private final AgentCommandDAO commandDAO;
 
     private final PolicyApps policyApps;
+    private final WifiCertificateStore wifiCertificates;
 
     @Inject
-    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, PolicyApps policyApps) {
+    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, PolicyApps policyApps,
+                            WifiCertificateStore wifiCertificates) {
+        this.wifiCertificates = wifiCertificates;
         this.policyApps = policyApps;
         this.unsecureDAO = unsecureDAO;
         this.commandDAO = commandDAO;
@@ -54,7 +57,17 @@ public class ConfigReconciler {
         // Per-device "share data" override: when set it wins over the policy's device.tethering.
         String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
         DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
-        return withGeofenceTracking(device, doc);
+        return withWifiCertificates(cfg, withGeofenceTracking(device, doc));
+    }
+
+    /** Enterprise Wi-Fi: the certificates the policy's networks refer to travel inside the document. Never fails it. */
+    private DesiredConfig withWifiCertificates(Configuration cfg, DesiredConfig doc) {
+        try {
+            return wifiCertificates == null ? doc : wifiCertificates.inline(doc, cfg.getCustomerId());
+        } catch (Exception e) {
+            logger.warn("Wi-Fi certificates of configuration {} not attached: {}", cfg.getId(), e.getMessage());
+            return doc;
+        }
     }
 
     /**

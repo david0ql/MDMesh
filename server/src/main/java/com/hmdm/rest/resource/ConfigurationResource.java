@@ -186,9 +186,16 @@ public class ConfigurationResource {
             return Response.PERMISSION_DENIED();
         }
         try {
+            // Wi-Fi passwords never came back to the console: a network that says "keep it" gets the stored one.
+            configuration.setDcPolicy(com.hmdm.util.DcWifi.mergeSecrets(configuration.getDcPolicy(), storedPolicies(configuration.getId())));
             configuration.setDcPolicy(com.hmdm.util.DcPolicy.normalize(configuration.getDcPolicy()));
         } catch (IllegalArgumentException e) {
             return Response.ERROR("error.configuration.dcpolicy.invalid");
+        }
+        // A Wi-Fi policy that would leave the phones without a network (or join an enterprise one unverified) is refused.
+        String wifiError = com.hmdm.util.DcWifi.validate(com.hmdm.util.DcPolicy.parse(configuration.getDcPolicy()), configuration.getWifi());
+        if (wifiError != null) {
+            return Response.ERROR(com.hmdm.util.DcWifi.message(wifiError));
         }
         try {
             Configuration dbConfiguration = this.configurationDAO.getConfigurationByName(configuration.getName());
@@ -437,6 +444,25 @@ public class ConfigurationResource {
             log.warn("Failed to write configuration audit entry ({}) for configuration {}",
                     action, after != null ? after.getId() : (before != null ? before.getId() : null), e);
         }
+    }
+
+    /**
+     * The policies a save may take stored Wi-Fi passwords from: the one being replaced first, then (for a policy
+     * created from another in the console) the rest the user can see.
+     */
+    private List<String> storedPolicies(Integer id) {
+        List<String> out = new java.util.ArrayList<>();
+        try {
+            if (id != null && configurationDAO.hasConfigurationAccess(id)) {
+                Configuration own = configurationDAO.getConfigurationById(id);
+                if (own != null) out.add(own.getDcPolicy());
+            } else if (id == null) {
+                for (Configuration c : configurationDAO.getAllConfigurations()) out.add(c.getDcPolicy());
+            }
+        } catch (Exception e) {
+            log.warn("Stored Wi-Fi passwords not read for configuration {}: {}", id, e.getMessage());
+        }
+        return out;
     }
 
     /** The desired-config revision for a configuration, computed exactly as the drift check does (probe device). */

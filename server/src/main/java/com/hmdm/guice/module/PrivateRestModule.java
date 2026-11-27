@@ -68,5 +68,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.GeofenceResource.class);
         this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
         this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
+        // Certificates of enterprise Wi-Fi networks (uploaded sealed, sent to phones inside their policy).
+        this.bind(com.hmdm.rest.resource.WifiCertificateResource.class);
     }
 }
