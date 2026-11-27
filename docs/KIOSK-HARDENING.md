@@ -1,0 +1,146 @@
+# Quiosco sin vías de escape
+
+Cómo queda cerrado el modo quiosco de DallyControl (una app o varias), qué configuración se recomienda y cómo
+comprobar en un teléfono que no hay forma de salir a los Ajustes del sistema ni a apps que no son de trabajo.
+
+## Qué cierra el quiosco
+
+| Capa | Android 6 a 13 | Android 14 y 15 | Android 16 o superior |
+|---|---|---|---|
+| Bloqueo de tareas (lock task) | Sí | Sí | No se usa (ver «Por qué Android 16 es distinto») |
+| Pantalla de inicio propia y persistente | Sí | Sí | Sí |
+| Ajustes del sistema (`com.android.settings`) | **Suspendido** (Android 7+) | Android no deja suspenderlo: lock task **bloquea los inicios dentro de la tarea** (`LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK`) | Android no deja suspenderlo: **vigilante de primer plano** que devuelve al quiosco |
+| Buscador de Ajustes y demás apps de sistema que llevan a Ajustes | Suspendidos | Suspendidos | Suspendidos |
+| Todas las apps con ícono que no están en el quiosco, suspendidas | No hace falta (lock task) | No hace falta (lock task) | Sí |
+| Barra de estado / ajustes rápidos del sistema | Android los mantiene cerrados dentro de lock task | Igual | Deshabilitada, salvo «Notificaciones = Sí» |
+| Modo seguro bloqueado (`DISALLOW_SAFE_BOOT`) | Sí | Sí | Sí |
+| Crear usuarios / cambiar de usuario (`DISALLOW_ADD_USER`, `DISALLOW_USER_SWITCH`) | Sí | Sí | Sí |
+| Diálogos de «la app se detuvo» (su botón «Info de la app» abre Ajustes) | Bloqueados (Android 9+) | Bloqueados | Bloqueados |
+| Salida en el teléfono | Solo con contraseña, con límite de intentos | Igual | Igual |
+
+**El hueco que cierra esto.** Lock task solo impide abrir una pantalla en una tarea *nueva*. Una app permitida puede
+abrir la pantalla de otra app *dentro de su propia tarea* (p. ej. `startActivity(Settings.ACTION_WIFI_SETTINGS)`), y
+desde ahí navegar por todo Ajustes. Comprobado en emulador con Android 15 antes del cambio.
+
+- **Android 7 a 13:** Ajustes queda *suspendido*. Una app suspendida no la abre nadie: ni el usuario desde Recientes
+  o una notificación, ni el engranaje, ni otra app con un *intent*, ni `adb shell am start`.
+- **Android 14 y 15:** Android marca Ajustes como exento de suspensión (`OP_SYSTEM_EXEMPT_FROM_SUSPENSION`). Se usa
+  la opción de lock task que bloquea iniciar, dentro de la tarea de una app permitida, pantallas de apps que no están
+  en el quiosco. **Efecto colateral a validar con la app de trabajo:** si la app abre *dentro de su tarea* otra app
+  que no está en el quiosco (cámara por intent, selector de archivos, visor de PDF, Chrome), ahora se bloquea: hay que
+  agregar esa app al quiosco (puede quedar en «Ocultar del quiosco» para que no tenga ícono). El diálogo de permisos
+  de Android sigue funcionando.
+- **Android 16+:** sin lock task y sin poder suspender Ajustes, el agente vigila qué app está en primer plano (acceso
+  de uso, que da el enrolamiento por cable) y, si aparece Ajustes, vuelve al quiosco de inmediato y lo reporta
+  (`kioskEscapeBlocked`). Es una mitigación: la pantalla puede verse un instante. Sin acceso de uso el agente avisa
+  en el historial (`kioskLockdownGap … coveredBy=NONE`).
+
+*Ocultar* Ajustes (`setApplicationHidden`) no es una opción: en Ajustes vive la pantalla de inicio que Android usa
+mientras arranca; con Ajustes oculto el teléfono no termina de encender (comprobado en emulador con Android 15).
+
+El agente vuelve a aplicar todo esto en cada ciclo (cada check-in, al instalarse una app y al arrancar), así que una
+app instalada después o una restricción quitada por fuera se vuelve a cerrar sola. Al salir del quiosco (con la
+contraseña o desde la consola) se levanta únicamente lo que puso el quiosco.
+
+### Por qué Android 16 es distinto
+
+En Android 16 el bloqueo de tareas hace caer `system_server` (un `NullPointerException` de `LockTaskController` al
+animar la transición de la app fijada; confirmado en Samsung A17), y el teléfono entra en un ciclo de reinicios. No se
+puede atrapar desde una app, así que desde el agente 0.9.0 en Android 16+ **no se usa lock task** («quiosco suave»).
+Antes de este cambio eso dejaba la barra de estado visible por defecto: ajustes rápidos → engranaje → Ajustes. Ahora
+la barra queda deshabilitada por defecto y, aunque la política la habilite, Ajustes y las demás apps están
+suspendidos, de modo que el engranaje no lleva a ningún lado.
+
+Límites conocidos en Android 16+ (sin lock task no hay API para ello): el menú de apagado no se puede cerrar y los
+botones Inicio/Recientes no se pueden ocultar (Inicio vuelve al quiosco; Recientes solo puede abrir apps permitidas).
+
+## Salida del quiosco
+
+- Siempre pide la **contraseña de salida** de la política (7 toques en la esquina superior derecha, o el botón
+  «Salir del quiosco» si la política lo muestra). En una sola app, la esquina está en la pantalla del quiosco que
+  aparece al salir varias veces de la app («Abrir …»).
+- La consola no deja guardar un quiosco sin contraseña (mínimo 4 caracteres; botón **Generar**). Si una API guarda
+  una política de quiosco sin contraseña, el servidor genera una de 8 dígitos.
+- 2 errores libres; al tercero, espera de 30 s que se duplica con cada error (1 min, 2 min … máx. 30 min). Durante
+  la espera no se compara nada, ni la contraseña correcta. La espera sobrevive a un reinicio. La comparación es en
+  tiempo constante.
+- Cada intento llega al historial del equipo: `kioskExit` (salió), `kioskExitFailed` (contraseña incorrecta, con el
+  número de intento) y `kioskExitDenied` (rechazado: en espera o sin contraseña).
+- Un quiosco **sin contraseña** no tiene salida en el teléfono: solo desde la consola («Quitar quiosco»).
+- La clave antirrobo (apagar/reiniciar) usa el mismo límite de intentos (`powerPinFailed`).
+
+### Equipos y políticas que ya estaban en campo
+
+| Caso | Qué pasa al actualizar el servidor |
+|---|---|
+| Política de quiosco **con** contraseña | Nada cambia. |
+| Política de quiosco **sin** contraseña | La migración `26.11.27-kiosk-exit-password` le genera una de 8 dígitos (se ve en la política: Seguridad → «Contraseña de salida del quiosco» → **Ver**). El equipo sigue en su quiosco; desde el siguiente check-in los 7 toques piden esa contraseña. Antes salían sin preguntar. |
+| Agente antiguo (0.8.x–0.9.8) con quiosco sin contraseña que aún no se reaplica | Sigue como estaba hasta su siguiente check-in; entonces recibe la contraseña generada y la exige (los agentes antiguos ya comparaban la contraseña cuando había una). |
+| «Entrar en quiosco» personalizado enviado sin contraseña (API o consola antigua) | El servidor lo envía con salida «solo remoto»: el teléfono no muestra ninguna salida, en cualquier versión del agente. |
+| Agente nuevo con un quiosco guardado sin contraseña (antes de reaplicar) | No sale en el teléfono: muestra «solo se sale desde la consola» y lo reporta. |
+
+Ningún equipo sale del quiosco ni queda bloqueado por la actualización: las apps permitidas siguen abriendo y
+«Quitar quiosco» desde la consola funciona siempre.
+
+## Configuración recomendada
+
+Política → grupo **Quiosco** y **Seguridad**, y el panel de funciones del dispositivo:
+
+| Opción | Recomendado | Por qué / riesgo de cambiarlo |
+|---|---|---|
+| Modo quiosco | Sí, con App principal | Una app instalada = una sola app; varias apps o alguna función = pantalla de inicio con esas apps. |
+| Contraseña de salida del quiosco | Generada (8 dígitos) y distinta por política | Obligatoria. Quien la conoce saca el equipo del quiosco. |
+| Botón Salir del quiosco | Auto (oculto) | Visible invita a probar contraseñas (hay límite de intentos, pero no aporta nada al usuario). |
+| Botones Atrás e Inicio | Auto (visibles) | Sin riesgo: Inicio vuelve al quiosco. |
+| Botón Recientes | Auto, o «No» en una sola app | Solo abre apps permitidas. «No» evita la pantalla dividida. |
+| Notificaciones | Auto | Auto = barra permitida en Android ≤ 15 y cerrada en Android 16+. «Sí» en Android 16+ expone los ajustes rápidos del sistema (modo avión, Wi‑Fi, datos): no se llega a Ajustes, pero el usuario puede dejar el equipo sin conexión. «No» = cerrada siempre. |
+| Hora, batería y señal | Auto | Solo informativa. |
+| Bloquear botones físicos | Sí | Cierra el menú de apagado (Android 9 a 15). Sin esto se puede apagar/reiniciar (vuelve al quiosco). |
+| Antirrobo: clave para apagar | Una clave de 6+ dígitos | Apagar/reiniciar pide la clave; bloquea además el restablecimiento desde Ajustes. |
+| Restablecimiento de fábrica | Bloquear, con cuentas de reactivación | El borrado por botones (recovery) no lo impide ningún MDM; las cuentas de reactivación lo dejan inservible para un tercero. |
+| Depuración USB | Bloquear | Con cable y adb se pueden abrir pantallas o quitar apps. Al bloquear, soporte tampoco puede usar adb. |
+| Instalación de apps por el usuario | Bloquear | Solo la consola instala. |
+| Compartir datos | Bloquear si no se necesita | Permitido abre **solo** la pantalla de zona Wi‑Fi, sola en su tarea, 2 minutos como máximo y cerrada al volver al quiosco. |
+| Ajustes rápidos del quiosco | Sí | Panel propio (brillo, volumen, Wi‑Fi, Bluetooth): nunca abre los Ajustes del sistema. |
+| Política de apps | Solo apps permitidas + ocultar Play Store | Lo que no es de trabajo desaparece también fuera del quiosco. |
+
+Lo que ningún MDM puede impedir: el apagado forzado (mantener el botón ~10 s; al encender vuelve al quiosco) y el
+borrado desde recovery (mitigado con las cuentas de reactivación).
+
+## Lista de pruebas de escape (en el teléfono)
+
+Con el equipo en el quiosco de su política. Todo debe terminar **dentro** del quiosco.
+
+| # | Prueba | Resultado esperado |
+|---|---|---|
+| 1 | Deslizar desde arriba (barra de estado) y tocar el engranaje | Android ≤ 15: baja la barra, no hay ajustes rápidos del sistema ni engranaje. Android 16+: la barra no baja (o, con «Notificaciones = Sí», el engranaje no abre nada). |
+| 2 | Botón/gesto Inicio | Vuelve al quiosco (o a la app fijada). |
+| 3 | Botón/gesto Recientes; abrir lo que muestre | Solo apps permitidas; ninguna otra abre. |
+| 4 | Mantener el botón de encendido | Con «Bloquear botones» o antirrobo: no aparece el menú (Android 9–15). Sin eso: aparece; reiniciar vuelve al quiosco. |
+| 5 | Reiniciar | Enciende directo en el quiosco. |
+| 6 | Modo seguro (mantener «Apagar» en el menú, o volumen abajo durante el arranque) | No ofrece modo seguro; arranca normal, en el quiosco. |
+| 7 | Desde una app permitida, cualquier enlace a Ajustes (permisos, «Info de la app», Wi‑Fi…) | No abre Ajustes. |
+| 8 | `adb shell am start -a android.settings.SETTINGS` (si la depuración no está bloqueada) | No abre Ajustes. |
+| 9 | 7 toques en la esquina superior derecha, contraseña incorrecta 3 veces | No sale; al tercer error indica la espera; un 4.º intento ni pide contraseña. En la consola quedan los intentos. |
+| 10 | 7 toques con la contraseña correcta (pasada la espera) | Sale al inicio normal del teléfono; en la consola queda «Salió del quiosco». |
+| 11 | Quiosco sin contraseña (personalizado, «solo remoto») y 7 toques | No hay salida en el teléfono. |
+| 12 | «Compartir datos» → pantalla de zona Wi‑Fi → Atrás | Vuelve al quiosco; después Ajustes sigue sin abrir. |
+| 13 | Notificación de otra app / llamada entrante | Solo se atienden las de apps permitidas (la llamada, si la función Teléfono está permitida). |
+
+### Prueba automática
+
+`scripts/kiosk-escape-test.py` hace las pruebas 1–12 por adb contra un equipo o emulador enrolado, en una sola app y
+en varias apps, y deja la tabla de resultados:
+
+```bash
+scripts/build-escapeapp.sh                      # una vez: la «app de trabajo» de prueba
+scripts/adb-enroll.sh --serial emulator-5600 --server http://10.0.2.2:8088 --api-url http://localhost:8088 \
+    --admin-user admin --apk agent-android/app/build/outputs/apk/debug/app-debug.apk --debug-build
+scripts/kiosk-escape-test.py --serial emulator-5600 --device-id <id> --api http://localhost:8088 --reboot \
+    --summary /tmp/kiosk-api35.md
+```
+
+`--legacy-psql "<comando psql del stack>"` además envía el quiosco que mandaría un servidor antiguo (gesto, sin
+contraseña) para comprobar que el agente por sí solo se niega a salir.
+
+RESULTADOS_EMULADOR

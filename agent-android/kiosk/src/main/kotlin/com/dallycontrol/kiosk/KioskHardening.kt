@@ -22,6 +22,21 @@ object KioskHardening {
      */
     fun softKiosk(sdk: Int): Boolean = sdk >= SOFT_KIOSK_SDK
 
+    /** `DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` (API 30). */
+    const val LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK = 64
+
+    /** Android 14: Settings became exempt from suspension (`OP_SYSTEM_EXEMPT_FROM_SUSPENSION`). */
+    const val SETTINGS_UNSUSPENDABLE_SDK = 34
+
+    /**
+     * Lock task only stops an app from opening a screen in a NEW task; an allowed app can still start another app's
+     * screen inside its own task — e.g. Wi-Fi settings. Up to Android 13 the kiosk closes that by suspending Settings.
+     * Android 14+ refuses to suspend Settings (and hiding it instead leaves the phone without its boot-time home: it
+     * never finishes starting), so on Android 14/15 lock task itself is told to block in-task starts of anything
+     * that is not allowed in the kiosk. (Android 16+ has no lock task here: see [softKiosk].)
+     */
+    fun blockInTaskStarts(sdk: Int): Boolean = sdk >= SETTINGS_UNSUSPENDABLE_SDK && !softKiosk(sdk)
+
     /**
      * Soft kiosk only: whether the status bar (and with it the system quick settings and their gear to Settings) is
      * disabled. Closed unless the policy explicitly asks for it ([softStatusBar], which the server sends only for an

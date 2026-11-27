@@ -251,7 +251,14 @@ object AgentModule {
     @Singleton
     fun provideKioskController(handle: DpmHandle): KioskController =
         // droidVNC-NG stays startable in kiosk so remote support works on locked devices (ADR 0010).
-        LockTaskKioskController(handle.dpm, handle.admin, supportPackages = listOf(DroidVncController.PACKAGE))
+        // Android's permission dialog opens inside the asking app's task: it stays allowed, or — with in-task starts
+        // blocked on Android 14/15 (KioskHardening.blockInTaskStarts) — kiosk apps could not ask for permissions.
+        LockTaskKioskController(
+            handle.dpm, handle.admin,
+            supportPackages = listOf(
+                DroidVncController.PACKAGE, "com.google.android.permissioncontroller", "com.android.permissioncontroller",
+            ),
+        )
 
     @Provides
     @Singleton

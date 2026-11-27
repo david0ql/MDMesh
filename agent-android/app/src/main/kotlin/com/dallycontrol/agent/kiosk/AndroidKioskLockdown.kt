@@ -22,7 +22,9 @@ import com.dallycontrol.proto.KioskApplyPayload
  *
  *  - the kiosk user restrictions ([KioskHardening.restrictions]): no safe mode, no new users, no crash dialogs;
  *  - the system Settings app is suspended, so neither the quick-settings gear, nor a notification, nor an allowed
- *    app's intent can open it; on the soft kiosk every app outside the kiosk is suspended too;
+ *    app's intent can open it; on the soft kiosk every app outside the kiosk is suspended too. Android 14+ refuses to
+ *    suspend Settings: Android 14/15 block it through lock task instead ([KioskHardening.blockInTaskStarts]), and on
+ *    the soft kiosk [KioskForegroundGuard] sends the phone back to the kiosk the moment it shows up;
  *  - on the soft kiosk the status bar is disabled unless the policy explicitly allows notifications.
  *
  * Only what this class set is undone on [release] (kept in its own preferences), so restrictions owned by the
@@ -50,10 +52,20 @@ class AndroidKioskLockdown(
             runCatching { dpm.setStatusBarDisabled(admin, KioskHardening.statusBarDisabled(payload.features.softStatusBar)) }
         }
         if (sdk >= Build.VERSION_CODES.N) suspend(soft, allowed)
+        // Soft kiosk: what Android would not suspend (Settings, on Android 14+) is kept out of the foreground.
+        val open = prefs.getString(KEY_GAP, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        if (soft && open.isNotEmpty()) {
+            KioskForegroundGuard.start(context, open, { it in lifted }) { pkg ->
+                events.record(EventType.KIOSK_ESCAPE_BLOCKED, pkg)
+            }
+        } else {
+            KioskForegroundGuard.stop()
+        }
     }
 
     @Synchronized
     override fun release() {
+        KioskForegroundGuard.stop()
         prefs.edit().putBoolean(KEY_ENGAGED, false).apply()
         if (!dpm.isDeviceOwnerApp(context.packageName)) return
         val mine = prefs.getStringSet(KEY_RESTRICTIONS, emptySet()).orEmpty()
@@ -81,6 +93,7 @@ class AndroidKioskLockdown(
         if (added.isNotEmpty()) prefs.edit().putStringSet(KEY_RESTRICTIONS, mine + added).apply()
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.N)
     private fun suspend(soft: Boolean, allowed: List<String>) {
         val pm = context.packageManager
         val launchable = runCatching {
@@ -104,7 +117,15 @@ class AndroidKioskLockdown(
         val gap = failed.sorted().joinToString(",")
         if (gap != prefs.getString(KEY_GAP, "").orEmpty()) {
             prefs.edit().putString(KEY_GAP, gap).apply()
-            if (gap.isNotEmpty()) events.record(EventType.KIOSK_LOCKDOWN_GAP, "notSuspended=$gap")
+            if (gap.isNotEmpty()) {
+                val covered = when {
+                    KioskHardening.blockInTaskStarts(Build.VERSION.SDK_INT) -> "lockTask"
+                    soft && KioskForegroundGuard.canWatch(context) -> "guard"
+                    soft -> "NONE (grant usage access to the agent)"
+                    else -> "lockTask (new tasks only)"
+                }
+                events.record(EventType.KIOSK_LOCKDOWN_GAP, "notSuspended=$gap; coveredBy=$covered")
+            }
         }
     }
 
@@ -191,5 +212,77 @@ class AndroidKioskLockdown(
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             runCatching { dpm.setPackagesSuspended(AdminReceiver.componentName(context), arrayOf(pkg), true) }
         }
+    }
+}
+
+/**
+ * Soft kiosk (Android 16+, no lock task) only. Android will not let anyone suspend the system Settings there, and
+ * hiding it leaves the phone unable to finish booting, so this is the last line: while the screen is on it looks at
+ * which app is in front (usage access, granted by the cable enrollment) a few times a second and, when it is one the
+ * kiosk wanted closed, brings the kiosk home back at once and reports it. A mitigation, not a wall: the screen can
+ * show for a moment.
+ */
+internal object KioskForegroundGuard {
+    private const val PERIOD_MS = 350L
+    private const val LOOKBACK_MS = 4_000L
+    private const val REPORT_EVERY_MS = 60_000L
+    private var thread: android.os.HandlerThread? = null
+
+    fun canWatch(context: Context): Boolean = runCatching {
+        val ops = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        @Suppress("DEPRECATION")
+        ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName) ==
+            android.app.AppOpsManager.MODE_ALLOWED
+    }.getOrDefault(false)
+
+    @Synchronized
+    fun start(context: Context, closed: Set<String>, letThrough: (String) -> Boolean, onBlocked: (String) -> Unit) {
+        stop()
+        val app = context.applicationContext
+        val t = android.os.HandlerThread("kiosk-foreground-guard").also { it.start() }
+        thread = t
+        val handler = android.os.Handler(t.looper)
+        val usage = app.getSystemService(Context.USAGE_STATS_SERVICE) as? android.app.usage.UsageStatsManager ?: return
+        val power = app.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        var lastReport = 0L
+        handler.post(object : Runnable {
+            override fun run() {
+                if (thread !== t) return
+                runCatching {
+                    if (!power.isInteractive) return@runCatching
+                    val front = foreground(usage) ?: return@runCatching
+                    if (front !in closed || letThrough(front)) return@runCatching
+                    app.startActivity(
+                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastReport > REPORT_EVERY_MS || lastReport == 0L) {
+                        lastReport = now
+                        onBlocked(front)
+                    }
+                }
+                handler.postDelayed(this, PERIOD_MS)
+            }
+        })
+    }
+
+    @Synchronized
+    fun stop() {
+        thread?.quitSafely()
+        thread = null
+    }
+
+    /** The package whose screen was resumed last, or null when unknown (no usage access, nothing recent). */
+    private fun foreground(usage: android.app.usage.UsageStatsManager): String? {
+        val now = System.currentTimeMillis()
+        val events = usage.queryEvents(now - LOOKBACK_MS, now) ?: return null
+        val e = android.app.usage.UsageEvents.Event()
+        var front: String? = null
+        while (events.hasNextEvent()) {
+            events.getNextEvent(e)
+            @Suppress("DEPRECATION")
+            if (e.eventType == android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND) front = e.packageName
+        }
+        return front
     }
 }

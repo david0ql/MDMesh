@@ -77,6 +77,9 @@ object EventType {
     /** A wrong anti-theft (power) PIN. Same `detail` as [KIOSK_EXIT_FAILED]. */
     const val POWER_PIN_FAILED = "powerPinFailed"
 
-    /** Packages the kiosk wanted suspended but Android refused (`notSuspended=pkg[,pkg]`); emitted when it changes. */
+    /** Android 16+ kiosk: an app the kiosk keeps closed (`detail`: its package, Settings) came to the front and was sent back. */
+    const val KIOSK_ESCAPE_BLOCKED = "kioskEscapeBlocked"
+
+    /** Packages the kiosk wanted suspended but Android refused (`notSuspended=pkg[,pkg]; coveredBy=…`); emitted when it changes. */
     const val KIOSK_LOCKDOWN_GAP = "kioskLockdownGap"
 }

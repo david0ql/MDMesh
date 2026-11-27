@@ -16,6 +16,15 @@ class KioskHardeningTest {
     }
 
     @Test
+    fun `in-task starts are blocked by lock task exactly where Settings cannot be suspended - Android 14 and 15`() {
+        assertFalse(KioskHardening.blockInTaskStarts(28))
+        assertFalse(KioskHardening.blockInTaskStarts(33))
+        assertTrue(KioskHardening.blockInTaskStarts(34))
+        assertTrue(KioskHardening.blockInTaskStarts(35))
+        assertFalse("no lock task on the soft kiosk", KioskHardening.blockInTaskStarts(36))
+    }
+
+    @Test
     fun `soft kiosk closes the status bar unless the policy explicitly allows notifications`() {
         assertTrue(KioskHardening.statusBarDisabled(null))
         assertTrue(KioskHardening.statusBarDisabled(false))

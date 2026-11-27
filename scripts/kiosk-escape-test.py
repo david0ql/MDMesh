@@ -123,6 +123,7 @@ def events(types, since):
 
 # ---------------------------------------------------------------------------------------------- device helpers
 SDK = 0
+POWER_DETECTABLE = False  # whether this image shows the power menu to `input keyevent --longpress POWER` at all
 
 
 def top():
@@ -146,8 +147,16 @@ def settings_in_front():
 
 
 def suspended(pkg):
+    """Closed by the kiosk: suspended, or (Android 14+ will not suspend Settings) hidden."""
     out = sh(f"dumpsys package {pkg}")
-    return bool(re.search(r"User 0:.*suspended=true", out))
+    return bool(re.search(r"User 0:.*(suspended=true|hidden=true)", out))
+
+
+def restrictions():
+    """User restrictions in force (dumpsys user; the guest defaults listed there are not this user's)."""
+    out = sh("dumpsys user").split("Guest restrictions")[0]
+    found = set(re.findall(r"^\s+(no_\w+)\s*$", out, re.M))
+    return found or set(re.findall(r"no_\w+", sh("dumpsys device_policy")))
 
 
 def ui():
@@ -262,12 +271,18 @@ def t_state(mode):
         check("Android 16+: quiosco sin lock task (estado NONE)", lock_task() == "NONE", lock_task())
     else:
         check("lock task LOCKED", until(lambda: lock_task() == "LOCKED", 20), lock_task())
-    dp = sh("dumpsys device_policy")
+    dp = restrictions()
     for r in ["no_safe_boot", "no_add_user"] + (["no_user_switch", "no_system_error_dialogs"] if SDK >= 28 else []):
         check(f"restricción {r}", r in dp)
     check("modo seguro deshabilitado (safe_boot_disallowed=1)", sh("settings get global safe_boot_disallowed").strip() == "1")
-    if SDK >= 24:
+    if 24 <= SDK < 34:
         check("Ajustes (com.android.settings) suspendido", until(lambda: suspended("com.android.settings"), 15))
+    elif SDK < 36:
+        # Android 14+ does not let anyone suspend Settings: lock task blocks in-task starts instead (flag 64).
+        feats = lock_task_features()
+        check("Android 14/15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", feats >= 0 and feats & 64, f"mask={feats}")
+    else:
+        info("Android 16+", "Ajustes no se puede suspender ni hay lock task: lo devuelve el vigilante de primer plano (ver pruebas de intents)")
     check("la app de trabajo no está suspendida", not suspended(APP))
     want = APP if mode == "single" else A.pkg
     check("en primer plano: " + ("la app fijada" if mode == "single" else "el inicio del quiosco"),
@@ -314,10 +329,14 @@ def t_status_bar(mode):
     home()
 
 
+def in_kiosk_front():
+    """The pinned/allowed app or a kiosk screen (after several exits of a pinned app the kiosk shows "open <app>")."""
+    return top().startswith(APP + "/") or top().startswith(A.pkg + "/")
+
+
 def t_home_recents(mode):
     home()
-    want = APP if mode == "single" else A.pkg
-    check("Inicio: sigue en el quiosco", until(lambda: top().startswith(want + "/"), 10), top())
+    check("Inicio: sigue en el quiosco", until(in_kiosk_front, 10), top())
     sh("input keyevent KEYCODE_APP_SWITCH")
     time.sleep(2)
     t = top()
@@ -330,7 +349,7 @@ def t_home_recents(mode):
     check("Recientes → abrir tarjeta: sigue en apps permitidas",
           top().split("/")[0] in (APP, A.pkg, "android", "") or "launcher" in top().lower() or "systemui" in top(), top())
     home()
-    check("tras Recientes, Inicio vuelve al quiosco", until(lambda: top().startswith(want + "/"), 10), top())
+    check("tras Recientes, Inicio vuelve al quiosco", until(in_kiosk_front, 10), top())
 
 
 def power_menu_shown():
@@ -345,14 +364,36 @@ def power_menu_shown():
     return shown
 
 
+def lock_task_features():
+    """The lock-task feature mask in force (dumpsys activity lists it per user, by flag name or number)."""
+    out = sh("dumpsys activity activities") + sh("dumpsys activity lockTask 2>/dev/null")
+    m = re.search(r"mLockTaskFeatures=\{([^}]*)\}", out)
+    if not m:
+        return -1
+    body = m.group(1)
+    num = re.search(r"u0[:=]\s*(?:0x([0-9a-fA-F]+)|(\d+))", body) or re.search(r"=\s*(?:0x([0-9a-fA-F]+)|(\d+))", body)
+    if num:
+        return int(num.group(1), 16) if num.group(1) else int(num.group(2))
+    return -1
+
+
 def t_power(mode):
-    info("menú de encendido (por defecto)", "se abre" if power_menu_shown() else "no se abre")
+    shown = power_menu_shown()
+    info("menú de encendido (por defecto)", "se abre" if shown else "no se abre"
+         + ("" if POWER_DETECTABLE else " (en esta imagen tampoco se detecta fuera del quiosco: no concluyente)"))
     check("tras el menú de encendido sigue en el quiosco", not settings_in_front() and (lock_task() == "LOCKED" or SDK >= 36), lock_task())
     if 28 <= SDK < 36:
         s, d = enter(mode, lock_buttons=True)
         check("quiosco con «bloquear botones»: aplicado", s == "done", f"{s} {d}")
-        check("con «bloquear botones» el menú de encendido NO se abre", not power_menu_shown())
+        feats = lock_task_features()
+        check("con «bloquear botones» la política quita GLOBAL_ACTIONS (16) de lock task", feats >= 0 and feats & 16 == 0, f"mask={feats}")
+        if POWER_DETECTABLE:
+            check("con «bloquear botones» el menú de encendido NO se abre", not power_menu_shown())
+        else:
+            info("menú de encendido con «bloquear botones»", "no se abre (no concluyente en esta imagen; ver la máscara de lock task)")
         enter(mode)
+        feats = lock_task_features()
+        info("máscara de lock task por defecto", f"{feats} (16 = menú de encendido permitido)")
     else:
         info("menú de encendido bloqueable", "no en esta versión (Android < 9 o quiosco sin lock task)")
 
@@ -377,7 +418,7 @@ def t_tether(mode):
         check("Atrás desde zona Wi‑Fi vuelve al quiosco", kiosk_home_in_front(), top())
     home()
     time.sleep(1)
-    if SDK >= 24:
+    if 24 <= SDK < 34:
         check("al volver, Ajustes queda suspendido de nuevo", until(lambda: suspended("com.android.settings"), 10))
     sh("am start -a android.settings.SETTINGS")
     time.sleep(2)
@@ -402,7 +443,12 @@ def t_exit(mode):
     check("pasada la espera, la contraseña correcta saca del quiosco",
           msg == "" and until(lambda: lock_task() == "NONE" and not kiosk_home_in_front() and not top().startswith(APP + "/"), 20), msg or top())
     check("al salir: Ajustes deja de estar suspendido", until(lambda: not suspended("com.android.settings"), 15))
-    check("al salir: se levantan las restricciones del quiosco", "no_add_user" not in sh("dumpsys device_policy"))
+    sh("am start -a android.settings.SETTINGS")
+    check("al salir: Ajustes vuelve a abrir (el quiosco ya no lo bloquea)", until(settings_in_front, 10), top())
+    time.sleep(2)
+    check("…y se queda abierto (nada lo devuelve)", settings_in_front(), top())
+    sh("input keyevent KEYCODE_HOME")
+    check("al salir: se levantan las restricciones del quiosco", until(lambda: not ({"no_add_user", "no_safe_boot"} & restrictions()), 10), str(sorted(restrictions())))
     check("salida registrada en el servidor", until(lambda: events("kioskExit", since), 60, 3))
 
 
@@ -473,7 +519,7 @@ def t_reboot(mode):
 
 
 def main():
-    global SDK, MODE
+    global SDK, MODE, POWER_DETECTABLE
     md5 = hashlib.md5(A.admin_password.encode()).hexdigest().upper()
     if api("POST", "/rest/public/auth/login", {"login": A.admin_user, "password": md5}).get("status") != "OK":
         sys.exit("login failed")
@@ -485,6 +531,10 @@ def main():
     sh("settings put secure show_ime_with_hard_keyboard 1")
     sh("input keyevent KEYCODE_WAKEUP"); sh("wm dismiss-keyguard")
     modes = [m for m in A.modes.split(",") if m]
+    run("kiosk.exit", timeout=60)
+    time.sleep(2)
+    POWER_DETECTABLE = power_menu_shown()
+    print(f"   (menú de encendido detectable fuera del quiosco: {'sí' if POWER_DETECTABLE else 'no'})")
     try:
         for mode in modes:
             MODE = mode

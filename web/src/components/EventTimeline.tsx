@@ -25,6 +25,7 @@ const LABELS: Record<string, string> = {
   kioskExitFailed: 'Intento fallido de salir del quiosco (contraseña incorrecta)',
   kioskExitDenied: 'Intento de salir del quiosco rechazado (sin contraseña en la política o en espera)',
   powerPinFailed: 'Clave de apagado incorrecta',
+  kioskEscapeBlocked: 'Quiosco: se abrió Ajustes y se devolvió al quiosco (Android 16+)',
   kioskLockdownGap: 'Quiosco: Android no dejó bloquear algunas apps',
   accountRemoved: 'Cuenta de Google quitada (no es del dominio permitido)',
   recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
