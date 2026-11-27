@@ -14,10 +14,11 @@ import com.dallycontrol.policy.TogglePolicy
  * Two strategies implement it, chosen once by [WifiPolicyFactory]:
  *  - [ModernWifiPolicy] (API 30+): `setConfiguredNetworksLockdownState`, and on API 33+ the SSID policy, the minimum
  *    security level and the `DISALLOW_ADD_WIFI_CONFIG` / `DISALLOW_CHANGE_WIFI_STATE` restrictions;
- *  - [LegacyWifiPolicy] (API 23–29): `DISALLOW_CONFIG_WIFI` and the `wifi_device_owner_configs_lockdown` global setting.
+ *  - [LegacyWifiPolicy] (API 23–29): `DISALLOW_CONFIG_WIFI` and the `wifi_device_owner_configs_lockdown` global
+ *    setting.
  *
- * A rule the running Android version lacks answers [PolicyOutcome.Unsupported] — never a silent no-op — so the agent
- * can report it.
+ * A rule the running Android version lacks answers [PolicyOutcome.Unsupported] — never a silent no-op — so the
+ * agent can report it.
  */
 interface WifiPolicy : TogglePolicy {
 
@@ -42,7 +43,7 @@ interface WifiPolicy : TogglePolicy {
     /** Only [ssids] may be joined ([SsidMode.ALLOW]), or none of them ([SsidMode.DENY]); null lifts it. API 33+. */
     fun setSsidRestriction(mode: SsidMode?, ssids: Set<String>): PolicyOutcome
 
-    /** Minimum security of any network the phone joins: 0 open (none), 1 personal, 2 enterprise, 3 enterprise 192-bit. API 33+. */
+    /** Minimum security of any network the phone joins: 0 open, 1 personal, 2 enterprise, 3 enterprise 192-bit. API 33+. */
     fun setMinimumSecurity(level: Int): PolicyOutcome
 
     enum class SsidMode { ALLOW, DENY }

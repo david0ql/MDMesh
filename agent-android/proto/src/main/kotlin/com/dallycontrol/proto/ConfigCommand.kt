@@ -33,7 +33,7 @@ data class ConfigApplyPayload(
     val device: ConfigDevice? = null,
     /**
      * Wi-Fi networks with a security older agents cannot save (WPA3, OWE, Enterprise). Kept apart from [wifi] so an
-     * agent that predates them simply ignores the list instead of saving a broken network. Managed together with [wifi].
+     * agent that predates them simply ignores the list instead of saving a broken network. Managed with [wifi].
      */
     val wifiAdvanced: List<ConfigWifi>? = null,
     /** Wi-Fi lock-down rules (absent = none): what the user may change and which networks the phone may join. */
@@ -111,8 +111,9 @@ data class ConfigWifiIp(
  * Enterprise (802.1X) parameters. [method]: `PEAP`, `TTLS` or `TLS`; [phase2]: `MSCHAPV2`, `PAP`, `GTC` or absent.
  * [caCerts]: the server's CA chain, each one base64 DER. [clientKey]: the client's private key (base64 PKCS#8, of
  * [clientKeyAlgorithm] `RSA` or `EC`) and [clientChain] its certificate chain (base64 DER, leaf first), for `TLS` —
- * the server opens the uploaded PKCS#12, so the phone never needs its password. [domain] is the server certificate's domain suffix; [altSubjectMatch] the
- * alternative-subject match — one of them plus a CA is what makes the connection safe against a rogue access point.
+ * the server opens the uploaded PKCS#12, so the phone never needs its password. [domain] is the server certificate's
+ * domain suffix; [altSubjectMatch] the alternative-subject match — one of them plus a CA is what makes the connection
+ * safe against a rogue access point.
  */
 @Serializable
 data class ConfigWifiEap(

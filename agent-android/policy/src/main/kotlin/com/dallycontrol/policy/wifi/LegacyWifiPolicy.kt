@@ -27,7 +27,8 @@ internal open class LegacyWifiPolicy(
         }.getOrElse { PolicyOutcome.Failed(it.message ?: "wifi radio") }
     }
 
-    override fun setUserChangesBlocked(blocked: Boolean): PolicyOutcome = restriction(UserManager.DISALLOW_CONFIG_WIFI, blocked)
+    override fun setUserChangesBlocked(blocked: Boolean): PolicyOutcome =
+        restriction(UserManager.DISALLOW_CONFIG_WIFI, blocked)
 
     override fun setManagedNetworksLocked(locked: Boolean): PolicyOutcome = runCatching {
         handle.dpm.setGlobalSetting(handle.admin, LOCKDOWN_SETTING, if (locked) "1" else "0")
@@ -38,7 +39,8 @@ internal open class LegacyWifiPolicy(
 
     override fun setStateChangeBlocked(blocked: Boolean): PolicyOutcome = PolicyOutcome.Unsupported
 
-    override fun setSsidRestriction(mode: WifiPolicy.SsidMode?, ssids: Set<String>): PolicyOutcome = PolicyOutcome.Unsupported
+    override fun setSsidRestriction(mode: WifiPolicy.SsidMode?, ssids: Set<String>): PolicyOutcome =
+        PolicyOutcome.Unsupported
 
     override fun setMinimumSecurity(level: Int): PolicyOutcome = PolicyOutcome.Unsupported
 

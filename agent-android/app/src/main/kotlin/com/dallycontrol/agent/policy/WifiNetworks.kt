@@ -7,6 +7,7 @@ import android.net.LinkAddress
 import android.net.ProxyInfo
 import android.net.StaticIpConfiguration
 import android.net.Uri
+import android.net.wifi.SupplicantState
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiEnterpriseConfig
 import android.net.wifi.WifiManager
@@ -25,20 +26,22 @@ import java.net.InetAddress
  * Wi-Fi (networks pushed from the console).
  *
  * Which Android API is used, by version (docs/WIFI.md has the full table):
- *  - **Device Owner / Profile Owner, every version** → `WifiConfiguration` + `WifiManager.addNetwork`. It is deprecated
- *    for ordinary apps since Android 10, but it is the only API that saves a network silently, lets the owner remove
- *    it, and that the lock-down (`setConfiguredNetworksLockdownState`) protects. API 30+ selects the security with
+ *  - **Device Owner / Profile Owner, every version** → `WifiConfiguration` + `WifiManager.addNetwork`. Deprecated for
+ *    ordinary apps since Android 10, but it is the only API that saves a network silently, lets the owner remove it,
+ *    and that the lock-down (`setConfiguredNetworksLockdownState`) protects. API 30+ selects the security with
  *    `setSecurityParams`; API 29 with `KeyMgmt.SAE` / `KeyMgmt.OWE`; older versions only know open, WEP, PSK and EAP.
  *  - **Not an owner, Android 10+** → `WifiNetworkSuggestion` ([suggest]): the user approves once and the system joins
  *    on its own; the network cannot be locked and the user's own networks are untouched.
  *  - Enterprise networks use `WifiEnterpriseConfig` in both paths.
  *
  * Options without a public API on the running version are attempted (some are reachable only through fields the
- * platform hides) and, when Android refuses, reported in [Saved.unsupportedOptions] — the network is saved without them.
+ * platform hides) and, when Android refuses, reported in [Saved.unsupportedOptions] — the network is saved without
+ * them.
  */
 @Suppress("DEPRECATION", "TooManyFunctions")
 class WifiNetworks(private val context: Context) {
-    private val wifi: WifiManager get() = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private val wifi: WifiManager
+        get() = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
 
     /** [netId] < 0 = not saved, with [error]; [certificateProblem] = the reason is one of its certificates. */
     data class Saved(
@@ -49,7 +52,13 @@ class WifiNetworks(private val context: Context) {
     )
 
     /** @param security `WPA` (WPA/WPA2-PSK), `WEP` or `NONE`. @return null when saved (and joined when [connect]). */
-    fun add(ssid: String, password: String?, security: String, hidden: Boolean = false, connect: Boolean = true): String? =
+    fun add(
+        ssid: String,
+        password: String?,
+        security: String,
+        hidden: Boolean = false,
+        connect: Boolean = true,
+    ): String? =
         save(ConfigWifi(ssid = ssid, password = password, security = security, hidden = hidden), null, connect).error
 
     /**
@@ -59,6 +68,7 @@ class WifiNetworks(private val context: Context) {
      * @param connect join it now. @param mayEnableRadio switch Wi-Fi on first (false when the policy forces it off).
      */
     @SuppressLint("MissingPermission")
+    @Suppress("ReturnCount")
     fun save(net: ConfigWifi, certs: WifiCertificates?, connect: Boolean, mayEnableRadio: Boolean = true): Saved {
         if (net.ssid.isBlank()) return Saved(-1, "empty SSID")
         if (mayEnableRadio && !wifi.isWifiEnabled) runCatching { wifi.isWifiEnabled = true }
@@ -103,16 +113,24 @@ class WifiNetworks(private val context: Context) {
         else -> false
     }
 
-    /** The owner's WifiConfiguration for [net]. Options in [skip] are left out; the ones Android lacks land in [dropped]. */
+    /** The owner's WifiConfiguration for [net]. Options in [skip] are left out; unsupported ones land in [dropped]. */
     @Suppress("CyclomaticComplexMethod")
-    private fun build(net: ConfigWifi, certs: WifiCertificates?, skip: Set<String>, dropped: MutableList<String>): WifiConfiguration {
+    @SuppressLint("InlinedApi") // SECURITY_TYPE_* are compile-time ints; they only reach setSecurityParams on API 30+
+    private fun build(
+        net: ConfigWifi,
+        certs: WifiCertificates?,
+        skip: Set<String>,
+        dropped: MutableList<String>,
+    ): WifiConfiguration {
         val sec = WifiSecurity.normalize(net.security)
         val conf = WifiConfiguration()
         conf.SSID = quote(net.ssid)
         conf.hiddenSSID = net.hidden == true
         net.priority?.let { conf.priority = it.coerceIn(0, MAX_PRIORITY) } // read by Android 7 and older only
         when (sec) {
-            WifiSecurity.NONE -> security(conf, WifiConfiguration.SECURITY_TYPE_OPEN) { allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE) }
+            WifiSecurity.NONE -> security(conf, WifiConfiguration.SECURITY_TYPE_OPEN) {
+                allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
+            }
             WifiSecurity.OWE -> security(conf, WifiConfiguration.SECURITY_TYPE_OWE) {
                 if (Build.VERSION.SDK_INT >= 29) allowedKeyManagement.set(WifiConfiguration.KeyMgmt.OWE)
                 requirePmf(this)
@@ -143,19 +161,23 @@ class WifiNetworks(private val context: Context) {
                     allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP)
                     allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X)
                 }
-                conf.enterpriseConfig = enterprise(net.eap ?: throw IllegalArgumentException("no EAP parameters"), certs)
+                conf.enterpriseConfig = enterprise(requireNotNull(net.eap) { "no EAP parameters" }, certs)
             }
             // WPA and WPA3_TRANSITION: a PSK network. On Android 12+ the system adds SAE to it on its own and uses
             // WPA3 whenever the access point offers it; before that it joins the WPA2 half of the mixed network.
             else -> {
-                security(conf, WifiConfiguration.SECURITY_TYPE_PSK) { allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK) }
+                security(conf, WifiConfiguration.SECURITY_TYPE_PSK) {
+                    allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
+                }
                 conf.preSharedKey = key(net.password, PSK_HEX)
             }
         }
         net.proxy?.takeIf { "proxy" !in skip }?.let { if (!proxy(conf, it)) dropped += "proxy" }
         net.ip?.takeIf { "staticIp" !in skip }?.let { if (!staticIp(conf, it)) dropped += "staticIp" }
         net.mac?.takeIf { "mac" !in skip }?.let { if (!mac(conf, it.lowercase() == "random")) dropped += "mac" }
-        net.metered?.takeIf { "metered" !in skip }?.let { if (!metered(conf, it.lowercase() == "metered")) dropped += "metered" }
+        net.metered?.takeIf { "metered" !in skip }?.let {
+            if (!metered(conf, it.lowercase() == "metered")) dropped += "metered"
+        }
         return conf
     }
 
@@ -164,7 +186,7 @@ class WifiNetworks(private val context: Context) {
         if (Build.VERSION.SDK_INT >= 30) conf.setSecurityParams(type) else conf.legacy()
     }
 
-    /** Protected management frames, mandatory for SAE and OWE; a hidden field on Android 10 (`setSecurityParams` sets it later). */
+    /** Protected management frames, mandatory for SAE and OWE: a hidden field on Android 10 (automatic later). */
     @SuppressLint("PrivateApi", "DiscouragedPrivateApi", "SoonBlockedPrivateApi", "BlockedPrivateApi")
     private fun requirePmf(conf: WifiConfiguration) {
         for (name in arrayOf("requirePmf", "requirePMF")) {
@@ -172,6 +194,7 @@ class WifiNetworks(private val context: Context) {
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     private fun enterprise(eap: ConfigWifiEap, certs: WifiCertificates?): WifiEnterpriseConfig {
         val store = certs ?: throw WifiCertificateException("certificates cannot be installed here")
         val method = eap.method.trim().uppercase()
@@ -193,7 +216,11 @@ class WifiNetworks(private val context: Context) {
         if (method != "TLS") eap.password?.let { e.password = it }
         val authorities = store.authorities(eap.caCerts)
         if (authorities.isNotEmpty()) {
-            if (Build.VERSION.SDK_INT >= 24) e.caCertificates = authorities.toTypedArray() else e.caCertificate = authorities.first()
+            if (Build.VERSION.SDK_INT >= 24) {
+                e.caCertificates = authorities.toTypedArray()
+            } else {
+                e.caCertificate = authorities.first()
+            }
         }
         eap.domain?.takeIf { it.isNotBlank() }?.let { e.domainSuffixMatch = it.trim() }
         eap.altSubjectMatch?.takeIf { it.isNotBlank() }?.let { e.altSubjectMatch = it.trim() }
@@ -203,10 +230,11 @@ class WifiNetworks(private val context: Context) {
                 when {
                     // Android 12+: the Wi-Fi stack uses the key inside the keystore, by alias.
                     Build.VERSION.SDK_INT >= 31 && client.wifiGranted -> e.setClientKeyPairAlias(client.alias)
-                    Build.VERSION.SDK_INT >= 26 -> e.setClientKeyEntryWithCertificateChain(client.key, client.chain.toTypedArray())
+                    Build.VERSION.SDK_INT >= 26 ->
+                        e.setClientKeyEntryWithCertificateChain(client.key, client.chain.toTypedArray())
                     else -> e.setClientKeyEntry(client.key, client.chain.first())
                 }
-            } catch (ex: IllegalArgumentException) {
+            } catch (@Suppress("SwallowedException") ex: IllegalArgumentException) {
                 throw WifiCertificateException("Android refused the client certificate: ${ex.message}")
             }
         }
@@ -249,7 +277,12 @@ class WifiNetworks(private val context: Context) {
     }.getOrDefault(false)
 
     @RequiresApi(33)
-    private fun modernStaticIp(conf: WifiConfiguration, link: LinkAddress, gateway: InetAddress?, dns: List<InetAddress>) {
+    private fun modernStaticIp(
+        conf: WifiConfiguration,
+        link: LinkAddress,
+        gateway: InetAddress?,
+        dns: List<InetAddress>,
+    ) {
         val b = StaticIpConfiguration.Builder().setIpAddress(link).setDnsServers(dns)
         if (gateway != null) b.setGateway(gateway)
         conf.setIpConfiguration(IpConfiguration.Builder().setStaticIpConfiguration(b.build()).build())
@@ -259,7 +292,7 @@ class WifiNetworks(private val context: Context) {
     private fun literal(s: String): InetAddress? =
         s.trim().takeIf { IPV4.matches(it) }?.let { runCatching { InetAddress.getByName(it) }.getOrNull() }
 
-    /** Android 13+: public setter. Android 10–12: the same field, hidden. Before Android 10 there is only the device MAC. */
+    /** Android 13+: public setter. Android 10–12: the same field, hidden. Before Android 10: only the device MAC. */
     @SuppressLint("PrivateApi", "DiscouragedPrivateApi", "SoonBlockedPrivateApi", "BlockedPrivateApi")
     private fun mac(conf: WifiConfiguration, random: Boolean): Boolean = runCatching {
         when {
@@ -272,7 +305,7 @@ class WifiNetworks(private val context: Context) {
         true
     }.getOrDefault(false)
 
-    /** `meteredOverride` (Android 9+) has no public setter for a saved network on any version: 1 metered, 2 unmetered. */
+    /** `meteredOverride` (Android 9+) has no public setter for a saved network: 1 metered, 2 unmetered. */
     @SuppressLint("PrivateApi", "DiscouragedPrivateApi", "SoonBlockedPrivateApi", "BlockedPrivateApi")
     private fun metered(conf: WifiConfiguration, metered: Boolean): Boolean = runCatching {
         if (Build.VERSION.SDK_INT < 28) return false
@@ -298,27 +331,31 @@ class WifiNetworks(private val context: Context) {
         if (list.isNotEmpty()) {
             val status = runCatching { wifi.addNetworkSuggestions(list) }.getOrDefault(-1)
             if (status != WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) {
-                errors.keys.filter { errors[it] == null }.forEach { errors[it] = "Android refused the suggestion (status $status)" }
+                errors.keys.filter { errors[it] == null }
+                    .forEach { errors[it] = "Android refused the suggestion (status $status)" }
             }
         }
         return errors
     }
 
     @RequiresApi(29)
+    @Suppress("CyclomaticComplexMethod")
     private fun suggestion(net: ConfigWifi, certs: WifiCertificates?): WifiNetworkSuggestion {
         val b = WifiNetworkSuggestion.Builder().setSsid(net.ssid)
-        when (val sec = WifiSecurity.normalize(net.security)) {
+        val sec = WifiSecurity.normalize(net.security)
+        require(sec != WifiSecurity.WEP) { "WEP cannot be suggested" }
+        require(sec != WifiSecurity.OWE || Build.VERSION.SDK_INT >= 30) { "OWE needs Android 11" }
+        require(sec != WifiSecurity.EAP_WPA3 || Build.VERSION.SDK_INT >= 31) { "$sec needs Android 12" }
+        when (sec) {
             WifiSecurity.NONE -> Unit
-            WifiSecurity.OWE -> if (Build.VERSION.SDK_INT >= 30) b.setIsEnhancedOpen(true) else throw IllegalArgumentException("OWE needs Android 11")
+            WifiSecurity.OWE -> if (Build.VERSION.SDK_INT >= 30) b.setIsEnhancedOpen(true)
             WifiSecurity.WPA3 -> b.setWpa3Passphrase(net.password.orEmpty())
-            WifiSecurity.EAP -> b.setWpa2EnterpriseConfig(enterprise(net.eap ?: throw IllegalArgumentException("no EAP parameters"), certs))
-            WifiSecurity.EAP_WPA3 ->
-                if (Build.VERSION.SDK_INT >= 31) {
-                    b.setWpa3EnterpriseStandardModeConfig(enterprise(net.eap ?: throw IllegalArgumentException("no EAP parameters"), certs))
-                } else {
-                    throw IllegalArgumentException("$sec needs Android 12")
-                }
-            WifiSecurity.WEP -> throw IllegalArgumentException("WEP cannot be suggested")
+            WifiSecurity.EAP ->
+                b.setWpa2EnterpriseConfig(enterprise(requireNotNull(net.eap) { "no EAP parameters" }, certs))
+            WifiSecurity.EAP_WPA3 -> if (Build.VERSION.SDK_INT >= 31) {
+                val eap = requireNotNull(net.eap) { "no EAP parameters" }
+                b.setWpa3EnterpriseStandardModeConfig(enterprise(eap, certs))
+            }
             else -> b.setWpa2Passphrase(net.password.orEmpty())
         }
         if (net.hidden == true) b.setIsHiddenSsid(true)
@@ -326,14 +363,19 @@ class WifiNetworks(private val context: Context) {
         net.metered?.let { b.setIsMetered(it.lowercase() == "metered") }
         if (Build.VERSION.SDK_INT >= 30 && net.autoConnect == false) b.setIsInitialAutojoinEnabled(false)
         if (Build.VERSION.SDK_INT >= 33 && net.mac != null) {
+            val random = net.mac?.lowercase() == "random"
             b.setMacRandomizationSetting(
-                if (net.mac?.lowercase() == "random") WifiNetworkSuggestion.RANDOMIZATION_PERSISTENT else WifiNetworkSuggestion.RANDOMIZATION_NON_PERSISTENT,
+                if (random) {
+                    WifiNetworkSuggestion.RANDOMIZATION_PERSISTENT
+                } else {
+                    WifiNetworkSuggestion.RANDOMIZATION_NON_PERSISTENT
+                },
             )
         }
         return b.build()
     }
 
-    /** Saved networks the owner can see: all of them, or (Android 12+, when that list is withheld) the ones it created. */
+    /** Saved networks the owner can see: all, or (Android 12+, if that list is withheld) the ones it created. */
     @SuppressLint("MissingPermission")
     fun configured(): List<WifiConfiguration> {
         val all = runCatching { wifi.configuredNetworks }.getOrNull().orEmpty()
@@ -369,27 +411,30 @@ class WifiNetworks(private val context: Context) {
             .filter { !it.SSID.isNullOrBlank() }
             .sortedByDescending { it.level }
             .distinctBy { it.SSID }
-            .map { it.SSID to (it.capabilities.contains("WPA") || it.capabilities.contains("WEP") || it.capabilities.contains("SAE")) }
+            .map { it.SSID to SECURED.any { mark -> it.capabilities.contains(mark) } }
     }
 
     /** The last scan: SSID → the capabilities of every access point announcing it. Null = no scan available. */
     @SuppressLint("MissingPermission")
     fun scan(): Map<String, List<String>>? {
-        val results = runCatching { wifi.scanResults }.getOrNull() ?: return null
-        if (results.isEmpty()) return null
+        val results = runCatching { wifi.scanResults }.getOrNull()
+        if (results.isNullOrEmpty()) return null
         return results.filter { !it.SSID.isNullOrBlank() }.groupBy({ it.SSID }, { it.capabilities.orEmpty() })
     }
 
     fun startScan() { runCatching { wifi.startScan() } }
 
-    fun connectedSsid(): String? = runCatching { wifi.connectionInfo?.ssid?.trim('"')?.takeIf { it != "<unknown ssid>" } }.getOrNull()
+    fun connectedSsid(): String? =
+        runCatching { wifi.connectionInfo?.ssid?.trim('"')?.takeIf { it != "<unknown ssid>" } }.getOrNull()
 
     fun isConnected(): Boolean =
-        runCatching { wifi.connectionInfo?.supplicantState == android.net.wifi.SupplicantState.COMPLETED }.getOrDefault(false)
+        runCatching { wifi.connectionInfo?.supplicantState == SupplicantState.COMPLETED }.getOrDefault(false)
 
-    fun wpa3Supported(): Boolean? = if (Build.VERSION.SDK_INT >= 29) runCatching { wifi.isWpa3SaeSupported }.getOrNull() else false
+    fun wpa3Supported(): Boolean? =
+        if (Build.VERSION.SDK_INT >= 29) runCatching { wifi.isWpa3SaeSupported }.getOrNull() else false
 
-    fun oweSupported(): Boolean? = if (Build.VERSION.SDK_INT >= 29) runCatching { wifi.isEnhancedOpenSupported }.getOrNull() else false
+    fun oweSupported(): Boolean? =
+        if (Build.VERSION.SDK_INT >= 29) runCatching { wifi.isEnhancedOpenSupported }.getOrNull() else false
 
     fun isEnabled() = runCatching { wifi.isWifiEnabled }.getOrDefault(false)
 
@@ -412,6 +457,12 @@ class WifiNetworks(private val context: Context) {
         const val DEFAULT_PROXY_PORT = 8080
 
         /** What is left out on each attempt when Android refuses the network. */
-        val FALLBACKS = listOf(emptySet(), setOf("mac"), setOf("mac", "metered"), setOf("mac", "metered", "staticIp", "proxy"))
+        val FALLBACKS = listOf(
+            emptySet(),
+            setOf("mac"),
+            setOf("mac", "metered"),
+            setOf("mac", "metered", "staticIp", "proxy"),
+        )
+        val SECURED = listOf("WPA", "WEP", "SAE")
     }
 }

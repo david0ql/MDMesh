@@ -75,7 +75,8 @@ object WifiSupport {
             val eap = net.eap ?: return "enterprise network without EAP parameters"
             val method = eap.method.trim().uppercase()
             if (method !in EAP_METHODS) return "EAP method ${eap.method} is not supported"
-            if (method == "TLS" && (eap.clientKey.isNullOrBlank() || eap.clientChain.isNullOrEmpty())) return "EAP-TLS without a client certificate"
+            val noClient = eap.clientKey.isNullOrBlank() || eap.clientChain.isNullOrEmpty()
+            if (method == "TLS" && noClient) return "EAP-TLS without a client certificate"
         }
         return null
     }
@@ -152,7 +153,8 @@ object WifiDiagnosis {
         val keyed = !enterprise && sec != WifiSecurity.NONE && sec != WifiSecurity.OWE
         when (f.authError) {
             WifiAuthError.WRONG_PASSWORD -> return if (enterprise) CREDENTIALS else PASSWORD
-            WifiAuthError.EAP_FAILURE -> return if (net.eap?.method?.trim()?.uppercase() == "TLS") CERTIFICATE else CREDENTIALS
+            WifiAuthError.EAP_FAILURE ->
+                return if (net.eap?.method?.trim()?.uppercase() == "TLS") CERTIFICATE else CREDENTIALS
             // A timeout on a PSK/SAE handshake is how most access points answer a wrong key.
             WifiAuthError.TIMEOUT, WifiAuthError.OTHER -> if (keyed) return PASSWORD
             null -> Unit
@@ -167,6 +169,7 @@ object WifiDiagnosis {
 
 object WifiRulesPlan {
     const val DEFAULT_SAFEGUARD_MINUTES = 10
+    private const val MAX_SAFEGUARD_MINUTES = 120
 
     /** Rules that can leave a phone without any network if they are wrong — the ones the safeguard watches. */
     fun isRestrictive(rules: ConfigWifiRules?, radio: Boolean?): Boolean {
@@ -178,12 +181,14 @@ object WifiRulesPlan {
 
     /** `allow` mode always includes the managed networks: "only corporate networks" can never exclude its own. */
     fun allowedSsids(rules: ConfigWifiRules, managed: List<ConfigWifi>): Set<String> =
-        (rules.ssids.orEmpty() + managed.map { it.ssid }).map { it.trim() }.filter { it.isNotEmpty() }.toCollection(LinkedHashSet())
+        (rules.ssids.orEmpty() + managed.map { it.ssid }).map { it.trim() }.filter { it.isNotEmpty() }
+            .toCollection(LinkedHashSet())
 
     /** `deny` mode never refuses a managed network. */
     fun deniedSsids(rules: ConfigWifiRules, managed: List<ConfigWifi>): Set<String> {
         val own = managed.map { it.ssid.trim() }.toSet()
-        return rules.ssids.orEmpty().map { it.trim() }.filter { it.isNotEmpty() && it !in own }.toCollection(LinkedHashSet())
+        return rules.ssids.orEmpty().map { it.trim() }.filter { it.isNotEmpty() && it !in own }
+            .toCollection(LinkedHashSet())
     }
 
     /**
@@ -197,7 +202,8 @@ object WifiRulesPlan {
         return minOf(wanted, best)
     }
 
-    fun safeguardMinutes(rules: ConfigWifiRules?): Int = (rules?.safeguardMinutes ?: DEFAULT_SAFEGUARD_MINUTES).coerceIn(1, 120)
+    fun safeguardMinutes(rules: ConfigWifiRules?): Int =
+        (rules?.safeguardMinutes ?: DEFAULT_SAFEGUARD_MINUTES).coerceIn(1, MAX_SAFEGUARD_MINUTES)
 }
 
 /**
@@ -223,7 +229,13 @@ class WifiSafeguard(private val store: Store) {
     fun reset() = store.save(State())
 
     @Suppress("ReturnCount")
-    fun tick(now: Long, online: Boolean, restrictive: Boolean, graceMs: Long, relaxMs: Long = relaxFor(graceMs)): Action {
+    fun tick(
+        now: Long,
+        online: Boolean,
+        restrictive: Boolean,
+        graceMs: Long,
+        relaxMs: Long = relaxFor(graceMs),
+    ): Action {
         val s = store.load()
         if (!restrictive) {
             if (s != State()) store.save(State())

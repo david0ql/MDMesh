@@ -65,9 +65,13 @@ class AndroidManagedWifi(
 ) : ManagedWifi, WifiRadio {
     private val prefs = context.getSharedPreferences("mdm_wifi_policy", Context.MODE_PRIVATE)
     private val safeguard = WifiSafeguard(object : WifiSafeguard.Store {
-        override fun load() = this@AndroidManagedWifi.load().guard.let { WifiSafeguard.State(it.offlineSince, it.relaxedAt, it.relaxedUntil) }
-        override fun save(state: WifiSafeguard.State) =
-            store(this@AndroidManagedWifi.load().copy(guard = Guard(state.offlineSince, state.relaxedAt, state.relaxedUntil)))
+        override fun load() = this@AndroidManagedWifi.load().guard
+            .let { WifiSafeguard.State(it.offlineSince, it.relaxedAt, it.relaxedUntil) }
+
+        override fun save(state: WifiSafeguard.State) {
+            val guard = Guard(state.offlineSince, state.relaxedAt, state.relaxedUntil)
+            store(this@AndroidManagedWifi.load().copy(guard = guard))
+        }
     })
     private var cache: State? = null
     private var lastSsid: String? = null
@@ -116,13 +120,19 @@ class AndroidManagedWifi(
         // A different policy starts from scratch: whatever the safeguard lifted for the old one is over.
         if (old.networks != networks || old.rules != rules || old.radio != radio) safeguard.reset()
         val relaxed = safeguard.state().relaxed
-        val nets = if (owner() || Build.VERSION.SDK_INT < 29) saveAsOwner(networks, old, radio) else suggest(networks)
+        val nets = if (owner() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            saveAsOwner(networks, old, radio)
+        } else {
+            suggest(networks)
+        }
         runCatching { certs.retainOnly(networks) }
         val managed = networks.isNotEmpty() || rules != null || radio != null
         var next = load().copy(
             managed = managed, networks = networks, rules = rules, radio = radio, nets = nets,
             // An error belongs to the network as it was: it goes when the network changes or leaves.
-            authErrors = old.authErrors.filterKeys { ssid -> nets[ssid]?.fingerprint == old.nets[ssid]?.fingerprint && nets[ssid] != null },
+            authErrors = old.authErrors.filterKeys { ssid ->
+                nets[ssid] != null && nets[ssid]?.fingerprint == old.nets[ssid]?.fingerprint
+            },
             relaxedReason = if (relaxed) old.relaxedReason else null,
         )
         store(next)
@@ -148,37 +158,42 @@ class AndroidManagedWifi(
                     if (prev != null && prev.netId >= 0) wifi.forget(n.ssid, prev.netId)
                     Net(fingerprint = fp, error = why, unsupported = true)
                 }
-                prev != null && prev.fingerprint == fp && prev.netId >= 0 && wifi.isConfigured(n.ssid, prev.netId) -> prev
+                prev != null && prev.fingerprint == fp && prev.netId >= 0 &&
+                    wifi.isConfigured(n.ssid, prev.netId) -> prev
                 else -> {
                     // Join the first network only when the phone has no Wi-Fi connection; the rest are just saved.
                     val connect = i == 0 && n.autoConnect != false && wifi.connectedSsid() == null
                     val saved = wifi.save(n, certs, connect, mayEnableRadio = radio != false)
                     if (saved.netId < 0) Log.w(TAG, "network ${i + 1} not saved: ${saved.error}")
+                    val byVersion = WifiSupport.unsupportedOptions(n, Build.VERSION.SDK_INT)
                     Net(
                         saved.netId, fp, saved.error, saved.certificateProblem,
-                        unsupportedOptions = (saved.unsupportedOptions + WifiSupport.unsupportedOptions(n, Build.VERSION.SDK_INT)).distinct(),
+                        unsupportedOptions = (saved.unsupportedOptions + byVersion).distinct(),
                     )
                 }
             }
         }
         val wanted = networks.map { it.ssid }.toSet()
-        val mine = old.nets.filterValues { it.via == VIA_CONFIGURATION }.keys + prefs.getStringSet(LEGACY_ADDED, emptySet()).orEmpty()
+        val mine = old.nets.filterValues { it.via == VIA_CONFIGURATION }.keys +
+            prefs.getStringSet(LEGACY_ADDED, emptySet()).orEmpty()
         (mine - wanted).forEach { gone -> wifi.forget(gone, old.nets[gone]?.netId) }
         return nets
     }
 
     private fun suggest(networks: List<ConfigWifi>): Map<String, Net> {
-        if (Build.VERSION.SDK_INT < 29) return emptyMap()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyMap()
         val errors = wifi.suggest(networks, certs)
         return networks.associate { n ->
             val error = errors[n.ssid]
-            n.ssid to Net(if (error == null) 0 else -1, fingerprint(n), error, unsupported = error != null, via = VIA_SUGGESTION)
+            val id = if (error == null) 0 else -1
+            n.ssid to Net(id, fingerprint(n), error, unsupported = error != null, via = VIA_SUGGESTION)
         }
     }
 
     // --- rules ---
 
     /** Put every rule of [s] in force (and lift the ones it no longer has). @return [s] with what was applied. */
+    @Suppress("CyclomaticComplexMethod")
     private fun enforceRules(s: State): State {
         val p = policy
         val rules = s.rules
@@ -203,7 +218,8 @@ class AndroidManagedWifi(
         rule(RULE_SSID, mode == "allow" || mode == "deny") { w, on ->
             when {
                 !on || rules == null -> w.setSsidRestriction(null, emptySet())
-                mode == "allow" -> w.setSsidRestriction(WifiPolicy.SsidMode.ALLOW, WifiRulesPlan.allowedSsids(rules, s.networks))
+                mode == "allow" ->
+                    w.setSsidRestriction(WifiPolicy.SsidMode.ALLOW, WifiRulesPlan.allowedSsids(rules, s.networks))
                 else -> w.setSsidRestriction(WifiPolicy.SsidMode.DENY, WifiRulesPlan.deniedSsids(rules, s.networks))
             }
         }
@@ -259,9 +275,9 @@ class AndroidManagedWifi(
     fun tick(now: Long = System.currentTimeMillis()) {
         val s = load()
         if (!s.managed) return
-        val grace = WifiRulesPlan.safeguardMinutes(s.rules) * MINUTE_MS
-        when (safeguard.tick(now, online(s), WifiRulesPlan.isRestrictive(s.rules, s.radio), grace)) {
-            WifiSafeguard.Action.RELAX -> relax("sin red durante ${WifiRulesPlan.safeguardMinutes(s.rules)} min con el bloqueo de Wi-Fi activo")
+        val minutes = WifiRulesPlan.safeguardMinutes(s.rules)
+        when (safeguard.tick(now, online(s), WifiRulesPlan.isRestrictive(s.rules, s.radio), minutes * MINUTE_MS)) {
+            WifiSafeguard.Action.RELAX -> relax("sin red durante $minutes min con el bloqueo de Wi-Fi activo")
             WifiSafeguard.Action.RESTORE -> restore()
             WifiSafeguard.Action.NONE -> Unit
         }
@@ -279,13 +295,17 @@ class AndroidManagedWifi(
         if (!owner()) return
         val missing = s.networks.filter { n ->
             val net = s.nets[n.ssid]
-            net != null && !net.unsupported && !net.certificateProblem && net.via == VIA_CONFIGURATION && !wifi.isConfigured(n.ssid, net.netId.takeIf { it >= 0 })
+            net != null && !net.unsupported && !net.certificateProblem && net.via == VIA_CONFIGURATION &&
+                !wifi.isConfigured(n.ssid, net.netId.takeIf { it >= 0 })
         }
         if (missing.isEmpty()) return
         val nets = s.nets.toMutableMap()
         missing.forEach { n ->
             val saved = wifi.save(n, certs, connect = false, mayEnableRadio = s.radio != false)
-            nets[n.ssid] = Net(saved.netId, fingerprint(n), saved.error, saved.certificateProblem, unsupportedOptions = saved.unsupportedOptions)
+            nets[n.ssid] = Net(
+                saved.netId, fingerprint(n), saved.error, saved.certificateProblem,
+                unsupportedOptions = saved.unsupportedOptions,
+            )
         }
         store(load().copy(nets = nets))
     }
@@ -298,7 +318,7 @@ class AndroidManagedWifi(
         WifiPriority.preferred(s.networks, inRange, wifi.connectedSsid())?.let { wifi.connect(it) }
     }
 
-    /** Usable connectivity: a validated network (Wi-Fi, mobile data, cable), or Wi-Fi on one of the managed networks. */
+    /** Usable connectivity: a validated network (Wi-Fi, mobile data, cable), or Wi-Fi on a managed network. */
     private fun online(s: State): Boolean = runCatching {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
@@ -324,6 +344,7 @@ class AndroidManagedWifi(
 
     /** Null when the policy manages no Wi-Fi. */
     @Synchronized
+    @Suppress("CyclomaticComplexMethod")
     fun report(now: Long = System.currentTimeMillis()): ManagedWifiReport? {
         var s = load()
         if (!s.managed) return null
@@ -338,7 +359,7 @@ class AndroidManagedWifi(
             val net = s.nets[n.ssid] ?: Net()
             val sec = WifiSecurity.normalize(n.security)
             val seen = scan?.get(n.ssid)
-            val configured = if (net.via == VIA_SUGGESTION) net.netId >= 0 else net.netId >= 0 && wifi.isConfigured(n.ssid, net.netId)
+            val configured = net.netId >= 0 && (net.via == VIA_SUGGESTION || wifi.isConfigured(n.ssid, net.netId))
             val facts = WifiDiagnosis.Facts(
                 configured = configured,
                 connected = connectedSsid == n.ssid,
@@ -348,21 +369,28 @@ class AndroidManagedWifi(
                 // A hidden network never shows up in a scan: not seeing it proves nothing.
                 inRange = if (scan == null) null else if (seen != null) true else if (n.hidden == true) null else false,
                 securityMatches = seen?.any { WifiScanMatch.matches(sec, it) },
-                authError = s.authErrors[n.ssid]?.let { name -> WifiAuthError.values().firstOrNull { it.name == name } },
+                authError = s.authErrors[n.ssid]?.let { name ->
+                    WifiAuthError.values().firstOrNull { it.name == name }
+                },
             )
             ManagedWifiStatus(
-                ssid = n.ssid, security = sec, configured = configured, connected = facts.connected, inRange = facts.inRange,
-                reason = WifiDiagnosis.reason(n, facts), detail = net.error, unsupportedOptions = net.unsupportedOptions, via = net.via,
+                ssid = n.ssid, security = sec, configured = configured, connected = facts.connected,
+                inRange = facts.inRange, reason = WifiDiagnosis.reason(n, facts), detail = net.error,
+                unsupportedOptions = net.unsupportedOptions, via = net.via,
             )
         }
         val guard = safeguard.state()
         val rules = if (s.rules == null && s.radio == null && !guard.relaxed) {
             null
         } else {
+            val radio = s.radio?.let { if (it) RADIO_ON else RADIO_OFF }.takeIf { !guard.relaxed }
             ManagedWifiRulesStatus(
-                applied = s.rulesApplied + listOfNotNull(s.radio?.let { if (it) RADIO_ON else RADIO_OFF }.takeIf { !guard.relaxed }),
+                applied = s.rulesApplied + listOfNotNull(radio),
                 unsupported = s.rulesUnsupported,
-                relaxed = guard.relaxed, relaxedAt = guard.relaxedAt, relaxedUntil = guard.relaxedUntil, relaxedReason = s.relaxedReason,
+                relaxed = guard.relaxed,
+                relaxedAt = guard.relaxedAt,
+                relaxedUntil = guard.relaxedUntil,
+                relaxedReason = s.relaxedReason,
             )
         }
         return ManagedWifiReport(networks = networks, rules = rules, checkedAt = now)
@@ -370,19 +398,21 @@ class AndroidManagedWifi(
 
     // --- storage ---
 
-    private fun load(): State = cache ?: (
-        prefs.getString(KEY_STATE, null)?.let { raw -> runCatching { ProtocolJson.json.decodeFromString(State.serializer(), raw) }.getOrNull() }
-            ?: State()
-        ).also { cache = it }
+    private fun load(): State = cache ?: read().also { cache = it }
+
+    private fun read(): State = prefs.getString(KEY_STATE, null)
+        ?.let { raw -> runCatching { ProtocolJson.json.decodeFromString(State.serializer(), raw) }.getOrNull() }
+        ?: State()
 
     private fun store(s: State) {
         cache = s
         prefs.edit().putString(KEY_STATE, ProtocolJson.json.encodeToString(State.serializer(), s)).apply()
     }
 
-    private fun fingerprint(n: ConfigWifi): String =
-        MessageDigest.getInstance("SHA-256").digest(ProtocolJson.json.encodeToString(ConfigWifi.serializer(), n).toByteArray())
-            .joinToString("") { "%02x".format(it) }
+    private fun fingerprint(n: ConfigWifi): String {
+        val json = ProtocolJson.json.encodeToString(ConfigWifi.serializer(), n)
+        return MessageDigest.getInstance("SHA-256").digest(json.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
 
     /**
      * What runs between policy applies while the agent's service is alive: [tick] every minute, the radio put back the
@@ -400,7 +430,8 @@ class AndroidManagedWifi(
                         WifiManager.WIFI_STATE_CHANGED_ACTION -> managed.enforceRadio()
                         WifiManager.SUPPLICANT_STATE_CHANGED_ACTION -> {
                             managed.onSupplicantState()
-                            if (intent.getIntExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, -1) == WifiManager.ERROR_AUTHENTICATING) {
+                            val error = intent.getIntExtra(WifiManager.EXTRA_SUPPLICANT_ERROR, -1)
+                            if (error == WifiManager.ERROR_AUTHENTICATING) {
                                 managed.onAuthError(
                                     when (intent.getIntExtra(EXTRA_ERROR_REASON, 0)) {
                                         REASON_WRONG_PASSWORD -> WifiAuthError.WRONG_PASSWORD
@@ -466,7 +497,7 @@ class AndroidManagedWifi(
         private const val TICK_MS = 60_000L
         private const val HEAL_EVERY_MS = 5 * 60_000L
 
-        /** WifiManager.EXTRA_SUPPLICANT_ERROR_REASON and its values (hidden constants, public behaviour since Android 8). */
+        /** WifiManager.EXTRA_SUPPLICANT_ERROR_REASON and its values (hidden constants; sent since Android 8). */
         private const val EXTRA_ERROR_REASON = "supplicantErrorReason"
         private const val REASON_TIMEOUT = 1
         private const val REASON_WRONG_PASSWORD = 2
