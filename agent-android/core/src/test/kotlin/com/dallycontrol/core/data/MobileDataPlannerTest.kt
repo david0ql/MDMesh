@@ -38,7 +38,9 @@ class MobileDataPlannerTest {
     }
 
     @Test fun `allowlist blocks every user-facing app but the listed ones, the essentials and core services`() {
-        val p = plan(ConfigMobileData(mode = "allowlist", apps = listOf("com.chat"), essential = listOf("com.android.chrome")))
+        val cfg =
+            ConfigMobileData(mode = "allowlist", apps = listOf("com.chat"), essential = listOf("com.android.chrome"))
+        val p = plan(cfg)
         assertEquals(setOf("com.video"), p.blocked.keys)
         assertFalse("an app without the INTERNET permission needs no rule", "com.offline" in p.blocked)
         assertFalse("system services without an icon keep working", "com.android.providers.downloads" in p.blocked)
@@ -46,17 +48,23 @@ class MobileDataPlannerTest {
     }
 
     @Test fun `an app over its limit is blocked and one at the threshold only warns`() {
-        val cfg = ConfigMobileData(appLimits = listOf(ConfigDataLimit("com.video", 100 * mb), ConfigDataLimit("com.chat", 100 * mb)))
+        val limits = listOf(ConfigDataLimit("com.video", 100 * mb), ConfigDataLimit("com.chat", 100 * mb))
+        val cfg = ConfigMobileData(appLimits = limits)
         val p = plan(cfg, usage = mapOf("com.video" to 100 * mb, "com.chat" to 85 * mb))
         assertEquals(mapOf("com.video" to MobileDataPlanner.REASON_APP_LIMIT), p.blocked)
         assertEquals(
-            setOf(Crossing("com.video", Crossing.LIMIT, 100 * mb, 100 * mb), Crossing("com.chat", Crossing.WARN, 85 * mb, 100 * mb)),
+            setOf(
+                Crossing("com.video", Crossing.LIMIT, 100 * mb, 100 * mb),
+                Crossing("com.chat", Crossing.WARN, 85 * mb, 100 * mb),
+            ),
             p.crossings.toSet(),
         )
     }
 
     @Test fun `the device limit blocks every non-essential app, the allowed ones too`() {
-        val cfg = ConfigMobileData(mode = "allowlist", apps = listOf("com.chat"), deviceLimitBytes = 500 * mb, essential = listOf("com.chat"))
+        val cfg = ConfigMobileData(
+            mode = "allowlist", apps = listOf("com.chat"), deviceLimitBytes = 500 * mb, essential = listOf("com.chat"),
+        )
         val under = plan(cfg, device = 400 * mb)
         assertEquals(listOf(Crossing(Crossing.DEVICE, Crossing.WARN, 400 * mb, 500 * mb)), under.crossings)
         assertEquals(setOf("com.video", "com.android.chrome"), under.blocked.keys)
@@ -73,7 +81,8 @@ class MobileDataPlannerTest {
         assertTrue(plan(cfg, device = 0).crossings.isEmpty())
         assertTrue(plan(cfg.copy(warnPercent = 50), device = 49 * mb).crossings.isEmpty())
         assertEquals(1, plan(cfg.copy(warnPercent = 50), device = 50 * mb).crossings.size)
-        assertTrue("100 % = no separate warning", plan(cfg.copy(warnPercent = 100), device = 99 * mb).crossings.isEmpty())
+        val full = plan(cfg.copy(warnPercent = 100), device = 99 * mb)
+        assertTrue("100 % = no separate warning", full.crossings.isEmpty())
     }
 
     @Test fun `each crossing is announced once per period`() {
@@ -90,17 +99,20 @@ class MobileDataPlannerTest {
 
     @Test fun `monthly period starts on the cut day`() {
         val tz = TimeZone.getTimeZone("America/Bogota")
-        fun at(y: Int, m: Int, d: Int, h: Int = 12) = Calendar.getInstance(tz).apply { clear(); set(y, m - 1, d, h, 0, 0) }.timeInMillis
+        fun at(y: Int, m: Int, d: Int, h: Int = 12) =
+            Calendar.getInstance(tz).apply { clear(); set(y, m - 1, d, h, 0, 0) }.timeInMillis
         assertEquals(at(2026, 11, 15, 0) to at(2026, 12, 15, 0), DataPeriod.bounds(at(2026, 11, 27), "monthly", 15, tz))
         assertEquals(at(2026, 10, 28, 0) to at(2026, 11, 28, 0), DataPeriod.bounds(at(2026, 11, 27), "monthly", 31, tz))
         assertEquals(at(2026, 12, 1, 0) to at(2027, 1, 1, 0), DataPeriod.bounds(at(2026, 12, 31, 23), "monthly", 1, tz))
         assertEquals(at(2026, 12, 20, 0) to at(2027, 1, 20, 0), DataPeriod.bounds(at(2027, 1, 3), "monthly", 20, tz))
-        assertEquals(at(2026, 11, 27, 0) to at(2026, 11, 28, 0), DataPeriod.bounds(at(2026, 11, 27, 23), "daily", 9, tz))
+        val day = DataPeriod.bounds(at(2026, 11, 27, 23), "daily", 9, tz)
+        assertEquals(at(2026, 11, 27, 0) to at(2026, 11, 28, 0), day)
     }
 
     @Test fun `limit lines read naturally`() {
         assertEquals("Equipo: 410 MB de 500 MB (82 %)", QuotaText.line(null, null, 410 * mb, 500 * mb))
-        assertEquals("YouTube (com.video): 1.5 GB de 2 GB (75 %)", QuotaText.line("YouTube", "com.video", 1536 * mb, 2048 * mb))
+        val line = QuotaText.line("YouTube", "com.video", 1536 * mb, 2048 * mb)
+        assertEquals("YouTube (com.video): 1.5 GB de 2 GB (75 %)", line)
         assertEquals("com.video: 0 MB de 1 MB (0 %)", QuotaText.line(null, "com.video", 1000, mb))
     }
 }

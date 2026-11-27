@@ -24,7 +24,8 @@ data class DataPlan(val blocked: Map<String, String>, val crossings: List<Crossi
  * Decides which apps lose mobile data, from the policy, what is installed and what was used in the period. Pure, so
  * the rules are tested without a device:
  *  - `blocklist`: the listed apps; `allowlist`: every user-facing app except the listed ones;
- *  - an app at or over its own limit; and, once the device limit is spent, every user-facing app except the essentials.
+ *  - an app at or over its own limit; and, once the device limit is spent, every user-facing app except the
+ *    essentials.
  * "User-facing" = uses the network and is either installed by the user/MDM or a system app with a launcher icon.
  * System services without an icon and Google Play services are only restricted when the policy lists them by name.
  * [protected] packages (the agent, remote support) are never restricted.
@@ -33,8 +34,9 @@ object MobileDataPlanner {
     const val REASON_POLICY = "policy"
     const val REASON_APP_LIMIT = "appLimit"
     const val REASON_DEVICE_LIMIT = "deviceLimit"
+    private const val FULL = 100
 
-    /** Never restricted by a list or by the device limit: cutting them breaks sign-in, push and location for every app. */
+    /** Never restricted by a list or by the device limit: cutting them breaks sign-in, push and location everywhere. */
     val CORE_SERVICES = setOf("com.google.android.gms", "com.google.android.gsf")
 
     fun plan(
@@ -45,37 +47,40 @@ object MobileDataPlanner {
         protected: Set<String>,
     ): DataPlan {
         val candidates = installed.filter { it.internet && it.pkg !in protected }
-        val known = candidates.map { it.pkg }.toSet()
+        val known = candidates.mapTo(HashSet()) { it.pkg }
         val userFacing = candidates.filter { (!it.system || it.launchable) && it.pkg !in CORE_SERVICES }.map { it.pkg }
         val essential = cfg.essential.toSet()
         val blocked = LinkedHashMap<String, String>()
-        when (cfg.mode) {
-            "blocklist" -> cfg.apps.filter { it in known }.forEach { blocked[it] = REASON_POLICY }
-            "allowlist" -> {
-                val allowed = cfg.apps.toSet() + essential
-                userFacing.filterNot { it in allowed }.forEach { blocked[it] = REASON_POLICY }
-            }
-        }
-        val warnPct = cfg.warnPercent.coerceIn(1, 100)
+        listed(cfg, known, userFacing).forEach { blocked[it] = REASON_POLICY }
+        val warnPct = cfg.warnPercent.coerceIn(1, FULL)
         val crossings = ArrayList<Crossing>()
-        fun check(key: String, used: Long, limit: Long): Boolean {
-            if (limit <= 0) return false
-            if (used >= limit) {
-                crossings += Crossing(key, Crossing.LIMIT, used, limit)
-            } else if (warnPct < 100 && used > 0 && used * 100 >= limit * warnPct) {
-                crossings += Crossing(key, Crossing.WARN, used, limit)
+        for (l in cfg.appLimits.filter { it.pkg in known }) {
+            val c = crossing(l.pkg, usage[l.pkg] ?: 0, l.bytes, warnPct) ?: continue
+            crossings += c
+            if (c.level == Crossing.LIMIT) blocked.putIfAbsent(l.pkg, REASON_APP_LIMIT)
+        }
+        crossing(Crossing.DEVICE, deviceBytes, cfg.deviceLimitBytes ?: 0, warnPct)?.let { c ->
+            crossings += c
+            if (c.level == Crossing.LIMIT) {
+                userFacing.filterNot { it in essential }.forEach { blocked.putIfAbsent(it, REASON_DEVICE_LIMIT) }
             }
-            return used >= limit
-        }
-        for (l in cfg.appLimits) {
-            if (l.pkg !in known) continue
-            if (check(l.pkg, usage[l.pkg] ?: 0, l.bytes)) blocked.putIfAbsent(l.pkg, REASON_APP_LIMIT)
-        }
-        val deviceLimit = cfg.deviceLimitBytes
-        if (deviceLimit != null && check(Crossing.DEVICE, deviceBytes, deviceLimit)) {
-            userFacing.filterNot { it in essential }.forEach { blocked.putIfAbsent(it, REASON_DEVICE_LIMIT) }
         }
         return DataPlan(blocked, crossings)
+    }
+
+    /** The apps the policy's list keeps off mobile data. */
+    private fun listed(cfg: ConfigMobileData, known: Set<String>, userFacing: List<String>): List<String> =
+        when (cfg.mode) {
+            "blocklist" -> cfg.apps.filter { it in known }
+            "allowlist" -> (cfg.apps.toSet() + cfg.essential).let { allowed -> userFacing.filterNot { it in allowed } }
+            else -> emptyList()
+        }
+
+    private fun crossing(key: String, used: Long, limit: Long, warnPct: Int): Crossing? = when {
+        limit <= 0 -> null
+        used >= limit -> Crossing(key, Crossing.LIMIT, used, limit)
+        warnPct < FULL && used > 0 && used * FULL >= limit * warnPct -> Crossing(key, Crossing.WARN, used, limit)
+        else -> null
     }
 
     /** True when the section asks for nothing: no list and no limit. */
@@ -88,7 +93,9 @@ object MobileDataPlanner {
 
 /** The counting period of the limits. */
 object DataPeriod {
-    /** `[start, end)` of the period that contains [now]: the local day, or the month that starts on [cutDay] (1..28). */
+    private const val LAST_CUT_DAY = 28
+
+    /** `[start, end)` of the period that contains [now]: the local day, or the month starting on [cutDay] (1..28). */
     fun bounds(now: Long, period: String, cutDay: Int, zone: TimeZone = TimeZone.getDefault()): Pair<Long, Long> {
         val c = Calendar.getInstance(zone).apply {
             timeInMillis = now
@@ -97,16 +104,14 @@ object DataPeriod {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
-        if (period == "daily") {
-            val start = c.timeInMillis
-            c.add(Calendar.DAY_OF_MONTH, 1)
-            return start to c.timeInMillis
+        val unit = if (period == "daily") Calendar.DAY_OF_MONTH else Calendar.MONTH
+        if (unit == Calendar.MONTH) {
+            val cut = cutDay.coerceIn(1, LAST_CUT_DAY)
+            if (c.get(Calendar.DAY_OF_MONTH) < cut) c.add(Calendar.MONTH, -1)
+            c.set(Calendar.DAY_OF_MONTH, cut)
         }
-        val cut = cutDay.coerceIn(1, 28)
-        if (c.get(Calendar.DAY_OF_MONTH) < cut) c.add(Calendar.MONTH, -1)
-        c.set(Calendar.DAY_OF_MONTH, cut)
         val start = c.timeInMillis
-        c.add(Calendar.MONTH, 1)
+        c.add(unit, 1)
         return start to c.timeInMillis
     }
 }
@@ -125,11 +130,12 @@ object QuotaLedger {
 
 /** The text of a limit event, shown as is in the console's alerts and e-mails (Spanish). */
 object QuotaText {
-    private const val MB = 1024.0 * 1024.0
+    private const val KB = 1024.0
+    private const val PERCENT = 100
 
     fun bytes(n: Long): String {
-        val mb = n / MB
-        return if (mb >= 1024) trim(mb / 1024) + " GB" else trim(Math.floor(mb)) + " MB"
+        val mb = n / (KB * KB)
+        return if (mb >= KB) trim(mb / KB) + " GB" else trim(Math.floor(mb)) + " MB"
     }
 
     private fun trim(v: Double): String =
@@ -142,7 +148,7 @@ object QuotaText {
             label.isNullOrBlank() || label == pkg -> pkg
             else -> "$label ($pkg)"
         }
-        val pct = if (limit > 0) used * 100 / limit else 0
+        val pct = if (limit > 0) used * PERCENT / limit else 0
         return "$who: ${bytes(used)} de ${bytes(limit)} ($pct %)"
     }
 }

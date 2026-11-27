@@ -72,6 +72,6 @@ object EventType {
      */
     const val DATA_WARNING = "dataWarning"
 
-    /** Mobile data: a limit was reached and the app (or every non-essential app) lost mobile data until the next period. */
+    /** Mobile data: a limit was spent; the app (or every non-essential app) lost mobile data until the next period. */
     const val DATA_LIMIT = "dataLimit"
 }

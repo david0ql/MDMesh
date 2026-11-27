@@ -10,9 +10,9 @@ import android.util.Log
 
 /**
  * The agent's local "VPN" for the mobile-data policy on phones where the system restriction is not available
- * (Android 7–8) or is not honoured by the maker. It connects to no server: it only captures the apps that may not use
- * mobile data and lets their packets die in the tunnel. Apps that are allowed never enter it, so their traffic — and
- * the agent's own — is untouched.
+ * (Android 7–8) or is not honoured by the maker. It connects to no server: it only captures the apps that may not
+ * use mobile data and lets their packets die in the tunnel. Apps that are allowed never enter it, so their traffic —
+ * and the agent's own — is untouched.
  *
  *  - On a mobile network (or with no network yet) the tunnel captures the blocked apps.
  *  - On Wi-Fi it captures only [MobileDataVpn.KEY_IDLE], an installed package without the INTERNET permission, so
@@ -34,35 +34,27 @@ class MobileDataVpnService : VpnService() {
     @Synchronized
     private fun reconcile() {
         val want = MobileDataVpn.capture(this)
-        if (want.isEmpty()) {
-            close()
-            stopSelf()
-            return
-        }
-        if (tun != null && want == captured) return
-        val builder = Builder().setSession(SESSION).addAddress("10.215.173.1", 32).addRoute("0.0.0.0", 0)
-        runCatching { builder.addAddress("fd00:215:173::1", 128).addRoute("::", 0) }
+        if (tun != null && want.isNotEmpty() && want == captured) return
+        val builder = Builder().setSession(SESSION).addAddress(ADDRESS_V4, PREFIX_V4).addRoute(ANY_V4, 0)
+        runCatching { builder.addAddress(ADDRESS_V6, PREFIX_V6).addRoute(ANY_V6, 0) }
         // Only the listed apps enter the tunnel. With no app added a VPN captures EVERY app, so never establish then.
-        val added = want.filter { pkg -> runCatching { builder.addAllowedApplication(pkg) }.isSuccess }.toSet()
+        val added = want.filterTo(HashSet()) { pkg -> runCatching { builder.addAllowedApplication(pkg) }.isSuccess }
         if (added.isEmpty()) {
             close()
             stopSelf()
             return
         }
+        // Null = not authorised (the Device Owner's always-on setting was removed) or another VPN owns the slot.
         val fresh = runCatching { builder.establish() }.onFailure { Log.w(TAG, "establish", it) }.getOrNull()
-        if (fresh == null) {
-            // Not authorised (the Device Owner's always-on setting was removed) or another VPN owns the slot.
-            Log.w(TAG, "VPN not established: not prepared")
-            MobileDataVpn.up = false
-            return
-        }
         val old = tun
-        tun = fresh
-        captured = added
-        MobileDataVpn.up = true
-        MobileDataVpn.blocking = added == MobileDataVpn.blockedPackages(this)
-        runCatching { old?.close() }
-        Log.i(TAG, "tunnel up, capturing ${added.size} app(s), blocking=${MobileDataVpn.blocking}")
+        if (fresh != null) {
+            tun = fresh
+            captured = added
+            runCatching { old?.close() }
+        }
+        MobileDataVpn.up = tun != null
+        MobileDataVpn.blocking = tun != null && captured == MobileDataVpn.blockedPackages(this)
+        Log.i(TAG, "tunnel up=${MobileDataVpn.up}, ${captured.size} app(s), blocking=${MobileDataVpn.blocking}")
     }
 
     @Synchronized
@@ -88,6 +80,12 @@ class MobileDataVpnService : VpnService() {
     private companion object {
         const val TAG = "MobileDataVpn"
         const val SESSION = "Datos móviles restringidos"
+        const val ADDRESS_V4 = "10.215.173.1"
+        const val PREFIX_V4 = 32
+        const val ANY_V4 = "0.0.0.0"
+        const val ADDRESS_V6 = "fd00:215:173::1"
+        const val PREFIX_V6 = 128
+        const val ANY_V6 = "::"
     }
 }
 
@@ -104,7 +102,7 @@ object MobileDataVpn {
     @Volatile var blocking: Boolean = false
 
     fun blockedPackages(context: Context): Set<String> =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY_BLOCKED, emptySet()).orEmpty().toSet()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY_BLOCKED, null).orEmpty().toSet()
 
     /** Store the apps to block and the Wi-Fi placeholder, then make the tunnel match. */
     fun set(context: Context, blocked: Set<String>, idle: String?) {
@@ -117,9 +115,10 @@ object MobileDataVpn {
     fun capture(context: Context): Set<String> {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val blocked = prefs.getStringSet(KEY_BLOCKED, emptySet()).orEmpty().toSet()
-        if (blocked.isEmpty()) return emptySet()
-        if (onMobile(context)) return blocked
-        return prefs.getString(KEY_IDLE, null)?.let { setOf(it) } ?: emptySet()
+        return when {
+            blocked.isEmpty() || onMobile(context) -> blocked
+            else -> setOfNotNull(prefs.getString(KEY_IDLE, null))
+        }
     }
 
     /**
@@ -128,19 +127,17 @@ object MobileDataVpn {
      * real one underneath.
      */
     fun onMobile(context: Context): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-        val caps = runCatching { cm.getNetworkCapabilities(cm.activeNetwork) }.getOrNull() ?: return true
-        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val caps = runCatching { cm?.getNetworkCapabilities(cm.activeNetwork) }.getOrNull()
+        return caps == null || caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
     }
 
     /** Ask the service to re-read what it must capture (starting it when something has to be captured). */
     fun sync(context: Context) {
-        val intent = Intent(context, MobileDataVpnService::class.java)
         if (capture(context).isEmpty() && !up) return
-        runCatching { context.startService(intent) }.onFailure {
-            // Background start refused (the agent normally holds a foreground service): the always-on setting makes
-            // Android start the service itself on the next connectivity change or boot.
-            Log.w("MobileDataVpn", "could not start the VPN service: ${it.message}")
-        }
+        // A refused background start (the agent normally holds a foreground service) is not fatal: the always-on
+        // setting makes Android start the service itself on the next connectivity change or boot.
+        runCatching { context.startService(Intent(context, MobileDataVpnService::class.java)) }
+            .onFailure { Log.w("MobileDataVpn", "could not start the VPN service: ${it.message}") }
     }
 }

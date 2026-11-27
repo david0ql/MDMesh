@@ -651,5 +651,7 @@ object AgentModule {
         handle: DpmHandle,
         events: EventSink,
     ): com.dallycontrol.agent.data.MobileDataEnforcer =
-        com.dallycontrol.agent.data.MobileDataEnforcer(context, handle, events, protected = listOf(DroidVncController.PACKAGE))
+        com.dallycontrol.agent.data.MobileDataEnforcer(
+            context, handle, events, protected = listOf(DroidVncController.PACKAGE),
+        )
 }

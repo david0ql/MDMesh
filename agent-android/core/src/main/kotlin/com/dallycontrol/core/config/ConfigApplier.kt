@@ -98,14 +98,22 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
-        if (doc.mobileData != null || previous?.mobileData != null) {
-            val o = mobileData?.let { runCatching { it(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") } }
-                ?: ConfigOutcome.UNSUPPORTED
-            if (doc.mobileData != null) outcomes["mobileData"] = o
-        }
+        applyMobileData(doc, previous)?.let { outcomes["mobileData"] = it }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
+    }
+
+    /**
+     * Mobile data per app: applied when the document carries the section, cleared when the previous document did and
+     * this one does not. @return the outcome to report, or null when the document does not assert the section.
+     */
+    private fun applyMobileData(doc: ConfigApplyPayload, previous: ConfigApplyPayload?): String? {
+        if (doc.mobileData == null && previous?.mobileData == null) return null
+        val outcome = mobileData?.let { set ->
+            runCatching { set(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") }
+        } ?: ConfigOutcome.UNSUPPORTED
+        return outcome.takeIf { doc.mobileData != null }
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */
