@@ -42,8 +42,15 @@ public class EnrollAttemptLog {
             if (errorKey != null && errorKey.endsWith("device.no-token") && request.getDiagnostics() != null) {
                 request.getDiagnostics().setLastError(null);
             }
+            // No recognised code: if the phone is already a device of exactly one customer, the attempt is that
+            // customer's (and is then shown by the usual rules instead of as "belongs to nobody").
+            Integer inferred = token != null ? null
+                    : tokenDAO.customerOfPhone(request.getHardwareId(), request.getSerial());
             for (AgentEnrollAttempt attempt : build(request, token, ip, deviceNumber, errorKey, detail,
                     System.currentTimeMillis())) {
+                if (attempt.getCustomerId() == null) {
+                    attempt.setCustomerId(inferred);
+                }
                 tokenDAO.logAttempt(attempt);
             }
         } catch (Exception e) {

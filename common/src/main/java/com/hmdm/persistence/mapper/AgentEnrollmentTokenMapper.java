@@ -151,6 +151,19 @@ public interface AgentEnrollmentTokenMapper {
     int countOwnerWithoutToken(@Param("customerId") int customerId, @Param("includeUnknown") boolean includeUnknown,
                                @Param("since") long since);
 
+    /** How many customers the installation has (an attempt without a code can only be shown when it is one). */
+    @Select({"SELECT COUNT(*) FROM customers"})
+    int countCustomers();
+
+    /**
+     * The customers that own a device with this hardware id or serial: when it is exactly one, an attempt without a
+     * recognised code made by that phone is that customer's.
+     */
+    @Select({"SELECT DISTINCT customerId FROM devices WHERE (#{hardwareId,jdbcType=VARCHAR}::text IS NOT NULL " +
+            "AND hardwareid = #{hardwareId,jdbcType=VARCHAR}) OR (#{serial,jdbcType=VARCHAR}::text IS NOT NULL " +
+            "AND upper(infojson ->> 'serial') = upper(#{serial,jdbcType=VARCHAR})) LIMIT 2"})
+    java.util.List<Integer> customersOfPhone(@Param("hardwareId") String hardwareId, @Param("serial") String serial);
+
     @org.apache.ibatis.annotations.Delete({"DELETE FROM agent_enroll_attempt WHERE lastAt < #{before}"})
     int purgeAttempts(@Param("before") long before);
 }

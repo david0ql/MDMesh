@@ -393,18 +393,15 @@ public class AgentAdminResource {
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
         }
-        // Attempts with a code nobody issued (a mistyped code, a QR from another server) belong to no customer. They
-        // are shown to every user who is not limited to folders: on this single-organisation product that is the
-        // person who has to diagnose them. (A multi-tenant install would show them to each tenant's administrators.)
-        boolean includeUnknown = !scope.restricted();
+        // Who sees what is decided in EnrollAttemptAccess: coded attempts by folder scope; attempts without a
+        // recognised code only by a full administrator, and never across customers.
+        com.hmdm.persistence.domain.User user = SecurityContext.get().getCurrentUser().orElse(null);
+        boolean includeUnknown = com.hmdm.rest.resource.support.EnrollAttemptAccess.seesUnknown(user,
+                tokenDAO.countCustomers());
         java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> rows =
                 tokenDAO.listAttempts(customerId.get(), includeUnknown, limit == null ? 100 : limit);
-        java.util.Set<Integer> mine = scope.groups();
-        if (mine != null) {
-            rows = rows.stream().filter(a -> a.getGroupId() != null && mine.contains(a.getGroupId()))
-                    .collect(java.util.stream.Collectors.toList());
-        }
-        return Response.OK(rows);
+        return Response.OK(com.hmdm.rest.resource.support.EnrollAttemptAccess.visible(rows, user, customerId.get(),
+                scope.groups(), includeUnknown));
     }
 
     @ApiOperation(value = "Enrollment attempts summary", notes = "How many phones tried to enroll in the last 7 days and "
@@ -418,12 +415,15 @@ public class AgentAdminResource {
             return Response.PERMISSION_DENIED();
         }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        // Counted over the whole customer: a folder administrator sees the list of their folders, not this total.
-        if (scope.restricted()) {
+        // Counted over the whole customer (and, for a full administrator, the attempts without a code): a folder
+        // administrator or a view-only user sees the list of what they may see, not this total.
+        com.hmdm.persistence.domain.User user = SecurityContext.get().getCurrentUser().orElse(null);
+        if (!com.hmdm.rest.resource.support.EnrollAttemptAccess.isFullAdmin(user)) {
             out.put("unresolvedDevices", null);
             out.put("ownerWithoutToken", null);
         } else {
-            int[] n = tokenDAO.countUnresolved(customerId.get(), true, 7);
+            int[] n = tokenDAO.countUnresolved(customerId.get(),
+                    com.hmdm.rest.resource.support.EnrollAttemptAccess.seesUnknown(user, tokenDAO.countCustomers()), 7);
             out.put("unresolvedDevices", n[0]);
             out.put("ownerWithoutToken", n[1]);
         }
