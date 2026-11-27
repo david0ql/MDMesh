@@ -213,6 +213,7 @@ public final class DeviceExport {
             String[] ch = {"Dispositivo", "Número", "Carpeta", "Conectado", "Desconectado", "Duración (h)", "Estado"};
             header(sc, ch, st);
             int cr = 1;
+            String linked = null;
             for (Map<String, Object> c : in.connections) {
                 String number = str(c.get("devicenumber"));
                 Map<String, Object> d = byNumber.get(number);
@@ -221,7 +222,11 @@ public final class DeviceExport {
                 boolean open = in.now - last <= in.connectionGapMs;
                 if (cr == WIDTH_ROWS) widths(sc, ch.length, cr);
                 Row row = sc.createRow(cr++);
-                link(row.createCell(0), nonBlank(str(d.get("description")), number), in.baseUrl + "/devices/" + number, st);
+                // Sessions come ordered by device: only a device's first row links to its page. A hyperlink on each of
+                // the ~100,000 rows of a large fleet's month made the workbook several times slower and bigger.
+                if (number.equals(linked)) text(row.createCell(0), nonBlank(str(d.get("description")), number), st);
+                else link(row.createCell(0), nonBlank(str(d.get("description")), number), in.baseUrl + "/devices/" + number, st);
+                linked = number;
                 text(row.createCell(1), number, st);
                 Integer gid = intOf(d.get("groupid"));
                 text(row.createCell(2), gid == null ? "Sin carpeta" : paths.getOrDefault(gid, ""), st);
