@@ -517,9 +517,8 @@ def t_lockdown(state, cfg, base):
         check("DISALLOW_ADD_WIFI_CONFIG and DISALLOW_CHANGE_WIFI_STATE are set", restricted("no_add_wifi_config") and restricted("no_change_wifi_state"))
         check("the SSID deny list is in the device policy", "DC-Prohibida" in dp or "WifiSsidPolicy" in dp or "mWifiSsidPolicy" in dp, "")
         check("report: every rule applied", all(k in applied for k in ("lockManaged", "blockAdd", "blockConfig", "blockState", "ssidPolicy", "minSecurity")), rep.get("rules"))
-        out = sh("cmd wifi add-network DC-NoDebe open")
-        time.sleep(2)
-        check("adding a network is refused (DISALLOW_ADD_WIFI_CONFIG)", "DC-NoDebe" not in list_networks(), out)
+        # `cmd wifi add-network` runs as the shell, which Android exempts from DISALLOW_ADD_WIFI_CONFIG (it holds
+        # NETWORK_SETTINGS); the restriction itself is what Settings and ordinary apps obey, and it is checked above.
         # minimum security "personal": the open network may not be used any more
         gone = until(lambda: wifi_connected_ssid() != A.open_ssid, 60)
         check("minimum security 'personal' takes the phone off the open network", gone, wifi_connected_ssid())
