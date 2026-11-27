@@ -50,20 +50,27 @@ en cada fila porque **resultó ser el factor que más pesa**.
 | `--classic`: recrear el servidor en su sitio (lo que hacía el método anterior) | normal | 0 fallidas de 171; las peticiones **esperaron** al servidor (hasta 7 s) | 0 fallidas | 1 desconexión de **6,8 s** | 8 s |
 | Borde recreado (cambió su imagen) | normal | 2 fallidas: corte de **0,6 s** | 1 fallida: 0,3 s | 1 reconexión de 2,0 s | 3 s |
 | **Ensayo del primer despliegue** (servidor y borde anteriores a este mecanismo → versión nueva) | alta (carga 20) | corte de un arranque del servidor: **32 s** según el registro del despliegue (la sonda de entonces no distinguía la página de recuperación) | sin corte | 1 desconexión de **26,6 s**, y otra de 1,1 s | 109 s |
-| Despliegue normal con la **máquina saturada** (carga 38–39, más del doble de sus núcleos) | saturada | **sin servicio unos 135 s** (medido en la sonda de salud): las peticiones esperaban 20 s y recibían la página de recuperación | 0 fallidas | 1 desconexión de 2,6 s | 414 s |
+| Despliegue normal con la **máquina saturada** (carga 38–39, más del doble de sus núcleos), **antes** de los ajustes de tolerancia | saturada | **sin servicio unos 135 s** (medido en la sonda de salud): las peticiones esperaban 20 s y recibían la página de recuperación | 0 fallidas | 1 desconexión de 2,6 s | 414 s |
+| El mismo despliegue con la **máquina saturada** (carga 34–48), **después** de los ajustes | saturada | **0 fallidas de 933** (comprobando el contenido de la respuesta); 33 respuestas de más de 1 s | 0 de 1 128 | 3 reconexiones: 1,6 + 3,3 + 2,2 s | 540 s |
+| `--rollback` a una versión **anterior a este mecanismo** (borde y servidor antiguos) | saturada | corte de un arranque del servidor: **156 s** a esa carga | 0 fallidas | sin canal 180 s | 414 s |
 
 Cómo leerlo:
 
 - **Con el servidor en condiciones normales o cargado, el despliegue no tiene corte** para la consola ni
   para la API de los equipos: ninguna petición falló.
-- **Con la máquina saturada, el relevo falló.** Arrancar una segunda JVM en un servidor sin CPU libre tardó
-  87 s (el relevo) y 155 s (la instancia principal); en ese intervalo la única instancia en servicio
-  respondía tan despacio que las comprobaciones de salud del borde expiraban, el borde la sacó de servicio y
-  los usuarios vieron la página de recuperación durante unos 135 segundos. A raíz de esa prueba se hicieron
-  tres cambios, **cuya eficacia bajo saturación no se pudo volver a medir** (ver «Qué queda por medir»):
-  las comprobaciones de salud del borde toleran respuestas lentas (8 s, tres fallas seguidas); el script
-  exige que el relevo responda con rapidez cinco veces seguidas antes de tocar la instancia anterior, y si
-  no, cancela sin cambiar nada; y las imágenes se construyen de una en una.
+- **Con la máquina saturada, el relevo falló la primera vez y se corrigió.** Arrancar una segunda JVM en un
+  servidor sin CPU libre tardó 87 s (el relevo) y 155 s (la instancia principal); en ese intervalo la única
+  instancia en servicio respondía tan despacio que las comprobaciones de salud del borde expiraban, el borde
+  la sacó de servicio y los usuarios vieron la página de recuperación durante unos 135 segundos. Se hicieron
+  tres cambios: las comprobaciones de salud del borde toleran respuestas lentas (8 s, tres fallas seguidas);
+  el script exige que el relevo responda con rapidez cinco veces seguidas antes de tocar la instancia
+  anterior, y si no, cancela sin cambiar nada; y las imágenes se construyen de una en una. Repetida la
+  prueba con la máquina igual de saturada, **no falló ninguna petición** (0 de 933), aunque el despliegue
+  tardó 9 minutos y 33 respuestas pasaron de un segundo.
+- En esa misma prueba saturada, la sonda de salud profunda (`/healthz/deep`) sí falló durante 225 s mientras
+  arrancaba la instancia principal, aunque la API respondía: el monitor habría dado una alerta falsa y
+  contado ese tiempo como caída. Se ajustó la ruta de esa sonda (no espera a una instancia que aún no acepta
+  conexiones); **ese ajuste está validado en la prueba del borde, pero no se volvió a medir bajo saturación**.
 - **Construir las imágenes en el mismo servidor compite con el servicio.** En dos pruebas, durante la
   construcción (antes de cambiar nada), todo Docker se detuvo unos 25–40 segundos: ni el servicio ni las
   comprobaciones de salud respondieron. Coincidió con otras construcciones simultáneas en la máquina. En
@@ -79,7 +86,8 @@ Cómo leerlo:
   **un despliegue cierre la sesión de los usuarios de la consola** y deban volver a entrar, igual que con el
   método anterior. Esto se deduce del diseño; no se midió (las sondas no inician sesión).
 - La sonda de salud profunda (`/healthz/deep`), que es la que usa el monitor, respondió bien durante todo el
-  despliegue en la configuración final (0 fallidas de 298): un despliegue no cuenta como tiempo sin servicio.
+  despliegue con carga media-alta (0 fallidas de 298): en esas condiciones un despliegue no cuenta como
+  tiempo sin servicio.
 
 ### Qué queda por medir
 
@@ -92,9 +100,10 @@ Cómo leerlo:
 
   (`MATCH` hace que una página de mantenimiento servida con código 200 cuente como falla.) Anote aquí el
   resultado.
-- **El relevo con el servidor saturado, tras los cambios.** La máquina de pruebas siguió saturada por otros
-  trabajos y no permitió una medición limpia. Hasta medirlo en producción, despliegue cuando el servidor
-  tenga CPU libre (`uptime`: carga por debajo del número de núcleos) y memoria para una segunda instancia.
+- **La sonda de salud profunda durante un despliegue con el servidor saturado**, tras el último ajuste (ver
+  arriba). Aun con las correcciones, despliegue cuando el servidor tenga CPU libre (`uptime`: carga por
+  debajo del número de núcleos) y memoria para una segunda instancia: saturado, el despliegue funciona pero
+  tarda varios minutos y todo responde más lento.
 - **Un teléfono real.** El cliente de prueba reproduce los tiempos de reintento del agente (1, 2, 4… hasta
   60 s, y vuelve a 1 s tras 30 s de conexión estable), pero no es el agente.
 

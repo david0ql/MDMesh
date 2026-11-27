@@ -156,7 +156,7 @@ unstub 8080
 stub 8080 '	respond /rest/public/name "{\"status\":\"OK\"}" 200
 	respond /rest/public/health "{\"status\":\"down\",\"checks\":{\"db\":\"fail\",\"files\":\"ok\"}}" 503
 	respond "not found" 404'
-sleep 3
+sleep 6   # three failed health checks, one per second, take the instance out of rotation
 expect "/healthz/deep: 503 and the server's reason while it cannot reach its database" /healthz/deep 503 "$DEEP_DB"
 expect "/rest/*: a server without its database is out of rotation"      /rest/public/name 200 'recovery page'
 unstub 8080
@@ -169,7 +169,7 @@ stub 8080 '	bind 127.0.0.1
 stub_b '	respond /rest/public/name "from server-b" 200
 	respond /rest/public/health "{\"status\":\"ok\",\"checks\":{\"db\":\"ok\",\"files\":\"ok\"}}" 200
 	respond "not found" 404'
-sleep 3
+sleep 6
 expect "relay: the API is served by server-b while server is not ready" /rest/public/name 200 'from server-b'
 expect "relay: /healthz/deep reports the healthy instance"              /healthz/deep     200 "$DEEP_OK"
 unstub b

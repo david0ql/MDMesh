@@ -169,18 +169,26 @@
 		# database is gone) gets a second opinion from the other instance, whose answer then stands.
 		reverse_proxy server:8080 server-b:8080 {
 			lb_policy first
-			lb_try_duration 2s
+			lb_try_duration 3s
 			lb_try_interval 100ms
 			rewrite /rest/public/health
 			header_down -Server
+			# An instance whose container exists but does not accept connections yet (it is starting) must not use
+			# up the whole retry window: give up on it after a second and ask the other one.
+			transport http {
+				dial_timeout 1s
+			}
 			@notready status 503
 			handle_response @notready {
 				reverse_proxy server-b:8080 server:8080 {
 					lb_policy first
-					lb_try_duration 1s
+					lb_try_duration 3s
 					lb_try_interval 100ms
 					rewrite /rest/public/health
 					header_down -Server
+					transport http {
+						dial_timeout 1s
+					}
 				}
 			}
 		}
