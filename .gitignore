@@ -70,3 +70,6 @@ Thumbs.db
 *.orig
 *~
 *.swp
+
+# scripts/deploy.sh: previous images and .env of the last deployment (for --rollback)
+.deploy-state/
