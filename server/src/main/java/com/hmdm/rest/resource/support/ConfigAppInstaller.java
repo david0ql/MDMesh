@@ -64,24 +64,96 @@ public class ConfigAppInstaller {
      * this as best-effort (enrollment must not fail because an app list is dirty).
      */
     public int enqueueConfigApps(Device device) {
+        return enqueueConfigApps(device, null);
+    }
+
+    /** The apps of the device's policy (its own list plus its app groups'), as the installer sees them. */
+    private List<Application> policyAppsOf(Device device) {
+        List<Application> apps = unsecureDAO.getPlainConfigurationApplications(
+                device.getCustomerId(), device.getConfigurationId());
+        // Plus the apps of the policy's app groups.
+        if (policyApps != null) {
+            com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+            if (cfg != null) apps = policyApps.resolve(cfg, apps, device.getId()).apps;
+        }
+        return apps;
+    }
+
+    /** One app a device's policy wants installed, with the exact {@code app.install} payload it gets. */
+    public static final class DesiredInstall {
+        public final Integer applicationId;
+        public final String pkg;
+        public final String name;
+        public final int versionCode;
+        public final String version;
+        public final String payload;
+
+        DesiredInstall(Application app, String payload) {
+            this.applicationId = app.getId();
+            this.pkg = app.getPkg().trim();
+            this.name = app.getName();
+            this.versionCode = app.getVersionCode();
+            this.version = app.getVersion();
+            this.payload = payload;
+        }
+    }
+
+    /**
+     * What {@link #enqueueConfigApps} would install on the device: its policy's action=install apps that have something
+     * downloadable. Read-only (the "Instalación en la flota" view is built from it).
+     */
+    public List<DesiredInstall> desiredInstalls(Device device) {
+        List<DesiredInstall> out = new java.util.ArrayList<>();
+        if (device == null || device.getConfigurationId() == null) return out;
+        for (Application app : policyAppsOf(device)) {
+            String payload = installPayload(device, app);
+            if (payload != null) out.add(new DesiredInstall(app, payload));
+        }
+        return out;
+    }
+
+    /** The app.install payload for an action=install app of the device's policy; null when it is not installable. */
+    private String installPayload(Device device, Application app) {
+        if (app == null || app.getAction() != ACTION_INSTALL) {
+            return null;
+        }
+        String url = firstUsableUrl(app);
+        boolean hasParts = app.getParts() != null && !app.getParts().trim().isEmpty();
+        if ((url == null && !hasParts) || app.getPkg() == null || app.getPkg().trim().isEmpty()) {
+            // Catalog placeholder / web app / seed leftover — nothing downloadable.
+            return null;
+        }
+        // A policy that was allowed to go back to an older version (the console warned: the phone reinstalls it).
+        boolean downgrade = false;
+        try {
+            downgrade = app.getId() != null && versions.allowsDowngrade(device.getConfigurationId(), app.getId()) > 0;
+        } catch (Exception ignored) {
+            // no table yet / not this customer: plain install
+        }
+        return InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), app.getVersion(), url,
+                app.getParts(), downgrade);
+    }
+
+    /**
+     * As {@link #enqueueConfigApps(Device)}, limited to the packages [onlyPackages] accepts (null = all): the automatic
+     * retry of a failed install and the console's "Reintentar" re-send one app, not the whole policy.
+     */
+    public int enqueueConfigApps(Device device, java.util.function.Predicate<String> onlyPackages) {
         if (device == null || device.getConfigurationId() == null) {
             return 0;
         }
         int queued = 0;
         try {
-            List<Application> apps = unsecureDAO.getPlainConfigurationApplications(
-                    device.getCustomerId(), device.getConfigurationId());
-            // Plus the apps of the policy's app groups.
-            if (policyApps != null) {
-                com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
-                if (cfg != null) apps = policyApps.resolve(cfg, apps, device.getId()).apps;
-            }
+            List<Application> apps = policyAppsOf(device);
             // The phone installs one by one: the company's own apps (Distribución, Preventa…) first, the big public ones
             // (Google's Maps, Chrome… — which HyperOS may refuse anyway) last, so a slow download never holds them up.
             apps = new java.util.ArrayList<>(apps);
             apps.sort(java.util.Comparator.comparingInt(ConfigAppInstaller::installRank));
             long now = System.currentTimeMillis();
             for (Application app : apps) {
+                if (onlyPackages != null && (app == null || app.getPkg() == null || !onlyPackages.test(app.getPkg().trim()))) {
+                    continue;
+                }
                 String uninstallPkg = uninstallTarget(app);
                 if (uninstallPkg != null) {
                     if (commandDAO.hasOpenIdentical(device.getNumber(), "app.uninstall", uninstallPayload(uninstallPkg))) {
@@ -98,24 +170,10 @@ public class ConfigAppInstaller {
                     queued++;
                     continue;
                 }
-                if (app == null || app.getAction() != ACTION_INSTALL) {
+                String payload = installPayload(device, app);
+                if (payload == null) {
                     continue;
                 }
-                String url = firstUsableUrl(app);
-                boolean hasParts = app.getParts() != null && !app.getParts().trim().isEmpty();
-                if ((url == null && !hasParts) || app.getPkg() == null || app.getPkg().trim().isEmpty()) {
-                    // Catalog placeholder / web app / seed leftover — nothing downloadable.
-                    continue;
-                }
-                // A policy that was allowed to go back to an older version (the console warned: the phone reinstalls it).
-                boolean downgrade = false;
-                try {
-                    downgrade = app.getId() != null && versions.allowsDowngrade(device.getConfigurationId(), app.getId()) > 0;
-                } catch (Exception ignored) {
-                    // no table yet / not this customer: plain install
-                }
-                String payload = InstallPayloadBuilder.build(app.getPkg().trim(), app.getVersionCode(), app.getVersion(), url,
-                        app.getParts(), downgrade);
                 // Re-queued on every configuration save: skip one already on its way. The agent itself skips an
                 // app already at that version before downloading anything, so a repeat costs one tiny command.
                 if (commandDAO.hasOpenIdentical(device.getNumber(), "app.install", payload)) {

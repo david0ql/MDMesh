@@ -3280,6 +3280,9 @@
     </changeSet>
 
     <changeSet id="26.10.27-fleet-roles" author="dallycontrol">
+        <!-- Role 3 by id: on an empty database it still has its original (Russian) name, so the lookup by
+             name returned null and a fresh install could not start. The checksum already applied is kept valid. -->
+        <validCheckSum>9:725a726d951ce6fc370d566cf5e98d7d</validCheckSum>
         <comment>Three folder tiers: (a) new permission manage_fleet gates modifying folders/policies; (b) a
                  view-only "Visor" role (view + safe device actions, no modify, no interrupting actions);
                  (c) disruptive_actions restored to "User" since that is now the full folder-editor role.</comment>
@@ -3294,10 +3297,10 @@
                 WHERE p.name = 'edit_devices';
             -- (c) the folder editor (User role) regains the interrupting actions (full folder admin).
             INSERT INTO userRolePermissions (roleId, permissionId)
-                SELECT (SELECT id FROM userRoles WHERE name = 'User'),
+                SELECT 3,
                        (SELECT id FROM permissions WHERE name = 'disruptive_actions')
                 WHERE NOT EXISTS (SELECT 1 FROM userRolePermissions
-                    WHERE roleId = (SELECT id FROM userRoles WHERE name = 'User')
+                    WHERE roleId = 3
                       AND permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions'));
             -- (b) view-only folder role: can view and run the safe device actions, nothing else.
             INSERT INTO userRoles (id, name, description, superadmin)
@@ -3410,6 +3413,20 @@
         </sql>
     </changeSet>
 
+    <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
+         still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
+         where the grant already exists. -->
+    <changeSet id="26.11.27-manage-users-by-role-id" author="dallycontrol">
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (2, 3) AND p.name = 'manage_users'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
     <changeSet id="26.11.27-enroll-reliability" author="dallycontrol">
         <comment>QR enrollment that always works (MDM-01): a single-use token remembers the device that consumed it
                  (that device may retry when the answer was lost), hidden Wi-Fi on folder codes, and the log of

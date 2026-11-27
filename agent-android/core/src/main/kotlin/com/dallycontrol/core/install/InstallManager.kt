@@ -12,11 +12,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
-import java.io.InputStream
-import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -174,60 +171,32 @@ class InstallManager @Inject constructor(
             }
             SplitSelector.select(req.apkParts, { it.split }, Build.SUPPORTED_ABIS.toList(), res.displayMetrics.densityDpi, langs)
         }.getOrDefault(req.apkParts)
-        val fetched = ArrayList<FetchedApk>(parts.size)
-        try {
-            for (part in parts) {
-                val file = runCatching { obtainPart(part) }
-                    .getOrElse {
-                        rethrowCancel(it)
-                        // No internet / DNS / server hiccup: not this install's fault — leave it for a later check-in.
-                        if (isTransient(it)) throw com.dallycontrol.core.command.RetryLaterException("apk fetch: ${it.message}")
-                        return InstallOutcome.Failure(null, "apk fetch failed: ${it.message}")
-                    }
-                fetched += FetchedApk(file, downloaded = part.url != null)
-                part.sha256?.let { expected ->
-                    val actual = sha256Of(file)
-                    if (!actual.equals(expected, ignoreCase = true)) {
-                        return InstallOutcome.Failure(null, "checksum mismatch: expected $expected got $actual")
-                    }
-                }
-            }
+        // 3. Write EVERY part into ONE session + commit, and wait for the broadcast result — with a time limit: when
+        // Android never answers, the session is abandoned and the install fails with INSTALL_TIMEOUT (the server
+        // sends it again later). A fetch that failed for lack of network throws RetryLaterException instead.
+        val outcome = PartsInstaller(
+            obtain = { obtainPart(it) },
+            commit = { files -> commitSession(req.packageName, files) },
+            resultBus = resultBus,
+            onTimeout = { sessionId -> runCatching { packageInstaller.abandonSession(sessionId) } },
+            alreadyInstalled = {
+                val now = installedVersion(req.packageName)
+                now != null && req.versionCode != null && req.versionCode > 0 && now.first == req.versionCode
+            },
+        ).install(parts)
 
-            // 3. Create + write EVERY part into ONE session + commit, awaiting the broadcast result.
-            val outcome = runCatching { commitInstall(req.packageName, fetched.map { it.file }) }
-                .getOrElse { rethrowCancel(it); return InstallOutcome.Failure(null, "install session error: ${it.message}") }
-
-            if (outcome is InstallOutcome.Failure && OS_BLOCKS.any { outcome.reason.contains(it) }) {
-                osBlocked.edit().putLong(blockedKey, req.versionCode ?: 0L)
-                    .putString("$blockedKey:why", outcome.reason.substringBefore(':')).apply()
-                return InstallOutcome.Skipped("el sistema del teléfono no deja instalar esta app desde el MDM (${outcome.reason.substringBefore(':')})")
-            }
-
-            // 4. Optionally launch the app on success.
-            if (outcome is InstallOutcome.Success && req.runAfterInstall) {
-                launchApp(req.packageName)
-            }
-            return outcome
-        } finally {
-            // Only clean up files we downloaded; never delete a caller-provided APK.
-            fetched.forEach { if (it.downloaded) it.file.delete() }
+        if (outcome is InstallOutcome.Failure && OS_BLOCKS.any { outcome.reason.contains(it) }) {
+            osBlocked.edit().putLong(blockedKey, req.versionCode ?: 0L)
+                .putString("$blockedKey:why", outcome.reason.substringBefore(':')).apply()
+            return InstallOutcome.Skipped("el sistema del teléfono no deja instalar esta app desde el MDM (${outcome.reason.substringBefore(':')})")
         }
+
+        // 4. Optionally launch the app on success.
+        if (outcome is InstallOutcome.Success && req.runAfterInstall) {
+            launchApp(req.packageName)
+        }
+        return outcome
     }
-
-    /**
-     * A cancelled check-in (the worker stopped by a network change, a SIM inserted, the system) is not a failed install:
-     * let it propagate so no result is reported and the server hands the install out again.
-     */
-    private fun rethrowCancel(t: Throwable) {
-        if (t is kotlinx.coroutines.CancellationException) throw t
-    }
-
-    /** A network failure (no connection, DNS, timeout, TLS) or a server error (5xx) — worth trying again later. */
-    private fun isTransient(t: Throwable): Boolean =
-        t is java.io.IOException || (t is IllegalStateException && t.message?.startsWith("HTTP 5") == true)
-
-    /** A fetched part plus whether we downloaded it (and therefore own its cleanup). */
-    private data class FetchedApk(val file: File, val downloaded: Boolean)
 
     /** Silently uninstalls [packageName], awaiting the platform's result. */
     @SuppressLint("MissingPermission") // Device Owner holds DELETE_PACKAGES (declared in the app)
@@ -239,7 +208,12 @@ class InstallManager @Inject constructor(
         val sessionId = -(packageName.hashCode() and 0x7fff_ffff) - 1
         return try {
             packageInstaller.uninstall(packageName, resultSender(sessionId).intentSender)
-            mapResult(resultBus.await(sessionId))
+            val event = resultBus.awaitOrNull(sessionId, UNINSTALL_TIMEOUT_MS)
+                ?: return if (installedVersion(packageName) == null) InstallOutcome.Success
+                else InstallOutcome.Failure(null, "UNINSTALL_TIMEOUT: Android no respondió a la desinstalación")
+            PartsInstaller.mapResult(event)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             InstallOutcome.Failure(null, "uninstall error: ${e.message}")
         }
@@ -267,9 +241,10 @@ class InstallManager @Inject constructor(
     /**
      * Writes ALL [apks] into a single install session and commits once. One apk installs a whole
      * app; several install a split set (base + config/feature splits) atomically — the platform
-     * validates on commit that they share package, version, and signing cert.
+     * validates on commit that they share package, version, and signing cert. Returns the session id;
+     * its result arrives through [InstallResultBus].
      */
-    private suspend fun commitInstall(packageName: String, apks: List<File>): InstallOutcome =
+    private suspend fun commitSession(packageName: String, apks: List<File>): Int =
         withContext(Dispatchers.IO) {
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                 setAppPackageName(packageName)
@@ -283,22 +258,31 @@ class InstallManager @Inject constructor(
             }
 
             val sessionId = packageInstaller.createSession(params)
-            packageInstaller.openSession(sessionId).use { session ->
-                // Each split needs a distinct name within the session; the platform reads the real
-                // split identity from each APK's manifest, so index-based names are fine.
-                apks.forEachIndexed { i, apk ->
-                    FileInputStream(apk).use { input ->
-                        session.openWrite("part_$i.apk", 0, apk.length()).use { output ->
-                            input.copyTo(output, bufferSize = 64 * 1024)
-                            session.fsync(output)
-                        }
+            try {
+                writeAndCommit(sessionId, apks)
+            } catch (t: Throwable) {
+                // No space while copying, a part Android cannot open…: do not leave a half-written session behind.
+                runCatching { packageInstaller.abandonSession(sessionId) }
+                throw t
+            }
+            sessionId
+        }
+
+    private fun writeAndCommit(sessionId: Int, apks: List<File>) {
+        packageInstaller.openSession(sessionId).use { session ->
+            // Each split needs a distinct name within the session; the platform reads the real
+            // split identity from each APK's manifest, so index-based names are fine.
+            apks.forEachIndexed { i, apk ->
+                FileInputStream(apk).use { input ->
+                    session.openWrite("part_$i.apk", 0, apk.length()).use { output ->
+                        input.copyTo(output, bufferSize = 64 * 1024)
+                        session.fsync(output)
                     }
                 }
-                session.commit(resultSender(sessionId).intentSender)
             }
-
-            mapResult(resultBus.await(sessionId))
+            session.commit(resultSender(sessionId).intentSender)
         }
+    }
 
     /**
      * Builds the explicit, immutable [PendingIntent] for a session's result broadcast.
@@ -320,20 +304,6 @@ class InstallManager @Inject constructor(
         return PendingIntent.getBroadcast(context, sessionId, intent, flags)
     }
 
-    private fun mapResult(event: InstallResultBus.InstallResultEvent): InstallOutcome =
-        when (event.status) {
-            PackageInstaller.STATUS_SUCCESS -> InstallOutcome.Success
-            PackageInstaller.STATUS_PENDING_USER_ACTION ->
-                // A true Device Owner should never get this; surface it clearly rather
-                // than launch the confirm dialog (which the explicit/immutable PendingIntent
-                // and Intent-Redirection mitigation deliberately avoid).
-                InstallOutcome.Failure(
-                    event.status,
-                    "unexpected STATUS_PENDING_USER_ACTION — silent install requires Device Owner / privilege",
-                )
-            else -> InstallOutcome.Failure(event.status, event.message ?: statusName(event.status))
-        }
-
     private suspend fun obtainPart(part: ApkPart): File {
         part.localPath?.let { return File(it) }
         val url = requireNotNull(part.url) { "install part needs either url or localPath" }
@@ -342,6 +312,9 @@ class InstallManager @Inject constructor(
 
     private val downloadClient: OkHttpClient by lazy {
         httpClient.newBuilder()
+            // A debug build logs every response BODY, which reads it whole into memory: a 120 MB APK then ends in
+            // OutOfMemoryError. Downloads are never logged.
+            .apply { interceptors().removeAll { it is okhttp3.logging.HttpLoggingInterceptor } }
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
             .build()
@@ -354,6 +327,7 @@ class InstallManager @Inject constructor(
 
     private companion object {
         const val DOWNLOAD_TRIES = 4
+        const val UNINSTALL_TIMEOUT_MS = 3 * 60_000L
         /** Tries to uninstall a kiosk-pinned app for a downgrade, re-asserting the launcher before each (racy foreground). */
         const val UNINSTALL_PIN_RETRIES = 3
         /** Install errors meaning "this phone's system will never let the MDM install this app" (not a transient fault). */
@@ -383,27 +357,4 @@ class InstallManager @Inject constructor(
         }
     }
 
-    private fun sha256Of(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        FileInputStream(file).use { stream: InputStream ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val read = stream.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
-    private fun statusName(status: Int): String = when (status) {
-        PackageInstaller.STATUS_FAILURE -> "FAILURE_UNKNOWN"
-        PackageInstaller.STATUS_FAILURE_BLOCKED -> "FAILURE_BLOCKED"
-        PackageInstaller.STATUS_FAILURE_ABORTED -> "FAILURE_ABORTED"
-        PackageInstaller.STATUS_FAILURE_INVALID -> "FAILURE_INVALID"
-        PackageInstaller.STATUS_FAILURE_CONFLICT -> "FAILURE_CONFLICT"
-        PackageInstaller.STATUS_FAILURE_STORAGE -> "FAILURE_STORAGE"
-        PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> "FAILURE_INCOMPATIBLE"
-        else -> "STATUS_$status"
-    }
 }

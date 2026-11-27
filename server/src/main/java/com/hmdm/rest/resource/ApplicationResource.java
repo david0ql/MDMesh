@@ -80,6 +80,8 @@ public class ApplicationResource {
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.PolicyApps policyApps;
     private UserScope scope;
+    private com.hmdm.rest.resource.support.AppSignatureGuard signatureGuard;
+    private CustomerDAO customerDAO;
 
     @Inject
     public ApplicationResource(ApplicationDAO applicationDAO,
@@ -89,7 +91,11 @@ public class ApplicationResource {
                                com.hmdm.persistence.AgentCommandDAO agentCommandDAO,
                                com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller,
                                com.hmdm.rest.resource.support.PolicyApps policyApps,
-                               UserScope scope) {
+                               UserScope scope,
+                               com.hmdm.rest.resource.support.AppSignatureGuard signatureGuard,
+                               CustomerDAO customerDAO) {
+        this.signatureGuard = signatureGuard;
+        this.customerDAO = customerDAO;
         this.scope = scope;
         this.policyApps = policyApps;
         this.agentCommandDAO = agentCommandDAO;
@@ -397,7 +403,8 @@ public class ApplicationResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Path("/versions")
-    public Response updateApplicationVersion(ApplicationVersion applicationVersion) {
+    public Response updateApplicationVersion(ApplicationVersion applicationVersion,
+                                             @javax.ws.rs.QueryParam("confirmSignatureChange") boolean confirmSignatureChange) {
         if (!SecurityContext.get().hasPermission("edit_application_versions")) {
             logger.error("Unauthorized attempt to update application version by user " +
                     SecurityContext.get().getCurrentUserName());
@@ -405,6 +412,22 @@ public class ApplicationResource {
         }
         try {
             if (applicationVersion.getId() == null) {
+                // A new version signed with another certificate than the previous one fails to install on every phone
+                // that has the app: refuse it unless the operator confirmed (?confirmSignatureChange=true).
+                if (!confirmSignatureChange && signatureGuard != null) {
+                    try {
+                        Customer customer = customerDAO.findById(SecurityContext.get().getCurrentCustomerId().get());
+                        com.hmdm.util.SignatureCheck.Result sig = signatureGuard.checkNewVersion(applicationVersion, customer);
+                        if (sig.changed()) {
+                            logger.warn("Application {} version {} refused: signed with another certificate ({} -> {})",
+                                    applicationVersion.getApplicationId(), applicationVersion.getVersion(),
+                                    sig.previousSha256, sig.newSha256);
+                            return Response.ERROR(sig.message() + " Confirma el cambio de firma para agregarla de todos modos.", sig.toMap());
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Signature check skipped for a new application version: {}", e.toString());
+                    }
+                }
                 // Here only "url" is coming, we may need to change it to urlArmeabi or urlArm64 if arch is set
                 this.applicationDAO.insertApplicationVersion(applicationVersion);
                 applicationVersion = this.applicationDAO.findApplicationVersionById(applicationVersion.getId());
