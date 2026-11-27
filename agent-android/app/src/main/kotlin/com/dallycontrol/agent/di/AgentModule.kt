@@ -610,6 +610,7 @@ object AgentModule {
         setTrackingMinutes = { minutes -> trail.setIntervalMinutes(lostMode.trackingFromPolicy(minutes)) },
         setLocationFixTimeout = location::setFixTimeoutSec,
         mobileData = mobileData::apply,
+        hardware = com.dallycontrol.agent.policy.HardwareRules(context, deviceRules.handle)::apply,
     )
 
     @Provides

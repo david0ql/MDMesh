@@ -3960,6 +3960,19 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-device-hardware-override" author="dallycontrol">
+        <comment>Per-device hardware and ports override (camera, USB debugging, ...) on top of the policy</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_hardware_override (
+                deviceId INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                rules TEXT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_hardware_override;
+        </rollback>
+    </changeSet>
+
     <changeSet id="26.11.27-frp-default-accounts" author="dallycontrol" context="common">
         <comment>Factory-reset protection: the company Google accounts (JSON list of {email, id}) that may set a phone
             up again after a reset from recovery. groupId 0 = the company's default; otherwise a folder's own

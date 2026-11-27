@@ -21,7 +21,7 @@ import com.dallycontrol.proto.EventType
  */
 class DeviceRules(
     private val context: Context,
-    private val handle: DpmHandle,
+    internal val handle: DpmHandle,
     private val events: EventSink,
     private val protection: DeviceProtection = DeviceProtection(context, handle),
 ) {

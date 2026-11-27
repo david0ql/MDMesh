@@ -85,19 +85,37 @@ public final class DesiredConfigBuilder {
     }
 
     /**
+     * @param hardwareOverride per-device hardware and ports override (rule key → allow / block, see
+     *   {@link HardwarePolicy}); it wins over the policy's own rules and toggles. Null / empty = follow the policy.
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
+                                      String dataSharingOverride, Map<String, String> hardwareOverride) {
+        return build(cfg, apps, notInKiosk, folderBrands, extraKioskPackages, dataSharingOverride, hardwareOverride, null);
+    }
+
+    /**
      * @param inheritedFrpAccounts the Google account ids the device's folder chain (nearest first) or the company
      *   gives it for factory-reset protection; used when the policy has no accounts of its own and has not switched
      *   the protection off (see {@link FrpAccounts#resolve}). Null / empty = none.
      */
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
                                       List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
-                                      String dataSharingOverride, List<String> inheritedFrpAccounts) {
+                                      String dataSharingOverride, Map<String, String> hardwareOverride,
+                                      List<String> inheritedFrpAccounts) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
         d.setConfigurationId(cfg.getId());
         d.setPolicies(policies(cfg));
-        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
+        Map<String, String> hw = HardwarePolicy.effective(dc.getHardware(), HardwarePolicy.clean(hardwareOverride, false));
+        List<String> kioskRoles = dc.getKioskRoles();
+        // A blocked camera cannot be opened: the kiosk does not offer its icon (apps that use it just get no image).
+        if (HardwarePolicy.BLOCK.equals(hw.get(HardwarePolicy.CAMERA)) && kioskRoles != null && kioskRoles.contains("camera")) {
+            kioskRoles = new ArrayList<String>(kioskRoles);
+            kioskRoles.remove("camera");
+        }
+        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, kioskRoles, notInKiosk) : null);
         // Quick settings (Wi-Fi, Bluetooth, brightness) are part of a kiosk unless the policy turns them off.
         if (d.getKiosk() != null && !Boolean.FALSE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
         if (d.getKiosk() != null && dc.getPowerPin() != null) {
@@ -174,6 +192,7 @@ public final class DesiredConfigBuilder {
         }
         // Mobile data per app: the policy's own section (a device's override is added by the server's reconciler).
         d.setMobileData(MobileDataPolicy.desired(dc.getMobileData(), null));
+        hardware(d, hw, cfg.getRestrictions());
         d.setRevision(revision(d));
         return d;
     }
@@ -192,6 +211,33 @@ public final class DesiredConfigBuilder {
         if (off) r.setFrpAccounts(null);
         else if (inherit) r.setFrpAccounts(new ArrayList<String>(inherited));
         return r.isBlank() ? null : r;
+    }
+
+    /**
+     * Hardware and ports. Toggles (USB storage, Bluetooth, screenshots) travel in {@code policies}, which every agent
+     * applies; the camera goes both ways (its toggle for agents before the hardware section, the rule for the rest, which
+     * also undo it when the rule goes away); everything else in {@code hardware.rules}. The free field is sent only
+     * with the entries on the validated list. Nothing is added to a policy that sets none of this, so its revision
+     * does not change.
+     */
+    private static void hardware(DesiredConfig d, Map<String, String> hw, String freeField) {
+        Map<String, String> rules = new TreeMap<String, String>();
+        for (Map.Entry<String, String> e : hw.entrySet()) {
+            HardwarePolicy.Rule r = HardwarePolicy.rule(e.getKey());
+            if (r == null) continue;
+            boolean allowed = HardwarePolicy.ALLOW.equals(e.getValue());
+            if (r.kind == HardwarePolicy.Kind.TOGGLE) d.getPolicies().put(r.key, allowed);
+            else if (r.kind == HardwarePolicy.Kind.RULE) {
+                rules.put(r.key, e.getValue());
+                if (HardwarePolicy.CAMERA.equals(r.key)) d.getPolicies().put(r.key, allowed);
+            }
+        }
+        List<String> free = HardwarePolicy.parseRestrictions(freeField).accepted;
+        if (rules.isEmpty() && free.isEmpty()) return;
+        com.hmdm.rest.json.agent.DesiredHardware h = new com.hmdm.rest.json.agent.DesiredHardware();
+        h.setRules(rules.isEmpty() ? null : rules);
+        h.setRestrictions(free.isEmpty() ? null : free);
+        d.setHardware(h);
     }
 
     /** systemUpdateType: 0 device default (absent), 1 immediately, 2 in the from/to window (HH:MM), 3 postpone. */

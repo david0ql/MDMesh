@@ -101,7 +101,7 @@ export const CONFIG_FIELDS: FieldDef[] = [
   { key: 'disableScreenshots', label: 'Bloquear capturas de pantalla', type: 'tri', group: 'Restricciones', enforced: true, help: 'Impide las capturas y la grabación de pantalla.' },
   { key: 'lockVolume', label: 'Bloquear volumen', type: 'tri', group: 'Restricciones', help: 'Desactiva los botones de volumen.' },
   { key: 'allowedClasses', label: 'Clases de apps permitidas', type: 'text', group: 'Restricciones', help: 'Lista separada por comas de las clases de componentes de apps permitidas.' },
-  { key: 'restrictions', label: 'Restricciones de Android', type: 'textarea', group: 'Restricciones', help: 'Restricciones de usuario de Android, separadas por comas, que se aplican en modo MDM.' },
+  // 'restrictions' (extra Android user restrictions) is edited in «Hardware y puertos» (HardwarePolicyPanel), validated against a list.
 
   // ── Display ────────────────────────────────────────────────────────────-─
   { key: 'autoBrightness', label: 'Brillo automático', type: 'tri', group: 'Pantalla', help: 'Administra el brillo automático de la pantalla.' },

@@ -491,6 +491,25 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
+
+## Hardware y puertos (MDM-12)
+
+`scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
+device uses (restored at the end) it: blocks every hardware rule, the older toggles (screenshots, USB storage,
+Bluetooth), data sharing and a free list of Android restrictions; checks the server status ("Restricciones aplicadas")
+rule by rule, `dumpsys user`, `dumpsys device_policy`, that a screenshot fails or is black, that the camera is refused,
+that MTP is refused (`svc usb`) and that the hotspot cannot be switched on in Settings; blocks USB debugging and checks
+that adb stops answering; reverts everything and checks that adb comes back by itself and nothing is left; and sets and
+removes a per-device camera exception. Rules newer than the device's Android must be reported `unsupported: sdk-N`.
+
+```bash
+scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <device number>
+# on a phone you reach only by cable, keep adb: --keep-usb-debug
+
+(cd scripts/shots && npm ci)       # once: Playwright
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```
+
 ## Factory-reset protection, lost mode and remote wipe
 
 `scripts/frp-wipe-e2e.py` checks, on a real enrolled agent, the two anti-theft criteria (MDM-03 and MDM-09; the user

@@ -37,7 +37,7 @@ public class ProtectionTest {
 
     private static DesiredConfig build(String dcPolicy, List<String> inherited) {
         return DesiredConfigBuilder.build(config(dcPolicy), Collections.<Application>emptyList(), Collections.<String>emptySet(),
-                null, Collections.<String>emptySet(), null, inherited);
+                null, Collections.<String>emptySet(), null, null, inherited);
     }
 
     // --- accounts: validation -------------------------------------------------------------------------------------

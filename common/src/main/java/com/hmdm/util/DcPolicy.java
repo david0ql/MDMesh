@@ -98,6 +98,8 @@ public class DcPolicy {
         private String pkg;
         private Long limitMb;
     }
+    /** Hardware and ports: rule key → allow / block (see {@link HardwarePolicy}); a missing key is not managed. */
+    private java.util.Map<String, String> hardware;
     /** E-mails of the policy's own reset-protection accounts (account id -> e-mail), so people recognise them. */
     private java.util.Map<String, String> frpLabels;
 
@@ -183,7 +185,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null;
+                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null;
     }
 
     private DcPolicy cleaned() {
@@ -295,6 +297,7 @@ public class DcPolicy {
             c.frpLabels = labels.isEmpty() ? null : labels;
         }
         c.mobileData = MobileDataPolicy.clean(mobileData);
+        c.hardware = HardwarePolicy.clean(hardware, true);
         return c;
     }
 
