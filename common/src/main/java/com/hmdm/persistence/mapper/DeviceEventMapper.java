@@ -20,6 +20,21 @@ public interface DeviceEventMapper {
                            @Param("since") long since, @Param("limit") int limit);
 
     /**
+     * Same as {@link #list}, but restricted to an explicit set of event types — used to pull just the
+     * "user activity on the device" slice (appOpened / cameraOpened / …) for the device view's activity tab.
+     */
+    @Select({"<script>",
+            "SELECT id, deviceNumber, type, ts, detail FROM device_event ",
+            "WHERE deviceNumber = #{deviceNumber} AND ts >= #{since} ",
+            "AND type IN <foreach item='t' collection='types' open='(' separator=',' close=')'>#{t}</foreach> ",
+            "ORDER BY ts DESC, id DESC LIMIT #{limit}",
+            "</script>"})
+    List<DeviceEvent> listByTypes(@Param("deviceNumber") String deviceNumber,
+                                  @Param("since") long since,
+                                  @Param("types") List<String> types,
+                                  @Param("limit") int limit);
+
+    /**
      * Counts the customer's events whose type matches a SQL LIKE pattern since a timestamp — used by the fleet
      * dashboard for recent SIM activity ({@code type LIKE 'sim%'}).
      */

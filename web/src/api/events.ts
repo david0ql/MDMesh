@@ -11,6 +11,20 @@ export async function getEvents(deviceId: number | string, since = 0): Promise<D
   return apiClient.get<DeviceEvent[]>(`/private/agent/v1/devices/${deviceId}/events?since=${since}`);
 }
 
+/**
+ * On-device user-activity event types (what the user did ON the phone, as opposed to what the console sent TO it).
+ * Only what a Device Owner can actually observe via UsageStats: which app came to the foreground and when.
+ */
+export const ACTIVITY_TYPES = ['appOpened', 'cameraOpened'] as const;
+
+/** The "activity on the device" slice of the event timeline: app/camera openings, newest first. */
+export async function getActivity(deviceId: number | string, since = 0): Promise<DeviceEvent[]> {
+  const types = ACTIVITY_TYPES.join(',');
+  return apiClient.get<DeviceEvent[]>(
+    `/private/agent/v1/devices/${deviceId}/events?since=${since}&types=${encodeURIComponent(types)}`,
+  );
+}
+
 /** One history sample (every ~5 min while the device checks in). */
 export interface MetricSample {
   ts: number;

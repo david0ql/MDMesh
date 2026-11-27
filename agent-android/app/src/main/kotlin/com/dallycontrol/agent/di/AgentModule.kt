@@ -185,6 +185,7 @@ object AgentModule {
         trail: TrailStore,
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
+        appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
@@ -194,7 +195,10 @@ object AgentModule {
                 systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull(),
                 appUsage = runCatching { appUsage.collect() }.getOrNull(),
                 usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
-            ).also { runCatching { deviceRules.enforceAccounts() } } // other-domain Google accounts go on every check-in
+            ).also {
+                runCatching { deviceRules.enforceAccounts() } // other-domain Google accounts go on every check-in
+                runCatching { appActivity.collect() } // record user "opened app / camera" activity events
+            }
         },
         security = { security.collect() },
         // The trail fixes a successful check-in carried are on the server now.
@@ -603,6 +607,14 @@ object AgentModule {
     @Singleton
     fun provideAppUsageCollector(@ApplicationContext context: Context): com.dallycontrol.agent.usage.AppUsageCollector =
         com.dallycontrol.agent.usage.AppUsageCollector(context)
+
+    @Provides
+    @Singleton
+    fun provideAppActivityCollector(
+        @ApplicationContext context: Context,
+        events: EventSink,
+    ): com.dallycontrol.agent.usage.AppActivityCollector =
+        com.dallycontrol.agent.usage.AppActivityCollector(context, events)
 
     @Provides
     @Singleton

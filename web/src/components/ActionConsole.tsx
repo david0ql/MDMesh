@@ -5,6 +5,7 @@ import {
   ACTION_TEMPLATES, type CommandTemplateExt, queueCommand, getDeviceState,
   listCommandHistory, forceSync, type DeviceState, type CommandHistoryItem,
 } from '../api/commands';
+import { getActivity, type DeviceEvent } from '../api/events';
 import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
 import { useAuth } from '../auth/AuthContext';
@@ -30,18 +31,21 @@ export function ActionConsole({ device }: { device: Device }) {
   const visibleGroups = canRunDisruptive(user) ? GROUPS : GROUPS.filter((g) => g.id === 'safe');
   const [state, setState] = useState<DeviceState | null>(null);
   const [history, setHistory] = useState<CommandHistoryItem[]>([]);
+  const [activity, setActivity] = useState<DeviceEvent[]>([]);
   const [active, setActive] = useState<CommandTemplateExt | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [confirmText, setConfirmText] = useState('');
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [st, hist] = await Promise.all([
+    const [st, hist, act] = await Promise.all([
       getDeviceState(device.number).catch(() => null),
       listCommandHistory(device.number).catch(() => []),
+      getActivity(device.number).catch(() => []),
     ]);
     setState(st);
     setHistory(hist);
+    setActivity(act);
   }, [device.number]);
 
   useEffect(() => {
@@ -141,7 +145,7 @@ export function ActionConsole({ device }: { device: Device }) {
 
       <ScriptPanel device={device} onQueued={() => { void refresh(); }} />
 
-      <CommandTimeline items={history} />
+      <RecentActivity history={history} activity={activity} />
 
 
       {active && (
@@ -213,24 +217,70 @@ function DeviceStatePanel({ state }: { state: DeviceState | null }) {
   );
 }
 
-function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
-  if (!items.length) return null;
+/**
+ * "Órdenes recientes" split into two tabs:
+ *  - "Enviados desde consola": the command history (what the console sent TO the device).
+ *  - "Actividad en el dispositivo": on-device user activity (what the user did ON the device — app/camera openings).
+ */
+function RecentActivity({ history, activity }: { history: CommandHistoryItem[]; activity: DeviceEvent[] }) {
+  const [tab, setTab] = useState<'sent' | 'onDevice'>('sent');
   return (
     <section className="timeline">
-      <h3 className="action-group-title">Órdenes recientes</h3>
-      <ul>
-        {items.map((c) => (
-          <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
-            <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
-            <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
-            {(c.completedAt ?? c.createdAt) && (
-              <span className="t-when muted small">{new Date((c.completedAt ?? c.createdAt) as number).toLocaleString('es-CO')}</span>
-            )}
-            {c.detail && <CommandDetail text={c.detail} />}
-          </li>
-        ))}
-      </ul>
+      <div className="tabs" role="tablist" style={{ marginBottom: 12 }}>
+        <button role="tab" className={tab === 'sent' ? 'on' : ''} onClick={() => setTab('sent')}>
+          Enviados desde consola
+        </button>
+        <button role="tab" className={tab === 'onDevice' ? 'on' : ''} onClick={() => setTab('onDevice')}>
+          Actividad en el dispositivo
+        </button>
+      </div>
+      {tab === 'sent' ? <CommandTimeline items={history} /> : <ActivityTimeline items={activity} />}
     </section>
+  );
+}
+
+function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
+  if (!items.length) return <p className="muted">Aún no se han enviado órdenes a este dispositivo.</p>;
+  return (
+    <ul>
+      {items.map((c) => (
+        <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
+          <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
+          <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
+          {(c.completedAt ?? c.createdAt) && (
+            <span className="t-when muted small">{new Date((c.completedAt ?? c.createdAt) as number).toLocaleString('es-CO')}</span>
+          )}
+          {c.detail && <CommandDetail text={c.detail} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  appOpened: 'Abrió una app',
+  cameraOpened: 'Abrió la cámara',
+};
+
+function ActivityTimeline({ items }: { items: DeviceEvent[] }) {
+  if (!items.length) {
+    return (
+      <p className="muted">
+        Sin actividad registrada. Requiere acceso de uso en el agente; solo se observa qué app pasa a primer plano
+        (no toques ni contenido).
+      </p>
+    );
+  }
+  return (
+    <ul>
+      {items.map((e) => (
+        <li key={e.id} className="timeline-item">
+          <span className="t-type">{ACTIVITY_LABELS[e.type] ?? e.type}</span>
+          {e.detail && <span className="t-detail">{e.detail}</span>}
+          <span className="t-when muted small">{new Date(e.ts).toLocaleString('es-CO')}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
