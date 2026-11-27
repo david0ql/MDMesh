@@ -33,6 +33,7 @@ P.add_argument("--db-container", default="", help="postgres container (resting s
 P.add_argument("--pkg", default="com.dallycontrol.agent.debug")
 P.add_argument("--server-url", default="http://10.0.2.2:8088", help="the server as the device reaches it (restored after tls/nows)")
 P.add_argument("--tls-url", default="", help="scripts/red-simulada.py tls, as the device reaches it (e.g. https://10.0.2.2:8443)")
+P.add_argument("--backup-device-url", default="", help="the server's backup URL as the device reaches it (tls scenario)")
 P.add_argument("--nows-url", default="", help="scripts/red-simulada.py nows, as the device reaches it (e.g. http://10.0.2.2:8122)")
 P.add_argument("--only", default="")
 P.add_argument("--doze-minutes", type=float, default=7)
@@ -381,6 +382,14 @@ def point_agent_at(url, forget_backup_choice=False):
                    input=xml, text=True, capture_output=True, timeout=30)
     if forget_backup_choice:
         sh(f"run-as {A.pkg} rm -f shared_prefs/mdm_endpoints.xml")
+    elif A.backup_device_url:
+        # The agent forgets its backups when its server changes (they belonged to the other server). Here the
+        # "new server" stands for the same one behind a network that now inspects TLS, so hand the list back.
+        prefs = ("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n"
+                 f"    <string name=\"backup_urls\">{A.backup_device_url}</string>\n"
+                 f"    <string name=\"primary_url\">{url}</string>\n</map>\n")
+        subprocess.run([A.adb, "-s", A.serial, "shell", f"run-as {A.pkg} sh -c 'cat > shared_prefs/mdm_endpoints.xml'"],
+                       input=prefs, text=True, capture_output=True, timeout=30)
     pid = sh(f"pidof {A.pkg}").strip()
     if pid:
         sh(f"run-as {A.pkg} kill -9 {pid}")
@@ -403,8 +412,8 @@ def tls():
     t0 = time.time()
     point_agent_at(A.tls_url)
     try:
-        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "tls", 300, 3)
-        measure("la consola recibe la falla TLS (llega por la dirección de respaldo)", got, 240)
+        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "tls", 420, 3)
+        measure("la consola recibe la falla TLS (llega por la dirección de respaldo)", got, 360)
         c = connection()
         f = c.get("lastFailure") or {}
         check("motivo exacto: certificado TLS rechazado", "TLS" in (f.get("label") or ""), f.get("label") or "")

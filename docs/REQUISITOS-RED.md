@@ -121,7 +121,7 @@ hora, para armar la evidencia de un incidente.
 
 El servidor puede entregar a los agentes una o más direcciones de respaldo (por ejemplo, un dominio directo al
 servidor, sin la red de distribución). El agente las prueba cuando la dirección principal falla de forma repetida
-(3 fallas seguidas durante al menos un minuto, con red disponible), recuerda la elección aunque se reinicie y vuelve
+(4 fallas seguidas durante al menos dos minutos, con red disponible), recuerda la elección aunque se reinicie y vuelve
 a intentar la principal cada 15 minutos. Solo se aceptan direcciones `https`.
 
 Si su red filtra por dominio, permita también el dominio de respaldo con los mismos requisitos de la sección 2.
