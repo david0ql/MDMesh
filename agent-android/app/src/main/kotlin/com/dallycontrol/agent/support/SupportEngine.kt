@@ -199,12 +199,13 @@ object SupportEngine {
 
     fun supportCapability(context: Context): SupportCapability {
         val screen = screenState(context)
+        val ready = screen == SupportScreenState.READY
         return SupportCapability(
             session = true,
             screen = screen,
-            control = screen == SupportScreenState.READY,
+            control = ready,
             voice = if (hasMicrophone(context) || grantMicrophone(context)) "ready" else "needsPermission",
-            capture = if (screen != SupportScreenState.READY) "none" else SupportReadiness.capture(Build.VERSION.SDK_INT),
+            capture = if (ready) SupportReadiness.capture(Build.VERSION.SDK_INT) else "none",
             selfEnable = canSelfEnable(context),
         )
     }

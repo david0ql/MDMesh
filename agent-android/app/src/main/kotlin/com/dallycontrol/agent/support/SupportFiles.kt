@@ -57,6 +57,7 @@ class SupportFiles(private val context: Context) {
 
     /** A chunk of an upload: `[3][id][bytes…]`. */
     @Synchronized
+    @Suppress("ReturnCount") // unknown transfer / over the limit / written
     fun chunk(id: Int, data: ByteArray, offset: Int, length: Int): String? {
         val t = incoming[id] ?: return "transferencia desconocida"
         if (t.received + length > SupportProtocol.MAX_UPLOAD_BYTES) {

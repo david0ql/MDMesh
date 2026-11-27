@@ -57,7 +57,8 @@ class VoiceCall(
 
     /** Start capturing and playing. Returns an error text, or null when the call is up. */
     @SuppressLint("MissingPermission") // checked by the caller (SupportEngine.grantMicrophone)
-    @Suppress("CyclomaticComplexMethod", "ReturnCount") // one audio set-up, each step with its own way to fail
+    // One audio set-up from top to bottom, each step with its own way to fail.
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "LongMethod")
     fun start(): String? {
         if (running) return null
         val audio = context.getSystemService(AudioManager::class.java)

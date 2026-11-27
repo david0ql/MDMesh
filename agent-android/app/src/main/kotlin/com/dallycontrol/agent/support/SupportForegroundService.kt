@@ -113,7 +113,8 @@ class SupportForegroundService : Service() {
             }
             if (nm.getNotificationChannel(CHANNEL_CHAT) == null) {
                 val name = context.getString(R.string.support_channel_chat)
-                nm.createNotificationChannel(NotificationChannel(CHANNEL_CHAT, name, NotificationManager.IMPORTANCE_HIGH))
+                val channel = NotificationChannel(CHANNEL_CHAT, name, NotificationManager.IMPORTANCE_HIGH)
+                nm.createNotificationChannel(channel)
             }
         }
 

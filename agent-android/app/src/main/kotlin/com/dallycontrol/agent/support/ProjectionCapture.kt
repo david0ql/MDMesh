@@ -139,6 +139,7 @@ object ProjectionCapture {
     }
 
     /** The newest frame (the previous one again while the screen has not changed), or null before the first. */
+    @Suppress("ReturnCount") // not capturing / nothing new / the new frame
     fun frame(): Bitmap? {
         val r = reader ?: return null
         val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return last

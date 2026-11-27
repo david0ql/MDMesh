@@ -26,6 +26,8 @@
 //              fetched back through the session
 //   clipboard  text set on the phone
 //   log        the session is in the log with its duration, chat lines, file and call
+//   policy     the configuration's "Soporte remoto" section reaches the phone: with "se contesta sola" and the notice
+//              off, a call is established with nobody at the phone and no notice is shown (the policy is restored)
 import { execFileSync } from 'child_process';
 import crypto from 'crypto';
 
@@ -143,6 +145,12 @@ async function waitUi(pred, ms = 12000) {
     await sleep(500);
   }
   return null;
+}
+
+/** The session's ongoing notification is posted (not just its channel defined). */
+function noticeShown() {
+  const re = new RegExp(`NotificationRecord\\([^\\n]*pkg=${pkg.replace(/\./g, '\\.')}[^\\n]*channel=dc_support\\b`);
+  return re.test(adb('shell', 'dumpsys', 'notification', '--noredact'));
 }
 
 /** The one tap of a QR enrollment, done on the phone's own screens. */
@@ -316,8 +324,7 @@ try {
     check('the agent captures with its own screen service', info.engine === 'builtin' && info.screen === 'ready',
       `engine=${info.engine} capture=${info.capture} sdk=${info.sdk}`);
     console.log(`  device-owner self-authorisation probe: ${info.probe}`);
-    const notice = adb('shell', 'dumpsys', 'notification').includes('dc_support');
-    check('the phone shows the support notice', notice);
+    check('the phone shows the support notice', noticeShown());
   }
 
   // --- control -----------------------------------------------------------------------------------------------------
@@ -535,6 +542,59 @@ if (want('log')) {
   }
   const live = (await status()).live;
   check('no session is left open on the device', !live, JSON.stringify(live || {}));
+}
+
+// --- policy ----------------------------------------------------------------------------------------------------------------
+if (want('policy')) {
+  const found = ((await rest('POST', '/private/devices/search', { value: device, pageNum: 1, pageSize: 5 })).data?.devices?.items || [])
+    .find((d) => d.number === device);
+  const cfgId = found?.configurationId;
+  const readCfg = async () => ((await rest('GET', '/private/configurations/search')).data || []).find((c) => c.id === cfgId);
+  const apps = async () => ((await rest('GET', `/private/configurations/applications/${cfgId}`)).data || []).filter((a) => a.selected);
+  const cfg = await readCfg();
+  if (!check('the device\'s policy can be read', !!cfg, `configuration ${cfgId}`)) {
+    console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
+    process.exit(1);
+  }
+  const original = cfg.dcPolicy ?? null;
+  const policy = { ...JSON.parse(original || '{}'), remoteSupport: { callAccept: 'auto', notice: false } };
+  const saved = await rest('PUT', '/private/configurations', { ...cfg, dcPolicy: JSON.stringify(policy), applications: await apps() });
+  check('the policy accepts the "Soporte remoto" section', saved.status === 'OK' && !!(await readCfg())?.dcPolicy?.includes('"callAccept":"auto"'),
+    (await readCfg())?.dcPolicy || saved.message);
+  await rest('POST', `/private/agent/v1/devices/${device}/config/reapply`);
+  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+  const p = await new Session().open(false);
+  try {
+    await p.until(() => p.msg('peer', 0, (m) => m.state === 'joined'), 30000);
+    let info = null;
+    for (let i = 0; i < 40 && !(info && info.callAccept === 'auto' && info.notice === false); i++) {
+      const from = Date.now();
+      p.send({ t: 'info.get' });
+      info = await p.until(() => p.msg('info', from), 3000);
+      if (!(info && info.callAccept === 'auto')) await sleep(2000);
+    }
+    check('the phone applied the policy', !!info && info.callAccept === 'auto' && info.notice === false, info ? `callAccept=${info.callAccept} notice=${info.notice}` : 'no info');
+    p.send({ t: 'screen.start', maxDim: 540, quality: 40 });
+    await p.until(() => p.frames[0], 20000);
+    await sleep(1000);
+    check('notice turned off by the policy: none is shown while the screen is viewed', !!p.frames[0] && !noticeShown());
+    const from = Date.now();
+    p.send({ t: 'call.start', testTone: true });
+    const active = await p.until(() => p.msg('call.state', from, (m) => m.s === 'active'), 15000);
+    const rang = !!p.msg('call.state', from, (m) => m.s === 'ringing');
+    check('"se contesta sola": the call is established with nobody at the phone', !!active && !rang, active ? 'active without ringing' : (p.last('call.state') || {}).s);
+    await sleep(1500);
+    const heard = analyse(p.audio);
+    check('unattended call: the phone\'s audio reaches the operator', heard.rms > 3000, `level ${heard.rms}, ${heard.hz} Hz`);
+    p.send({ t: 'call.end' });
+    await sleep(800);
+  } finally {
+    await p.close();
+    const now = await readCfg();
+    await rest('PUT', '/private/configurations', { ...now, dcPolicy: original, applications: await apps() });
+    await rest('POST', `/private/agent/v1/devices/${device}/config/reapply`);
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+  }
 }
 
 console.log(`  measures: ${JSON.stringify(measures)}`);

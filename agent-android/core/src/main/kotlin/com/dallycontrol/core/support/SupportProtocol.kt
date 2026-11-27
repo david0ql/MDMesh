@@ -183,7 +183,8 @@ object TextEdit {
             a != b -> State(current.substring(0, a) + current.substring(b), a)
             a == 0 -> State(current, 0)
             else -> {
-                val pair = a >= 2 && Character.isLowSurrogate(current[a - 1]) && Character.isHighSurrogate(current[a - 2])
+                val pair = a >= 2 &&
+                    Character.isLowSurrogate(current[a - 1]) && Character.isHighSurrogate(current[a - 2])
                 val cut = if (pair) 2 else 1
                 State(current.substring(0, a - cut) + current.substring(a), a - cut)
             }

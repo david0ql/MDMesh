@@ -205,9 +205,8 @@ class SupportActivity : Activity() {
         private const val ME_BG = 0xFFD2E3FC.toInt()
 
         fun intent(context: Context): Intent = Intent(context, SupportActivity::class.java)
-            .addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
-            )
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
 
         /** Bring the support screen up (a Device Owner may start it from the background). */
         fun open(context: Context) {
