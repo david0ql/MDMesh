@@ -491,3 +491,52 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
+
+## Connection stability (MDM-02): reconnection, diagnostics, resting state
+
+```bash
+# the customer's network check (DNS, port, TLS issuer, HTTPS, WebSocket upgrade); see docs/REQUISITOS-RED.md
+scripts/prueba-red.sh https://<server>
+
+# two "bad networks" in front of the dev stack, to see the tools and the agent fail the right way
+scripts/red-simulada.py tls  --listen 8443 --upstream localhost:8088 &   # certificate of a made-up firewall CA
+scripts/red-simulada.py nows --listen 8122 --upstream localhost:8088 &   # 403 to any WebSocket upgrade
+scripts/prueba-red.sh https://localhost:8443 http://localhost:8122        # expect one FALLA each (TLS, WebSocket)
+
+# a real agent (debug build, enrolled with scripts/adb-enroll.sh): cuts the network in several ways, measures the
+# time back to the live channel and to a command's result, and checks what reaches /rest/private/connection/v1.
+# The stack needs AGENT_BACKUP_URLS (the tls scenario reports through the backup URL).
+scripts/conexion-e2e.py --serial emulator-5554 --device-id <id> --api http://localhost:8088 \
+    --server-url http://10.0.2.2:8088 --tls-url https://10.0.2.2:8443 --nows-url http://10.0.2.2:8122 \
+    --backup-device-url http://10.0.2.2:8080 --compose "docker compose --env-file docker/dev.env" \
+    --db-container dallycontrol-dev-postgres-1 [--only baseline,wifi,outage,airplane,doze,server,failover,tls,nows,resting,reboot]
+
+# the console in headless Chromium: the "Última falla de conexión" card and "En reposo"
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/consola-conexion-e2e.mjs --api http://localhost:8088 --device <id> \
+    --expect "Certificado TLS rechazado" --issuer "FortiGate CA simulada" [--resting <id shown as En reposo>]
+```
+
+Results (2026-11-27, own stack through Caddy, debug agent on clean emulators). The machine ran about 13 agents at
+once (load average 27–40 during every run), so the times are upper bounds, not what an idle machine gives.
+
+| Scenario | Android 16 (API 36) | Android 10 (API 29) |
+|---|---|---|
+| Command with the live channel open | 0.7–0.9 s at load ~20; 2.0–11.6 s at load ~30 | 1.9–3.9 s |
+| Wi-Fi off, falls to mobile data: command done | 2.0 s (channel live again in 3.3 s) | 6.8 s (17.0 s) |
+| Wi-Fi back: command done | 6.4 s | 2.8 s |
+| 90 s with no network, then back: channel / command queued meanwhile | 16.5 s / 39.5 s (earlier run: 3.9 s) | 1.5 s / 12.2 s |
+| Airplane mode 60 s, then off: command queued meanwhile | 35.9 s (the emulator's radio takes most of it) | not run |
+| Forced Doze (screen off, unplugged): command | 17.7 s | 4.4 s, 2.1 s; channel open 98 % of 5 min, 0 reconnections |
+| Server drops a socket whose phone lost the network (150 s idle) | 146.9 s | 156.0 s |
+| Server restart: command after it answers again | not measured (run lost to the test machine) | 2.9 s (channel 38.6 s, limit was 30 s) |
+| Network inspects TLS (red-simulada tls) | console gets `tls` + issuer "FortiGate CA simulada" in 212 s, through the backup URL; command by the backup URL 4.9 s | not run with the final build |
+| Network blocks WebSocket (red-simulada nows) | console gets "WebSocket rechazado (HTTP 403)" in 131 s; commands keep arriving (3.3 s) | not run |
+| "En reposo" vs "Sin conexión" | screen off + silent 45 min = resting; after 17 h = offline; in use + silent = offline | not run (docker exec timed out) |
+| Orderly reboot | goodbye report received ("Apagado o reinicio del equipo"), closed with its duration; channel back 55 s after the reboot command, without opening the app | channel back in 53.9 s, command 4.0 s (goodbye not received with the earlier build) |
+
+Console (`consola-conexion-e2e.mjs`): 9/9. `prueba-red.sh`: passes against the stack, fails with the right cause
+against both simulated networks.
+
+Not covered by an emulator: makers' battery managers (HyperOS, One UI) stopping the service, a real Wi-Fi to
+mobile hand-over while walking, Doze over hours (forced Doze only), and the path through Cloudflare (WebSocket ping
+frames and the 150 s idle limit were only checked through the local Caddy).

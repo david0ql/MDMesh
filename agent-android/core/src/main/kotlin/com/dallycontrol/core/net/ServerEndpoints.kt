@@ -28,7 +28,8 @@ class ServerEndpoints(
         val backups = backups()
         val index = index()
         val onBackup = index in 1..backups.size
-        if (onBackup && clock() - switchedAt() >= RETRY_PRIMARY_MS) select(0) // time to try the primary again
+        val switchedAt = store.getString(KEY_SWITCHED_AT)?.toLongOrNull() ?: 0L
+        if (onBackup && clock() - switchedAt >= RETRY_PRIMARY_MS) select(0) // time to try the primary again
         return if (onBackup && index() == index) backups[index - 1] else primaryUrl
     }
 
@@ -86,7 +87,6 @@ class ServerEndpoints(
     }
 
     private fun index(): Int = store.getString(KEY_INDEX)?.toIntOrNull() ?: 0
-    private fun switchedAt(): Long = store.getString(KEY_SWITCHED_AT)?.toLongOrNull() ?: 0L
 
     private fun select(index: Int) {
         store.putString(KEY_INDEX, index.toString())
