@@ -66,6 +66,14 @@ class FixPolicyTest {
     }
 
     @Test
+    fun `a fused provider that stayed silent is skipped for ten minutes`() {
+        val t0 = 5_000_000L
+        assertFalse(FixPolicy.skipFused(t0, 0))
+        assertTrue(FixPolicy.skipFused(t0 + 60_000, t0))
+        assertFalse(FixPolicy.skipFused(t0 + FixPolicy.FUSED_RETRY_MS, t0))
+    }
+
+    @Test
     fun `the trace says what was tried and who answered`() {
         val t = FixPolicy.Trace(
             at = 1L, available = listOf("passive", "fused", "gps"), budgetSec = 25,
@@ -80,5 +88,8 @@ class FixPolicyTest {
         val none = FixPolicy.Trace(1L, listOf("passive"), 25, emptyList())
         assertEquals(null, none.answeredBy)
         assertEquals("sin proveedores activos", none.summary())
+        val reused = FixPolicy.Trace(1L, emptyList(), 25, emptyList(), reusedFrom = "fused")
+        assertEquals("fused", reused.answeredBy)
+        assertEquals("posición reciente de fused, no se pidió otra", reused.summary())
     }
 }

@@ -147,14 +147,21 @@ DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api ht
   remove and add vertices), saves, edits, deletes; recipients and thresholds tabs; the zone types in Alertas; the zones
   on the fleet map and on the device's Ubicación tab with its history, accuracy and CSV download.
 
-### Results (2026-11-27, isolated dev stack + Mailpit, debug agent built from this branch)
+### Results (2026-11-27, isolated dev stack + Mailpit requiring STARTTLS and a password, debug agent of this branch)
 
 | Suite | Result |
 |---|---|
-| `geofence-e2e.py` (simulated device, with e-mail) | 73/73 |
-| `geofence-e2e.py --serial` on Android 10 (API 29, Google APIs image), with e-mail | 31/31 |
-| `geofence-console-e2e.mjs --device` | 35/35 |
-| server/common unit tests (geometry, hysteresis, schedule, e-mail debounce, scope filter) | all green |
+| `geofence-e2e.py` (simulated device, e-mail over STARTTLS + auth) | 89/89 |
+| `geofence-e2e.py --serial` on Android 10 (API 29, `adb emu geo fix`), with e-mail (before the "already outside" checks were added) | 31/31 |
+| `geofence-e2e.py --serial --mock-provider` on Android 13 (API 33, Google APIs): whole trip, offline batch, zone created with the phone already outside, e-mail | 38/39 → the one miss was the diagnosis check when a recent position is reused; fixed and re-run with `--first-fix-only`: 8/8 |
+| `geofence-console-e2e.mjs` (`--device`: 35/35 earlier; without device after the latest changes) | 29/29 |
+| `agent-v1-e2e.sh` (regression) | 84/84 |
+| SMTP modes through *Enviar prueba*: STARTTLS + auth, implicit SSL + auth → delivered; wrong password, no TLS against a STARTTLS-only server → refused cleanly (`error.geofence.smtp.failed`) | as expected |
+| server/common unit tests · agent `lintDebug` + unit tests | all green |
+
+Location providers on the API 33 Google APIs emulator (agent log `fresh fix: …`): `fused` is present and enabled but
+gave nothing within its 8 s cap, then `gps` answered in 4.7–7.3 s; on the next request `fused` was skipped and `gps`
+answered in 4.0 s. Fed through the test provider, positions arrive as `provider=fused` ±6 m.
 
 ## Security regression checks
 
