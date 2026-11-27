@@ -264,9 +264,10 @@ def no_install_dialog():
 
 
 def free_data_kb():
-    for line in sh("df -k /data").splitlines():
+    # One filesystem line; its mount point is /data on old releases and a pass-through path on new ones.
+    for line in reversed(sh("df -k /data").splitlines()):
         cols = line.split()
-        if len(cols) >= 6 and cols[-1].startswith("/data"):
+        if len(cols) >= 6 and cols[3].isdigit():
             return int(cols[3])
     return None
 
@@ -277,6 +278,11 @@ def main():
     section(f"server: {A.api} behind a simulated tunnel that refuses bodies over {A.limit_mb} MB ({VIA})")
     if not check("admin login", login()):
         return
+    # A previous run left the test app in the library (its last version signed with the OTHER key): start clean, or
+    # every signature comparison below would be against that one.
+    for old in call("GET", f"/rest/private/applications/search/{PKG}")[1].get("data") or []:
+        if old.get("pkg") == PKG and old.get("id"):
+            call("DELETE", f"/rest/private/applications/{old['id']}")
     big = read("bigapp-v1.apk")
     v2 = read("bigapp-v2.apk")
     v3 = read("bigapp-v3-otherkey.apk")
