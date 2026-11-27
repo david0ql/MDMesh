@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { IconCopy } from '../ui/icons';
 import { useToast } from '../ui/toast';
-import { mintEnrollToken } from '../api/enroll';
+import { attemptReason, getTokenStatus, mintEnrollToken, type TokenStatus } from '../api/enroll';
+import { EnrollAttemptsPanel } from '../components/EnrollAttemptsPanel';
 import { useAuth } from '../auth/AuthContext';
 import { isFolderAdmin } from '../api/auth';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
@@ -12,7 +13,10 @@ import { QrCanvas, downloadQrPng } from '../components/QrCanvas';
 import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
 import { NoResetEnrollPanel } from '../components/NoResetEnrollPanel';
 import { UsbEnrollPanel } from '../components/UsbEnrollPanel';
-import { buildProvisioningPayload, serverBaseUrl, agentApkUrl, type WifiSecurity } from '../enroll/provisioning';
+import {
+  agentScanPayload, buildProvisioningPayload, clockNow, qrDensity, serverBaseUrl, agentApkUrl,
+  type EapMethod, type EapPhase2, type WifiConfig, type WifiSecurity,
+} from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
 
 /** The group last enrolled into, remembered per browser for the next enrollment. */
@@ -21,9 +25,9 @@ const SECURITY_VALUES: WifiSecurity[] = ['WPA', 'WEP', 'NONE', 'EAP'];
 
 const STEPS = [
   { title: 'Parte de un dispositivo formateado (restablecido de fábrica)', sub: 'En la primera pantalla de bienvenida ("Hola"), todavía no inicies sesión.' },
-  { title: 'Toca la pantalla 6 veces', sub: 'Así se abre el escáner QR de aprovisionamiento. Conéctate al Wi‑Fi si te lo pide.' },
+  { title: 'Toca la pantalla 6 veces', sub: 'Así se abre el escáner QR de aprovisionamiento (Android 7 o superior). En Android 7 y 8 el teléfono pide antes un Wi‑Fi con internet para descargar el lector.' },
   { title: 'Escanea este código', sub: 'Android descarga el agente de DallyControl y lo configura como propietario del dispositivo.' },
-  { title: 'Espera la inscripción', sub: 'El dispositivo aparece en Dispositivos después de su primera conexión.' },
+  { title: 'Espera la inscripción', sub: 'El teléfono muestra «Equipo inscrito» y esta página lo confirma. Si falla, el motivo sale en el teléfono y abajo, en «Intentos de inscripción».' },
 ];
 
 type Mode = 'qr' | 'token' | 'codes' | 'noreset' | 'usb';
@@ -39,6 +43,25 @@ export function EnrollPage() {
   const [wifiSsid, setWifiSsid] = useState('');
   const [wifiPass, setWifiPass] = useState('');
   const [wifiSec, setWifiSec] = useState<WifiSecurity>('WPA');
+  const [wifiHidden, setWifiHidden] = useState(false);
+  const [eapMethod, setEapMethod] = useState<EapMethod>('PEAP');
+  const [eapPhase2, setEapPhase2] = useState<EapPhase2>('MSCHAPV2');
+  const [eapIdentity, setEapIdentity] = useState('');
+  const [eapAnon, setEapAnon] = useState('');
+  const [eapDomain, setEapDomain] = useState('');
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyBypass, setProxyBypass] = useState('');
+  // The QR carries the current time (a phone out of the box boots with its factory date and then rejects the
+  // server's certificate). Re-drawn every 30 s so the time it carries is never stale.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  const [status, setStatus] = useState<TokenStatus | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [lastEnrolled, setLastEnrolled] = useState<{ deviceNumber: string; configurationName?: string } | null>(null);
   const [configs, setConfigs] = useState<Configuration[]>([]);
   // Only fills the Wi-Fi fields below; the device's configuration comes from its group (or the global one).
   const [cfgId, setCfgId] = useState<string>('');
@@ -71,7 +94,26 @@ export function EnrollPage() {
     setWifiSec((SECURITY_VALUES as string[]).includes(sec) ? (sec as WifiSecurity) : 'WPA');
   }, [cfgId, configs]);
 
+  const wifi: WifiConfig | undefined = useMemo(() => {
+    if (!wifiSsid.trim()) return undefined;
+    const port = Number(proxyPort);
+    return {
+      ssid: wifiSsid,
+      password: wifiPass,
+      security: wifiSec,
+      hidden: wifiHidden,
+      eap: wifiSec === 'EAP'
+        ? { method: eapMethod, phase2: eapPhase2, identity: eapIdentity, anonymousIdentity: eapAnon, domain: eapDomain }
+        : undefined,
+      proxy: proxyHost.trim() ? { host: proxyHost, port: Number.isFinite(port) && port > 0 ? port : undefined, bypass: proxyBypass } : undefined,
+    };
+  }, [wifiSsid, wifiPass, wifiSec, wifiHidden, eapMethod, eapPhase2, eapIdentity, eapAnon, eapDomain, proxyHost, proxyPort, proxyBypass]);
+  // On screen: with the current time. Downloaded: with the time of the download (the caption says when).
+  const qrText = token ? buildProvisioningPayload(token, wifi, { clock: clockNow(nowTick) }) : '';
+  const density = qrText ? qrDensity(qrText, 'L') : null;
+
   async function generate() {
+    setStatus(null);
     const gid = Number(groupId);
     const validGroup = Number.isFinite(gid) && gid > 0;
     // A folder editor can only enroll into one of their own folders; the server refuses an unscoped token. Guide
@@ -110,6 +152,36 @@ export function EnrollPage() {
     void generate();
     // eslint-disable-next-line
   }, [groupId]);
+
+  const generateRef = useRef(generate);
+  generateRef.current = generate;
+  useEffect(() => {
+    if (!token || (mode !== 'qr' && mode !== 'token')) return undefined;
+    let alive = true;
+    const check = async () => {
+      // A token whose time ran out while the page stayed open: replace it before anyone scans a dead QR.
+      if (expiresAt && Date.now() > expiresAt - 60_000) {
+        setNotice('El código anterior venció; se generó uno nuevo.');
+        void generateRef.current();
+        return;
+      }
+      try {
+        const st = await getTokenStatus(token);
+        if (!alive) return;
+        setStatus(st);
+        if (st.deviceNumber) {
+          setLastEnrolled({ deviceNumber: st.deviceNumber, configurationName: st.configurationName });
+          toast.push('ok', 'Equipo inscrito', st.configurationName ? `Política: ${st.configurationName}` : st.deviceNumber);
+          setNotice(null);
+          // One QR, one phone: have the next one ready.
+          void generateRef.current();
+        }
+      } catch { /* the next tick tries again */ }
+    };
+    const t = window.setInterval(() => void check(), 4_000);
+    return () => { alive = false; window.clearInterval(t); };
+    // eslint-disable-next-line
+  }, [token, expiresAt, mode]);
 
   async function copy() {
     if (!token) return;
@@ -183,31 +255,62 @@ export function EnrollPage() {
               <div>
                 <div className="qr-frame">
                   {token ? (
-                    <QrCanvas
-                      text={buildProvisioningPayload(
-                        token,
-                        wifiSsid.trim() ? { ssid: wifiSsid, password: wifiPass, security: wifiSec } : undefined,
-                      )}
-                      size={320}
-                    />
+                    <QrCanvas text={qrText} size={360} level="L" />
                   ) : (
                     <div className="empty"><span className="spin" /> Preparando…</div>
                   )}
                 </div>
                 <div className="qr-cap">
                   Un solo uso{expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}
-                  {wifiSsid.trim() ? ` · se conecta al Wi‑Fi “${wifiSsid.trim()}”` : ''}
+                  {wifiSsid.trim() ? ` · se conecta al Wi‑Fi “${wifiSsid.trim()}”${wifiHidden ? ' (oculta)' : ''}` : ''}
+                  {' · lleva la hora actual (se actualiza solo)'}
+                </div>
+                {notice && <div className="banner banner-warn" data-testid="qr-notice" style={{ marginTop: 10 }}>{notice}</div>}
+                {density?.dense && (
+                  <div className="banner banner-warn" data-testid="qr-dense" style={{ marginTop: 10 }}>
+                    Este QR lleva muchos datos ({density.bytes} bytes) y queda muy fino. Sube el brillo, amplía la página
+                    (Ctrl +) y acerca el teléfono; o quita el proxy / 802.1X del QR y configúralos en la política.
+                  </div>
+                )}
+                <div className="note" data-testid="qr-status" style={{ marginTop: 8 }}>
+                  {status && status.attempts.length > 0
+                    ? <>Último movimiento con este QR: <b>{attemptReason(status.attempts[0])}</b>
+                        {status.attempts[0].model ? ` · ${[status.attempts[0].manufacturer, status.attempts[0].model].filter(Boolean).join(' ')}` : ''}
+                        {status.attempts[0].androidRelease ? ` · Android ${status.attempts[0].androidRelease}` : ''}</>
+                    : 'Esperando a que un teléfono escanee este QR…'}
+                  {lastEnrolled && (
+                    <div data-testid="qr-enrolled">
+                      Último equipo inscrito: <span className="mono">{lastEnrolled.deviceNumber}</span>
+                      {lastEnrolled.configurationName ? ` · política ${lastEnrolled.configurationName}` : ''}
+                    </div>
+                  )}
                 </div>
                 {token && (
                   <button className="btn btn-sm" data-testid="qr-download"
                     onClick={() => void downloadQrPng(
-                      buildProvisioningPayload(token, wifiSsid.trim() ? { ssid: wifiSsid, password: wifiPass, security: wifiSec } : undefined),
+                      buildProvisioningPayload(token, wifi, { clock: clockNow() }),
                       `qr-inscripcion-${new Date().toISOString().slice(0, 10)}.png`,
                       ['Inscripción DallyControl', `Un solo uso${expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}`,
+                        `Generado ${fmtDateTime(Date.now())} · úsalo hoy: lleva esta hora para poner en fecha el teléfono`,
                         wifiSsid.trim() ? `Wi‑Fi: ${wifiSsid.trim()}` : ''],
                     )}>
                     Descargar QR
                   </button>
+                )}
+                {token && (
+                  <details className="wifi-block" data-testid="agent-qr">
+                    <summary>Equipo ya administrado que no se inscribió (sin formatear de nuevo)</summary>
+                    <div className="wifi-fields">
+                      <p className="note">
+                        Si el teléfono ya muestra DallyControl como administrador pero no aparece en la consola (el asistente
+                        se abandonó o el fabricante no entregó el QR al agente): en el teléfono abre <b>DallyControl</b> →
+                        <b> Escanear el QR de la consola</b> y apunta a este QR pequeño. Lleva el mismo código de un solo uso.
+                      </p>
+                      <div className="qr-frame" style={{ maxWidth: 240 }}>
+                        <QrCanvas text={agentScanPayload(token)} size={220} level="L" />
+                      </div>
+                    </div>
+                  </details>
                 )}
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
                   <summary>Conectar a Wi‑Fi durante la puesta en marcha (opcional)</summary>
@@ -233,16 +336,59 @@ export function EnrollPage() {
                         <option value="WPA">WPA / WPA2</option>
                         <option value="WEP">WEP</option>
                         <option value="NONE">Abierta (sin contraseña)</option>
+                        <option value="EAP">Empresarial 802.1X (EAP)</option>
                       </select>
                     </label>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', gridAutoFlow: 'column', justifyContent: 'start' }}>
+                      <input type="checkbox" checked={wifiHidden} onChange={(e) => setWifiHidden(e.target.checked)}
+                        style={{ width: 'auto' }} data-testid="wifi-hidden" />
+                      Red oculta (no difunde su nombre)
+                    </label>
+                    {wifiSec === 'EAP' && (
+                      <>
+                        <label>
+                          Método EAP
+                          <select className="sel" value={eapMethod} onChange={(e) => setEapMethod(e.target.value as EapMethod)}>
+                            <option value="PEAP">PEAP</option><option value="TTLS">TTLS</option><option value="PWD">PWD</option>
+                            <option value="TLS">TLS</option><option value="SIM">SIM</option><option value="AKA">AKA</option>
+                          </select>
+                        </label>
+                        <label>
+                          Autenticación de fase 2
+                          <select className="sel" value={eapPhase2} onChange={(e) => setEapPhase2(e.target.value as EapPhase2)}>
+                            <option value="MSCHAPV2">MSCHAPv2</option><option value="GTC">GTC</option><option value="PAP">PAP</option>
+                            <option value="MSCHAP">MSCHAP</option><option value="NONE">Ninguna</option>
+                          </select>
+                        </label>
+                        <label>Usuario (identidad)<input value={eapIdentity} onChange={(e) => setEapIdentity(e.target.value)} autoComplete="off" /></label>
+                        <label>Identidad anónima (opcional)<input value={eapAnon} onChange={(e) => setEapAnon(e.target.value)} autoComplete="off" /></label>
+                        <label>Dominio del servidor RADIUS<input value={eapDomain} onChange={(e) => setEapDomain(e.target.value)} placeholder="radius.empresa.com" /></label>
+                        <p className="note">
+                          802.1X en el QR funciona desde Android 10. El teléfono valida el certificado del RADIUS con las
+                          autoridades del sistema para ese dominio; un certificado propio no cabe en un QR (usa una red
+                          WPA de puesta en marcha y aplica la red 802.1X desde la política).
+                        </p>
+                      </>
+                    )}
                     {wifiSec !== 'NONE' && (
                       <label>
                         Contraseña
                         <input type="password" value={wifiPass} onChange={(e) => setWifiPass(e.target.value)} autoComplete="off" />
                       </label>
                     )}
+                    <label>
+                      Proxy de esa red (opcional)
+                      <input value={proxyHost} onChange={(e) => setProxyHost(e.target.value)} placeholder="proxy.empresa.com" data-testid="proxy-host" />
+                    </label>
+                    {proxyHost.trim() && (
+                      <>
+                        <label>Puerto del proxy<input value={proxyPort} inputMode="numeric" onChange={(e) => setProxyPort(e.target.value)} placeholder="8080" /></label>
+                        <label>Sin proxy para (opcional)<input value={proxyBypass} onChange={(e) => setProxyBypass(e.target.value)} placeholder="localhost,*.empresa.local" /></label>
+                      </>
+                    )}
                     <p className="note">
                       El dispositivo se conecta a esta red durante el aprovisionamiento (antes de descargar el agente).
+                      La red debe dar internet sin página de inicio de sesión (portal cautivo).
                       Ojo: la contraseña va incluida en el QR; muéstralo solo a personas de confianza que vayan a inscribir.
                     </p>
                   </div>
@@ -264,6 +410,19 @@ export function EnrollPage() {
           </section>
         )}
 
+        {mode === 'qr' && (
+          <section className="panel" style={{ marginTop: 20 }} data-testid="qr-troubleshoot">
+            <div className="panel-head"><h2 className="panel-title">Si el QR no funciona</h2></div>
+            <ul className="note" style={{ padding: '4px 20px 16px 38px', lineHeight: 1.65, margin: 0 }}>
+              <li><b>No abre el lector al tocar 6 veces:</b> el equipo no está recién formateado, o es Android 6 o anterior (sin QR: usa «Por cable» o «Sin formatear»). En Android 7–8 primero pide Wi‑Fi para descargar el lector.</li>
+              <li><b>«No se puede configurar el dispositivo» antes de descargar:</b> el Wi‑Fi no tiene internet, pide iniciar sesión, o el teléfono trae la fecha de fábrica. Escanea el QR desde esta pantalla (lleva la hora) y usa una red sin portal.</li>
+              <li><b>Pide la cuenta de Google anterior:</b> el equipo tiene protección contra restablecimiento (FRP). Hay que quitar la cuenta antes de formatear, o entrar con ella.</li>
+              <li><b>Samsung:</b> si tiene Knox Mobile Enrollment asignado a otro MDM, ese perfil gana; pide al revendedor que lo libere o usa «Exportar Zero‑Touch / KME» en Códigos de carpeta.</li>
+              <li><b>Xiaomi / HyperOS y otros sin el lector integrado:</b> si no aparece el lector, conecta Wi‑Fi cuando lo pida; si aun así no aparece, usa «Por cable (USB)».</li>
+              <li><b>Descarga pero no inscribe:</b> mira «Intentos de inscripción» abajo: dirá si descargó el agente y por qué no terminó.</li>
+            </ul>
+          </section>
+        )}
         {mode === 'codes' && <EnrollmentCodesPanel groups={groups} />}
         {mode === 'noreset' && <NoResetEnrollPanel token={token ?? undefined} groups={groups} />}
         {mode === 'usb' && <UsbEnrollPanel />}
@@ -299,6 +458,8 @@ export function EnrollPage() {
             </div>
           </section>
         )}
+
+        <EnrollAttemptsPanel />
       </div>
     </AppShell>
   );

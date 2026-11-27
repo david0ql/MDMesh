@@ -13,6 +13,29 @@ import com.dallycontrol.policy.wifi.DpmHandle
  * prompted for runtime permissions its managed apps should get silently.
  */
 object ProvisioningBaseline {
+    private const val PREFS = "mdm_baseline"
+    private const val KEY_VERSION = "version"
+
+    /** Raise when [apply] gains a step every already-enrolled Device Owner should also get. */
+    private const val VERSION = 1
+
+    /**
+     * Apply the baseline unless this version of it was already applied as Device Owner. Safe to call from every
+     * provisioning callback and on every start: the older QR path (Android 11 and below) never applied it, so those
+     * phones had no passcode-reset token and no silent permission grants; this also repairs them after an update.
+     */
+    fun ensure(ctx: android.content.Context): Boolean {
+        val app = ctx.applicationContext
+        val dpm = app.getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+        val prefs = app.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val due = dpm?.isDeviceOwnerApp(app.packageName) == true && prefs.getInt(KEY_VERSION, 0) < VERSION
+        if (due) {
+            apply(app)
+            prefs.edit().putInt(KEY_VERSION, VERSION).apply()
+        }
+        return due
+    }
+
     /** Benign Device-Owner baseline: auto-grant runtime permissions to managed apps so they
      *  never prompt. Restrictive policies are pushed by the admin via commands, not here. */
     fun apply(ctx: android.content.Context) {

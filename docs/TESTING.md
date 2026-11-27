@@ -284,3 +284,40 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## QR provisioning on every Android release (MDM-01)
+
+`scripts/qr-matrix/qr_matrix.py` runs Android's real managed provisioning with a QR payload on a clean emulator per
+release. It starts right after the point where the camera reads the QR: `ProvisionIntent.java` (run as root with
+`app_process`, userdebug images only) turns the QR's JSON into the same `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE`
+intent the setup wizard builds, so everything after the scan is the platform's own code: Wi-Fi, clock, the agent
+download, the signature checksum, the install, Device Owner, and the agent's provisioning callbacks
+(`GET_PROVISIONING_MODE` + `ADMIN_POLICY_COMPLIANCE` on Android 12+, `PROFILE_PROVISIONING_COMPLETE` +
+`PROVISIONING_SUCCESSFUL` before). The script taps through the consent screens, waits until the console's API says
+the token enrolled a device, and saves logcat and the screens it saw.
+
+```bash
+# the dev stack (docs/DEV.md) with the debug agent published as /files/dallycontrol-agent.apk; payload.json is what
+# web/src/enroll/payload.ts builds, with ${TOKEN}, ${TOKEN12} and "${NOW}" left for the script to fill per device
+scripts/qr-matrix/qr_matrix.py matrix --payload payload.json --out /tmp/qr-matrix \
+    --mint http://localhost:8088 --admin admin:admin mdm_api24 mdm_api30 mdm_api35 ...
+
+# one device, with the clock set six years back first (a phone out of the box with a dead clock)
+scripts/qr-matrix/qr_matrix.py run --serial emulator-5600 --payload payload.json --out /tmp/qr-one --clock-back-years 6
+
+scripts/qr-matrix/enroll_api_check.py http://localhost:8088      # token retries, serial/IMEI de-dup, attempts log
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/enroll-console-e2e.mjs --api http://localhost:8088   # the Enroll page
+```
+
+What the emulator run does **not** cover: the camera and the QR decoder themselves (and the download of the QR reader
+from Google Play on Android 7-8), the setup wizard of each maker (Samsung/Knox, Xiaomi/HyperOS, Motorola), Play
+Protect's verdict on the agent, factory-reset protection (FRP), captive portals, and real Zero-Touch / Knox Mobile
+Enrollment assignment. Emulator facts the script works around (none of them are agent behaviour):
+
+- A booted emulator is already "set up". The script clears `user_setup_complete` / `device_provisioned`, disables
+  AOSP's `com.android.provision` (it marks the device as set up on every boot) and restarts the framework without
+  `device_policies.xml`, because `DevicePolicyManagerService` latches "setup complete" there and then answers
+  "Device already provisioned".
+- Android 6 (API 23) has no QR provisioning (it arrived in Android 7.0): that release enrolls by cable or NFC only.
+- Every emulator of a release reports the same serial and IMEI, so "same phone after a factory reset" is checked
+  with made-up identities by `enroll_api_check.py`, and the server ignores `EMULATOR*` serials for de-duplication.

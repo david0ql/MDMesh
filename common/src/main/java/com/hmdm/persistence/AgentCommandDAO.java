@@ -239,6 +239,15 @@ public class AgentCommandDAO {
         return deviceMapper.findDeviceNumberByHardwareId(customerId, hardwareId);
     }
 
+    /** Number of an existing device of [customerId] with this serial, or null (enroll de-dup across factory resets). */
+    public String findDeviceNumberBySerial(int customerId, String serial) {
+        return deviceMapper.findDeviceNumberBySerial(customerId, serial);
+    }
+
+    public String findDeviceNumberByImei(int customerId, String imei) {
+        return deviceMapper.findDeviceNumberByImei(customerId, imei);
+    }
+
     /** Packages shown in a single device's kiosk (per-device "show in kiosk"). */
     public java.util.List<String> listDeviceKioskApps(int deviceId) {
         return deviceMapper.listDeviceKioskApps(deviceId);
