@@ -75,6 +75,58 @@ object ProvisioningIntake {
         return token.isNotEmpty()
     }
 
+    /**
+     * Use the payload kept at GET_PROVISIONING_MODE when the agent is Device Owner, is not enrolled and has no token:
+     * the callback that should have delivered it did not come (yet). Safe to call any number of times.
+     */
+    fun adoptPending(context: Context): Boolean {
+        val app = context.applicationContext
+        val status = EnrollStatusStore(app)
+        val pending = status.pending() ?: return false
+        val dpm = app.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+        val wanted = dpm?.isDeviceOwnerApp(app.packageName) == true && kotlinx.coroutines.runBlocking {
+            DeviceIdStore(app).current().isNullOrBlank() && EnrollTokenStore(app).token().isNullOrBlank()
+        }
+        if (wanted) {
+            Log.i(TAG, "no provisioning callback delivered the payload; using the copy from GET_PROVISIONING_MODE")
+            val extras = PersistableBundle().apply {
+                putString(AdminReceiver.EXTRA_ENROLL_TOKEN, pending.first)
+                pending.second?.let { putString(AdminReceiver.EXTRA_SERVER_URL, it) }
+            }
+            accept(app, extras, EnrollStatusStore.PATH_QR_EARLY)
+        }
+        return wanted
+    }
+
+    /** The console's QR scanned from the agent's own screen ([EnrollScanActivity]). */
+    fun acceptScanned(context: Context, qr: com.dallycontrol.core.enroll.EnrollQr) {
+        val app = context.applicationContext
+        EnrollStatusStore(app).apply {
+            clearFailure()
+            setPath(EnrollStatusStore.PATH_QR_AGENT, replace = true)
+        }
+        EnrollPrompt.dismiss(app)
+        val extras = PersistableBundle().apply {
+            putString(AdminReceiver.EXTRA_ENROLL_TOKEN, qr.token)
+            qr.serverUrl?.let { putString(AdminReceiver.EXTRA_SERVER_URL, it) }
+        }
+        accept(app, extras, EnrollStatusStore.PATH_QR_AGENT)
+    }
+
+    /** Check for a pending payload now and a few more times: Device Owner is set moments after the admin is enabled. */
+    fun adoptPendingSoon(context: Context) {
+        val app = context.applicationContext
+        scope.launch {
+            for (waitMs in ADOPT_WAITS_MS) {
+                delay(waitMs)
+                if (EnrollStatusStore(app).pending() == null || runCatching { adoptPending(app) }.getOrDefault(false)) break
+            }
+        }
+    }
+
+    @Suppress("MagicNumber") // seconds after the admin was enabled: 3 s, 15 s, 45 s, 2 min
+    private val ADOPT_WAITS_MS = longArrayOf(3_000, 12_000, 30_000, 75_000)
+
     /** The wake channel: a Device Owner may start it from the background (same as the USB path does). */
     fun startService(app: Context) {
         runCatching { ContextCompat.startForegroundService(app, Intent(app, CheckInService::class.java)) }

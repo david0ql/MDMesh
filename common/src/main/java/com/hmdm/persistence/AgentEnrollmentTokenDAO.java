@@ -117,6 +117,13 @@ public class AgentEnrollmentTokenDAO {
         return mapper.listAttempts(customerId, includeUnknown, Math.max(1, Math.min(limit, 500)));
     }
 
+    /** {unresolved, ownerWithoutToken}: phones still not enrolled after failing, over the last [days] days. */
+    public int[] countUnresolved(int customerId, boolean includeUnknown, int days) {
+        long since = System.currentTimeMillis() - days * 24L * 3600 * 1000;
+        return new int[]{mapper.countUnresolvedDevices(customerId, includeUnknown, since),
+                mapper.countOwnerWithoutToken(customerId, includeUnknown, since)};
+    }
+
     public java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttemptsOfToken(int tokenId) {
         return mapper.listAttemptsOfToken(tokenId);
     }

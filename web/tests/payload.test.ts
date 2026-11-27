@@ -25,6 +25,8 @@ test('the payload names the agent, its checksum, where to download it and what t
     'com.dallycontrol.SERVER_URL': base.serverUrl,
   });
   assert.equal(x[`${P}PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED`], true);
+  // Android 13+: do not stop when Google's device-policy app cannot be updated from Play.
+  assert.equal(x[`${P}PROVISIONING_ALLOW_OFFLINE`], true);
 });
 
 test('without a clock nothing about time is sent', () => {

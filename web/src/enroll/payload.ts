@@ -86,6 +86,10 @@ export function buildProvisioningExtras(o: ProvisioningOptions): Record<string, 
     [`${P}PROVISIONING_ADMIN_EXTRAS_BUNDLE`]: adminExtras(o),
     [`${P}PROVISIONING_SKIP_ENCRYPTION`]: true,
     [`${P}PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED`]: true,
+    // Android 13+ first tries to update Google's own device-policy app from Google Play and, when that cannot be
+    // done (no Play, Play unreachable from the provisioning Wi-Fi, a maker's build without it), stops with "Can't
+    // set up device" before it even downloads the agent. This agent does not need that app.
+    [`${P}PROVISIONING_ALLOW_OFFLINE`]: true,
   };
   const c = o.clock;
   if (c) {

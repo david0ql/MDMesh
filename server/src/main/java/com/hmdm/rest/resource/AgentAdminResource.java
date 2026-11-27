@@ -407,6 +407,30 @@ public class AgentAdminResource {
         return Response.OK(rows);
     }
 
+    @ApiOperation(value = "Enrollment attempts summary", notes = "How many phones tried to enroll in the last 7 days and "
+            + "still are not enrolled, and how many of them are Device Owner without a token.")
+    @GET
+    @Path("/enroll/attempts/summary")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollAttemptsSummary() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        // Counted over the whole customer: a folder administrator sees the list of their folders, not this total.
+        if (scope.restricted()) {
+            out.put("unresolvedDevices", null);
+            out.put("ownerWithoutToken", null);
+        } else {
+            int[] n = tokenDAO.countUnresolved(customerId.get(), true, 7);
+            out.put("unresolvedDevices", n[0]);
+            out.put("ownerWithoutToken", n[1]);
+        }
+        out.put("days", 7);
+        return Response.OK(out);
+    }
+
     // =================================================================================================================
     @ApiOperation(value = "Sync configuration apps", notes = "Queues app.install commands for the device's "
             + "configuration apps marked action=install. Use after enrolling an older device or editing a configuration.")

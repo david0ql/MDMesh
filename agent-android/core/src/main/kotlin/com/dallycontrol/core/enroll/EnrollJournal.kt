@@ -58,6 +58,24 @@ class EnrollStatusStore(context: Context) : EnrollJournal {
         enrolledAt = prefs.getLong(KEY_ENROLLED_AT, 0L),
     )
 
+    /**
+     * The payload as Android handed it over BEFORE the agent is Device Owner (GET_PROVISIONING_MODE, Android 10+).
+     * It is only kept here; [takePending] gives it back once the agent owns the device.
+     */
+    fun savePending(token: String?, serverUrl: String?) {
+        if (token.isNullOrBlank()) return
+        prefs.edit().putString(KEY_PENDING_TOKEN, token).putString(KEY_PENDING_SERVER, serverUrl).apply()
+    }
+
+    /** (token, serverUrl) saved by [savePending], or null. Reading does not remove it; [clearPending] does. */
+    fun pending(): Pair<String, String?>? =
+        prefs.getString(KEY_PENDING_TOKEN, null)?.takeIf { it.isNotBlank() }
+            ?.let { it to prefs.getString(KEY_PENDING_SERVER, null) }
+
+    fun clearPending() {
+        prefs.edit().remove(KEY_PENDING_TOKEN).remove(KEY_PENDING_SERVER).apply()
+    }
+
     /** A person asked to try again (new code typed, "retry" tapped): the old failure no longer describes the state. */
     fun clearFailure() {
         prefs.edit().remove(KEY_ERROR).remove(KEY_DETAIL).remove(KEY_ERROR_AT).apply()
@@ -84,6 +102,7 @@ class EnrollStatusStore(context: Context) : EnrollJournal {
 
     override fun succeeded() {
         prefs.edit().remove(KEY_ERROR).remove(KEY_DETAIL).remove(KEY_ERROR_AT)
+            .remove(KEY_PENDING_TOKEN).remove(KEY_PENDING_SERVER)
             .putLong(KEY_ENROLLED_AT, System.currentTimeMillis()).apply()
     }
 
@@ -91,6 +110,11 @@ class EnrollStatusStore(context: Context) : EnrollJournal {
         const val FILE = "mdm_enroll_status"
         const val PATH_QR_MODERN = "qr-modern"
         const val PATH_QR_LEGACY = "qr-legacy"
+
+        /** Enrolled from the payload kept at GET_PROVISIONING_MODE: the later callbacks never came. */
+        const val PATH_QR_EARLY = "qr-early"
+        /** The console's QR scanned from the agent's own screen, after provisioning left the agent without a token. */
+        const val PATH_QR_AGENT = "qr-agent"
         const val PATH_ADB = "adb"
         const val PATH_CODE = "code"
         const val PATH_UNKNOWN = "unknown"
@@ -100,5 +124,7 @@ class EnrollStatusStore(context: Context) : EnrollJournal {
         private const val KEY_DETAIL = "detail"
         private const val KEY_ERROR_AT = "errorAt"
         private const val KEY_ENROLLED_AT = "enrolledAt"
+        private const val KEY_PENDING_TOKEN = "pendingToken"
+        private const val KEY_PENDING_SERVER = "pendingServer"
     }
 }

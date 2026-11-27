@@ -113,6 +113,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val id = deviceIdStore.current()
             deviceIdValue.text = if (id.isNullOrBlank()) enrollingLabel() else id
+            if (!id.isNullOrBlank()) com.dallycontrol.agent.provisioning.EnrollPrompt.dismiss(this@MainActivity)
             // The code entry only makes sense before enrollment, and only on a managed (Device Owner) device.
             enrollSection.visibility = if (id.isNullOrBlank() && isDeviceOwner()) android.view.View.VISIBLE else android.view.View.GONE
         }
@@ -254,7 +255,15 @@ class MainActivity : ComponentActivity() {
                 enrollStatus.text = getString(R.string.enroll_sent)
             }
         }
-        addView(server); addView(code); addView(submit); addView(retry); addView(enrollStatus)
+        // The same QR the console shows, scanned from here: for a phone that is already managed but never got it.
+        val scan = Button(this@MainActivity).apply {
+            text = getString(R.string.enroll_scan_button)
+            contentDescription = "enroll-scan"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, com.dallycontrol.agent.provisioning.EnrollScanActivity::class.java))
+            }
+        }
+        addView(scan); addView(server); addView(code); addView(submit); addView(retry); addView(enrollStatus)
     }
 
     private fun label(s: String): TextView =

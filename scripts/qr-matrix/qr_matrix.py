@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Buttons of the provisioning screens (English emulator images), most specific first.
 ADVANCE = re.compile(
     r"^(accept\s*&\s*continue|accept and continue|accept|agree|next|continue|done|ok|got it|skip|set up|"
-    r"allow|start|close|finish|i agree|continuar sin esperar|continuar|aceptar|siguiente|listo)$", re.I)
+    r"allow|start|close|finish|i agree|continuar|aceptar|siguiente|listo)$", re.I)
 FAILURE = re.compile(
     r"(can.t set up|couldn.t set up|cannot set up|something went wrong|"
     r"reset (this )?device|couldn.t (download|install|connect)|blocked by play protect|harmful app|"
@@ -121,35 +121,51 @@ def screen(serial):
     return texts, clicks
 
 
+def setup_state(serial):
+    return (sh(serial, "settings get secure user_setup_complete").strip()
+            + sh(serial, "settings get global device_provisioned").strip())
+
+
 def unprovision(serial):
     """Put a booted emulator back to "setup wizard not finished", the state a phone is in when it scans the QR.
 
     The two settings are not enough: DevicePolicyManagerService latches "user setup complete" in its own policy file
     and then refuses Device-Owner provisioning (CODE_USER_SETUP_COMPLETED, shown as "Device already provisioned").
-    So the framework is stopped, that file removed (a fresh emulator has nothing else in it) and started again.
+    So the framework is stopped, that file removed (a fresh emulator has nothing else in it) and started again - with
+    the apps that mark an emulator as set up on every boot disabled, or they latch it again.
     """
-    # AOSP's "Provision" app (images without a real setup wizard) marks the device as set up on every boot.
-    sh(serial, "pm disable com.android.provision")
-    sh(serial, "settings put secure user_setup_complete 0")
-    sh(serial, "settings put global device_provisioned 0")
-    sh(serial, "stop")
-    time.sleep(3)
-    sh(serial, "rm -f /data/system/device_policies.xml /data/system/device_policies.xml.bak "
-               "/data/system/device_policies.xml.reservecopy")
-    sh(serial, "setprop sys.boot_completed 0; start")
-    end = time.time() + 300
-    while time.time() < end:
-        time.sleep(4)
-        try:
-            if (sh(serial, "getprop sys.boot_completed", timeout=10).strip() == "1"
-                    and "Current Device Policy" in sh(serial, "dumpsys device_policy", timeout=20)):
-                break
-        except Exception:
-            pass
-    time.sleep(10)
-    state = sh(serial, "settings get secure user_setup_complete").strip() + sh(serial, "settings get global device_provisioned").strip()
-    if state != "00":  # a setup wizard finished again on restart: put the settings back (the DPMS latch reads them live)
-        print("  note: setup state after restart =", state, flush=True)
+    for attempt in range(3):
+        # AOSP's "Provision" and the emulator images' setup wizard finish "setup" by themselves on boot.
+        sh(serial, "pm disable com.android.provision")
+        sh(serial, "pm disable-user --user 0 com.google.android.setupwizard")
+        sh(serial, "settings put secure user_setup_complete 0")
+        sh(serial, "settings put global device_provisioned 0")
+        sh(serial, "stop")
+        time.sleep(3)
+        sh(serial, "rm -f /data/system/device_policies.xml /data/system/device_policies.xml.bak "
+                   "/data/system/device_policies.xml.reservecopy")
+        sh(serial, "setprop sys.boot_completed 0; start")
+        end = time.time() + 300
+        while time.time() < end:
+            time.sleep(4)
+            try:
+                if (sh(serial, "getprop sys.boot_completed", timeout=10).strip() == "1"
+                        and "Current Device Policy" in sh(serial, "dumpsys device_policy", timeout=20)):
+                    break
+            except Exception:
+                pass
+        time.sleep(12)
+        state = setup_state(serial)
+        if state == "01":
+            # Only the global flag came back (the system sets it when no setup wizard is left to do so). It has no
+            # latch behind it: clearing it on the live system is enough.
+            sh(serial, "settings put global device_provisioned 0")
+            time.sleep(3)
+            state = setup_state(serial)
+        if state == "00":
+            return
+        print(f"  note: something finished setup again after the restart (state {state}); retry {attempt + 1}", flush=True)
+    raise SystemExit("RESULT HARNESS-FAILED could not return the emulator to the pre-setup state")
 
 
 def device_owner(serial):
@@ -241,6 +257,15 @@ def run(a):
     enrolled = ""
     if status == "DEVICE-OWNER" and a.wait_enrolled:
         status, enrolled = wait_enrolled(a, serial, payload)
+        if status != "ENROLLED":
+            # Device Owner without an enrollment: the agent must be saying so on screen, with a way out.
+            texts, _ = screen(serial)
+            end_screen = " | ".join(texts)
+            seen.append("END: " + end_screen)
+            prompt = bool(re.search(r"scan the console|escanear el qr de la consola", end_screen, re.I))
+            notif = bool(re.search(r"not enrolled yet|no está inscrito", sh(serial, "dumpsys notification --noredact", timeout=40), re.I))
+            print(f"  end screen: {end_screen[:300]}", flush=True)
+            enrolled += f" agent_prompt_on_screen={'yes' if prompt else 'no'} agent_notification={'yes' if notif else 'no'}"
     log = adb(serial, "logcat", "-d", timeout=120)
     open(os.path.join(a.out, "logcat.txt"), "w").write(log)
     open(os.path.join(a.out, "screens.txt"), "w").write("\n".join(seen))
@@ -261,20 +286,42 @@ def run(a):
     return 0 if status in ("ENROLLED", "DEVICE-OWNER") else 1
 
 
+def finish_setup_wizard(serial):
+    """What a phone's setup wizard does when it ends: ask Android to finalize provisioning, mark the device set up.
+
+    Up to Android 11 the agent only gets the QR's token then (PROFILE_PROVISIONING_COMPLETE /
+    PROVISIONING_SUCCESSFUL are sent on finalization), and on Android 12+ ADMIN_POLICY_COMPLIANCE is.
+    """
+    print("  " + sh(serial, "am start -a android.app.action.PROVISION_FINALIZATION 2>&1").strip()[-160:], flush=True)
+    time.sleep(3)
+    sh(serial, "settings put secure user_setup_complete 1")
+    sh(serial, "settings put global device_provisioned 1")
+
+
 def wait_enrolled(a, serial, payload):
-    """The device must appear in the console (and report an applied configuration when it has one)."""
+    """The device must appear in the console. Returns (status, details)."""
     token = payload["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]["com.dallycontrol.ENROLL_TOKEN"]
     jwt = login(a.wait_enrolled, a.admin)
-    end = time.time() + a.enroll_timeout
-    last = ""
+    started = time.time()
+    end = started + a.enroll_timeout
+    last, finalized = "", False
     while time.time() < end:
         try:
             st = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token, token=jwt).get("data") or {}
             last = json.dumps(st)
             if st.get("deviceNumber"):
-                return "ENROLLED", f"device={st['deviceNumber']} configuration={st.get('configurationName')}"
+                ok = [x for x in st.get("attempts", []) if x.get("outcome") == "ok"]
+                return "ENROLLED", (f"device={st['deviceNumber']} configuration={st.get('configurationName')} "
+                                    f"via={ok[0].get('path') if ok else '?'} tries={ok[0].get('tries') if ok else '?'} "
+                                    f"wizard_finished_first={'yes' if finalized else 'no'} "
+                                    f"seconds={int(time.time() - started)}")
         except Exception as e:  # the server may be down on purpose in a retry scenario
             last = str(e)
+        if not finalized and time.time() - started > a.finalize_after:
+            # Not enrolled by itself: now do what the setup wizard does at its end, as on a phone.
+            finish_setup_wizard(serial)
+            finalized = True
+        # The agent's own status screen (Android 12+ shows it inside the wizard): leave it running, never skip it.
         time.sleep(4)
     return "ENROLL-TIMEOUT", "last=" + last[:200]
 
@@ -380,7 +427,9 @@ def main():
     r.add_argument("--clock-back-years", type=int, default=0)
     r.add_argument("--timeout", type=int, default=420); r.add_argument("--settle", type=int, default=25)
     r.add_argument("--wait-enrolled"); r.add_argument("--admin", default="admin:admin")
-    r.add_argument("--enroll-timeout", type=int, default=150)
+    r.add_argument("--enroll-timeout", type=int, default=170)
+    r.add_argument("--finalize-after", type=int, default=45,
+                   help="seconds to wait for an enrollment without the setup wizard's finalization before doing it")
     m = sub.add_parser("matrix")
     m.add_argument("--payload", required=True, help="payload JSON; ${TOKEN} and \"${NOW}\" are filled per device")
     m.add_argument("--out", required=True); m.add_argument("--owner", default="qr-matrix")

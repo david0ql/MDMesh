@@ -46,6 +46,9 @@ class EnrollmentDiagnosticsTest {
                 data = AgentEnrollResponse(deviceId = "srv-1", deviceSecret = "sek-1"),
             )
         }
+        override suspend fun enrollReport(request: AgentEnrollRequest) =
+            ResponseEnvelope<AgentEnrollResponse>(status = "OK")
+
         override suspend fun checkIn(authorization: String, request: AgentCheckInRequest) =
             ResponseEnvelope(status = "OK", data = AgentCheckInResponse())
     }

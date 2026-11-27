@@ -38,6 +38,10 @@ public class EnrollAttemptLog {
         }
         try {
             AgentEnrollmentToken token = findToken(request.getEnrollToken());
+            // A report without a token: never let the phone's own "no token" note duplicate the row.
+            if (errorKey != null && errorKey.endsWith("device.no-token") && request.getDiagnostics() != null) {
+                request.getDiagnostics().setLastError(null);
+            }
             for (AgentEnrollAttempt attempt : build(request, token, ip, deviceNumber, errorKey, detail,
                     System.currentTimeMillis())) {
                 tokenDAO.logAttempt(attempt);

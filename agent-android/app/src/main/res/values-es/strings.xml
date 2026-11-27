@@ -92,10 +92,17 @@
     <string name="enroll_err_captive_portal">Esta red Wi‑Fi pide iniciar sesión (portal cautivo) o bloquea el servidor. Inicia sesión en la red o usa otra.</string>
     <string name="enroll_err_tls">No se pudo establecer una conexión segura con el servidor (certificado).</string>
     <string name="enroll_err_server">El servidor respondió con un error. Se reintenta solo.</string>
-    <string name="enroll_err_no_token">Este equipo no recibió un código de inscripción. Escribe abajo un código de carpeta.</string>
+    <string name="enroll_err_no_token">Este equipo no recibió su código de inscripción. Escanea el QR de la consola o escribe abajo un código de carpeta.</string>
     <string name="enroll_err_token_used">Este código QR ya fue usado por otro equipo. Genera un QR nuevo en la consola o escribe un código de carpeta.</string>
     <string name="enroll_err_token_expired">Este código QR venció. Genera uno nuevo en la consola o escribe un código de carpeta.</string>
     <string name="enroll_err_token_invalid">El código de inscripción no es válido o fue revocado.</string>
     <string name="enroll_err_disabled">El servidor no permite crear dispositivos al inscribir. Avisa al administrador.</string>
     <string name="enroll_err_other">No se pudo inscribir: %1$s</string>
+    <string name="enroll_scan_button">Escanear el QR de la consola</string>
+    <string name="enroll_scan_hint">Apunta la cámara al QR de inscripción que muestra la consola (Inscribir > Escanear QR).</string>
+    <string name="enroll_scan_not_ours">Ese QR no es de inscripción de DallyControl. Usa el de la consola.</string>
+    <string name="enroll_scan_no_camera">La cámara no está disponible. Vuelve y escribe un código de carpeta.</string>
+    <string name="enroll_prompt_channel">Inscripción</string>
+    <string name="enroll_prompt_title">Este equipo aún no está inscrito</string>
+    <string name="enroll_prompt_text">DallyControl ya lo administra, pero no recibió su código de inscripción. Toca para escanear el QR de la consola o escribir un código de carpeta.</string>
 </resources>

@@ -130,6 +130,27 @@ public interface AgentEnrollmentTokenMapper {
     @Select({"SELECT a.*, false AS reusable FROM agent_enroll_attempt a WHERE a.tokenId = #{tokenId} ORDER BY a.lastAt DESC LIMIT 20"})
     java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttemptsOfToken(@Param("tokenId") int tokenId);
 
+    /**
+     * Phones (by hardware id) whose latest attempt since [since] failed and that have not enrolled after it: the ones
+     * somebody still has to look at.
+     */
+    @Select({"SELECT COUNT(*) FROM (SELECT hardwareId, MAX(lastAt) FILTER (WHERE outcome = 'ok') AS okAt, " +
+            "MAX(lastAt) FILTER (WHERE outcome IN ('failed', 'note')) AS badAt FROM agent_enroll_attempt " +
+            "WHERE (customerId = #{customerId} OR (#{includeUnknown} AND customerId IS NULL)) " +
+            "AND hardwareId IS NOT NULL AND lastAt > #{since} GROUP BY hardwareId) x " +
+            "WHERE badAt IS NOT NULL AND (okAt IS NULL OR okAt < badAt)"})
+    int countUnresolvedDevices(@Param("customerId") int customerId, @Param("includeUnknown") boolean includeUnknown,
+                               @Param("since") long since);
+
+    /** Of those, the ones that are Device Owner with nothing to enroll with (they reported it themselves). */
+    @Select({"SELECT COUNT(DISTINCT a.hardwareId) FROM agent_enroll_attempt a WHERE a.reason = 'device.no-token' " +
+            "AND a.hardwareId IS NOT NULL AND a.lastAt > #{since} " +
+            "AND (a.customerId = #{customerId} OR (#{includeUnknown} AND a.customerId IS NULL)) " +
+            "AND NOT EXISTS (SELECT 1 FROM agent_enroll_attempt b WHERE b.hardwareId = a.hardwareId " +
+            "AND b.outcome = 'ok' AND b.lastAt > a.lastAt)"})
+    int countOwnerWithoutToken(@Param("customerId") int customerId, @Param("includeUnknown") boolean includeUnknown,
+                               @Param("since") long since);
+
     @org.apache.ibatis.annotations.Delete({"DELETE FROM agent_enroll_attempt WHERE lastAt < #{before}"})
     int purgeAttempts(@Param("before") long before);
 }

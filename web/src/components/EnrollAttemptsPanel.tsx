@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDateTime } from '../ui/format';
-import { attemptHint, attemptReason, listEnrollAttempts, pathLabel, type EnrollAttempt } from '../api/enroll';
+import {
+  attemptHint, attemptReason, getEnrollAttemptsSummary, listEnrollAttempts, pathLabel,
+  type EnrollAttempt, type EnrollAttemptsSummary,
+} from '../api/enroll';
 
 /**
  * The server's log of enrollment attempts: every agent download a QR triggered and every enroll the server accepted or
@@ -10,9 +13,11 @@ import { attemptHint, attemptReason, listEnrollAttempts, pathLabel, type EnrollA
 export function EnrollAttemptsPanel() {
   const [rows, setRows] = useState<EnrollAttempt[] | null>(null);
   const [onlyProblems, setOnlyProblems] = useState(false);
+  const [summary, setSummary] = useState<EnrollAttemptsSummary | null>(null);
 
   const load = useCallback(async () => {
     try { setRows(await listEnrollAttempts(60)); } catch { setRows((r) => r ?? []); }
+    try { setSummary(await getEnrollAttemptsSummary()); } catch { /* an older server has no summary */ }
   }, []);
   useEffect(() => {
     void load();
@@ -40,6 +45,14 @@ export function EnrollAttemptsPanel() {
           o rechazada con su motivo. Si un teléfono escaneó el QR y aquí no aparece ni la descarga, el problema está antes:
           Wi‑Fi sin internet o con portal cautivo, o fecha del teléfono incorrecta.
         </p>
+        {summary && summary.unresolvedDevices != null && summary.unresolvedDevices > 0 && (
+          <div className="banner banner-warn" data-testid="enroll-unresolved">
+            <b>{summary.unresolvedDevices}</b> {summary.unresolvedDevices === 1 ? 'equipo intentó' : 'equipos intentaron'} inscribirse
+            en los últimos {summary.days} días y {summary.unresolvedDevices === 1 ? 'sigue' : 'siguen'} sin lograrlo
+            {summary.ownerWithoutToken ? <> · <b>{summary.ownerWithoutToken}</b> ya {summary.ownerWithoutToken === 1 ? 'está administrado' : 'están administrados'} (Device Owner)
+              pero sin código: en el teléfono, DallyControl → «Escanear el QR de la consola»</> : null}.
+          </div>
+        )}
         {rows === null && <p className="muted">Cargando…</p>}
         {rows !== null && shown.length === 0 && (
           <p className="muted">{onlyProblems ? 'Sin problemas registrados.' : 'Aún no hay intentos registrados.'}</p>

@@ -115,6 +115,17 @@ export const getTokenStatus = (token: string) =>
 export const listEnrollAttempts = (limit = 100) =>
   apiClient.get<EnrollAttempt[]>(`/private/agent/v1/enroll/attempts?limit=${limit}`);
 
+export interface EnrollAttemptsSummary {
+  /** Phones whose last attempt failed and that have not enrolled since (null for a folder administrator). */
+  unresolvedDevices: number | null;
+  /** Of those, Device Owner phones that never received their enrollment code. */
+  ownerWithoutToken: number | null;
+  days: number;
+}
+
+export const getEnrollAttemptsSummary = () =>
+  apiClient.get<EnrollAttemptsSummary>('/private/agent/v1/enroll/attempts/summary');
+
 const REASONS: Record<string, string> = {
   enrolled: 'Inscrito',
   'agent.download': 'Descargó el agente',
@@ -129,7 +140,7 @@ const REASONS: Record<string, string> = {
   'device.captive-portal': 'Wi‑Fi con portal cautivo o que bloquea el servidor',
   'device.tls': 'Fallo de conexión segura (certificado)',
   'device.server-error': 'El servidor respondió con error',
-  'device.no-token': 'El teléfono no recibió código de inscripción',
+  'device.no-token': 'Administrado (Device Owner) pero sin código de inscripción',
   'device.token.used': 'El QR ya lo usó otro equipo',
   'device.token.expired': 'El código venció',
   'device.token.invalid': 'Código desconocido o revocado',
@@ -146,6 +157,8 @@ const PATHS: Record<string, string> = {
   qr: 'QR',
   'qr-modern': 'QR / Zero‑Touch (Android 12+)',
   'qr-legacy': 'QR (Android 7–11)',
+  'qr-early': 'QR (el asistente no finalizó; el agente usó su copia)',
+  'qr-agent': 'QR escaneado desde el agente',
   adb: 'Cable (USB)',
   code: 'Código escrito',
   unknown: '—',
@@ -175,6 +188,7 @@ export function attemptHint(a: EnrollAttempt, all: EnrollAttempt[], now: number)
     case 'token.expired': return 'El QR de un solo uso vale 24 horas. Genera uno nuevo o usa un código de carpeta.';
     case 'token.invalid': return 'El equipo trae un código que no existe o fue revocado (QR viejo o configuración Zero‑Touch/KME desactualizada).';
     case 'device.clock': return 'El equipo arrancó con la fecha de fábrica. Escanea el QR desde la pantalla (lleva la hora) o corrige la fecha.';
+    case 'device.no-token': return 'El asistente de configuración no entregó el QR al agente (se abandonó o el fabricante no finaliza el aprovisionamiento). En el teléfono: abre DallyControl → «Escanear el QR de la consola», o escribe un código de carpeta. No hace falta formatear.';
     case 'device.captive-portal': return 'Usa una red sin página de inicio de sesión para inscribir.';
     default: return null;
   }

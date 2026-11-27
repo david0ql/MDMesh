@@ -206,6 +206,19 @@ $release = Adb shell getprop ro.build.version.release
 $sdk = [int](Adb shell getprop ro.build.version.sdk)
 Ok ('Conectado: ' + $brand + ' ' + $model + ' (Android ' + $release + ')')
 
+# Las cuentas que Android ve en el teléfono, listas para mostrar. Se consulta antes de inscribir y otra vez si Android
+# rechaza la inscripción por cuentas: entre una cosa y la otra pasan la descarga y la instalación, y en ese rato puede
+# aparecer una cuenta (un teléfono recién formateado termina de crear las suyas en segundo plano).
+function Get-Cuentas {
+  $acc = @()
+  foreach ($l in (Adb shell dumpsys account).Split("`n")) {
+    if ($l -match '^\s*Account \{name=(.+), type=(.+)\}\s*$') {
+      $acc += ('      - ' + $Matches[1] + '   (' + $Matches[2] + ')')
+    }
+  }
+  return @($acc | Select-Object -Unique)
+}
+
 Titulo 'Paso 3 de 5: revisar las cuentas del teléfono'
 # Android solo deja que DallyControl administre un teléfono SIN cuentas mientras se inscribe. Quitar una cuenta no borra
 # nada del teléfono; al final se vuelve a agregar.
@@ -214,13 +227,7 @@ if ($already) {
   Ok 'DallyControl ya administra este teléfono.'
 } else {
   while ($true) {
-    $acc = @()
-    foreach ($l in (Adb shell dumpsys account).Split("`n")) {
-      if ($l -match '^\s*Account \{name=(.+), type=(.+)\}\s*$') {
-        $acc += ('      - ' + $Matches[1] + '   (' + $Matches[2] + ')')
-      }
-    }
-    $acc = @($acc | Select-Object -Unique)
+    $acc = @(Get-Cuentas)
     if ($acc.Count -eq 0) { Ok 'El teléfono no tiene cuentas: se puede inscribir.'; break }
     Aviso 'El teléfono tiene estas cuentas, y Android no deja inscribirlo mientras estén:'
     $acc | ForEach-Object { Write-Host $_ }
@@ -251,12 +258,29 @@ if ($sdk -ge 24) {
 if (-not $already) {
   Paso 'Haciendo que DallyControl administre el teléfono...'
   $ok = $false
-  for ($t = 0; $t -lt 3 -and -not $ok; $t++) {
-    $r = Adb shell dpm set-device-owner ($AgentPkg + '/com.dallycontrol.agent.admin.AdminReceiver')
-    if ($r -match 'Success') { $ok = $true } else { Start-Sleep -Seconds 4 }
+  $vueltas = 0
+  while (-not $ok -and $vueltas -lt 4) {
+    $vueltas++
+    for ($t = 0; $t -lt 3 -and -not $ok; $t++) {
+      $r = Adb shell dpm set-device-owner ($AgentPkg + '/com.dallycontrol.agent.admin.AdminReceiver')
+      if ($r -match 'Success') { $ok = $true } else { Start-Sleep -Seconds 4 }
+    }
+    if ($ok -or $r -notmatch 'account') { break }
+    # Android rechazó por cuentas aunque el paso 3 no vio ninguna: apareció una mientras se instalaba. Se muestra
+    # cuál es y se vuelve a intentar, en vez de terminar con un mensaje que no dice qué quitar.
+    $acc = @(Get-Cuentas)
+    if ($acc.Count -gt 0) {
+      Aviso 'Android no dejó inscribir porque el teléfono tiene estas cuentas (aparecieron después de la revisión):'
+      $acc | ForEach-Object { Write-Host $_ }
+      Write-Host '  Quítalas en Ajustes -> "Cuentas" -> toca cada una -> "Quitar cuenta". No se borra nada.'
+      Espera 'Quita las cuentas'
+    } else {
+      Aviso 'Android dice que hay una cuenta, pero no aparece en la lista: puede estar creándose todavía. Esperando 20 segundos...'
+      Start-Sleep -Seconds 20
+    }
   }
   if (-not $ok) {
-    if ($r -match 'account') { Falla 'Android dice que el teléfono todavía tiene cuentas. Quítalas todas (también las de Samsung, Xiaomi, WhatsApp Business, etc.) y vuelve a abrir este programa.' }
+    if ($r -match 'account') { Falla 'Android dice que el teléfono todavía tiene cuentas que no se ven desde aquí (de otro usuario, de un perfil de trabajo o de una app del fabricante). Quítalas todas (también las de Samsung, Xiaomi, WhatsApp Business, etc.), reinicia el teléfono y vuelve a abrir este programa.' }
     if ($r -match 'several users|multiple users|user') { Falla 'El teléfono tiene otro usuario o un "perfil de trabajo". Quítalo en Ajustes -> Sistema -> Varios usuarios (o Cuentas -> Trabajo) y vuelve a abrir este programa.' }
     if ($r -match 'already') { Falla 'Otro programa ya administra este teléfono (otro MDM). Hay que quitarlo primero.' }
     Falla ('Android no aceptó a DallyControl como administrador: ' + $r)

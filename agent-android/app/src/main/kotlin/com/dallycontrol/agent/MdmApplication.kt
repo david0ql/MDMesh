@@ -35,5 +35,9 @@ class MdmApplication : Application(), Configuration.Provider {
         // Safety net for the Device-Owner baseline (a no-op once applied): covers phones provisioned through a path
         // that skipped it - the older QR flow of agents up to 0.9.8, or a maker that dropped a provisioning callback.
         Thread { runCatching { com.dallycontrol.agent.provisioning.ProvisioningBaseline.ensure(this) } }.start()
+        // Same idea for the enrollment payload: a copy kept at GET_PROVISIONING_MODE is used if nothing delivered it.
+        runCatching { com.dallycontrol.agent.provisioning.ProvisioningIntake.adoptPendingSoon(this) }
+        // And if this phone is Device Owner with nothing to enroll with, say so instead of staying silent.
+        runCatching { com.dallycontrol.agent.provisioning.EnrollPrompt.watch(this) }
     }
 }

@@ -150,6 +150,23 @@ public class AgentResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "Report an incomplete enrollment", notes = "An agent that is Device Owner but has no token "
+            + "to enroll with (the QR's payload never reached it) says so. Nothing is enrolled; the attempt is logged.")
+    @POST
+    @Path("/enroll/report")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollReport(@javax.ws.rs.core.Context javax.servlet.http.HttpServletRequest httpRequest,
+                                 AgentEnrollRequest request) {
+        if (request != null) {
+            request.setEnrollToken(null);
+            enrollLog.record(request, clientIp(httpRequest), null, "error.agent.device.no-token",
+                    "Device Owner sin token de inscripción");
+        }
+        return Response.OK();
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Agent download (tracked)", notes = "The address a provisioning QR gives Android for the agent "
             + "APK: notes that the phone got this far (model and Android release come in its User-Agent) and redirects "
             + "to the published file. t = the first characters of the enrollment token, p = the APK's path.")

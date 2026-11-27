@@ -26,6 +26,10 @@ class AdminReceiver : DeviceAdminReceiver() {
         grantLocationAccess(context)
         protectAgentProcess(context)
         CheckInWorker.schedule(context)
+        // QR / zero-touch on Android 10+: the payload was kept at GET_PROVISIONING_MODE; if the callbacks that
+        // normally deliver it do not come, enroll with that copy (see ProvisioningIntake.adoptPending).
+        com.dallycontrol.agent.provisioning.ProvisioningIntake.adoptPendingSoon(context)
+        com.dallycontrol.agent.provisioning.EnrollPrompt.watch(context)
     }
 
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
