@@ -65,6 +65,8 @@ public class DcPolicy {
     private String powerPin;
     /** Device security rules: data sharing, Google accounts, factory reset. */
     private com.hmdm.rest.json.agent.DesiredDevice device;
+    /** E-mails of the policy's own reset-protection accounts (account id -> e-mail), so people recognise them. */
+    private java.util.Map<String, String> frpLabels;
 
     @Getter
     @Setter
@@ -243,8 +245,21 @@ public class DcPolicy {
                 }
                 d.setFrpAccounts(ids.isEmpty() ? null : ids);
             }
-            c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
-                    && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
+            d.setSafeBoot("block".equals(lower(device.getSafeBoot())) ? "block" : null);
+            d.setDebugging("block".equals(lower(device.getDebugging())) ? "block" : null);
+            d.setOemUnlock("block".equals(lower(device.getOemUnlock())) ? "block" : null);
+            Integer attempts = device.getMaxFailedPasswordsForWipe();
+            d.setMaxFailedPasswordsForWipe(attempts != null && attempts >= 3 && attempts <= 100 ? attempts : null);
+            d.setFrpMode(FrpAccounts.MODE_OFF.equals(lower(device.getFrpMode())) ? FrpAccounts.MODE_OFF : null);
+            c.device = d.isBlank() ? null : d;
+        }
+        if (frpLabels != null && c.device != null && c.device.getFrpAccounts() != null) {
+            java.util.Map<String, String> labels = new java.util.TreeMap<String, String>();
+            for (String id : c.device.getFrpAccounts()) {
+                String email = frpLabels.get(id);
+                if (FrpAccounts.validEmail(email)) labels.put(id, email.trim().toLowerCase(Locale.ROOT));
+            }
+            c.frpLabels = labels.isEmpty() ? null : labels;
         }
         return c;
     }

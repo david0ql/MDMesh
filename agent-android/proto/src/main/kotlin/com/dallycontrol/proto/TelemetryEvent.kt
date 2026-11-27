@@ -64,4 +64,13 @@ object EventType {
      * recovers a real version (respects the install retry cache; no busy loop).
      */
     const val APP_NO_VERSION = "appNoVersion"
+
+    /** A device security rule (reset protection, safe mode, debugging…) could not be applied. `detail`: what failed. */
+    const val PROTECTION_FAILED = "protectionFailed"
+
+    /** A wipe the agent had announced was found unfinished at start. `detail`: `resumed` or `gaveUp: …`. */
+    const val WIPE_RESUMED = "wipeResumed"
+
+    /** Lost mode wiped the device because it had not reached the server for the configured days. */
+    const val LOST_WIPE = "lostModeWipe"
 }

@@ -33,6 +33,10 @@ class EnrollmentManager @Inject constructor(
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
 ) {
 
+    /** Serial and IMEI sent with the enrollment (injected; nothing by default). */
+    @set:Inject
+    var enrollIdentity: EnrollIdentitySource = EnrollIdentitySource { Pair(null, null) }
+
     private val mutex = Mutex()
 
     /** Returns the server-issued device id, enrolling first if necessary. */
@@ -50,6 +54,7 @@ class EnrollmentManager @Inject constructor(
 
         // deviceId is unknown pre-enrollment; the server ignores it and issues one.
         val matrix = capabilitySource.matrix(deviceId = "")
+        val ids = runCatching { enrollIdentity.get() }.getOrDefault(Pair(null, null))
         val response = api.enroll(
             AgentEnrollRequest(
                 enrollToken = token,
@@ -57,6 +62,8 @@ class EnrollmentManager @Inject constructor(
                 device = matrix.device,
                 capabilities = matrix.capabilities,
                 hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
+                serial = ids.first?.takeIf { it.isNotBlank() },
+                imei = ids.second?.takeIf { it.isNotBlank() },
             ),
         )
 
@@ -73,6 +80,11 @@ class EnrollmentManager @Inject constructor(
         }
         return data.deviceId
     }
+}
+
+/** The device's serial number and IMEI, when the agent may read them (Device Owner). */
+fun interface EnrollIdentitySource {
+    fun get(): Pair<String?, String?>
 }
 
 /** Enrollment could not complete (no token, or server rejected). Lets the worker retry. */

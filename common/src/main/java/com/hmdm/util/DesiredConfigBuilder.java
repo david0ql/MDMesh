@@ -81,6 +81,17 @@ public final class DesiredConfigBuilder {
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
                                       List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
                                       String dataSharingOverride) {
+        return build(cfg, apps, notInKiosk, folderBrands, extraKioskPackages, dataSharingOverride, null);
+    }
+
+    /**
+     * @param inheritedFrpAccounts the Google account ids the device's folder chain (nearest first) or the company
+     *   gives it for factory-reset protection; used when the policy has no accounts of its own and has not switched
+     *   the protection off (see {@link FrpAccounts#resolve}). Null / empty = none.
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
+                                      String dataSharingOverride, List<String> inheritedFrpAccounts) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
@@ -122,12 +133,7 @@ public final class DesiredConfigBuilder {
         com.hmdm.rest.json.agent.DesiredDevice rules = dc.getDevice();
         // The anti-theft PIN implies "no factory reset from Settings".
         if (dc.getPowerPin() != null && cfg.isKioskMode() && (rules == null || rules.getFactoryReset() == null)) {
-            com.hmdm.rest.json.agent.DesiredDevice r = new com.hmdm.rest.json.agent.DesiredDevice();
-            if (rules != null) {
-                r.setTethering(rules.getTethering()); r.setGoogleAccounts(rules.getGoogleAccounts());
-                r.setAccountDomain(rules.getAccountDomain()); r.setAccountDomains(rules.getAccountDomains());
-                r.setFrpAccounts(rules.getFrpAccounts());
-            }
+            com.hmdm.rest.json.agent.DesiredDevice r = rules == null ? new com.hmdm.rest.json.agent.DesiredDevice() : rules.copy();
             r.setFactoryReset("block");
             rules = r;
         }
@@ -139,7 +145,7 @@ public final class DesiredConfigBuilder {
                 rules.setTethering(t);
             }
         }
-        d.setDevice(rules);
+        d.setDevice(withFrp(rules, inheritedFrpAccounts));
         if (dc.getWifi() != null) {
             List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
             for (DcPolicy.Wifi w : dc.getWifi()) {
@@ -168,6 +174,22 @@ public final class DesiredConfigBuilder {
         }
         d.setRevision(revision(d));
         return d;
+    }
+
+    /**
+     * The device rules as they travel to the phone: the reset-protection accounts are the policy's own, else the
+     * inherited ones, else none; {@code frpMode} (a console-side switch) never travels.
+     */
+    static com.hmdm.rest.json.agent.DesiredDevice withFrp(com.hmdm.rest.json.agent.DesiredDevice rules, List<String> inherited) {
+        boolean off = rules != null && FrpAccounts.MODE_OFF.equals(rules.getFrpMode());
+        boolean own = rules != null && rules.getFrpAccounts() != null && !rules.getFrpAccounts().isEmpty();
+        boolean inherit = !off && !own && inherited != null && !inherited.isEmpty();
+        if (rules == null && !inherit) return null;
+        com.hmdm.rest.json.agent.DesiredDevice r = rules == null ? new com.hmdm.rest.json.agent.DesiredDevice() : rules.copy();
+        r.setFrpMode(null);
+        if (off) r.setFrpAccounts(null);
+        else if (inherit) r.setFrpAccounts(new ArrayList<String>(inherited));
+        return r.isBlank() ? null : r;
     }
 
     /** systemUpdateType: 0 device default (absent), 1 immediately, 2 in the from/to window (HH:MM), 3 postpone. */

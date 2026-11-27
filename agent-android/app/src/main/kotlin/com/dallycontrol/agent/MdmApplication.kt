@@ -19,6 +19,8 @@ class MdmApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var connection: com.dallycontrol.core.net.ConnectionDiagnostics
+    @Inject lateinit var wipeRunner: com.dallycontrol.core.command.wipe.WipeRunner
+    @Inject lateinit var events: com.dallycontrol.core.telemetry.EventSink
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -36,6 +38,11 @@ class MdmApplication : Application(), Configuration.Provider {
                 ),
             )
         }
+        // A wipe the agent announced to the server and did not get to run (it was killed in between) runs now.
+        Thread {
+            runCatching { wipeRunner.resume() }.getOrNull()
+                ?.let { outcome -> runCatching { events.record(com.dallycontrol.proto.EventType.WIPE_RESUMED, outcome) } }
+        }.start()
         CheckInWorker.schedule(this)   // periodic reconcile (WorkManager floor)
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat

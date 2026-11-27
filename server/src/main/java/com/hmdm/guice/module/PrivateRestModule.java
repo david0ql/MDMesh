@@ -68,5 +68,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.GeofenceResource.class);
         this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
         this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
+        // Factory-reset protection: default company accounts (company / folder) and the per-device status.
+        this.bind(com.hmdm.rest.resource.ProtectionResource.class);
     }
 }

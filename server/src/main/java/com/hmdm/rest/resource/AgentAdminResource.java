@@ -497,7 +497,7 @@ public class AgentAdminResource {
     /** Actions that interrupt the user (lock/reboot/change passcode/wipe). A role without the
      *  "disruptive_actions" permission (e.g. a view-only folder role) runs everything else but not these. */
     private static final Set<String> DISRUPTIVE_TYPES =
-            Set.of("device.lock", "device.reboot", "device.passcodereset", "device.wipe");
+            Set.of("device.lock", "device.reboot", "device.passcodereset", "device.wipe", "device.lostmode");
 
     private static boolean requiresDisruptivePermission(String type) {
         return type != null && DISRUPTIVE_TYPES.contains(type.trim().toLowerCase(java.util.Locale.ROOT));

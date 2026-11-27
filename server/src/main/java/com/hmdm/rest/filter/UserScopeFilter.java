@@ -108,7 +108,12 @@ public class UserScopeFilter implements Filter {
             new Rule("PUT DELETE", "/geofences/v1/zones/(\\d+)", null),
             new Rule("GET", "/geofences/v1/(states|settings|mail)", null),
             new Rule("GET POST", "/geofences/v1/recipients", null),
-            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null)
+            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null),
+            // Factory-reset protection: a folder editor reads the defaults (the resource filters the folders), sets
+            // the accounts of their own folders and sees the status of their own devices.
+            new Rule("GET", "/protection/v1/defaults", null),
+            new Rule("PUT", "/protection/v1/defaults/groups/(\\d+)", "group"),
+            new Rule("GET", "/protection/v1/devices/([^/]+)", "device")
     );
 
     private final UserScope scope;

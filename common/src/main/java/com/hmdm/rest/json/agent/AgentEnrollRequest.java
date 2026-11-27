@@ -42,6 +42,10 @@ public class AgentEnrollRequest {
     /** Stable, permission-free device identifier (enrollment-specific id / ANDROID_ID). */
     private String hardwareId;
 
+    /** Serial number and IMEI, when the agent can read them: they bring a phone back to its row after a factory reset. */
+    private String serial;
+    private String imei;
+
     private AgentInfo agent;
 
     private AgentDeviceInfo device;

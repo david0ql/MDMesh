@@ -10,6 +10,7 @@ import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
 import { DataSharingToggle } from './DataSharingToggle';
 import { useAuth } from '../auth/AuthContext';
+import { ProtectionPanel } from './ProtectionPanel';
 
 type Device = { id: number; number: string };
 
@@ -144,6 +145,7 @@ export function ActionConsole({ device }: { device: Device }) {
       <DeviceStatePanel state={state} />
       <KioskToggle device={device} />
       <DataSharingToggle device={device} />
+      <ProtectionPanel device={device} canDisrupt={canRunDisruptive(user)} onQueued={() => { void refresh(); }} />
 
       {visibleGroups.map((g) => (
         <section key={g.id} className="action-group">
@@ -151,7 +153,9 @@ export function ActionConsole({ device }: { device: Device }) {
           <div className="action-grid">
             {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id && !t.key.startsWith('kiosk-')
               // 'set-lock-password' es la variante masiva; para un solo equipo 'passcode-reset' ya fija y quita.
-              && t.key !== 'set-lock-password').map((t) => (
+              && t.key !== 'set-lock-password'
+              // El borrado remoto tiene su propio diálogo (intención y opciones) en «Protección contra restablecimiento y robo».
+              && t.key !== 'wipe').map((t) => (
               <button
                 key={t.key}
                 className={`btn ${t.danger ? 'btn-danger' : ''}`}
@@ -294,7 +298,10 @@ function CommandTimeline({ items, onCancel, busy }: {
         return (
           <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
             <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
-            <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
+            <span className={`t-status status-${c.status}`}>
+              {c.type === 'device.wipe' && c.status === 'accepted' ? 'Borrado iniciado por el equipo'
+                : c.type === 'device.wipe' && c.status === 'done' ? 'Borrado ejecutado' : STATUS_LABELS[c.status] ?? c.status}
+            </span>
             {open && onCancel && (
               <button type="button" className="btn btn-sm t-cancel" disabled={busy} onClick={() => onCancel(c)}>
                 Cancelar
@@ -362,6 +369,7 @@ const COMMAND_LABELS: Record<string, string> = {
   'device.storageScan': 'Analizar almacenamiento', 'device.storageClean': 'Liberar espacio', 'device.storageAccess': 'Pedir acceso',
   'device.announce': 'Anuncio', 'device.clearCache': 'Borrar caché', 'device.systemUpdate': 'Actualización de Android', 'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',
   'config.sync': 'Sincronizar política',
+  'device.lostMode': 'Modo perdido',
 };
 
 const DETAIL_LIMIT = 160;

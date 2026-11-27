@@ -100,6 +100,9 @@ public class AgentResource {
     private String baseUrl;
 
     private com.hmdm.persistence.DeviceConnectionDAO connectionDAO;
+    /** Re-enrollment by serial / IMEI and the wipe announcement (field-injected; null in tests that build this by hand). */
+    @Inject
+    private com.hmdm.persistence.ProtectionDAO protectionDAO;
     private List<String> backupUrls = java.util.Collections.emptyList();
 
     /** Connection diagnostics storage + the backup URLs handed to agents (method injection: optional collaborators). */
@@ -210,11 +213,41 @@ public class AgentResource {
         // customer, reuse its row instead of minting a second one — the reported duplicate (two rows,
         // one serial). hardwareId is the enrollment-specific id, stable across a factory reset for our DPC.
         final String hwId = request.getHardwareId() == null ? null : request.getHardwareId().trim();
-        final String reuseNumber = (hwId != null && !hwId.isEmpty())
+        String foundNumber = (hwId != null && !hwId.isEmpty())
                 ? commandDAO.findDeviceNumberByHardwareId(token.getCustomerId(), hwId) : null;
+        // After a factory reset the hardware id may be new (Android 11 and older) and the secret is gone, but the
+        // serial number and the IMEI are the same: they bring the phone back to its own row, or — when the row was
+        // deleted — to the folder and policy kept in its tombstone.
+        boolean byIdentity = false;
+        java.util.Map<String, Object> tombstone = null;
+        if (foundNumber == null && protectionDAO != null) {
+            try {
+                String serial = com.hmdm.util.ReenrollMatch.usableSerial(request.getSerial());
+                String imei = com.hmdm.util.ReenrollMatch.usableImei(request.getImei());
+                java.util.Map<String, Object> row = protectionDAO.findDeviceByIdentity(token.getCustomerId(), serial, imei);
+                if (row != null) {
+                    Long last = row.get("lastupdate") == null ? null : ((Number) row.get("lastupdate")).longValue();
+                    Long wiped = row.get("wipedat") == null ? null : ((Number) row.get("wipedat")).longValue();
+                    if (com.hmdm.util.ReenrollMatch.mayTakeOver(last, wiped, System.currentTimeMillis())) {
+                        foundNumber = String.valueOf(row.get("number"));
+                        byIdentity = true;
+                    }
+                } else {
+                    tombstone = protectionDAO.findTombstoneByIdentity(token.getCustomerId(), serial, imei);
+                    if (tombstone != null && unsecureDAO.getDeviceByNumber(String.valueOf(tombstone.get("number"))) != null) {
+                        tombstone = null;
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Agent enroll: matching by serial/IMEI failed ({}), enrolling as a new device", e.getMessage());
+                tombstone = null;
+            }
+        }
+        final String reuseNumber = foundNumber;
         final Device reuse = reuseNumber != null ? unsecureDAO.getDeviceByNumber(reuseNumber) : null;
 
-        String deviceId = reuse != null ? reuse.getNumber() : UUID.randomUUID().toString();
+        String deviceId = reuse != null ? reuse.getNumber()
+                : tombstone != null ? String.valueOf(tombstone.get("number")) : UUID.randomUUID().toString();
         Device device = reuse;
         try {
             if (reuse != null) {
@@ -224,19 +257,41 @@ public class AgentResource {
                         deviceId, token.getId());
                 // A wipe queued for (or delivered to) its previous life must never reach the freshly enrolled phone.
                 commandDAO.closeWipesOnReenroll(deviceId);
+                if (byIdentity) {
+                    commandDAO.insertEvent(deviceId, AgentCommandDAO.EVENT_REENROLLED, System.currentTimeMillis(),
+                            "Se inscribió de nuevo después de un restablecimiento (mismo número de serie / IMEI): conserva su carpeta y su política");
+                }
             } else {
                 // The device lands in the token's customer and group (company). Its configuration is the one the
                 // token pins, else its group's, else the global default (settings) — device > group > global.
                 Integer groupId = token.getGroupId();
+                Integer tombstoneConfiguration = null;
+                if (tombstone != null) {
+                    // A deleted device coming back: its own folder (when it still exists) wins over the code's.
+                    Integer was = tombstone.get("groupid") == null ? null : ((Number) tombstone.get("groupid")).intValue();
+                    if (was != null && commandDAO.findGroup(token.getCustomerId(), was) != null) groupId = was;
+                    if (Boolean.TRUE.equals(tombstone.get("pinned")) && tombstone.get("configurationid") != null
+                            && commandDAO.configurationExists(token.getCustomerId(), ((Number) tombstone.get("configurationid")).intValue())) {
+                        tombstoneConfiguration = ((Number) tombstone.get("configurationid")).intValue();
+                    }
+                }
                 com.hmdm.persistence.domain.DeviceGroupView group =
                         groupId == null ? null : commandDAO.findGroup(token.getCustomerId(), groupId);
                 // Folders nest: a sub-folder without its own configuration runs its nearest ancestor's.
                 Integer inherited = group == null ? null : group.getEffectiveConfigurationId();
-                boolean pinned = token.getConfigurationId() != null;
+                Integer pinnedConfiguration = tombstoneConfiguration != null ? tombstoneConfiguration : token.getConfigurationId();
+                boolean pinned = pinnedConfiguration != null;
                 device = unsecureDAO.createNewDeviceForToken(deviceId, token.getCustomerId(),
-                        pinned ? token.getConfigurationId() : inherited, group == null ? null : groupId);
+                        pinned ? pinnedConfiguration : inherited, group == null ? null : groupId);
                 if (device != null && pinned) {
                     commandDAO.updateDevicePinned(device.getId(), true);
+                }
+                if (device != null && tombstone != null) {
+                    if (tombstone.get("description") != null) commandDAO.setDescription(deviceId, String.valueOf(tombstone.get("description")));
+                    commandDAO.deleteTombstone(deviceId);
+                    commandDAO.insertEvent(deviceId, "recovered", System.currentTimeMillis(),
+                            "Se inscribió de nuevo después de un restablecimiento (mismo número de serie / IMEI): vuelve a su carpeta");
+                    logger.info("Agent enroll: deleted device {} recovered by serial/IMEI into folder {}", deviceId, groupId);
                 }
                 // Tag the new device with the token's email account, if any (metadata/identification only; it does
                 // not create an account on the phone). When the token has none, the device's account_email stays
@@ -510,6 +565,7 @@ public class AgentResource {
                 // per-result pre-SELECT needed on the hot path.
                 commandDAO.markResultWithTime(deviceNumber, commandId, result.getStatus(),
                         result.getDetail(), System.currentTimeMillis());
+                noteWipeResult(deviceNumber, commandId, result);
             }
         }
 
@@ -615,6 +671,34 @@ public class AgentResource {
             return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.FORBIDDEN).build();
         }
         return javax.ws.rs.core.Response.noContent().build();
+    }
+
+    /**
+     * The agent tells the server it is about to wipe ({@code accepted}, detail {@code wipe:starting …}) right before
+     * it does: the device is marked as wiped at that moment, with who ordered it, and the event stays in its history.
+     * A wipe the phone then could not run ({@code failed}) takes the mark away again.
+     */
+    private void noteWipeResult(String deviceNumber, int commandId, AgentCommandResult result) {
+        String detail = result.getDetail();
+        if (protectionDAO == null || detail == null || !detail.startsWith("wipe")) return;
+        try {
+            String type = protectionDAO.commandType(deviceNumber, commandId);
+            if (!com.hmdm.util.ProtectionCommands.WIPE.equalsIgnoreCase(type)) return;
+            long now = System.currentTimeMillis();
+            String shortDetail = detail.length() > 300 ? detail.substring(0, 300) : detail;
+            if (com.hmdm.util.ProtectionCommands.isWipeStarting(type, result.getStatus(), detail)) {
+                protectionDAO.markWiped(deviceNumber, commandId, now);
+                commandDAO.insertEvent(deviceNumber, AgentCommandDAO.EVENT_WIPE_STARTED, now,
+                        "El equipo confirmó que inicia el borrado (orden " + commandId + "): " + shortDetail);
+                logger.info("Device {} announced its wipe (command {}): marked as wiped", deviceNumber, commandId);
+            } else if ("failed".equals(result.getStatus())) {
+                protectionDAO.unmarkWiped(deviceNumber);
+                commandDAO.insertEvent(deviceNumber, AgentCommandDAO.EVENT_WIPE_FAILED, now,
+                        "El equipo no pudo ejecutar el borrado (orden " + commandId + "): " + shortDetail);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not record the wipe result of {}: {}", deviceNumber, e.getMessage());
+        }
     }
 
     private static final java.util.regex.Pattern USAGE_DAY = java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");

@@ -48,6 +48,14 @@ data class ConfigDevice(
     val frpAccounts: List<String>? = null,
     /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); the MDM's silent installs still work. */
     val installApps: String? = null,
+    /** "block" = no safe mode (DISALLOW_SAFE_BOOT). */
+    val safeBoot: String? = null,
+    /** "block" = no USB debugging / developer options (DISALLOW_DEBUGGING_FEATURES). */
+    val debugging: String? = null,
+    /** "block" = the bootloader cannot be unlocked from developer options (no flashing). */
+    val oemUnlock: String? = null,
+    /** Wipe the device after this many wrong unlock attempts in a row (0 / null = never). */
+    val maxFailedPasswordsForWipe: Int? = null,
 )
 
 /** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */

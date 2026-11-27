@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DcResetProtection } from './DcResetProtection';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -42,7 +43,16 @@ export interface DcPolicy {
     factoryReset?: 'block';
     installApps?: 'block';
     frpAccounts?: string[];
+    /** 'off' = no reset protection even when the company or the folder has default accounts. */
+    frpMode?: 'off';
+    safeBoot?: 'block';
+    debugging?: 'block';
+    oemUnlock?: 'block';
+    /** Wipe after this many wrong unlock attempts (3-100). */
+    maxFailedPasswordsForWipe?: number;
   };
+  /** E-mails of the policy's own reset-protection accounts (account id -> e-mail). */
+  frpLabels?: Record<string, string>;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -72,6 +82,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  if (p.frpLabels && out.device?.frpAccounts?.length && Object.keys(p.frpLabels).length) out.frpLabels = p.frpLabels;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -249,9 +260,9 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
             «Bloquear»: no se puede restablecer desde los Ajustes del teléfono; solo desde esta consola (Control → Restablecer de
-            fábrica). El reseteo por botones (recovery) no lo impide ningún MDM, pero en Android 11+ puedes indicar qué cuentas de
-            Google pueden volver a activar el equipo después: sin una de ellas queda inservible. Van los ID numéricos de la cuenta
-            de Google (no el correo), separados por coma.
+            fábrica). El reseteo por botones (recovery) no lo impide ningún MDM: lo que se logra es que el equipo quede
+            inservible para un tercero. Después del reseteo solo termina su configuración con una cuenta de Google de la
+            empresa (Android 11+ por política; Android 5.1 a 10 a través de los Servicios de Google Play).
           </span>
         </div>
         <div className="cfg-field-ctl" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
@@ -260,12 +271,7 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
             <option value="">Permitido</option>
             <option value="block">Bloquear desde Ajustes</option>
           </select>
-          <input className="input mono" aria-label="Cuentas de reactivación" placeholder="ID de cuentas que pueden reactivar (opcional)" disabled={disabled}
-            value={(p.device?.frpAccounts ?? []).join(', ')}
-            onChange={(e) => {
-              const ids = e.target.value.split(/[\s,]+/).map((x) => x.replace(/[^0-9]/g, '')).filter(Boolean);
-              update({ ...p, device: { ...(p.device ?? {}), frpAccounts: ids.length ? ids : undefined } });
-            }} />
+          <DcResetProtection p={p} update={update} disabled={disabled} />
         </div>
       </div>
 

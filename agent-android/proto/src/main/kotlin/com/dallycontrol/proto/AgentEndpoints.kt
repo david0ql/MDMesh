@@ -22,6 +22,9 @@ data class AgentEnrollRequest(
     /** Stable, permission-free device id (enrollment-specific id / ANDROID_ID) so the server
      *  can recognise a re-enrolling physical device and flag duplicate rows. */
     val hardwareId: String? = null,
+    /** Serial number and IMEI, when readable: after a factory reset they bring the device back to its row and folder. */
+    val serial: String? = null,
+    val imei: String? = null,
 )
 
 /**
