@@ -231,7 +231,7 @@ def api(base, path, token=None, body=None, method=None):
     req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
                                  method=method or ("POST" if body is not None else "GET"))
     req.add_header("Content-Type", "application/json")
-    with _COOKIES.open(req, timeout=20) as r:
+    with _COOKIES.open(req, timeout=120) as r:
         return json.loads(r.read().decode() or "{}")
 
 
@@ -412,6 +412,47 @@ def wait_enrolled(a, serial, payload):
     return "ENROLL-TIMEOUT", "last=" + last[:200]
 
 
+def run_callbacks(a):
+    """Alternate path where an emulator cannot run the setup-wizard part of the provisioning: the agent is installed
+    and made Device Owner with adb, then receives the QR's admin extras through the same callbacks Android uses
+    (GET_PROVISIONING_MODE, then ADMIN_POLICY_COMPLIANCE on Android 12+ / PROVISIONING_SUCCESSFUL before). What this
+    verifies is the agent's side: taking the payload in, the baseline, the enrollment and its status screen."""
+    serial = a.serial
+    os.makedirs(a.out, exist_ok=True)
+    dex = build_helper(os.path.join(os.environ.get("QR_MATRIX_TMP", "/tmp"), "qr-matrix-helper"))
+    sdk = int(sh(serial, "getprop ro.build.version.sdk").strip() or 0)
+    release = sh(serial, "getprop ro.build.version.release").strip()
+    print(f"device {serial}: Android {release} (API {sdk}) - agent callbacks only", flush=True)
+    payload = json.load(open(a.payload))
+    component = payload["android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME"]
+    package = component.split("/")[0]
+    print(adb(serial, "install", "-r", "-t", a.apk, timeout=240).strip().splitlines()[-1:], flush=True)
+    owner = ""
+    end = time.time() + 150   # Android 16 refuses for a while after boot ("already some accounts")
+    while time.time() < end:
+        owner = sh(serial, f"dpm set-device-owner {component}")
+        if "Success" in owner or "already" in owner.lower() and "account" not in owner.lower():
+            break
+        time.sleep(6)
+    print("  " + owner.strip()[-160:], flush=True)
+    adb(serial, "root")
+    time.sleep(4)
+    adb(serial, "wait-for-device", timeout=60)
+    adb(serial, "push", dex, "/data/local/tmp/provision.dex")
+    adb(serial, "push", a.payload, "/data/local/tmp/payload.json")
+    adb(serial, "logcat", "-c")
+    helper = "CLASSPATH=/data/local/tmp/provision.dex app_process / ProvisionIntent --callback "
+    actions = ["GET_PROVISIONING_MODE"] + (["ADMIN_POLICY_COMPLIANCE"] if sdk >= 31 else ["PROVISIONING_SUCCESSFUL"])
+    for action in actions:
+        print("  " + sh(serial, helper + action + " /data/local/tmp/payload.json").strip()[-120:], flush=True)
+        time.sleep(4)
+    a.finalize_after = 10 ** 6
+    status, details = wait_enrolled(a, serial, payload)
+    open(os.path.join(a.out, "logcat.txt"), "w").write(adb(serial, "logcat", "-d", timeout=120))
+    print(f"RESULT {status} api={sdk} android={release} flow=agent-callbacks {details}", flush=True)
+    return 0 if status == "ENROLLED" else 1
+
+
 SLOTS = "/private/tmp/mdm-emu-slots"
 SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630}
 # QR_MATRIX_SLOTS=4 keeps a run on a reserved turn; the default is the three shared ones.
@@ -481,8 +522,9 @@ def matrix(a):
             open(pfile, "w").write(payload)
             print(f"=== {avd} on {serial}", flush=True)
             boot(avd, port)
-            cmd = [sys.executable, os.path.abspath(__file__), "run", "--serial", serial, "--payload", pfile,
-                   "--out", out, "--timeout", str(a.timeout)] + a.run_args
+            cmd = [sys.executable, os.path.abspath(__file__), "callbacks" if a.callbacks_apk else "run",
+                   "--serial", serial, "--payload", pfile, "--out", out] \
+                + (["--apk", a.callbacks_apk] if a.callbacks_apk else ["--timeout", str(a.timeout)]) + a.run_args
             if a.mint:
                 cmd += ["--wait-enrolled", a.mint, "--admin", a.admin]
             p = subprocess.run(cmd, capture_output=True, text=True)
@@ -529,10 +571,18 @@ def main():
     m.add_argument("--out", required=True); m.add_argument("--owner", default="qr-matrix")
     m.add_argument("--mint", help="console base URL: mint a token per device and wait until it enrolls")
     m.add_argument("--admin", default="admin:admin"); m.add_argument("--timeout", type=int, default=420)
+    m.add_argument("--callbacks-apk", help="agent APK: use the agent-callbacks path (see run_callbacks) instead")
     m.add_argument("--clean-avd", action="store_true", help="delete each AVD's data after its run (frees disk)")
     m.add_argument("--run-args", nargs=argparse.REMAINDER, default=[])
     m.add_argument("avds", nargs="+")
+    c = sub.add_parser("callbacks")
+    c.add_argument("--serial", required=True); c.add_argument("--payload", required=True)
+    c.add_argument("--out", required=True); c.add_argument("--apk", required=True)
+    c.add_argument("--wait-enrolled", required=True); c.add_argument("--admin", default="admin:admin")
+    c.add_argument("--enroll-timeout", type=int, default=240)
     a = p.parse_args()
+    if a.cmd == "callbacks":
+        sys.exit(run_callbacks(a))
     if a.cmd == "matrix":
         return matrix(a)
     if a.cmd == "boot":
