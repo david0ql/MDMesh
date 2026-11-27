@@ -171,13 +171,15 @@ funciona con Wi‑Fi; la permitida y el agente siguen funcionando; cambio Wi‑F
 local (VPN siempre activa del agente, sin diálogo, ajustes de VPN bloqueados) → lista blanca → ajuste por equipo →
 límite por app (alerta de aviso, luego alerta de límite y bloqueo automático; con Wi‑Fi sigue funcionando) → límite
 del equipo (todas menos la esencial) → «sin límites» en el equipo → se quita la sección y todo queda como antes. En
-el camino revisa `dumpsys netpolicy`, `dumpsys device_policy` y `dumpsys connectivity`.
+el camino revisa `dumpsys netpolicy`, `dumpsys device_policy`, `dumpsys user` y `dumpsys connectivity`. Resultados
+de la última corrida (API 30 y API 35) en [TESTING.md](TESTING.md).
 
 Comprobaciones a mano:
 
 ```bash
 adb shell dumpsys netpolicy | grep -A3 "Admin restricted uids"      # restricción del sistema: UID de las apps bloqueadas
-adb shell dumpsys device_policy | grep -i -A3 metered               # la lista que puso el agente
+adb shell dumpsys device_policy | grep -i meteredDisabledPackages    # la lista que puso el agente (solo Android recientes la imprimen)
+adb shell dumpsys user | grep no_config_vpn                         # VPN local: ajustes de VPN bloqueados
 adb shell settings get secure always_on_vpn_app                     # VPN local: el paquete del agente
 adb shell dumpsys connectivity | grep -i "Transports: .*VPN"        # el túnel
 adb logcat -s MobileData MobileDataVpn NetProbe                     # qué decide el agente y cómo le va a la app
