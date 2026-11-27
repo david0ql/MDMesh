@@ -92,13 +92,18 @@ object NotificationWatch {
         val resolver = context.contentResolver
         val current = Settings.Secure.getString(resolver, "enabled_notification_listeners")?.takeIf { it.isNotBlank() && it != "null" }
         if (current?.split(':')?.contains(me) == true) {
-            runCatching { NotificationListenerService.requestRebind(component(context)) }
+            // requestRebind exists from Android 7 (API 24); on Android 6 the system binds the listener by itself.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                runCatching { NotificationListenerService.requestRebind(component(context)) }
+            }
             return true
         }
         if (context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return false
         return runCatching {
             Settings.Secure.putString(resolver, "enabled_notification_listeners", listOfNotNull(current, me).joinToString(":"))
-            NotificationListenerService.requestRebind(component(context))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                NotificationListenerService.requestRebind(component(context))
+            }
             true
         }.onFailure { Log.w(TAG, "enable listener", it) }.getOrDefault(false)
     }

@@ -27,6 +27,21 @@
       }
     },
     "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } },
+    "mobileData": {
+      "type": "object", "additionalProperties": true,
+      "description": "Mobile data per app. Absent = not managed (the agent lifts what an earlier document set). The agent itself is never restricted. Limits are bytes per period; over an app limit that app loses mobile data until the next period, over the device limit every user-facing app but `essential` does.",
+      "properties": {
+        "mode": { "enum": ["open", "blocklist", "allowlist"], "description": "blocklist: `apps` may not use mobile data; allowlist: only `apps` may" },
+        "apps": { "type": "array", "items": { "type": "string" } },
+        "mechanism": { "enum": ["auto", "dpm", "vpn"], "description": "absent = auto: setMeteredDataDisabledPackages on Android 9+, the agent's local VPN before" },
+        "period": { "enum": ["monthly", "daily"], "description": "absent = monthly" },
+        "cutDay": { "type": "integer", "minimum": 1, "maximum": 28 },
+        "warnPercent": { "type": "integer", "minimum": 1, "maximum": 100, "description": "absent = 80" },
+        "deviceLimitBytes": { "type": "integer", "minimum": 1 },
+        "appLimits": { "type": "array", "items": { "type": "object", "required": ["pkg", "bytes"], "properties": { "pkg": {"type":"string"}, "bytes": {"type":"integer","minimum":1} } } },
+        "essential": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "permissions": {
       "description": "App permissions without the user. Absent = the agent's baseline (grant on request, no per-app rule). defaultPolicy: what Android answers to any runtime-permission request (setPermissionPolicy). apps: per-app rules (setPermissionGrantState) — 'all' is the preset for every runtime permission the app declares, 'permissions' maps a group (locationFine, locationCoarse, locationBackground, camera, microphone, storage, contacts, phone, sms, notifications, nearbyDevices, activity, calendar) to a rule and wins over 'all'; 'special' lists special accesses the app should have.",
       "type": "object",

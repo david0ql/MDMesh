@@ -38,7 +38,14 @@ class LocationCollector @Inject constructor(
         val known = lastKnown(lm)
         val now = System.currentTimeMillis()
         // A fix taken seconds ago (e.g. by the trail loop) is as good as a new one: do not wait again.
-        val fresh = if (active && !FixPolicy.freshEnough(known?.time, now)) currentFix(lm, now) else null
+        val reuse = active && FixPolicy.freshEnough(known?.time, now)
+        if (reuse) {
+            val from = known?.provider ?: "?"
+            val trace = FixPolicy.Trace(now, emptyList(), modeStore.fixTimeoutSec(), emptyList(), from)
+            FixPolicy.lastTrace = trace
+            android.util.Log.i(TAG, "fresh fix: ${trace.summary()}")
+        }
+        val fresh = if (active && !reuse) currentFix(lm, now) else null
         val loc = listOfNotNull(fresh, known).maxByOrNull { it.time }
         android.util.Log.d(TAG, "collect active=$active fresh=${fresh != null} loc=${loc?.time}")
         return loc?.let {
@@ -71,23 +78,35 @@ class LocationCollector @Inject constructor(
      * next one gets the rest (GPS indoors never answers; network usually does). null on timeout/failure.
      */
     private fun currentFix(lm: LocationManager, now: Long): Location? {
-        val providers = FixPolicy.providers(runCatching { lm.allProviders }.getOrDefault(emptyList())) { lm.isProviderEnabled(it) }
-        if (providers.isEmpty()) return null
+        val available = runCatching { lm.allProviders }.getOrDefault(emptyList())
+        // Only providers the device really has AND has enabled are asked: without Google Play services there is no
+        // fused provider and GPS goes first, with no time spent waiting for something that cannot answer.
+        // …and a fused provider that just stayed silent while GPS answered is left out for a while.
+        val providers = FixPolicy.providers(available) { lm.isProviderEnabled(it) }
+            .filterNot { it == FixPolicy.FUSED && FixPolicy.skipFused(now, fusedSilentAt) }
         val total = FixPolicy.timeoutSec(modeStore.fixTimeoutSec(), now, lastTimeoutAt)
-        val deadline = android.os.SystemClock.elapsedRealtime() + total * 1000L
-        for ((i, provider) in providers.withIndex()) {
-            val left = deadline - android.os.SystemClock.elapsedRealtime()
-            if (left <= 0) break
-            // The last provider may use everything that is left; earlier ones leave a share for the fallbacks.
-            val wait = if (i == providers.lastIndex) left else left * 2 / 3
-            val fix = singleFix(lm, provider, wait)
-            if (fix != null) {
-                lastTimeoutAt = 0
-                return fix
+        val attempts = ArrayList<FixPolicy.Attempt>()
+        var fix: Location? = null
+        val deadline = android.os.SystemClock.elapsedRealtime() + total * MS_PER_SEC
+        var i = 0
+        while (fix == null && i < providers.size) {
+            val started = android.os.SystemClock.elapsedRealtime()
+            val left = deadline - started
+            if (left > 0) {
+                val wait = FixPolicy.waitMs(providers[i], i == providers.lastIndex, left)
+                fix = singleFix(lm, providers[i], wait)
+                val took = android.os.SystemClock.elapsedRealtime() - started
+                attempts += FixPolicy.Attempt(providers[i], wait, took, fix != null)
             }
+            i++
         }
-        lastTimeoutAt = now
-        return null
+        val trace = FixPolicy.Trace(now, available, total, attempts)
+        FixPolicy.lastTrace = trace
+        android.util.Log.i(TAG, "fresh fix: ${trace.summary()} (disponibles=$available, espera=${total}s)")
+        lastTimeoutAt = if (fix != null) 0 else now
+        val fusedTried = attempts.firstOrNull { it.provider == FixPolicy.FUSED }
+        if (fusedTried != null) fusedSilentAt = if (!fusedTried.answered && fix != null) now else 0
+        return fix
     }
 
     @SuppressLint("MissingPermission") // gated by collect()'s hasPermission() check
@@ -145,7 +164,11 @@ class LocationCollector @Inject constructor(
     /** When the last wait for a fresh fix ended with nothing (0 = the last one worked). */
     @Volatile private var lastTimeoutAt = 0L
 
+    /** When fused last gave nothing while another provider did (0 = it answered, or was never the problem). */
+    @Volatile private var fusedSilentAt = 0L
+
     private companion object {
+        const val MS_PER_SEC = 1000L
         const val TAG = "LocationCollector"
     }
 }

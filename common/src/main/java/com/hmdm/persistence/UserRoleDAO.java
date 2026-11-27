@@ -91,6 +91,17 @@ public class UserRoleDAO {
         return mapper.findById(id);
     }
 
+    /** The organisation administrator's role (always full access; not editable). */
+    public boolean isAdminRole(Integer id) {
+        return id != null && id == orgAdminRoleId;
+    }
+
+    /** How many users hold the role (a role in use is not deleted). */
+    public int countUsers(int roleId) {
+        checkAccess();
+        return mapper.countUsers(roleId);
+    }
+
     public void insert(UserRole userRole) {
         checkAccess();
         mapper.insert(userRole);

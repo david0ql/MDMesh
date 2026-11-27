@@ -95,12 +95,19 @@ object DeviceAction {
     const val CONFIG_APPLY = "config.apply"
     const val CONFIG_APPLY_KEY = "configApply"
 
+    /**
+     * Not a command: tells the server this agent remembers, across restarts, which commands it already ran
+     * (see CommandLedger), so a command whose answer was lost can be sent again without running twice.
+     */
+    const val COMMAND_LEDGER_KEY = "commandLedger"
+
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
         "passcodeReset", "wipe", "powerMode", "locationMode", "dataSharing", "configApply", "appLaunch", "appInstallForce", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
+        COMMAND_LEDGER_KEY,
         "permissionScreen", "permissionScan",
     )
 }

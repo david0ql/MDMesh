@@ -68,7 +68,26 @@ public class ConfigReconciler {
             doc = com.hmdm.util.DesiredPermissionsBuilder.withDeviceOverrides(doc, cfg, r.apps,
                     com.hmdm.util.AppPermissionRules.parseMap(commandDAO.getDevicePermissionOverride(device.getId())));
         }
-        return withGeofenceTracking(device, doc);
+        return withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc));
+    }
+
+    /**
+     * A device with its own mobile-data setting (apps always allowed / blocked there, limits ignored, or no
+     * restriction at all) gets the policy's section with that setting on top; the revision is recomputed, so the
+     * phone re-applies. Without an override the document is untouched.
+     */
+    private DesiredConfig withMobileDataOverride(Device device, Configuration cfg, DesiredConfig doc) {
+        try {
+            MobileDataService mobileData = MobileDataService.INSTANCE;
+            com.hmdm.util.MobileDataPolicy.DeviceOverride override = mobileData == null ? null : mobileData.override(device.getId());
+            if (override == null) return doc;
+            doc.setMobileData(com.hmdm.util.MobileDataPolicy.desired(
+                    com.hmdm.util.DcPolicy.parse(cfg.getDcPolicy()).getMobileData(), override));
+            doc.setRevision(DesiredConfigBuilder.revision(doc));
+        } catch (Exception e) {
+            logger.warn("Mobile-data override of {} not applied: {}", device.getNumber(), e.getMessage());
+        }
+        return doc;
     }
 
     /**

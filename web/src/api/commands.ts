@@ -16,6 +16,8 @@ export interface QueuedCommand {
   id?: number | string;
   type?: string;
   status?: string;
+  /** Whether the device's live channel was open when the command was queued; false = it waits for the device. */
+  deviceOnline?: boolean;
   [key: string]: unknown;
 }
 
@@ -91,6 +93,8 @@ export async function queueCommand(
 export interface BulkCommandResult {
   queued: number;
   skipped: number[];
+  /** Of the queued ones, devices that were not connected: their command runs when they come back. */
+  offline?: number;
 }
 
 /**
@@ -302,7 +306,30 @@ export interface CommandHistoryItem {
   detail?: string | null; createdAt?: number; deliveredAt?: number; completedAt?: number;
   /** Server-derived package name for app.install / app.uninstall; absent otherwise. Payloads are never returned. */
   subject?: string | null;
+  /** Who queued it: a console login, or "sistema" for automatic commands; and the address it came from. */
+  issuerName?: string | null;
+  issuerIp?: string | null;
+  /** Times it was handed to the device (more than 1 = a delivery went unanswered and was repeated). */
+  deliveries?: number;
+  /** Milliseconds from queueing to delivery / to the device's result. */
+  deliveryMs?: number;
+  totalMs?: number;
 }
+
+/** Withdraw a command the device has not run yet. */
+export async function cancelCommand(deviceId: number | string, commandId: number | string): Promise<CommandHistoryItem> {
+  return apiClient.post<CommandHistoryItem>(`/private/agent/v1/devices/${deviceId}/commands/${commandId}/cancel`, {});
+}
+
+export interface WipedMark { wipedAt: number; wipedBy?: string | null }
+
+/** Devices that received a remote wipe and stopped reporting, by device number. */
+export async function listWipedDevices(): Promise<Record<string, WipedMark>> {
+  return apiClient.get<Record<string, WipedMark>>('/private/agent/v1/wiped');
+}
+
+/** What to tell the person when a command was queued for a device that is not connected. */
+export const OFFLINE_QUEUED_NOTE = 'El equipo no tiene enlace ahora: la orden queda en cola y se ejecutará cuando el equipo vuelva a conectarse.';
 
 export async function getDeviceState(deviceId: number | string): Promise<DeviceState | null> {
   return apiClient.get<DeviceState | null>(`/private/agent/v1/devices/${deviceId}/state`);

@@ -72,6 +72,8 @@ export interface GeofenceSettings {
   retentionDays: number;
   /** At most one alert e-mail per recipient in this many minutes. */
   emailIntervalMin: number;
+  /** A device silent for longer than this is "disconnected" (Alerts page and alert e-mails). */
+  offlineMinutes: number;
 }
 
 export interface AlertRecipient {

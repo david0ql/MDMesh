@@ -162,6 +162,38 @@ class ConfigApplierTest {
         assertEquals("removed section -> empty list (remove what was added)", emptyList<com.dallycontrol.proto.ConfigWifi>(), seen[1])
     }
 
+    @Test fun `mobile data section is applied, and cleared when a later document drops it`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val seen = ArrayList<com.dallycontrol.proto.ConfigMobileData?>()
+        val applier = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, store,
+            mobileData = { seen += it; ConfigOutcome.APPLIED },
+        )
+        val section = com.dallycontrol.proto.ConfigMobileData(mode = "blocklist", apps = listOf("com.video"))
+        val r1 = applier.apply(ConfigApplyPayload(revision = "m1", mobileData = section))
+        assertEquals(ConfigOutcome.APPLIED, r1.outcomes["mobileData"])
+        val r2 = applier.apply(ConfigApplyPayload(revision = "m2"))
+        assertNull("nothing asserted -> no key", r2.outcomes["mobileData"])
+        assertEquals(listOf(section, null), seen)
+        applier.apply(ConfigApplyPayload(revision = "m3"))
+        assertEquals("never set by a configuration -> left alone", 2, seen.size)
+    }
+
+    @Test fun `a mobile data failure keeps the previous revision, no enforcer means unsupported`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val section = com.dallycontrol.proto.ConfigMobileData(mode = "allowlist")
+        val failing = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, store,
+            mobileData = { ConfigOutcome.failed("otra VPN") },
+        )
+        val r = failing.apply(ConfigApplyPayload(revision = "f1", mobileData = section))
+        assertEquals("failed: otra VPN", r.outcomes["mobileData"])
+        assertNull(store.revision())
+        val none = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store)
+        val r2 = none.apply(ConfigApplyPayload(revision = "f2", mobileData = section))
+        assertEquals(ConfigOutcome.UNSUPPORTED, r2.outcomes["mobileData"])
+    }
+
     private class FakePermissions(private val outcome: String = ConfigOutcome.APPLIED) : PermissionEnforcer {
         val applied = mutableListOf<ConfigPermissions>()
         override fun apply(policy: ConfigPermissions): String {

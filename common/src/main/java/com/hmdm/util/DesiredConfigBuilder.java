@@ -166,6 +166,8 @@ public final class DesiredConfigBuilder {
                 if (allowed.size() > 1) d.getKiosk().setMode("launcher");
             }
         }
+        // Mobile data per app: the policy's own section (a device's override is added by the server's reconciler).
+        d.setMobileData(MobileDataPolicy.desired(dc.getMobileData(), null));
         // App permissions: the default policy and the policy's per-app rules (a device's own rules are added by
         // DesiredPermissionsBuilder.withDeviceOverrides).
         d.setPermissions(DesiredPermissionsBuilder.build(cfg, dc, list, null));

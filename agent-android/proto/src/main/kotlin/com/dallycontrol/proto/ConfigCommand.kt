@@ -31,6 +31,8 @@ data class ConfigApplyPayload(
     val systemUpdate: ConfigSystemUpdate? = null,
     /** Device security rules (absent = none): data sharing, Google accounts, factory reset. */
     val device: ConfigDevice? = null,
+    /** Mobile-data restriction per app and data limits (absent = not managed; what the agent set before is undone). */
+    val mobileData: ConfigMobileData? = null,
     /** Runtime-permission policy and per-app grants (absent = the agent's baseline: grant on request, no rules). */
     val permissions: ConfigPermissions? = null,
 )
@@ -120,3 +122,28 @@ object ConfigOutcome {
     fun failed(reason: String): String = "failed: $reason"
     fun isFailed(outcome: String): Boolean = outcome.startsWith("failed")
 }
+
+/**
+ * Mobile data per app. [mode]: `open` (no list), `blocklist` ([apps] may not use mobile data: "Wi-Fi only") or
+ * `allowlist` (only [apps] may; every other user-facing app is Wi-Fi only). [mechanism]: `auto` (the system's
+ * metered-data restriction on Android 9+, the agent's local VPN before), `dpm` or `vpn` to force one.
+ *
+ * Limits are counted per period ([period] `monthly` starting on [cutDay] 1..28, or `daily`): an app over its
+ * [appLimits] entry loses mobile data until the next period; over [deviceLimitBytes] every app but [essential] does.
+ * At [warnPercent] of a limit the agent records a warning event. The agent itself is never restricted.
+ */
+@Serializable
+data class ConfigMobileData(
+    val mode: String = "open",
+    val apps: List<String> = emptyList(),
+    val mechanism: String = "auto",
+    val period: String = "monthly",
+    val cutDay: Int = 1,
+    val warnPercent: Int = 80,
+    val deviceLimitBytes: Long? = null,
+    val appLimits: List<ConfigDataLimit> = emptyList(),
+    val essential: List<String> = emptyList(),
+)
+
+@Serializable
+data class ConfigDataLimit(val pkg: String, val bytes: Long)

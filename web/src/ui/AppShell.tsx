@@ -27,6 +27,7 @@ import {
   IconSun,
   IconMoon,
   IconZone,
+  IconAudit,
 } from './icons';
 
 // Cached across page navigations (AppShell remounts per page) so the header brand does not flicker.
@@ -67,11 +68,12 @@ const NAV: NavEntry[] = [
   { to: '/reports', label: 'Reportes', Icon: IconReports, perm: 'manage_fleet' },
   { to: '/alerts', label: 'Alertas', Icon: IconAlert, perm: 'manage_fleet' },
   { to: '/scripts', label: 'Scripts', Icon: IconScript, perm: 'manage_scripts' },
-  { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
+  { to: '/enroll', label: 'Inscribir', Icon: IconEnroll, perm: 'enroll_devices' },
   { to: '/users', label: 'Usuarios', Icon: IconUsers, perm: 'manage_users' },
-  { to: '/roles', label: 'Roles', Icon: IconRoles, adminOnly: true },
-  { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true },
+  { to: '/roles', label: 'Roles', Icon: IconRoles, adminOnly: true, perm: 'settings' },
+  { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true, perm: 'settings' },
   { to: '/geofences', label: 'Geocercas', Icon: IconZone, perm: 'manage_fleet' },
+  { to: '/audit', label: 'Auditoría', Icon: IconAudit, perm: 'view_audit' },
 ];
 
 export function AppShell({

@@ -42,6 +42,7 @@ jobs:
             supervisor: supervisor/**, docker/supervisor.Dockerfile, release/minisign.pub, scripts/supervisor-smoke.sh, .dockerignore
             # Listed explicitly: the kit's fail-closed **/Dockerfile* does not match docker/web.Dockerfile. web/**,
             # web-entrypoint.sh and .dockerignore are the web image build's inputs.
+            ops: ops/**, docker/ops.Dockerfile, scripts/backup-restore-test.sh, scripts/restore-backup.sh, .dockerignore
             edge: docker/Caddyfile, docker/web.Dockerfile, docker/web-entrypoint.sh, web/**, .dockerignore, docker-compose*.yml, docker/dev.env, scripts/edge-check.sh
 
   build:
@@ -58,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [server, web, agent, supervisor, edge]
+        name: [server, web, agent, supervisor, edge, ops]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -77,6 +78,12 @@ jobs:
         # :common tests (incl. AgentV1ContractTest — the backward-compat gate) and the DB-free :server tests need no
         # database. The package step skips tests (they just ran); DB-backed behaviour is T1's (t1-e2e.yml).
         run: mvn -B -pl server -am test
+      # A database built ONLY from the changelogs must satisfy every mapper statement: catches a mapper that does not
+      # load (the server would not start) and tables/columns no changeSet creates (a fresh install would be broken).
+      - if: matrix.name == 'server' && (needs.paths.outputs.all == 'true' || fromJSON(needs.paths.outputs.matched).server)
+        name: Schema drift check (empty PostgreSQL)
+        run: scripts/schema-drift-check.sh
+
       - if: matrix.name == 'server' && (needs.paths.outputs.all == 'true' || fromJSON(needs.paths.outputs.matched).server)
         name: Build WAR
         run: mvn -B -DskipTests package
@@ -88,6 +95,14 @@ jobs:
           if-no-files-found: error
 
       # --- web (from web.yml) ---
+      # Monitor logic + the backup -> restore round trip with throwaway containers (docs/ops/RESPALDOS.md).
+      - if: matrix.name == 'ops' && (needs.paths.outputs.all == 'true' || fromJSON(needs.paths.outputs.matched).ops)
+        name: Monitor unit tests
+        run: node ops/monitor/test.js
+      - if: matrix.name == 'ops' && (needs.paths.outputs.all == 'true' || fromJSON(needs.paths.outputs.matched).ops)
+        name: Backup and restore test
+        run: PREFIX=dcbr-${{ github.run_id }}-${{ github.run_attempt }} scripts/backup-restore-test.sh
+
       - if: matrix.name == 'web' && (needs.paths.outputs.all == 'true' || fromJSON(needs.paths.outputs.matched).web)
         uses: ./.github/actions/ci-kit/setup-npm
         with:

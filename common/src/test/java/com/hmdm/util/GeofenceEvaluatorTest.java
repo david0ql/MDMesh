@@ -32,21 +32,101 @@ public class GeofenceEvaluatorTest {
         return GeofenceEvaluator.evaluate(z, prev, LAT + metres * M, LON, acc, ts, settings());
     }
 
+    /** The zone's first state, confirmed by two fixes [metres] north of the centre (the second one at time MIN). */
+    private static State base(Zone z, double metres) {
+        State s = at(z, null, metres, 10f, MIN - 30_000).next;
+        return at(z, s, metres, 10f, MIN).next;
+    }
+
     @Test
-    public void first_fix_sets_the_baseline_without_alert() {
-        Outcome o = at(circle("stayInside"), null, 0, 10f, MIN);
+    public void first_state_on_the_allowed_side_needs_confirmation_and_does_not_alert() {
+        Outcome first = at(circle("stayInside"), null, 0, 10f, MIN);
+        assertNull("one position does not place the device yet", first.next.state);
+        assertNull(first.alertType);
+        Outcome second = at(circle("stayInside"), first.next, 5, 10f, 2 * MIN);
+        assertEquals("inside", second.next.state);
+        assertEquals(MIN, second.next.since);
+        assertNull(second.event);
+        assertNull(second.alertType);
+        assertFalse(second.initial);
+    }
+
+    @Test
+    public void device_already_outside_when_the_zone_starts_alerts_once_confirmed() {
+        Zone z = circle("stayInside");
+        Outcome first = at(z, null, 500, 10f, MIN);
+        assertNull("not on a single position", first.alertType);
+        assertNull(first.next.state);
+        Outcome second = at(z, first.next, 520, 10f, 2 * MIN);
+        assertEquals("outside", second.next.state);
+        assertEquals("geofenceExit", second.alertType);
+        assertTrue("flagged as outside since the first position", second.initial);
+        assertEquals("exit", second.event);
+        assertEquals("dated at the first position", MIN, second.alertAt);
+        // it is not repeated while the device stays out
+        Outcome third = at(z, second.next, 530, 10f, 3 * MIN);
+        assertNull(third.alertType);
+        // and coming in is a normal return
+        State s = at(z, third.next, 10, 10f, 4 * MIN).next;
+        Outcome back = at(z, s, 10, 10f, 5 * MIN);
+        assertEquals("geofenceEnter", back.alertType);
+        assertTrue(back.returned);
+        assertFalse(back.initial);
+    }
+
+    @Test
+    public void device_already_inside_a_keep_out_zone_alerts_once_confirmed() {
+        Zone z = circle("keepOut");
+        State s = at(z, null, 10, 10f, MIN + 1).next;
+        Outcome o = at(z, s, 12, 10f, 2 * MIN);
         assertEquals("inside", o.next.state);
-        assertNull(o.event);
+        assertEquals("geofenceEnter", o.alertType);
+        assertTrue(o.initial);
+        // already outside a keep-out zone: nothing
+        State out = at(z, null, 600, 10f, MIN + 1).next;
+        Outcome ok = at(z, out, 600, 10f, 2 * MIN);
+        assertEquals("outside", ok.next.state);
+        assertNull(ok.alertType);
+    }
+
+    @Test
+    public void first_state_ignores_inaccurate_and_inconclusive_positions() {
+        Zone z = circle("stayInside");
+        // ±300 m positions do not count at all
+        State s = at(z, null, 800, 300f, MIN).next;
+        s = at(z, s, 800, 300f, 2 * MIN).next;
+        assertNull(s.state);
+        // just beyond the border but inside the margin (40 m out, ±50 m): the allowed side, no alert
+        s = at(z, null, 240, 50f, MIN).next;
+        Outcome o = at(z, s, 240, 50f, 2 * MIN);
+        assertEquals("inside", o.next.state);
         assertNull(o.alertType);
-        Outcome out = at(circle("stayInside"), null, 500, 10f, MIN);
-        assertEquals("outside", out.next.state);
-        assertNull("a device already outside when the zone starts does not alert", out.alertType);
+        // out, in, out: the count restarts, so no state yet after three positions
+        s = at(z, null, 600, 10f, MIN + 1).next;
+        s = at(z, s, 0, 10f, 2 * MIN).next;
+        o = at(z, s, 600, 10f, 3 * MIN);
+        assertNull(o.next.state);
+        assertNull(o.alertType);
+    }
+
+    @Test
+    public void already_outside_but_outside_the_schedule_alerts_when_the_schedule_starts() {
+        Zone z = circle("stayInside");
+        z.schedule = GeofenceEvaluator.Schedule.parse("{\"days\":[1,2,3,4,5],\"from\":\"08:00\",\"to\":\"18:00\",\"tz\":\"UTC\"}");
+        long mon = java.time.ZonedDateTime.of(2026, 11, 23, 0, 0, 0, 0, java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+        long h = 60 * MIN;
+        State s = at(z, null, 500, 10f, mon + 6 * h).next;
+        Outcome o = at(z, s, 500, 10f, mon + 6 * h + MIN);
+        assertEquals("outside", o.next.state);
+        assertNull("06:00 is outside the schedule", o.alertType);
+        Outcome late = at(z, o.next, 500, 10f, mon + 8 * h + MIN);
+        assertEquals("geofenceExit", late.alertType);
     }
 
     @Test
     public void exit_needs_consecutive_fixes_and_carries_the_first_fix_time() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         Outcome first = at(z, s, 400, 10f, 2 * MIN);
         assertEquals("still inside after one fix", "inside", first.next.state);
         assertNull(first.event);
@@ -60,7 +140,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void a_single_jumpy_fix_does_not_alert() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         s = at(z, s, 2000, 10f, 2 * MIN).next;       // GPS jump
         Outcome back = at(z, s, 10, 10f, 3 * MIN);   // back inside
         assertEquals("inside", back.next.state);
@@ -74,7 +154,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void inaccurate_fixes_are_ignored() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         Outcome a = at(z, s, 800, 250f, 2 * MIN);
         assertTrue(a.ignoredLowAccuracy);
         Outcome b = at(z, a.next, 800, 250f, 3 * MIN);
@@ -86,7 +166,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void the_margin_grows_with_the_reported_accuracy() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         // 240 m from the centre = 40 m beyond the edge. With ±50 m that is not conclusive (margin 15 + 50).
         s = at(z, s, 240, 50f, 2 * MIN).next;
         Outcome o = at(z, s, 240, 50f, 3 * MIN);
@@ -101,7 +181,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void hysteresis_band_does_not_flap() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 5f, MIN).next;
+        State s = base(z, 0);
         // Walk along the edge: all inside the band (edge ± 20 m), never an event.
         long t = 2;
         for (double m : new double[]{195, 205, 198, 210, 203, 207, 199}) {
@@ -115,7 +195,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void return_is_reported_once_after_an_alerted_exit() {
         Zone z = circle("stayInside");
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         s = at(z, s, 400, 10f, 2 * MIN).next;
         s = at(z, s, 400, 10f, 3 * MIN).next;
         assertEquals("outside", s.state);
@@ -133,7 +213,7 @@ public class GeofenceEvaluatorTest {
     public void return_alert_can_be_turned_off() {
         Zone z = circle("stayInside");
         z.alertOnReturn = false;
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         s = at(z, s, 400, 10f, 2 * MIN).next;
         s = at(z, s, 400, 10f, 3 * MIN).next;
         s = at(z, s, 50, 10f, 4 * MIN).next;
@@ -145,7 +225,7 @@ public class GeofenceEvaluatorTest {
     @Test
     public void keep_out_zone_alerts_on_entry() {
         Zone z = circle("keepOut");
-        State s = at(z, null, 600, 10f, MIN).next;
+        State s = base(z, 600);
         assertEquals("outside", s.state);
         s = at(z, s, 20, 10f, 2 * MIN).next;
         Outcome in = at(z, s, 10, 10f, 3 * MIN);
@@ -172,7 +252,7 @@ public class GeofenceEvaluatorTest {
     public void small_zone_can_still_be_entered() {
         Zone z = circle("keepOut");
         z.radiusM = 30; // margin (15 + 20) would exceed the radius: it is capped at half of it
-        State s = at(z, null, 300, 20f, MIN).next;
+        State s = base(z, 300);
         s = at(z, s, 2, 20f, 2 * MIN).next;
         Outcome in = at(z, s, 3, 20f, 3 * MIN);
         assertEquals("geofenceEnter", in.alertType);
@@ -183,7 +263,7 @@ public class GeofenceEvaluatorTest {
         Zone z = new Zone();
         z.shape = "polygon"; z.rule = "stayInside"; z.alertOnReturn = true;
         z.polygon = new double[][]{{4.6991, -74.0509}, {4.6991, -74.0491}, {4.7009, -74.0491}, {4.7009, -74.0509}};
-        State s = at(z, null, 0, 10f, MIN).next;
+        State s = base(z, 0);
         assertEquals("inside", s.state);
         s = at(z, s, 300, 10f, 2 * MIN).next;
         assertEquals("geofenceExit", at(z, s, 300, 10f, 3 * MIN).alertType);
@@ -197,6 +277,7 @@ public class GeofenceEvaluatorTest {
         long mon = java.time.ZonedDateTime.of(2026, 11, 23, 0, 0, 0, 0, java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
         long h = 60 * MIN;
         State s = at(z, null, 0, 10f, mon + 5 * h).next;
+        s = at(z, s, 0, 10f, mon + 5 * h + MIN).next;
         s = at(z, s, 400, 10f, mon + 6 * h).next;
         Outcome out = at(z, s, 400, 10f, mon + 6 * h + MIN);
         assertEquals("exit", out.event);

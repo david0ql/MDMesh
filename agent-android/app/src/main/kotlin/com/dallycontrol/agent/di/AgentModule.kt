@@ -191,6 +191,7 @@ object AgentModule {
         appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
         permissions: AndroidPermissionEnforcer,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
@@ -200,6 +201,7 @@ object AgentModule {
                 systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull(),
                 appUsage = runCatching { appUsage.collect() }.getOrNull(),
                 usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
+                mobileData = runCatching { mobileData.status() }.getOrNull(),
                 permissions = runCatching { permissions.reportIfDue() }.getOrNull(),
             ).also {
                 runCatching { deviceRules.enforceAccounts() } // other-domain Google accounts go on every check-in
@@ -252,7 +254,11 @@ object AgentModule {
     @Singleton
     fun provideCommandDispatcher(
         handlers: Set<@JvmSuppressWildcards CommandHandler>,
-    ): CommandDispatcher = CommandDispatcher(handlers.toList())
+        @ApplicationContext context: Context,
+    ): CommandDispatcher = CommandDispatcher(
+        handlers.toList(),
+        ledger = com.dallycontrol.agent.command.PrefsCommandLedger(context),
+    )
 
     // --- Kiosk (lock-task) ---
 
@@ -606,6 +612,7 @@ object AgentModule {
         @ApplicationContext context: Context,
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
         permissions: AndroidPermissionEnforcer,
     ): ConfigApplier = ConfigApplier(
         toggles, kiosk, location::set, store, browser, apps,
@@ -615,6 +622,7 @@ object AgentModule {
         permissions = permissions,
         setTrackingMinutes = trail::setIntervalMinutes,
         setLocationFixTimeout = location::setFixTimeoutSec,
+        mobileData = mobileData::apply,
     )
 
     @Provides
@@ -649,6 +657,18 @@ object AgentModule {
     @Provides
     @IntoSet
     fun provideConfigApplyHandler(applier: ConfigApplier): CommandHandler = ConfigApplyHandler(applier)
+
+    /** Mobile data per app and data limits (system restriction on Android 9+, the agent's local VPN before). */
+    @Provides
+    @Singleton
+    fun provideMobileDataEnforcer(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.agent.data.MobileDataEnforcer =
+        com.dallycontrol.agent.data.MobileDataEnforcer(
+            context, handle, events, protected = listOf(DroidVncController.PACKAGE),
+        )
 
     // --- App permissions (default policy, per-app grants, special accesses) ---
 
