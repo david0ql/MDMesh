@@ -285,6 +285,56 @@ Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Ma
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
 
+## QR provisioning on every Android release (MDM-01)
+
+`scripts/qr-matrix/qr_matrix.py` runs Android's real managed provisioning with a QR payload on a clean emulator per
+release. It starts right after the point where the camera reads the QR: `ProvisionIntent.java` (run as root with
+`app_process`, userdebug images only) turns the QR's JSON into the same `PROVISION_MANAGED_DEVICE_FROM_TRUSTED_SOURCE`
+intent the setup wizard builds, so everything after the scan is the platform's own code: Wi-Fi, clock, the agent
+download, the signature checksum, the install, Device Owner, and the agent's provisioning callbacks
+(`GET_PROVISIONING_MODE` + `ADMIN_POLICY_COMPLIANCE` on Android 12+, `PROFILE_PROVISIONING_COMPLETE` +
+`PROVISIONING_SUCCESSFUL` before). The script taps through the consent screens, waits until the console's API says
+the token enrolled a device, and saves logcat and the screens it saw.
+
+```bash
+# the dev stack (docs/DEV.md) with the debug agent published as /files/dallycontrol-agent.apk; payload.json is what
+# web/src/enroll/payload.ts builds, with ${TOKEN}, ${TOKEN12} and "${NOW}" left for the script to fill per device
+scripts/qr-matrix/qr_matrix.py matrix --payload payload.json --out /tmp/qr-matrix \
+    --mint http://localhost:8088 --admin admin:admin mdm_api24 mdm_api30 mdm_api35 ...
+
+# one device, with the clock set six years back first (a phone out of the box with a dead clock)
+scripts/qr-matrix/qr_matrix.py run --serial emulator-5600 --payload payload.json --out /tmp/qr-one --clock-back-years 6
+
+scripts/qr-matrix/enroll_api_check.py http://localhost:8088      # token retries, serial/IMEI de-dup, attempts log
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/enroll-console-e2e.mjs --api http://localhost:8088   # the Enroll page
+```
+
+What the emulator run does **not** cover: the camera and the QR decoder themselves (and the download of the QR reader
+from Google Play on Android 7-8), the setup wizard of each maker (Samsung/Knox, Xiaomi/HyperOS, Motorola), Play
+Protect's verdict on the agent, factory-reset protection (FRP), captive portals, and real Zero-Touch / Knox Mobile
+Enrollment assignment. Emulator facts the script works around (none of them are agent behaviour):
+
+- A booted emulator is already "set up". The script clears `user_setup_complete` / `device_provisioned`, disables
+  AOSP's `com.android.provision` (it marks the device as set up on every boot) and restarts the framework without
+  `device_policies.xml`, because `DevicePolicyManagerService` latches "setup complete" there and then answers
+  "Device already provisioned".
+- Android 6 (API 23) has no QR provisioning (it arrived in Android 7.0): that release enrolls by cable or NFC only.
+- Every emulator of a release reports the same serial and IMEI, so "same phone after a factory reset" is checked
+  with made-up identities by `enroll_api_check.py`, and the server ignores `EMULATOR*` serials for de-duplication.
+
+Results of `scripts/command-reliability-e2e.py` (2026-11-27, debug agent, dev stack behind Caddy; the machine was
+running 13 agents' builds and emulators at the same time, 1-minute load 30–50, so the latencies are an upper bound):
+
+| Android | API | Result | Latency measured by the server, send → executed (10 each) |
+|---|---|---|---|
+| 16 | 36 | offline/cancel/lost-answer 30/30; report 8/8; wipe 7/7; reboot answered from the ledger, no second reboot | lock p50 3.5 s, p90 8.2 s · alarm p50 4.6 s, p90 12.0 s (load ≈ 38) |
+| 11 | 30 | 32 pass, 9 fail: every failure is a wait of the test that ran out under load; all the commands ended executed (see the database) | lock p50 2.1 s, p90 3.9 s · alarm p50 3.7 s, p90 9.6 s · message p50 11.6 s, p90 17.0 s (load 30 → 50) |
+| 15 | 35 | before the wake-channel fix: commands queued without link survived 2 h and ran on reconnect, cancel, fast expiry of remote sessions | no live channel: each command waited for the periodic check-in (up to ~10 min) — the worst case |
+
+`scripts/command-console-e2e.mjs` (Chromium, console of the same stack): 16/16 — history with the three steps, latency,
+issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
+Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
+
 ## Second wake channel (push FCM, backup polling) — MDM-07
 
 Full description, the steps to load a real Firebase project and the measured latencies: [DESPERTADOR-FCM.md](DESPERTADOR-FCM.md).

@@ -93,6 +93,9 @@ public class AgentResource {
 
     private UnsecureDAO unsecureDAO;
     private AgentEnrollmentTokenDAO tokenDAO;
+    /** Never null (a Swagger-constructed instance logs nothing). */
+    private com.hmdm.rest.resource.support.EnrollAttemptLog enrollLog =
+            new com.hmdm.rest.resource.support.EnrollAttemptLog(null);
     private AgentCommandDAO commandDAO;
     private com.hmdm.rest.resource.support.ConfigAppInstaller configAppInstaller;
     private com.hmdm.rest.resource.support.ConfigReconciler configReconciler;
@@ -166,6 +169,7 @@ public class AgentResource {
         this.announcements = announcements;
         this.unsecureDAO = unsecureDAO;
         this.tokenDAO = tokenDAO;
+        this.enrollLog = new com.hmdm.rest.resource.support.EnrollAttemptLog(tokenDAO);
         this.commandDAO = commandDAO;
         this.configAppInstaller = configAppInstaller;
         this.configReconciler = configReconciler;
@@ -178,6 +182,62 @@ public class AgentResource {
     @Path("/enroll")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollEndpoint(@javax.ws.rs.core.Context javax.servlet.http.HttpServletRequest httpRequest,
+                                   AgentEnrollRequest request) {
+        Response response;
+        try {
+            response = enroll(request);
+        } catch (RuntimeException e) {
+            enrollLog.record(request, clientIp(httpRequest), null, "error.agent.enrollment.internal", e.toString());
+            throw e;
+        }
+        boolean ok = response.getStatus() == Response.ResponseStatus.OK;
+        Object data = response.getData();
+        enrollLog.record(request, clientIp(httpRequest),
+                ok && data instanceof AgentEnrollResponse ? ((AgentEnrollResponse) data).getDeviceId() : null,
+                ok ? null : response.getMessage(), null);
+        return response;
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Report an incomplete enrollment", notes = "An agent that is Device Owner but has no token "
+            + "to enroll with (the QR's payload never reached it) says so. Nothing is enrolled; the attempt is logged.")
+    @POST
+    @Path("/enroll/report")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollReport(@javax.ws.rs.core.Context javax.servlet.http.HttpServletRequest httpRequest,
+                                 AgentEnrollRequest request) {
+        if (request != null) {
+            request.setEnrollToken(null);
+            enrollLog.record(request, clientIp(httpRequest), null, "error.agent.device.no-token",
+                    "Device Owner sin token de inscripción");
+        }
+        return Response.OK();
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Agent download (tracked)", notes = "The address a provisioning QR gives Android for the agent "
+            + "APK: notes that the phone got this far (model and Android release come in its User-Agent) and redirects "
+            + "to the published file. t = the first characters of the enrollment token, p = the APK's path.")
+    @GET
+    @Path("/apk")
+    public javax.ws.rs.core.Response trackedAgentDownload(
+            @javax.ws.rs.core.Context javax.servlet.http.HttpServletRequest httpRequest,
+            @javax.ws.rs.QueryParam("t") String tokenRef, @javax.ws.rs.QueryParam("p") String path) {
+        if (!com.hmdm.util.EnrollmentIdentity.isAgentApkPath(path)) {
+            return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.BAD_REQUEST).build();
+        }
+        // The note is best-effort and never delays or blocks the download.
+        enrollLog.recordDownload(tokenRef, clientIp(httpRequest),
+                httpRequest == null ? null : httpRequest.getHeader("User-Agent"),
+                // Android's download manager asks again with a Range header to resume: one note per download.
+                httpRequest != null && httpRequest.getHeader("Range") != null);
+        return javax.ws.rs.core.Response.status(javax.ws.rs.core.Response.Status.FOUND)
+                .header("Location", baseUrl + path).header("Cache-Control", "no-store").build();
+    }
+
+    /** The enrollment itself; {@link #enrollEndpoint} wraps it to log every attempt. */
     public Response enroll(AgentEnrollRequest request) {
         if (request == null || request.getEnrollToken() == null || request.getEnrollToken().trim().isEmpty()) {
             return Response.ERROR("error.agent.token.invalid");
@@ -200,27 +260,60 @@ public class AgentResource {
         if (reusable && token.isRevoked()) {
             return Response.ERROR("error.agent.token.invalid");
         }
-        if (!reusable && token.isUsed()) {
+        // A consumed single-use token still answers the device that consumed it: when the reply to its first enroll
+        // was lost (network dropped, the phone restarted mid-setup) the agent asks again with the same QR token, and
+        // refusing it left a phone that is Device Owner but can never enroll without another factory reset.
+        final String reqSerial = com.hmdm.util.EnrollmentIdentity.usableSerial(request.getSerial());
+        final String reqImei = com.hmdm.util.EnrollmentIdentity.usableImei(request.getImei());
+        final boolean retry = !reusable && token.isUsed() && com.hmdm.util.EnrollmentIdentity.sameDevice(
+                token.getClaimedHardwareId(), token.getClaimedSerial(), token.getClaimedImei(),
+                request.getHardwareId(), reqSerial, reqImei);
+        if (!reusable && token.isUsed() && !retry) {
             return Response.ERROR("error.agent.token.used");
         }
-        if (token.getExpiresAt() != null && token.getExpiresAt() < System.currentTimeMillis()) {
+        if (!retry && token.getExpiresAt() != null && token.getExpiresAt() < System.currentTimeMillis()) {
             return Response.ERROR("error.agent.token.expired");
         }
         // Atomically consume the token BEFORE creating anything: with N concurrent enrolls
         // (freshly-provisioned agents fire several racing check-in engines) exactly one wins;
         // the blind mark-used-after-create used here before let every racer mint its own
         // device row, leaving permanent ghost devices. A reusable code only counts the use.
-        if (reusable ? !tokenDAO.claimReusable(token.getId()) : !tokenDAO.claim(token.getId())) {
+        if (!retry && (reusable ? !tokenDAO.claimReusable(token.getId()) : !tokenDAO.claim(token.getId()))) {
             return Response.ERROR(reusable ? "error.agent.token.invalid" : "error.agent.token.used");
+        }
+        if (!reusable && !retry) {
+            try {
+                tokenDAO.recordClaim(token.getId(), com.hmdm.util.EnrollmentIdentity.cap(request.getHardwareId(), 128),
+                        reqSerial, reqImei);
+            } catch (Exception e) {
+                logger.warn("Could not record who claimed token {}: {}", token.getId(), e.getMessage());
+            }
         }
 
         // De-dup: if this exact physical phone (same stable hardware id) is already enrolled in this
         // customer, reuse its row instead of minting a second one — the reported duplicate (two rows,
         // one serial). hardwareId is the enrollment-specific id, stable across a factory reset for our DPC.
         final String hwId = request.getHardwareId() == null ? null : request.getHardwareId().trim();
-        final String reuseNumber = (hwId != null && !hwId.isEmpty())
+        String foundNumber = (hwId != null && !hwId.isEmpty())
                 ? commandDAO.findDeviceNumberByHardwareId(token.getCustomerId(), hwId) : null;
-        final Device reuse = reuseNumber != null ? unsecureDAO.getDeviceByNumber(reuseNumber) : null;
+        // Below Android 12 the hardware id is ANDROID_ID, which a factory reset changes: the serial number (then the
+        // IMEI) a Device Owner reads still names the same phone, so it returns to its row instead of a duplicate.
+        if (foundNumber == null && reqSerial != null) {
+            foundNumber = commandDAO.findDeviceNumberBySerial(token.getCustomerId(), reqSerial);
+        }
+        if (foundNumber == null && reqImei != null) {
+            foundNumber = commandDAO.findDeviceNumberByImei(token.getCustomerId(), reqImei);
+        }
+        // A retry with the same token goes back to the row that token created.
+        if (foundNumber == null && retry && token.getDeviceNumber() != null) {
+            foundNumber = token.getDeviceNumber();
+        }
+        final String reuseNumber = foundNumber;
+        Device reuseFound = reuseNumber != null ? unsecureDAO.getDeviceByNumber(reuseNumber) : null;
+        if (reuseFound != null && reuseFound.getCustomerId() != token.getCustomerId()) {
+            reuseFound = null;
+        }
+        final Device reuse = reuseFound;
 
         String deviceId = reuse != null ? reuse.getNumber() : UUID.randomUUID().toString();
         Device device = reuse;
@@ -282,6 +375,22 @@ public class AgentResource {
                 commandDAO.updateHardwareId(deviceId, hwId);
             }
             commandDAO.touchLastUpdate(deviceId);
+            // The serial / IMEI right away (not only with the first telemetry): the list shows them and the de-dup
+            // above finds the phone even if it is reset before it ever checks in.
+            if (reqSerial != null || reqImei != null) {
+                try {
+                    commandDAO.updateIdentity(deviceId, reqSerial, reqImei);
+                } catch (Exception e) {
+                    logger.warn("Could not store the identity of {}: {}", deviceId, e.getMessage());
+                }
+            }
+            if (!reusable) {
+                try {
+                    tokenDAO.recordDevice(token.getId(), deviceId);
+                } catch (Exception e) {
+                    logger.warn("Could not link token {} to device {}: {}", token.getId(), deviceId, e.getMessage());
+                }
+            }
 
             String configurationName = null;
             if (device.getConfigurationId() != null) {
@@ -321,7 +430,7 @@ public class AgentResource {
         } finally {
             // A server-side failure (settings rejection, SQL error) must not burn the single-use
             // token — the agent retries and succeeds once the operator fixes the condition.
-            if (device == null) {
+            if (device == null && !retry) {
                 if (reusable) {
                     tokenDAO.releaseReusable(token.getId());
                 } else {

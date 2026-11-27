@@ -3715,6 +3715,55 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-enroll-reliability" author="dallycontrol">
+        <comment>QR enrollment that always works (MDM-01): a single-use token remembers the device that consumed it
+                 (that device may retry when the answer was lost), hidden Wi-Fi on folder codes, and the log of
+                 enrollment attempts (reason, maker, model, Android) the console shows on the Enroll page.</comment>
+        <sql>
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS usedAt BIGINT;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedHardwareId VARCHAR(128);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedSerial VARCHAR(64);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedImei VARCHAR(32);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS deviceNumber VARCHAR(100);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS wifiHidden BOOLEAN NOT NULL DEFAULT FALSE;
+
+            CREATE TABLE IF NOT EXISTS agent_enroll_attempt (
+                id SERIAL PRIMARY KEY,
+                customerId INT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                tokenId INT NULL REFERENCES agentEnrollmentToken(id) ON DELETE SET NULL,
+                groupId INT NULL REFERENCES groups(id) ON DELETE SET NULL,
+                at BIGINT NOT NULL,
+                lastAt BIGINT NOT NULL,
+                count INT NOT NULL DEFAULT 1,
+                outcome VARCHAR(16) NOT NULL,
+                reason VARCHAR(64) NOT NULL,
+                detail TEXT,
+                path VARCHAR(24),
+                manufacturer VARCHAR(100),
+                model VARCHAR(100),
+                androidRelease VARCHAR(32),
+                sdkInt INT,
+                agentVersion VARCHAR(32),
+                hardwareId VARCHAR(128),
+                serial VARCHAR(64),
+                ip VARCHAR(64),
+                deviceNumber VARCHAR(100),
+                tries INT
+            );
+            CREATE INDEX IF NOT EXISTS agent_enroll_attempt_customer_idx ON agent_enroll_attempt (customerId, lastAt DESC);
+            CREATE INDEX IF NOT EXISTS agent_enroll_attempt_token_idx ON agent_enroll_attempt (tokenId, lastAt DESC);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS agent_enroll_attempt;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS wifiHidden;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS deviceNumber;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedImei;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedSerial;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedHardwareId;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS usedAt;
+        </rollback>
+    </changeSet>
+
     <!-- Second wake channel (push): the device's push token and what its agent reports about how it can be woken. -->
     <changeSet id="26.11.27-device-push-wake" author="dallycontrol">
         <sql>
