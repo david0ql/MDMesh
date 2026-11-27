@@ -115,7 +115,9 @@ try {
     const ch = await channel.getAttribute('data-channel');
     check('card shows one of the three channels', ['live', 'push', 'poll'].includes(ch ?? ''), ch ?? '');
     check('card shows the expected latency', /(unos \d+ s|hasta \d+ min)/.test(await page.getByTestId('reach-latency').innerText()));
-    check('without a push project the card says so', /No configurados en el servidor/.test(await page.getByTestId('reach-push').innerText()));
+    const pushText = await page.getByTestId('reach-push').innerText();
+    check('the card says whether push is available for this device',
+      expect === 'configured' ? !/No configurados/.test(pushText) : /No configurados en el servidor/.test(pushText), pushText);
     await page.screenshot({ path: `${shots}/equipo-alcance.png`, fullPage: true });
   }
 
@@ -134,7 +136,7 @@ try {
       JSON.stringify(back.wake));
     await page.goto(`${api}/configs`);
     await page.locator('.panel, .cfg-card, article, section', { hasText: cfg.name })
-      .filter({ has: page.getByRole('button', { name: /^(Edit|Editar)$/ }) }).last().getByRole('button', { name: /^(Edit|Editar)$/ }).click();
+      .filter({ has: page.getByRole('button', { name: /^(Edit|Editar|Ver)$/ }) }).last().getByRole('button', { name: /^(Edit|Editar|Ver)$/ }).click();
     const wake = page.getByTestId('wake-policy');
     await wake.waitFor({ timeout: 20000 });
     await wake.scrollIntoViewIfNeeded();
