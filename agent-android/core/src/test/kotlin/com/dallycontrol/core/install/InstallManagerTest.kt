@@ -155,6 +155,17 @@ class InstallManagerTest {
     }
 
     @Test
+    fun `a download that fills the phone is reported as a failure instead of being retried silently for ever`() = runTest {
+        val outcome = PartsInstaller(
+            obtain = { throw IOException("write failed: ENOSPC (No space left on device)") },
+            commit = { SESSION },
+            resultBus = InstallResultBus(),
+        ).install(listOf(ApkPart(url = "https://x/a.apk")))
+        val reason = (outcome as InstallOutcome.Failure).reason
+        assertTrue(reason, reason.startsWith("apk fetch failed:") && reason.contains("ENOSPC"))
+    }
+
+    @Test
     fun `a session that cannot be written is a failure, not a crash`() = runTest {
         val file = apk("a.apk")
         val outcome = PartsInstaller(

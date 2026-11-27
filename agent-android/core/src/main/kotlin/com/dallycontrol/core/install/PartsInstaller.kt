@@ -95,7 +95,21 @@ internal class PartsInstaller(
 
         /** A network failure (no connection, DNS, timeout, TLS) or a server error (5xx) — worth trying again later. */
         fun isTransient(t: Throwable): Boolean =
-            t is IOException || (t is IllegalStateException && t.message?.startsWith("HTTP 5") == true)
+            !isOutOfSpace(t) && (t is IOException || (t is IllegalStateException && t.message?.startsWith("HTTP 5") == true))
+
+        /**
+         * The phone ran out of room while saving the download. Trying again later by itself would fail the same way —
+         * silently, for ever — so it is reported as a failure the console can show ("sin espacio").
+         */
+        fun isOutOfSpace(t: Throwable): Boolean {
+            var e: Throwable? = t
+            repeat(4) {
+                val m = e?.message.orEmpty()
+                if (m.contains("ENOSPC") || m.contains("No space left", ignoreCase = true)) return true
+                e = e?.cause
+            }
+            return false
+        }
 
         fun sha256Of(file: File): String {
             val digest = MessageDigest.getInstance("SHA-256")
