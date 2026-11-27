@@ -141,6 +141,8 @@ export function DevicesPage() {
   const [moveOpen, setMoveOpen] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  // Run bulk actions (e.g. set the lock password) on a whole folder + its sub-folders, with no selection.
+  const [folderActions, setFolderActions] = useState<{ id: number; name: string; count: number } | null>(null);
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -377,6 +379,26 @@ export function DevicesPage() {
         </select>
       </div>
 
+      {selected.size === 0 && canManage && group !== 'all' && group !== 'none' && (() => {
+        const node = tree.find((n) => String(n.group.id) === group);
+        if (!node) return null;
+        const count = devices.filter((d) => {
+          const gid = groupOf(d)?.id;
+          return gid != null && node.subtree.has(gid);
+        }).length;
+        return (
+          <div className="bulk-bar">
+            <span className="bulk-count">Carpeta: {node.group.name}</span>
+            <button className="btn btn-sm" onClick={() => setFolderActions({ id: node.group.id, name: node.group.name, count })}>
+              Acciones en la carpeta
+            </button>
+            <span className="muted" style={{ marginLeft: 8, fontSize: 13 }}>
+              Se aplican a los dispositivos de esta carpeta y sus subcarpetas{count ? ` (${count})` : ''}.
+            </span>
+          </div>
+        );
+      })()}
+
       {selected.size > 0 && (
         <div className="bulk-bar">
           <span className="bulk-count">{selected.size} seleccionado(s)</span>
@@ -482,6 +504,14 @@ export function DevicesPage() {
           target={{ kind: 'devices', ids: [...selected] }}
           onClose={() => setActionsOpen(false)}
           onDone={() => clearSel()}
+        />
+      )}
+
+      {folderActions && (
+        <BulkActionModal
+          target={{ kind: 'group', id: folderActions.id, name: folderActions.name, count: folderActions.count }}
+          onClose={() => setFolderActions(null)}
+          onDone={() => setFolderActions(null)}
         />
       )}
 

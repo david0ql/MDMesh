@@ -19,6 +19,9 @@ function bulkable(t: CommandTemplateExt): boolean {
   const g = t.group ?? 'safe';
   if (g === 'destructive') return false;
   if (t.key === 'kiosk-enter') return false; // Phase 3 owns this
+  // 'passcode-reset' (fijar O quitar la clave) es solo para un equipo; en masa se usa 'set-lock-password',
+  // que únicamente FIJA una clave (el servidor rechaza quitarla en masa).
+  if (t.key === 'passcode-reset') return false;
   return true;
 }
 
@@ -47,6 +50,8 @@ export function BulkActionModal({
   const who = targetLabel(target);
   const [active, setActive] = useState<CommandTemplateExt | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [confirmText, setConfirmText] = useState('');
+  const [confirmChecked, setConfirmChecked] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [appPicker, setAppPicker] = useState(false);
@@ -166,13 +171,21 @@ export function BulkActionModal({
   }
 
   function onPick(t: CommandTemplateExt) {
-    if (t.params && t.params.length > 0) { setActive(t); setValues({}); return; }
+    // Params OR a confirmation step both open the detail screen (a bulk disruptive action always confirms).
+    if ((t.params && t.params.length > 0) || t.confirm) {
+      setActive(t); setValues({}); setConfirmText(''); setConfirmChecked(false); return;
+    }
     void run(t, {});
   }
 
-  const canSend = !active
-    ? false
-    : !active.params?.some((p) => p.required && !values[p.key]);
+  const invalid = active?.validate?.(values) ?? null;
+  const confirmOk = !active?.confirm ? true
+    : active.confirm === 'type-to-confirm' ? confirmText === 'BORRAR'
+    : confirmChecked;
+  const canSend = !active ? false
+    : active.params?.some((p) => p.required && !values[p.key]) ? false
+    : invalid ? false
+    : confirmOk;
 
   const showCatalog = !active && !appPicker;
 
@@ -283,6 +296,20 @@ export function BulkActionModal({
                 />
               </label>
             ))}
+            {invalid && Object.values(values).some(Boolean) && <p className="field-error">{invalid}</p>}
+            {active.confirm === 'type-to-confirm' && (
+              <label className="field">
+                <span>Escribe <strong>BORRAR</strong> para confirmar</span>
+                <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
+              </label>
+            )}
+            {active.confirm === 'simple' && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', margin: '10px 0 2px' }}>
+                <input type="checkbox" checked={confirmChecked}
+                       onChange={(e) => setConfirmChecked(e.target.checked)} style={{ marginTop: 3 }} />
+                <span className="muted">Confirmo aplicar «{active.label}» a {who}.</span>
+              </label>
+            )}
             <div className="modal-actions">
               <button className="btn" disabled={busy} onClick={() => setActive(null)}>Atrás</button>
               <button
