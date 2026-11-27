@@ -203,7 +203,9 @@ def device_can_reach_server():
 
 def t_latency():
     print(f"== latency with the device online ({A.reps} repetitions each)")
-    check("device's live channel is open", until(live, timeout=120, step=2))
+    if not check("device's live channel is open", until(live, timeout=90, step=2)):
+        print("     without the live channel every command waits for the periodic check-in: latency not measured")
+        return
     plan = [("Bloqueo", "device.lock", lambda i: None),
             ("Alarma", "device.ring", lambda i: {"durationMs": 1500}),
             ("Mensaje", "device.alert", lambda i: {"title": f"Latencia {i}", "body": "prueba de latencia"})]
@@ -216,7 +218,7 @@ def t_latency():
                 wake_screen()
             t0 = time.time()
             cid = queue(type_, payload(i), type_)
-            c = wait_closed(cid, 60)
+            c = wait_closed(cid, 30)
             wall.append((time.time() - t0) * 1000)
             if c.get("status") != "done" or c.get("totalMs") is None:
                 bad += 1
@@ -309,7 +311,8 @@ def lose_answer(cmd_id, minutes=3):
 
 def t_lostack():
     print("== answer lost: the command is handed out again, without a double effect")
-    check("device online", until(live, timeout=120, step=2))
+    if not check("device online", until(live, timeout=120, step=2)):
+        return
     stamp = int(time.time())
     # (a) delivered, never executed (the delivery itself was lost): must run on redelivery.
     title = f"Reenvio {stamp}"
