@@ -119,6 +119,13 @@ export const IconReports = (p: P) => (
   </Svg>
 );
 
+export const IconAlert = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 2.5a3.5 3.5 0 0 0-3.5 3.5c0 3-1.2 4-1.2 4h9.4s-1.2-1-1.2-4A3.5 3.5 0 0 0 8 2.5Z" />
+    <path d="M6.6 13a1.5 1.5 0 0 0 2.8 0" />
+  </Svg>
+);
+
 export const IconScript = (p: P) => (
   <Svg {...p}>
     <path d="M4 2.5h8v11H4z" />
