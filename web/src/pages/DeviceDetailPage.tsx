@@ -28,6 +28,7 @@ import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
+import { DataFreshness } from '../components/DataFreshness';
 
 type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
 
@@ -372,6 +373,7 @@ export function DeviceDetailPage() {
             <span className={`st ${online ? 'on' : 'off'}`}>{statusLabel}</span>
             <span className="ago">· {fmtRelative(device.lastUpdate)}</span>
           </div>
+          <DataFreshness number={device.number} updatedAt={ds?.updatedAt ?? device.lastUpdate} onState={setDs} />
           <h1>{device.number}</h1>
           <NameField
             device={device}
