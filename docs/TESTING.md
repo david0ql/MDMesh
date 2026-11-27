@@ -271,7 +271,8 @@ More fleet-inventory checks (2026-11-27, own stack, machine under heavy load —
 Results: browser as administrator 33/33 (5,001 devices: 29 checks before the mail part, then 33/33 with STARTTLS mail);
 browser as folder administrator 35 checks passed (262 of 5,001 devices; mail verified over the API); browser without
 SMTP 31/31; folder scope over the API 33/33; Android 9 (API 28): device 76/76 and browser with the live device 34/34
-(refresh 1.6 s, load 33). Scheduled e-mails over STARTTLS + user/password against Mailpit started with
+(refresh 1.6 s, load 33); Android 15 (API 35): device 76/76 and browser 34/34 (refresh 4.4 s, load 38; enrolling
+needed the `dpm set-device-owner` retry of the first minutes after boot). Scheduled e-mails over STARTTLS + user/password against Mailpit started with
 `--smtp-require-starttls --smtp-auth-file` (it answers 530 without STARTTLS or without AUTH): "Enviar ahora" and the
 scheduler-fired run both delivered. 5,000 devices + 103,000 sessions, server heap capped at 512 MB: Excel 5.9–6.5 s,
 CSV 0.6–1.4 s, inventory report 1 s (measured before the machine saturated).
