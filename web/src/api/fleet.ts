@@ -19,6 +19,8 @@ export interface FleetGroup {
   brand?: KioskBrand | null;
   /** The folder's own console branding (admin header logo/name); null = inherits. */
   consoleBrand?: ConsoleBrand | null;
+  /** The folder's own email account (metadata/identification); null = inherits (nearest ancestor with one). */
+  accountEmail?: string | null;
   /** Devices directly in this group (not its sub-folders). */
   deviceCount: number;
 }
@@ -89,6 +91,14 @@ export interface DeviceScope {
   groupConfigurationName: string | null;
   globalConfigurationId: number | null;
   globalConfigurationName: string | null;
+  /** The device's own email account (null = none set directly on the device). */
+  accountEmail: string | null;
+  /** The email resolved from the device's folder chain (null = no folder has one). */
+  groupAccountEmail: string | null;
+  /** Effective email: the device's own, else the folder chain's. */
+  effectiveAccountEmail: string | null;
+  /** Where the effective email comes from. */
+  accountEmailSource: 'device' | 'group' | null;
 }
 
 const BASE = '/private/fleet/v1';
@@ -114,6 +124,14 @@ export const setDevicesConfiguration = (deviceIds: number[], configurationId: nu
     `${BASE}/devices/configuration`, { deviceIds, configurationId });
 
 export const getDeviceScope = (deviceId: number) => apiClient.get<DeviceScope>(`${BASE}/devices/${deviceId}/scope`);
+
+/** Set the device-level email account (metadata/identification); null/'' clears it so the device inherits its folder's. */
+export const setDeviceAccountEmail = (deviceIds: number[], accountEmail: string | null) =>
+  apiClient.put<{ updated: number }>(`${BASE}/devices/accountEmail`, { deviceIds, accountEmail });
+
+/** Set a folder's email account; null/'' clears it so the folder inherits its parent's. */
+export const setGroupAccountEmail = (id: number, accountEmail: string | null) =>
+  apiClient.put<{ group: FleetGroup }>(`${BASE}/groups/${id}/accountEmail`, { accountEmail });
 
 export const setGlobalConfiguration = (configurationId: number) =>
   apiClient.put<GlobalConfig & { devicesReconfigured: number }>(`${BASE}/global`, { configurationId });
@@ -230,6 +248,8 @@ export interface DeviceSummary {
   freeStorageBytes?: number | null;
   totalStorageBytes?: number | null;
   stateAt?: number | null;
+  /** Effective email account (device's own, else its folder chain's); metadata/identification only. */
+  accountEmail?: string | null;
 }
 
 export const listDeviceSummaries = () => apiClient.get<DeviceSummary[]>(`${BASE}/devices/summary`);

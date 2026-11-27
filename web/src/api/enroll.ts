@@ -15,10 +15,13 @@ export interface EnrollTokenResponse {
  * groupId puts the enrolled device in that group (company); it then runs the group's configuration, or the
  * global one. configurationId would pin a configuration on the device instead (device level wins over both).
  */
-export async function mintEnrollToken(opts: { groupId?: number; configurationId?: number } = {}): Promise<EnrollTokenResponse> {
+export async function mintEnrollToken(
+  opts: { groupId?: number; configurationId?: number; accountEmail?: string } = {},
+): Promise<EnrollTokenResponse> {
   return apiClient.post<EnrollTokenResponse>('/private/agent/v1/token', {
     ...(opts.groupId ? { groupId: opts.groupId } : {}),
     ...(opts.configurationId ? { configurationId: opts.configurationId } : {}),
+    ...(opts.accountEmail && opts.accountEmail.trim() ? { accountEmail: opts.accountEmail.trim() } : {}),
   });
 }
 
@@ -36,6 +39,8 @@ export interface EnrollmentCode {
   wifiSsid?: string | null;
   wifiPassword?: string | null;
   wifiSecurity?: 'WPA' | 'WEP' | 'NONE' | null;
+  /** Email account tagged onto devices enrolled via this code (metadata/identification only). */
+  accountEmail?: string | null;
 }
 
 export const displayCode = (c: string) => (c.length === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c);
@@ -45,12 +50,14 @@ export const listEnrollmentCodes = () => apiClient.get<EnrollmentCode[]>('/priva
 export const createEnrollmentCode = (
   groupId: number, label?: string, expiresAt?: number,
   wifi?: { ssid: string; password?: string; security: 'WPA' | 'WEP' | 'NONE' },
+  accountEmail?: string,
 ) =>
   apiClient.post<EnrollmentCode>('/private/agent/v1/codes', {
     groupId,
     ...(label ? { label } : {}),
     ...(expiresAt ? { expiresAt } : {}),
     ...(wifi?.ssid ? { wifiSsid: wifi.ssid, wifiPassword: wifi.password ?? '', wifiSecurity: wifi.security } : {}),
+    ...(accountEmail && accountEmail.trim() ? { accountEmail: accountEmail.trim() } : {}),
   });
 
 export const revokeEnrollmentCode = (id: number) => apiClient.del<void>(`/private/agent/v1/codes/${id}`);

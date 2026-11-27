@@ -46,6 +46,9 @@ export function EnrollPage() {
   const [groupId, setGroupId] = useState<string>(() => {
     try { return localStorage.getItem(ENROLL_GROUP_KEY) ?? ''; } catch { return ''; }
   });
+  // Optional email account tagged onto the enrolled device (metadata/identification only; no account is created on
+  // the phone). The device inherits it (device > group/folder). Baked into the token, so changing it re-mints.
+  const [accountEmail, setAccountEmail] = useState('');
   useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
   useEffect(() => {
     try { if (groupId) localStorage.setItem(ENROLL_GROUP_KEY, groupId); else localStorage.removeItem(ENROLL_GROUP_KEY); }
@@ -78,7 +81,10 @@ export function EnrollPage() {
     setBusy(true);
     setTokError(null);
     try {
-      const res = await mintEnrollToken({ groupId: validGroup ? gid : undefined });
+      const res = await mintEnrollToken({
+        groupId: validGroup ? gid : undefined,
+        accountEmail: accountEmail.trim() || undefined,
+      });
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
@@ -125,6 +131,18 @@ export function EnrollPage() {
               <option value="">Sin carpeta</option>
               {groupTree(groups).map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
             </select>
+          </label>
+          <label className="enroll-group">
+            <span>Cuenta de correo (opcional)</span>
+            <input
+              className="sel"
+              type="email"
+              aria-label="Cuenta de correo"
+              placeholder="correo@empresa.com"
+              value={accountEmail}
+              onChange={(e) => setAccountEmail(e.target.value)}
+              onBlur={() => void generate()}
+            />
           </label>
           <span className="seg" role="tablist" aria-label="Método de inscripción">
             <button className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>Escanear QR</button>

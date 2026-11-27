@@ -165,6 +165,13 @@ public class AgentAdminResource {
         if (groupId != null && commandDAO.findGroup(customerId.get(), groupId) == null) {
             return Response.ERROR("error.group.not.found");
         }
+
+        // Optional email account to tag the enrolled device with (metadata/identification only; it never creates
+        // an account on the phone). The device inherits it on enroll (device > group/folder).
+        String accountEmail = body == null ? null : com.hmdm.util.AccountEmails.normalize(body.getAccountEmail());
+        if (accountEmail != null && !com.hmdm.util.AccountEmails.isValid(accountEmail)) {
+            return Response.ERROR("error.agent.account.email.invalid");
+        }
         // A folder administrator enrolls only into their folders (and cannot pin a policy).
         if (scope.restricted() && (groupId == null || !scope.canGroup(groupId) || configurationId != null)) {
             return Response.PERMISSION_DENIED();
@@ -176,6 +183,7 @@ public class AgentAdminResource {
         token.setCustomerId(customerId.get());
         token.setConfigurationId(configurationId);
         token.setGroupId(groupId);
+        token.setAccountEmail(accountEmail);
         token.setUsed(false);
         token.setCreatedAt(now);
         token.setExpiresAt(now + DEFAULT_TOKEN_TTL_MILLIS);
@@ -196,6 +204,8 @@ public class AgentAdminResource {
         public String wifiPassword;
         /** WPA (default), WEP or NONE. */
         public String wifiSecurity;
+        /** Optional email account to tag devices enrolled through this code (metadata/identification only). */
+        public String accountEmail;
     }
 
     // =================================================================================================================
@@ -227,9 +237,14 @@ public class AgentAdminResource {
         if (label != null && (label.isEmpty() || label.length() > 100)) {
             label = label.isEmpty() ? null : label.substring(0, 100);
         }
+        String accountEmail = com.hmdm.util.AccountEmails.normalize(body.accountEmail);
+        if (accountEmail != null && !com.hmdm.util.AccountEmails.isValid(accountEmail)) {
+            return Response.ERROR("error.agent.account.email.invalid");
+        }
         AgentEnrollmentToken token = new AgentEnrollmentToken();
         token.setCustomerId(customerId.get());
         token.setGroupId(body.groupId);
+        token.setAccountEmail(accountEmail);
         token.setReusable(true);
         token.setLabel(label);
         token.setUsed(false);

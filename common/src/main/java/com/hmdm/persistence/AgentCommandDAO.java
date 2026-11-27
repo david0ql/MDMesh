@@ -321,6 +321,21 @@ public class AgentCommandDAO {
         return deviceMapper.updateGroupConsoleBrand(customerId, id, brandJson) > 0;
     }
 
+    /** Set (or clear with null) the device's own email account, by device number (enrollment inheritance). */
+    public void updateDeviceAccountEmail(String deviceNumber, String accountEmail) {
+        deviceMapper.updateDeviceAccountEmail(deviceNumber, accountEmail);
+    }
+
+    /** Set (or clear with null) the device's own email account, by numeric device id (console fleet action). */
+    public void updateDeviceAccountEmailById(int deviceId, String accountEmail) {
+        deviceMapper.updateDeviceAccountEmailById(deviceId, accountEmail);
+    }
+
+    /** Set (or clear with null) a group/folder's own email account. */
+    public boolean updateGroupAccountEmail(int customerId, int id, String accountEmail) {
+        return deviceMapper.updateGroupAccountEmail(customerId, id, accountEmail) > 0;
+    }
+
     /** Move a group's direct children under {@code parentId} (null = top level). */
     public void reparentChildren(int customerId, int id, Integer parentId) {
         deviceMapper.reparentChildren(customerId, id, parentId);

@@ -59,6 +59,21 @@ public interface AgentDeviceMapper {
     void updateHardwareId(@Param("deviceNumber") String deviceNumber,
                           @Param("hardwareId") String hardwareId);
 
+    /** Set (or clear with null) the device's own email account (metadata/identification), by device number. */
+    @Update({"UPDATE devices SET account_email = #{accountEmail} WHERE number = #{deviceNumber}"})
+    void updateDeviceAccountEmail(@Param("deviceNumber") String deviceNumber,
+                                  @Param("accountEmail") String accountEmail);
+
+    /** Set (or clear with null) the device's own email account, by numeric device id (console fleet actions). */
+    @Update({"UPDATE devices SET account_email = #{accountEmail} WHERE id = #{deviceId}"})
+    void updateDeviceAccountEmailById(@Param("deviceId") int deviceId,
+                                      @Param("accountEmail") String accountEmail);
+
+    /** Set (or clear with null) a group/folder's own email account. */
+    @Update({"UPDATE groups SET account_email = #{accountEmail} WHERE id = #{id} AND customerId = #{customerId}"})
+    int updateGroupAccountEmail(@Param("customerId") int customerId, @Param("id") int id,
+                                @Param("accountEmail") String accountEmail);
+
     /**
      * De-dup helper: the number of an already-enrolled device of this customer with the same stable
      * hardware id (the agent's enrollment-specific id, stable across factory reset for our DPC), or
@@ -169,7 +184,8 @@ public interface AgentDeviceMapper {
 
     /** Everything the device export needs, one row per device (telemetry is the agent's last census JSON). */
     @Select({"SELECT d.id, d.number, d.description, d.enrollTime, d.lastUpdate, d.configurationId, c.name AS configurationName, " +
-            "m.groupId, s.battery, s.charging, s.kioskActive, s.agentVersion, s.powerMode, s.androidRelease, s.telemetry, " +
+            "m.groupId, d.account_email AS accountEmail, dallycontrol_group_account_email(m.groupId) AS groupAccountEmail, " +
+            "s.battery, s.charging, s.kioskActive, s.agentVersion, s.powerMode, s.androidRelease, s.telemetry, " +
             "s.updatedAt AS stateAt " +
             "FROM devices d LEFT JOIN configurations c ON c.id = d.configurationId " +
             "LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id ORDER BY dg.id LIMIT 1) m ON true " +
@@ -189,7 +205,8 @@ public interface AgentDeviceMapper {
      * ({@code dallycontrol_group_configuration}, Liquibase 26.09.28-audio-parity).
      */
     String DEVICE_SCOPE_SELECT = "SELECT d.id, d.number, d.configurationId, d.configurationPinned, " +
-            "g.id AS groupId, g.name AS groupName, dallycontrol_group_configuration(g.id) AS groupConfigurationId " +
+            "g.id AS groupId, g.name AS groupName, dallycontrol_group_configuration(g.id) AS groupConfigurationId, " +
+            "d.account_email AS accountEmail, dallycontrol_group_account_email(g.id) AS groupAccountEmail " +
             "FROM devices d LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id " +
             "ORDER BY dg.id LIMIT 1) m ON true LEFT JOIN groups g ON g.id = m.groupId ";
 
@@ -257,7 +274,7 @@ public interface AgentDeviceMapper {
     @Update({"UPDATE groups SET console_brand = #{brand} WHERE id = #{id} AND customerId = #{customerId}"})
     int updateGroupConsoleBrand(@Param("customerId") int customerId, @Param("id") int id, @Param("brand") String brand);
 
-    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, g.brand, g.console_brand AS consoleBrand, c.name AS configurationName, " +
+    String GROUP_VIEW_SELECT = "SELECT g.id, g.name, g.parentId, g.configurationId, g.brand, g.console_brand AS consoleBrand, g.account_email AS accountEmail, c.name AS configurationName, " +
             "e.id AS effectiveConfigurationId, e.name AS effectiveConfigurationName, " +
             "(SELECT count(*) FROM deviceGroups dg JOIN devices d ON d.id = dg.deviceId WHERE dg.groupId = g.id) AS deviceCount " +
             "FROM groups g LEFT JOIN configurations c ON c.id = g.configurationId " +

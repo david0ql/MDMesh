@@ -19,6 +19,7 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
   const [codes, setCodes] = useState<EnrollmentCode[] | null>(null);
   const [folder, setFolder] = useState('');
   const [label, setLabel] = useState('');
+  const [email, setEmail] = useState('');
   const [ssid, setSsid] = useState('');
   const [wifiPass, setWifiPass] = useState('');
   const [wifiSec, setWifiSec] = useState<'WPA' | 'WEP' | 'NONE'>('WPA');
@@ -37,9 +38,10 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
     setBusy(true);
     try {
       const c = await createEnrollmentCode(Number(folder), label.trim() || undefined, undefined,
-        ssid.trim() ? { ssid: ssid.trim(), password: wifiPass, security: wifiSec } : undefined);
+        ssid.trim() ? { ssid: ssid.trim(), password: wifiPass, security: wifiSec } : undefined,
+        email.trim() || undefined);
       toast.push('ok', 'Código creado', `${displayCode(c.code)} → ${pathOf.get(c.groupId ?? -1) ?? c.groupName}`);
-      setLabel(''); setSsid(''); setWifiPass('');
+      setLabel(''); setEmail(''); setSsid(''); setWifiPass('');
       setShown(c);
       await load();
     } catch (e) {
@@ -88,6 +90,8 @@ export function EnrollmentCodesPanel({ groups }: { groups: FleetGroup[] }) {
           </select>
           <input className="input" value={label} maxLength={100} placeholder="Etiqueta (opcional), p. ej. Operación Ecuador"
                  onChange={(e) => setLabel(e.target.value)} aria-label="Etiqueta del código" />
+          <input className="input" type="email" value={email} maxLength={255} placeholder="Cuenta de correo (opcional)"
+                 onChange={(e) => setEmail(e.target.value)} aria-label="Cuenta de correo del código" />
           <button className="btn btn-primary" disabled={busy || !folder} onClick={() => void create()}>Crear código</button>
         </div>
         <div className="codes-new" data-testid="code-wifi">

@@ -6,7 +6,7 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import {
-  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, setGroupBrand, setGroupConsoleBrand, updateGroup,
+  createGroup, deleteGroup, groupTree, listGroups, setGlobalConfiguration, setGroupAccountEmail, setGroupBrand, setGroupConsoleBrand, updateGroup,
   type ConsoleBrand, type FleetGroup, type GroupNode, type GroupsOverview, type KioskBrand, type Target,
 } from '../api/fleet';
 import { BulkActionModal } from '../components/BulkActionModal';
@@ -49,6 +49,8 @@ export function GroupsPage() {
   const [name, setName] = useState('');
   const [newConfig, setNewConfig] = useState('');
   const [parent, setParent] = useState('');
+  // The folder's own email account (metadata/identification); blank = inherits the parent folder's.
+  const [groupEmail, setGroupEmail] = useState('');
   const [action, setAction] = useState<Target | null>(null);
 
   const load = useCallback(async () => {
@@ -115,12 +117,14 @@ export function GroupsPage() {
     setName('');
     setNewConfig('');
     setParent(parentId == null ? '' : String(parentId));
+    setGroupEmail('');
     setDialog({ kind: 'create', parentId });
   }
 
   function openEdit(g: FleetGroup) {
     setName(g.name);
     setParent(g.parentId == null ? '' : String(g.parentId));
+    setGroupEmail(g.accountEmail ?? '');
     setDialog({ kind: 'edit', group: g });
   }
 
@@ -128,15 +132,18 @@ export function GroupsPage() {
     if (!dialog) return;
     const parentId = parent === '' ? null : Number(parent);
     let ok = false;
+    const email = groupEmail.trim();
     if (dialog.kind === 'create') {
       ok = await guarded('Carpeta creada', async () => {
         const g = await createGroup(name.trim(), newConfig ? Number(newConfig) : null, parentId);
+        if (email) await setGroupAccountEmail(g.id, email);
         return g.name;
       }, 'No se pudo crear la carpeta');
     } else if (dialog.kind === 'edit') {
       const g = dialog.group;
       ok = await guarded('Carpeta guardada', async () => {
         const r = await updateGroup(g.id, name.trim(), g.configurationId, parentId);
+        if (email !== (g.accountEmail ?? '')) await setGroupAccountEmail(g.id, email || null);
         return `${name.trim()}${parentId !== g.parentId ? ` — ${reconfigured(r.devicesReconfigured)}` : ''}`;
       }, 'No se pudo guardar la carpeta');
     } else {
@@ -351,6 +358,12 @@ export function GroupsPage() {
                     <option value="">— Nivel superior —</option>
                     {parentChoices.map((n) => <option key={n.group.id} value={String(n.group.id)}>{n.path}</option>)}
                   </select>
+                </label>
+                <label className="field">
+                  <span>Cuenta de correo (opcional)</span>
+                  <input type="email" value={groupEmail} maxLength={255} placeholder="correo@empresa.com"
+                         aria-label="Cuenta de correo de la carpeta"
+                         onChange={(e) => setGroupEmail(e.target.value)} />
                 </label>
                 {dialog.kind === 'create' && (
                   <label className="field">

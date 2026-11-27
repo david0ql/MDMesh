@@ -66,12 +66,14 @@ public class UserScopeFilter implements Filter {
             new Rule("POST", "/fleet/v1/groups", null),                     // resource checks the parent
             new Rule("PUT DELETE", "/fleet/v1/groups/(\\d+)", "group"),
             new Rule("PUT", "/fleet/v1/groups/(\\d+)/brand", "group"),
+            new Rule("PUT", "/fleet/v1/groups/(\\d+)/accountEmail", "group"),
             new Rule("POST", "/fleet/v1/groups/(\\d+)/commands", "group"),
             new Rule("GET", "/fleet/v1/devices/summary", null),             // resource filters
             new Rule("GET", "/fleet/v1/export.xlsx", null),                 // resource filters
             new Rule("GET", "/fleet/v1/devices/(\\d+)/scope", "deviceId"),
             new Rule("POST", "/fleet/v1/devices/group", null),              // resource checks devices + folder
             new Rule("PUT", "/fleet/v1/devices/configuration", null),       // resource checks devices
+            new Rule("PUT", "/fleet/v1/devices/accountEmail", null),        // resource checks devices
             new Rule("GET", "/fleet/v1/global", null),
             new Rule("GET", "/configurations/search", null),
             new Rule("GET", "/configurations/(\\d+)", null),

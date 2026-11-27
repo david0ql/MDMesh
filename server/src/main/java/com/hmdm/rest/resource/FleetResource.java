@@ -112,6 +112,17 @@ public class FleetResource {
         public Integer configurationId;
     }
 
+    public static class DevicesAccountEmailBody {
+        public List<Integer> deviceIds;
+        /** The email account to set on those devices; null/blank clears it (they inherit the folder's again). */
+        public String accountEmail;
+    }
+
+    public static class AccountEmailBody {
+        /** The email account to set on the group/folder; null/blank clears it (it inherits the parent folder's). */
+        public String accountEmail;
+    }
+
     public static class CommandBody {
         public AgentCommand command;
     }
@@ -612,6 +623,71 @@ public class FleetResource {
         return Response.OK(out);
     }
 
+    @ApiOperation(value = "Set the device-level email account", notes = "Body: { deviceIds, accountEmail|null } — sets the "
+            + "email account on those devices (metadata/identification only; it does not create an account on the phone). "
+            + "null/blank clears it, so the device inherits its folder's account again. Device > group/folder.")
+    @PUT
+    @Path("/devices/accountEmail")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setDeviceAccountEmail(DevicesAccountEmailBody body) {
+        Optional<Integer> customerId = editor("set device account email");
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        if (body == null || body.deviceIds == null || body.deviceIds.isEmpty()) {
+            return Response.ERROR("error.devices.empty");
+        }
+        String email = com.hmdm.util.AccountEmails.normalize(body.accountEmail);
+        if (email != null && !com.hmdm.util.AccountEmails.isValid(email)) {
+            return Response.ERROR("error.agent.account.email.invalid");
+        }
+        if (!scope.canDeviceIds(c, body.deviceIds)) {
+            return Response.PERMISSION_DENIED();
+        }
+        int updated = 0;
+        for (Integer deviceId : body.deviceIds) {
+            if (deviceId == null || commandDAO.findDeviceScope(c, deviceId) == null) {
+                continue;
+            }
+            commandDAO.updateDeviceAccountEmailById(deviceId, email);
+            updated++;
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("updated", updated);
+        return Response.OK(out);
+    }
+
+    @ApiOperation(value = "Set a folder's email account", notes = "Body: { accountEmail|null } — the email account of "
+            + "this group/folder (metadata/identification only). null/blank clears it so the folder inherits its parent's. "
+            + "A device without its own email resolves to the nearest folder with one.")
+    @PUT
+    @Path("/groups/{id}/accountEmail")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setGroupAccountEmail(@PathParam("id") int id, AccountEmailBody body) {
+        Optional<Integer> customerId = editor("set group account email");
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        int c = customerId.get();
+        if (commandDAO.findGroup(c, id) == null) {
+            return Response.ERROR("error.group.not.found");
+        }
+        if (scope.restricted() && !scope.canGroup(id)) {
+            return Response.PERMISSION_DENIED();
+        }
+        String email = body == null ? null : com.hmdm.util.AccountEmails.normalize(body.accountEmail);
+        if (email != null && !com.hmdm.util.AccountEmails.isValid(email)) {
+            return Response.ERROR("error.agent.account.email.invalid");
+        }
+        commandDAO.updateGroupAccountEmail(c, id, email);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("group", commandDAO.findGroup(c, id));
+        return Response.OK(out);
+    }
+
     @ApiOperation(value = "Device scope", notes = "The device's group and where its configuration comes from "
             + "(device, group or global).")
     @GET
@@ -640,6 +716,13 @@ public class FleetResource {
         out.put("groupConfigurationName", configurationName(row.getGroupConfigurationId()));
         out.put("globalConfigurationId", global);
         out.put("globalConfigurationName", configurationName(global));
+        // Email account (metadata/identification): the device's own wins, else its folder chain's (nearest ancestor).
+        String ownEmail = row.getAccountEmail();
+        String folderEmail = row.getGroupAccountEmail();
+        out.put("accountEmail", ownEmail);
+        out.put("groupAccountEmail", folderEmail);
+        out.put("effectiveAccountEmail", ownEmail != null ? ownEmail : folderEmail);
+        out.put("accountEmailSource", ownEmail != null ? "device" : (folderEmail != null ? "group" : null));
         return Response.OK(out);
     }
 

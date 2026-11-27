@@ -12,6 +12,15 @@ public class DeviceScopeRow {
     private Integer groupId;
     private String groupName;
     private Integer groupConfigurationId;
+    /** The device's own email account (null = none set on the device). */
+    private String accountEmail;
+    /** The email resolved from the device's folder chain (nearest ancestor with one), null = none. */
+    private String groupAccountEmail;
+
+    public String getAccountEmail() { return accountEmail; }
+    public void setAccountEmail(String accountEmail) { this.accountEmail = accountEmail; }
+    public String getGroupAccountEmail() { return groupAccountEmail; }
+    public void setGroupAccountEmail(String groupAccountEmail) { this.groupAccountEmail = groupAccountEmail; }
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }

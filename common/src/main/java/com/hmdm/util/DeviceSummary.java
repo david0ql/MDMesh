@@ -47,6 +47,9 @@ public final class DeviceSummary {
         s.put("securityPatch", text(hw, "securityPatch"));
         s.put("systemUpdatePending", dyn.hasNonNull("systemUpdatePendingSince"));
         s.put("stateAt", row.get("stateat"));
+        // Email account (metadata/identification): the device's own, else resolved from its folder chain.
+        Object ownEmail = row.get("accountemail");
+        s.put("accountEmail", ownEmail != null ? ownEmail : row.get("groupaccountemail"));
         return s;
     }
 

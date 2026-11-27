@@ -19,6 +19,11 @@ public class DeviceGroupView {
     /** Console branding of this folder (JSON, see ConsoleBrand); null = inherits. Shown in the admin console header. */
     @com.fasterxml.jackson.annotation.JsonRawValue
     private String consoleBrand;
+    /** The folder's own email account (metadata/identification); null = inherits (nearest ancestor with one). */
+    private String accountEmail;
+
+    public String getAccountEmail() { return accountEmail; }
+    public void setAccountEmail(String accountEmail) { this.accountEmail = accountEmail; }
 
     public String getBrand() { return brand; }
     public void setBrand(String brand) { this.brand = brand; }
