@@ -42,6 +42,9 @@ public class CommandHistoryView {
      * means the command stays in the queue and runs when the device connects again.
      */
     private Boolean deviceOnline;
+    /** Only on the answer to queueing: how the device will learn of the command (live | push | poll) and the usual wait. */
+    private String wakeChannel;
+    private Integer wakeExpectedSeconds;
 
     /** The span between two instants, or null when either is missing or they are out of order. */
     static Long span(Long from, Long to) {

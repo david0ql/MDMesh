@@ -78,19 +78,59 @@ public class AgentWakeHub {
         return s != null && s.isOpen();
     }
 
-    /** Send a wake-only signal to the device if connected. No-op (floor reconciles) when offline. */
+    /** The push channel; optional so the hub still works (and is built in tests) without it. */
+    private volatile com.hmdm.notification.push.PushWaker pushWaker;
+
+    @Inject
+    public void setPushWaker(com.hmdm.notification.push.PushWaker pushWaker) {
+        this.pushWaker = pushWaker;
+    }
+
+    /**
+     * Send a wake-only signal to the device. Over the live socket when it is open; otherwise as a push message when
+     * the server has a push project and the device a token. With neither, a no-op: the floor reconciles.
+     */
     public void wake(String deviceNumber, String wakeKind) {
-        Session s = sessions.get(deviceNumber);
-        if (s == null || !s.isOpen()) {
+        boolean interactive = "interactive".equals(wakeKind);
+        com.hmdm.notification.push.PushWaker push = pushWaker;
+        if (sendOverSocket(deviceNumber, interactive)) {
+            // A socket can look open after the phone lost its network: no check-in soon = repeat as a push.
+            if (!interactive && push != null) push.escalateIfSilent(deviceNumber);
             return;
         }
-        String payload = "interactive".equals(wakeKind)
+        if (!interactive && push != null) push.wake(deviceNumber, false);
+    }
+
+    /**
+     * Wake for a command that cannot wait (a lock, an alarm, a message, a wipe, a remote session): the live socket
+     * AND a push at once, whatever the socket looks like.
+     */
+    public void wakeUrgent(String deviceNumber) {
+        sendOverSocket(deviceNumber, false);
+        com.hmdm.notification.push.PushWaker push = pushWaker;
+        if (push != null) push.wake(deviceNumber, true);
+    }
+
+    /** Wake for a command of the given type: urgent types go out over both channels. */
+    public void wakeFor(String deviceNumber, String commandType) {
+        if (com.hmdm.notification.push.PushWaker.isUrgent(commandType)) wakeUrgent(deviceNumber);
+        else wake(deviceNumber, "commands");
+    }
+
+    private boolean sendOverSocket(String deviceNumber, boolean interactive) {
+        Session s = sessions.get(deviceNumber);
+        if (s == null || !s.isOpen()) {
+            return false;
+        }
+        String payload = interactive
                 ? "{\"wake\":\"interactive\",\"ttlSec\":120}"
                 : "{\"wake\":\"commands\"}";
         try {
             s.getAsyncRemote().sendText(payload);
+            return true;
         } catch (Exception e) {
             log.warn("Agent wake send failed for {}: {}", deviceNumber, e.getMessage());
+            return false;
         }
     }
 }

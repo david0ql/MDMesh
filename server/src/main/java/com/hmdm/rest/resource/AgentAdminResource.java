@@ -415,14 +415,19 @@ public class AgentAdminResource {
         command.setCreatedAt(System.currentTimeMillis());
         commandDAO.insert(command);
 
-        // Wake the device so it pulls the command immediately (best-effort; floor reconcile backs it up).
-        wakeHub.wake(deviceId, "commands");
+        // By which channel it will learn of the command, as of now (before the wake changes anything).
+        java.util.Map<String, Object> reach = reachOf(deviceId);
+        // Wake the device so it pulls the command immediately: live socket, and a push when the socket is closed or
+        // the command cannot wait (best-effort; the queue and the periodic check-in back it up).
+        wakeHub.wakeFor(deviceId, command.getType());
 
         logger.info("Agent command {} queued for device {}", command.getId(), deviceId);
         // Payload-free view (same shape as the history): never echo a payload back to the console.
         CommandHistoryView view = CommandHistoryView.from(command);
         // Not connected right now: the command is not lost, it waits in the queue; the console says so.
         view.setDeviceOnline(wakeHub.isOnline(deviceId));
+        view.setWakeChannel((String) reach.get("channel"));
+        view.setWakeExpectedSeconds((Integer) reach.get("expectedSeconds"));
         return Response.OK(view);
     }
 
@@ -566,7 +571,7 @@ public class AgentAdminResource {
             command.setCreatedAt(System.currentTimeMillis());
             commandDAO.insert(command);
             if (!wakeHub.isOnline(device.getNumber())) offline++;
-            wakeHub.wake(device.getNumber(), "commands");
+            wakeHub.wakeFor(device.getNumber(), type);
             queued++;
         }
 
@@ -1083,7 +1088,7 @@ public class AgentAdminResource {
         command.setStatus("pending");
         command.setCreatedAt(System.currentTimeMillis());
         commandDAO.insert(command);
-        wakeHub.wake(deviceId, "commands");
+        wakeHub.wakeUrgent(deviceId);
 
         logger.info("Remote session command {} queued for device {} (viewOnly={}, encrypted={})",
                 command.getId(), deviceId, viewOnly, encrypted);
@@ -1396,5 +1401,63 @@ public class AgentAdminResource {
         }
         wakeHub.wake(deviceId, "commands");
         return Response.OK();
+    }
+
+    // =================================================================================================================
+    private com.hmdm.persistence.DevicePushDAO pushDAO;
+    private com.hmdm.notification.push.PushWaker pushWaker;
+
+    /** The second wake channel; method injection so the constructor (and what builds it in tests) stays as it was. */
+    @Inject
+    public void setPushSupport(com.hmdm.persistence.DevicePushDAO pushDAO, com.hmdm.notification.push.PushWaker pushWaker) {
+        this.pushDAO = pushDAO;
+        this.pushWaker = pushWaker;
+    }
+
+    /** live | push | poll for a device, with the usual wait and what its agent reported about being woken. */
+    private Map<String, Object> reachOf(String deviceNumber) {
+        com.hmdm.persistence.domain.DevicePush row = null;
+        try {
+            row = pushDAO == null ? null : pushDAO.find(deviceNumber);
+        } catch (Exception e) {
+            logger.warn("Could not read the push row of {}: {}", deviceNumber, e.getMessage());
+        }
+        boolean configured = pushWaker != null && pushWaker.isConfigured();
+        return com.hmdm.notification.push.WakeReach.view(wakeHub.isOnline(deviceNumber), configured, row);
+    }
+
+    @ApiOperation(value = "How a device is reached", notes = "The channel a command would use right now (live socket, push "
+            + "message, or the agent's next backup check-in), the usual wait, and what the agent reported about being woken.")
+    @GET
+    @Path("/devices/{deviceId}/reach")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getReach(@PathParam("deviceId") String deviceId) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) {
+            return Response.ERROR("error.agent.device.unknown");
+        }
+        if (device.getCustomerId() != customerId.get()) {
+            return Response.PERMISSION_DENIED();
+        }
+        return Response.OK(reachOf(deviceId));
+    }
+
+    @ApiOperation(value = "Push wake channel status", notes = "Whether the server has a push project (Firebase Cloud "
+            + "Messaging), how many devices registered with it, and the recent send errors. Administrators only.")
+    @GET
+    @Path("/push/status")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response pushStatus() {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent() || !SecurityContext.get().hasPermission("settings")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Map<String, Object> out = new LinkedHashMap<>(pushWaker.status());
+        out.put("devicesWithToken", pushDAO.countWithToken(customerId.get()));
+        return Response.OK(out);
     }
 }

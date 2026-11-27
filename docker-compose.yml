@@ -71,6 +71,18 @@ services:
       SECURE_ENROLLMENT: ${SECURE_ENROLLMENT:-0}
       # Optional backup URLs handed to the Android agents (comma separated, https only); see docs/REQUISITOS-RED.md.
       AGENT_BACKUP_URLS: ${AGENT_BACKUP_URLS:-}
+      # Optional push wake channel (Firebase Cloud Messaging); all empty = off. See docs/DESPERTADOR-FCM.md.
+      # The service-account key is a secret: give a path mounted into the container (or the JSON in base64), never commit it.
+      FCM_SERVICE_ACCOUNT_FILE: ${FCM_SERVICE_ACCOUNT_FILE:-}
+      FCM_SERVICE_ACCOUNT_JSON: ${FCM_SERVICE_ACCOUNT_JSON:-}
+      FCM_GOOGLE_SERVICES_FILE: ${FCM_GOOGLE_SERVICES_FILE:-}
+      FCM_GOOGLE_SERVICES_JSON: ${FCM_GOOGLE_SERVICES_JSON:-}
+      FCM_API_KEY: ${FCM_API_KEY:-}
+      FCM_APP_ID: ${FCM_APP_ID:-}
+      FCM_SENDER_ID: ${FCM_SENDER_ID:-}
+      FCM_ENDPOINT: ${FCM_ENDPOINT:-}
+      FCM_TOKEN_URI: ${FCM_TOKEN_URI:-}
+      SMS_WAKE_PROVIDER: ${SMS_WAKE_PROVIDER:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-25}
       SMTP_FROM: ${SMTP_FROM:-mdm@localhost}
