@@ -438,6 +438,19 @@ object AgentModule {
     fun provideDeviceLockHandler(handle: DpmHandle): CommandHandler =
         DeviceLockHandler(handle)
 
+    /**
+     * `device.dataSharing`: per-device override of the "share data" (tethering) restriction. Delegates to the same
+     * DeviceRules that applies the policy, so the restriction tracking and the kiosk's "share data" icon stay coherent.
+     */
+    @Provides
+    @IntoSet
+    fun provideDeviceDataSharingHandler(
+        deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+    ): CommandHandler =
+        com.dallycontrol.core.command.handlers.DeviceDataSharingHandler { enabled ->
+            deviceRules.setDataSharingOverride(enabled)
+        }
+
     // --- Remote action handlers (multibound) ---
 
     @Provides

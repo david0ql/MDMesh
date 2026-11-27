@@ -64,6 +64,18 @@ class DeviceRules(private val context: Context, private val handle: DpmHandle, p
         return ConfigOutcome.APPLIED
     }
 
+    /**
+     * Per-device "share data" override (command `device.dataSharing`): apply it right now, on top of the policy.
+     * `enabled == true` lifts the tethering restriction (sharing allowed); `false` blocks it. Goes through the same
+     * [restriction] tracking and the same `KEY_TETHER_OFFERED` flag the policy uses, so the kiosk's "share data" icon
+     * updates at once and a later policy apply does not fight it (the server sends the override value in the policy
+     * too). Idempotent.
+     */
+    fun setDataSharingOverride(enabled: Boolean) {
+        restriction(UserManager.DISALLOW_CONFIG_TETHERING, !enabled)
+        prefs.edit().putBoolean(KEY_TETHER_OFFERED, enabled).apply()
+    }
+
     /** The kiosk offers "share data" unless the policy blocks it. */
     fun tetheringOffered(): Boolean = tetheringOffered(context)
 

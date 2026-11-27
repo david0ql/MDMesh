@@ -60,6 +60,13 @@ object DeviceAction {
     const val POWER_ADAPTIVE = "adaptive"
     const val POWER_ALWAYS_ON = "alwaysOn"
 
+    /**
+     * Per-device override of the "share data" (tethering / hotspot) restriction, on top of the policy.
+     * Payload: `{ "enabled": true | false }` — `true` = sharing allowed (the DISALLOW_CONFIG_TETHERING
+     * restriction is lifted), `false` = blocked. Idempotent; the device override wins over the policy.
+     */
+    const val DATA_SHARING = "device.dataSharing"
+
     /** Set how location is captured. Payload: `{ "mode": "passive" | "active" }`. */
     const val LOCATION_MODE = "device.locationMode"
 
@@ -82,7 +89,7 @@ object DeviceAction {
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
-        "passcodeReset", "wipe", "powerMode", "locationMode", "configApply", "appLaunch", "appInstallForce", "openStore",
+        "passcodeReset", "wipe", "powerMode", "locationMode", "dataSharing", "configApply", "appLaunch", "appInstallForce", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
     )

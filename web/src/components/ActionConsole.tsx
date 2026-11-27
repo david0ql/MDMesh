@@ -7,6 +7,7 @@ import {
 } from '../api/commands';
 import { useToast } from '../ui/toast';
 import { KioskToggle } from './KioskToggle';
+import { DataSharingToggle } from './DataSharingToggle';
 import { useAuth } from '../auth/AuthContext';
 
 type Device = { id: number; number: string };
@@ -117,6 +118,7 @@ export function ActionConsole({ device }: { device: Device }) {
 
       <DeviceStatePanel state={state} />
       <KioskToggle device={device} />
+      <DataSharingToggle device={device} />
 
       {visibleGroups.map((g) => (
         <section key={g.id} className="action-group">
@@ -244,7 +246,7 @@ const COMMAND_LABELS: Record<string, string> = {
   'app.install': 'Instalar app', 'app.uninstall': 'Desinstalar app', 'agent.update': 'Actualizar agente',
   'device.lock': 'Bloquear', 'device.reboot': 'Reiniciar', 'device.ring': 'Hacer sonar', 'device.ringStop': 'Dejar de sonar', 'device.display': 'Pantalla y letra', 'device.diagnose': 'Diagnóstico', 'device.silence': 'Silenciar', 'device.notificationAction': 'Botón de notificación',
   'device.alert': 'Mensaje', 'device.lockscreenMessage': 'Mensaje en pantalla de bloqueo', 'device.passcodeReset': 'Cambiar código',
-  'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación',
+  'device.wipe': 'Borrar dispositivo', 'device.powerMode': 'Modo de conexión', 'device.locationMode': 'Modo de ubicación', 'device.dataSharing': 'Compartir datos',
   'device.appLaunch': 'Abrir app', 'device.openStore': 'Abrir en Play Store', 'apps.scan': 'Escanear apps', 'apps.icons': 'Leer íconos', 'policy.apply': 'Aplicar restricción',
   'device.storageScan': 'Analizar almacenamiento', 'device.storageClean': 'Liberar espacio', 'device.storageAccess': 'Pedir acceso',
   'device.announce': 'Anuncio', 'device.clearCache': 'Borrar caché', 'device.systemUpdate': 'Actualización de Android', 'remote.vnc.start': 'Iniciar remoto', 'remote.vnc.stop': 'Terminar remoto', 'remote.inputSetup': 'Activar control remoto',

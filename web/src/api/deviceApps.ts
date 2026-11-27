@@ -170,3 +170,14 @@ export const addDeviceKioskApp = (deviceId: number | string, packageName: string
 
 export const removeDeviceKioskApp = (deviceId: number | string, packageName: string) =>
   apiClient.del<string[]>(`/private/agent/v1/devices/${deviceId}/kioskApps/${encodeURIComponent(packageName)}`);
+
+// --- Per-device "share data" (tethering) override: wins over the policy's setting ---
+/** The stored override, or null when the device follows its policy. */
+export type DataSharingState = 'allow' | 'block' | null;
+
+export const getDataSharing = (deviceId: number | string) =>
+  apiClient.get<{ state: DataSharingState }>(`/private/agent/v1/devices/${deviceId}/dataSharing`);
+
+/** Set the override: 'allow' / 'block', or 'policy' to drop it and follow the policy again. */
+export const setDataSharing = (deviceId: number | string, state: 'allow' | 'block' | 'policy') =>
+  apiClient.post<{ state: DataSharingState }>(`/private/agent/v1/devices/${deviceId}/dataSharing`, { state });

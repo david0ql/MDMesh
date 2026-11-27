@@ -1196,6 +1196,67 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
+    @ApiOperation(value = "This device's share-data override",
+            notes = "The per-device \"share data\" (tethering) override: allow / block, or absent when it follows the policy.")
+    @GET
+    @Path("/devices/{deviceId}/dataSharing")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getDataSharing(@PathParam("deviceId") String deviceId) {
+        if (!canEditDevices("read device data-sharing")) return Response.PERMISSION_DENIED();
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) return Response.ERROR("error.agent.device.unknown");
+        if (device.getCustomerId() != customerId.get()) return Response.PERMISSION_DENIED();
+        return Response.OK(java.util.Collections.singletonMap("state", commandDAO.getDeviceDataSharing(device.getId())));
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Override share data on this device",
+            notes = "Per-device \"share data\" (tethering) override on top of the policy. Body: { state: \"allow\" | \"block\" "
+                    + "| \"policy\" }. \"policy\" clears the override. The override wins over the policy; an immediate "
+                    + "device.dataSharing command applies it now and the device's config.apply carries it durably.")
+    @POST
+    @Path("/devices/{deviceId}/dataSharing")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setDataSharing(@PathParam("deviceId") String deviceId, Map<String, Object> body) {
+        if (!canEditDevices("override device data-sharing")) return Response.PERMISSION_DENIED();
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
+        Device device = unsecureDAO.getDeviceByNumber(deviceId);
+        if (device == null) return Response.ERROR("error.agent.device.unknown");
+        if (device.getCustomerId() != customerId.get()) return Response.PERMISSION_DENIED();
+
+        String state = body == null || body.get("state") == null ? "" :
+                String.valueOf(body.get("state")).trim().toLowerCase(java.util.Locale.ROOT);
+        if (!"allow".equals(state) && !"block".equals(state) && !"policy".equals(state)) {
+            return Response.ERROR("error.agent.command.invalid");
+        }
+
+        if ("policy".equals(state)) {
+            // Back to the policy: drop the override. The changed desired-config revision makes the next check-in
+            // reconcile push a config.apply that re-derives tethering from the policy.
+            commandDAO.clearDeviceDataSharing(device.getId());
+        } else {
+            commandDAO.setDeviceDataSharing(device.getId(), state);
+            // Immediate effect for capable agents; older agents get it via the config.apply the override triggers.
+            AgentCommand command = new AgentCommand();
+            command.setDeviceNumber(deviceId);
+            command.setType("device.dataSharing");
+            command.setPayload("{\"enabled\":" + ("allow".equals(state)) + "}");
+            command.setRequiresCapability("device.dataSharing");
+            command.setStatus("pending");
+            command.setCreatedAt(System.currentTimeMillis());
+            commandDAO.insert(command);
+        }
+        // Wake the device so it checks in now (delivers the command and lets reconcile push the config.apply).
+        wakeHub.wake(deviceId, "commands");
+        logger.info("Data-sharing override of device {} set to {}", deviceId, state);
+        return Response.OK(java.util.Collections.singletonMap("state", commandDAO.getDeviceDataSharing(device.getId())));
+    }
+
+    // =================================================================================================================
     @ApiOperation(value = "Force sync", notes = "Wake the device now so it pulls pending commands + reports state.")
     @POST
     @Path("/devices/{deviceId}/sync")

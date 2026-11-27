@@ -175,6 +175,19 @@ public class AgentCommandDAO {
         deviceMapper.removeDeviceKioskApp(deviceId, packageName);
     }
 
+    /** Per-device "share data" (tethering) override: "allow" / "block", or null when it follows the policy. */
+    public String getDeviceDataSharing(int deviceId) {
+        return deviceMapper.getDeviceDataSharing(deviceId);
+    }
+
+    public void setDeviceDataSharing(int deviceId, String state) {
+        deviceMapper.setDeviceDataSharing(deviceId, state);
+    }
+
+    public void clearDeviceDataSharing(int deviceId) {
+        deviceMapper.clearDeviceDataSharing(deviceId);
+    }
+
     public String getDeviceSecretHash(String deviceNumber) {
         return deviceMapper.getDeviceSecretHash(deviceNumber);
     }

@@ -51,7 +51,9 @@ public class ConfigReconciler {
         // Per-device kiosk apps: packages this one phone should also show in its kiosk (no per-device policy).
         Set<String> extraKioskApps = device.getId() == null ? java.util.Collections.<String>emptySet()
                 : new java.util.HashSet<String>(commandDAO.listDeviceKioskApps(device.getId()));
-        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps);
+        // Per-device "share data" override: when set it wins over the policy's device.tethering.
+        String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
+        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
     }
 
     /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */

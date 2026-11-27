@@ -278,6 +278,29 @@ public class DesiredConfigBuilderTest {
     }
 
     @Test
+    public void per_device_data_sharing_override_wins_over_the_policy_tethering() {
+        java.util.Set<String> none = Collections.<String>emptySet();
+        // Policy allows (no device rules): "block" override forces a block, and changes the revision.
+        Configuration allow = kioskConfig();
+        com.hmdm.rest.json.agent.DesiredConfig base = DesiredConfigBuilder.build(allow, Collections.<Application>emptyList(), none, null, none, null);
+        assertNull("no override, no policy rules", base.getDevice());
+        com.hmdm.rest.json.agent.DesiredConfig blocked =
+                DesiredConfigBuilder.build(allow, Collections.<Application>emptyList(), none, null, none, "block");
+        assertEquals("block", blocked.getDevice().getTethering());
+        assertNotEquals("the override changes the desired-config revision", base.getRevision(), blocked.getRevision());
+        // Policy blocks: "allow" override lifts it on this device.
+        Configuration policyBlocks = kioskConfig();
+        policyBlocks.setDcPolicy("{\"device\":{\"tethering\":\"block\"}}");
+        assertEquals("block", DesiredConfigBuilder.build(policyBlocks, Collections.<Application>emptyList()).getDevice().getTethering());
+        com.hmdm.rest.json.agent.DesiredConfig over =
+                DesiredConfigBuilder.build(policyBlocks, Collections.<Application>emptyList(), none, null, none, "allow");
+        assertEquals("allow", over.getDevice().getTethering());
+        // Unknown override value is ignored (falls back to the policy).
+        assertEquals("block", DesiredConfigBuilder.build(policyBlocks, Collections.<Application>emptyList(), none, null, none, "weird")
+                .getDevice().getTethering());
+    }
+
+    @Test
     public void company_page_is_kept_reachable_in_allowlist_mode() {
         Configuration c = kioskConfig();
         c.setDcPolicy("{\"browser\":{\"mode\":\"allowlist\",\"allow\":[\"amovil.com.co\"],\"homeUrl\":\"https://portal.alpina.com/inicio?x=1\"}}");
