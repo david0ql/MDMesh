@@ -141,7 +141,7 @@ public class ApplicationResource {
     @GET
     @Path("/search")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getAllApplications(@QueryParam("all") Boolean all) {
+    public Response getAllApplications(@javax.ws.rs.QueryParam("all") Boolean all) {
         if (!SecurityContext.get().hasPermission("applications")) {
             logger.error("Unauthorized attempt to access application list by user " +
                     SecurityContext.get().getCurrentUserName());
