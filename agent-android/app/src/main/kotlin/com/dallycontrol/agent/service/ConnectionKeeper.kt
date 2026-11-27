@@ -100,7 +100,9 @@ class ConnectionKeeper @Inject constructor(
 
     private fun onNetworkRecovered() {
         Log.i(TAG, "network changed or came back: reconnecting now")
-        transport.reconnectNow()
+        // restart(), not just reconnectNow(): connections pooled on the previous network are dead too, and a
+        // check-in written into one hangs until the read timeout (20 s) before it is retried on a fresh one.
+        transport.restart()
         scope?.launch {
             runCatching { coordinator.runOnce() }
                 .recoverCatching {

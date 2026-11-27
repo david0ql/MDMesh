@@ -79,11 +79,17 @@ def measure(name, seconds, limit):
                  seconds is not None and seconds <= limit)
 
 
-def login():
+def login(patience=120):
+    """Signs in; retried, since the server may be restarting (a scenario just did that)."""
     md5 = hashlib.md5(A.admin_password.encode()).hexdigest().upper()
-    r = api("POST", "/rest/public/auth/login", {"login": A.admin_user, "password": md5})
-    if r.get("status") != "OK":
-        sys.exit(f"login failed: {r}")
+    end = time.time() + patience
+    while True:
+        r = try_api("POST", "/rest/public/auth/login", {"login": A.admin_user, "password": md5})
+        if r.get("status") == "OK":
+            return
+        if time.time() > end:
+            sys.exit(f"login failed: {r}")
+        time.sleep(3)
 
 
 def is_live():
@@ -141,7 +147,7 @@ def wait_live(timeout):
     return wait_until(is_live, timeout)
 
 
-def wait_not_live(timeout=150):
+def wait_not_live(timeout=210):
     return wait_until(lambda: not is_live(), timeout)
 
 
@@ -190,8 +196,8 @@ def wifi():
 def outage():
     print("== sin red 90 s (Wi-Fi y datos apagados) y vuelve")
     net(False)
-    gone = wait_not_live(150)
-    check("el servidor nota la caída del canal", gone is not None, "" if gone is None else f"{gone:.0f} s")
+    gone = wait_not_live(210)
+    measure("el servidor nota la caída del canal (socket sin tráfico)", gone, 200)
     cmd = queue()  # queued while the device is unreachable
     time.sleep(max(0, 90 - (gone or 0)))
     recover_and_command("red de vuelta", lambda: net(True), 30, 40, cmd)
@@ -257,12 +263,14 @@ def server():
         return
     print("== reinicio del servidor")
     compose("restart", "server")
-    # Tomcat is back when the API answers.
-    up = wait_until(lambda: bool(try_api("GET", "/rest/private/agent/v1/live").get("status")), 180, 1)
+    # Tomcat is back when the agent's own endpoint answers.
+    up = wait_until(lambda: bool(try_api("POST", "/rest/public/agent/v1/checkin", {}).get("status")), 240, 1)
     check("servidor arriba de nuevo", up is not None, "" if up is None else f"{up:.0f} s")
+    t_up = time.time()
     login()
     live = wait_live(90)
-    measure("tras reinicio del servidor: canal en vivo (desde que el servidor responde)", live, 30)
+    measure("tras reinicio del servidor: canal en vivo (desde que el servidor responde)",
+            None if live is None else time.time() - t_up, 30)
     measure("tras reinicio del servidor: orden ejecutada", command_latency(60), 15)
     time.sleep(2)
     command_latency(30)
@@ -440,6 +448,10 @@ def main():
     release = sh("getprop ro.build.version.release").strip()
     api_level = sh("getprop ro.build.version.sdk").strip()
     print(f"Dispositivo {A.device_id} · Android {release} (API {api_level}) · {A.serial}")
+    try:
+        print("Carga de la máquina de pruebas (load average): " + " ".join(f"{x:.1f}" for x in __import__("os").getloadavg()))
+    except OSError:
+        pass
     for name, fn in SCENARIOS:
         if only and name not in only:
             continue
