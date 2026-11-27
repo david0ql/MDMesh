@@ -60,7 +60,7 @@ public class PushWaker {
             "device.lock", "device.ring", "device.ringstop", "device.alert", "device.lockscreenmessage",
             "device.announce", "device.wipe", "device.passcodereset", "device.reboot", "remote.vnc.start"));
 
-    /** A second non-urgent push for the same phone within this time is dropped (a burst of commands = one wake). */
+    /** While a push is unanswered, further non-urgent ones within this time are folded into it (a burst = one wake). */
     static final long DEBOUNCE_MS = 30_000L;
     /** Urgent commands are pushed each time, but not more often than this. */
     static final long URGENT_DEBOUNCE_MS = 3_000L;
@@ -83,6 +83,7 @@ public class PushWaker {
 
     private final Map<String, Long> lastQueuedAt = new ConcurrentHashMap<>();
     private final Map<String, Long> lastCheckInAt = new ConcurrentHashMap<>();
+    private final java.util.Set<String> trailing = ConcurrentHashMap.newKeySet();
     private final AtomicLong sent = new AtomicLong();
     private final AtomicLong failed = new AtomicLong();
     private final AtomicLong answered = new AtomicLong();
@@ -138,7 +139,19 @@ public class PushWaker {
             if (token == null || token.isEmpty()) return Outcome.NO_TOKEN;
             long now = clock.getAsLong();
             Long last = lastQueuedAt.get(deviceNumber);
-            if (last != null && now - last < (urgent ? URGENT_DEBOUNCE_MS : DEBOUNCE_MS)) return Outcome.DEBOUNCED;
+            long window = urgent ? URGENT_DEBOUNCE_MS : DEBOUNCE_MS;
+            // A push that the phone already answered is spent: whatever is queued now needs its own. Only a push
+            // still on its way absorbs the next ones — and then one more goes out when the window closes, unless
+            // the phone reported meanwhile (that report carries everything queued until then).
+            if (last != null && now - last < window && !checkedInSince(deviceNumber, last)) {
+                if (trailing.add(deviceNumber)) {
+                    scheduler.later(window - (now - last), () -> {
+                        trailing.remove(deviceNumber);
+                        if (!checkedInSince(deviceNumber, last)) wake(deviceNumber, urgent, followUp);
+                    });
+                }
+                return Outcome.DEBOUNCED;
+            }
             lastQueuedAt.put(deviceNumber, now);
             scheduler.run(() -> deliver(deviceNumber, token, urgent, followUp));
             return Outcome.QUEUED;

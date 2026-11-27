@@ -19,8 +19,9 @@ The 1-minute load of the test machine is written next to every figure: under a h
 There are no Firebase credentials here, so Google's part is simulated by `sim`, one small process that is:
   * a fake FCM HTTP v1 service (token endpoint + messages:send) the server is pointed at;
   * the "delivery" of each message to the phone: it does what Google Play services do on a high-priority message —
-    put the app on the temporary power allowlist and hand it the message (here, the agent's shell-only test entry
-    point `com.dallycontrol.agent.PUSH_TEST`, which runs exactly the code the real message runs);
+    put the app on the temporary power allowlist and hand it the message: with `--via c2dm` the very intent Google
+    sends (`com.google.android.c2dm.intent.RECEIVE` into Firebase's receiver; needs `adb root`, so emulators), or by
+    default the agent's shell-only test entry point `com.dallycontrol.agent.PUSH_TEST`, which runs the same code;
   * a gate in front of the server that can refuse WebSocket upgrades (and cut the open ones) while letting HTTPS
     check-ins through: "the live channel is down but the phone has network".
 
@@ -39,6 +40,7 @@ import urllib.error, urllib.parse, urllib.request
 
 RECEIVER = "com.dallycontrol.agent.wake.PushTestReceiver"
 ACTION = "com.dallycontrol.agent.PUSH_TEST"
+FCM_RECEIVER = "com.google.firebase.iid.FirebaseInstanceIdReceiver"
 
 
 # ======================================================================================================== env
@@ -202,8 +204,14 @@ class Sim:
         """What Google Play services do with a high-priority message: temp power allowlist, then hand it to the app."""
         serial, pkg = target
         time.sleep(self.delay_ms / 1000.0)
-        script = (f"cmd deviceidle tempwhitelist -d 20000 {pkg} >/dev/null 2>&1; "
-                  f"am broadcast -a {ACTION} -n {pkg}/{RECEIVER} >/dev/null 2>&1")
+        if self.a.via == "c2dm":
+            # The intent Google Play services send, into Firebase's own receiver: the whole real path on the phone
+            # (library -> PushWakeService). Only root may send it, so this needs `adb root` (emulators).
+            deliver = (f"am broadcast -a com.google.android.c2dm.intent.RECEIVE -n {pkg}/{FCM_RECEIVER} --es wake commands "
+                       f"--es google.message_id sim-{int(time.time() * 1000)} --es from simulado")
+        else:
+            deliver = f"am broadcast -a {ACTION} -n {pkg}/{RECEIVER}"
+        script = f"cmd deviceidle tempwhitelist -d 20000 {pkg} >/dev/null 2>&1; {deliver} >/dev/null 2>&1"
         entry["delivered"] = True
         subprocess.run([self.a.adb, "-s", serial, "shell", script], capture_output=True, timeout=60)
 
@@ -519,6 +527,9 @@ def main():
     s.add_argument("--upstream", required=True, help="host:port of the real server (console or API port)")
     s.add_argument("--adb", default="adb")
     s.add_argument("--push-delay-ms", type=int, default=300, help="simulated transit time of a push message")
+    s.add_argument("--via", choices=["test", "c2dm"], default="test",
+                   help="how a push is handed to the agent: its shell-only test entry point (any device), or the "
+                        "real Google intent into Firebase's receiver (needs `adb root`: emulators)")
     r = sub.add_parser("run")
     r.add_argument("--api", required=True)
     r.add_argument("--sim", required=True)

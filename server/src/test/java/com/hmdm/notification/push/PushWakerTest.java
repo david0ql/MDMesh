@@ -171,6 +171,36 @@ public class PushWakerTest {
     }
 
     @Test
+    public void a_push_the_phone_already_answered_does_not_hold_back_the_next_command() {
+        assertEquals(PushWaker.Outcome.QUEUED, waker.wake("d1", true));
+        now += 800L;
+        waker.onCheckIn("d1");          // the phone woke up and took the first command
+        now += 500L;                    // the operator sends another one right away
+        assertEquals(PushWaker.Outcome.QUEUED, waker.wake("d1", true));
+        assertEquals(2, fcm.sends.size());
+    }
+
+    @Test
+    public void a_command_folded_into_an_unanswered_push_gets_its_own_push_when_the_window_closes() {
+        waker.wake("d1", false);
+        now += 5_000L;
+        assertEquals(PushWaker.Outcome.DEBOUNCED, waker.wake("d1", false));
+        assertEquals(PushWaker.Outcome.DEBOUNCED, waker.wake("d1", false));
+        assertEquals(1, fcm.sends.size());
+        scheduler.advance(PushWaker.DEBOUNCE_MS);
+        assertEquals("exactly one more, not one per folded command", 2, fcm.sends.size());
+
+        // ...but not when the phone reported in between: that report already carried everything queued.
+        waker.wake("d2", false);
+        now += 1_000L;
+        assertEquals(PushWaker.Outcome.DEBOUNCED, waker.wake("d2", false));
+        now += 1_000L;
+        waker.onCheckIn("d2");
+        scheduler.advance(PushWaker.DEBOUNCE_MS);
+        assertEquals(3, fcm.sends.size());
+    }
+
+    @Test
     public void an_urgent_push_nobody_answered_is_repeated_twice_and_then_left_to_the_queue() {
         waker.wake("d1", true);
         assertEquals(1, fcm.sends.size());
