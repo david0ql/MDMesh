@@ -65,7 +65,7 @@ object EventType {
      */
     const val APP_NO_VERSION = "appNoVersion"
 
-    /** The Wi-Fi safeguard lifted the lock-down: the phone had no usable network for the grace period. `detail` says why. */
+    /** The Wi-Fi safeguard lifted the lock-down: no usable network for the grace period. `detail` says why. */
     const val WIFI_LOCKDOWN_RELAXED = "wifiLockdownRelaxed"
     /** The lock-down the safeguard had lifted is in force again. */
     const val WIFI_LOCKDOWN_RESTORED = "wifiLockdownRestored"

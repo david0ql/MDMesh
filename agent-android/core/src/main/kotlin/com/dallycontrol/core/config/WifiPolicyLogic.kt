@@ -1,3 +1,6 @@
+// Android API levels and Android's own 0..3 security ranking appear as numbers: they are what this file is about.
+@file:Suppress("MagicNumber")
+
 package com.dallycontrol.core.config
 
 import com.dallycontrol.proto.ConfigWifi
@@ -173,10 +176,11 @@ object WifiRulesPlan {
 
     /** Rules that can leave a phone without any network if they are wrong — the ones the safeguard watches. */
     fun isRestrictive(rules: ConfigWifiRules?, radio: Boolean?): Boolean {
-        if (radio == false) return true
-        if (rules == null) return false
-        return rules.blockAdd == true || rules.blockConfig == true || rules.blockState == true ||
-            !rules.ssidMode.isNullOrBlank() || WifiSecurity.levelOf(rules.minSecurity) > 0
+        val byRules = rules != null && (
+            rules.blockAdd == true || rules.blockConfig == true || rules.blockState == true ||
+                !rules.ssidMode.isNullOrBlank() || WifiSecurity.levelOf(rules.minSecurity) > 0
+            )
+        return radio == false || byRules
     }
 
     /** `allow` mode always includes the managed networks: "only corporate networks" can never exclude its own. */
@@ -269,6 +273,7 @@ class WifiSafeguard(private val store: Store) {
 /** Which managed network the phone should be on: the highest [ConfigWifi.priority] one in range that may auto-join. */
 object WifiPriority {
     /** @return the SSID to move to, or null to stay put. */
+    @Suppress("ReturnCount")
     fun preferred(managed: List<ConfigWifi>, inRange: Set<String>, connected: String?): String? {
         val candidates = managed.filter { it.autoConnect != false && it.ssid in inRange }
         if (candidates.isEmpty() || candidates.all { it.priority == null }) return null

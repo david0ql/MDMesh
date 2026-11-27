@@ -82,7 +82,7 @@ data class DynamicState(
     val managedWifi: ManagedWifiReport? = null,
 )
 
-/** State of the policy's Wi-Fi on the device. [relaxedUntil]: the safeguard lifted the lock-down until then (epoch ms). */
+/** State of the policy's Wi-Fi on the device, as the agent sees it at [checkedAt] (epoch ms). */
 @Serializable
 data class ManagedWifiReport(
     val networks: List<ManagedWifiStatus> = emptyList(),

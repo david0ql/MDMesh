@@ -1,3 +1,5 @@
+@file:Suppress("MaxLineLength", "LongParameterList") // one case per line reads better than wrapped assertions
+
 package com.dallycontrol.core.config
 
 import com.dallycontrol.proto.ConfigWifi

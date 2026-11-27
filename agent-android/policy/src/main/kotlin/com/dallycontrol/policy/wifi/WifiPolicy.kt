@@ -43,7 +43,7 @@ interface WifiPolicy : TogglePolicy {
     /** Only [ssids] may be joined ([SsidMode.ALLOW]), or none of them ([SsidMode.DENY]); null lifts it. API 33+. */
     fun setSsidRestriction(mode: SsidMode?, ssids: Set<String>): PolicyOutcome
 
-    /** Minimum security of any network the phone joins: 0 open, 1 personal, 2 enterprise, 3 enterprise 192-bit. API 33+. */
+    /** Minimum security of any network joined: 0 open, 1 personal, 2 enterprise, 3 enterprise 192-bit. API 33+. */
     fun setMinimumSecurity(level: Int): PolicyOutcome
 
     enum class SsidMode { ALLOW, DENY }

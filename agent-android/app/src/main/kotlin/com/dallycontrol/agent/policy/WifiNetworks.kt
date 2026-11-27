@@ -1,3 +1,6 @@
+// Android API levels are compared as numbers throughout: they are the vocabulary of this file (see the class doc).
+@file:Suppress("MagicNumber")
+
 package com.dallycontrol.agent.policy
 
 import android.annotation.SuppressLint
