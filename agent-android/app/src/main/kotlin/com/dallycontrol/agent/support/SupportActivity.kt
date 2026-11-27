@@ -122,10 +122,12 @@ class SupportActivity : Activity() {
             contentDescription = getString(R.string.support_reply_hint)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             imeOptions = EditorInfo.IME_ACTION_SEND
-            setOnEditorActionListener { _, action, _ ->
-                val send = action == EditorInfo.IME_ACTION_SEND
+            // "Send" on the on-screen keyboard, or Enter on a physical one.
+            setOnEditorActionListener { _, action, event ->
+                val enter = event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER
+                val send = action == EditorInfo.IME_ACTION_SEND || (enter && event?.action == android.view.KeyEvent.ACTION_DOWN)
                 if (send) sendReply()
-                send
+                send || enter
             }
         }
         compose.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))

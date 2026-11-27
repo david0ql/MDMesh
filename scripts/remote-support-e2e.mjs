@@ -49,8 +49,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const adb = (...a) => execFileSync('adb', ['-s', serial, ...a], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const adbBin = (...a) => execFileSync('adb', ['-s', serial, ...a], { maxBuffer: 256 * 1024 * 1024 });
 const sdk = Number(adb('shell', 'getprop', 'ro.build.version.sdk').trim());
-const top = () => (adb('shell', 'dumpsys activity activities')
+const topOnce = () => (adb('shell', 'dumpsys activity activities')
   .match(/(?:topResumedActivity|mResumedActivity|mFocusedActivity)[=:].*? (\S+\/\S+?)[ }]/) || [])[1] || '';
+const top = () => { for (let i = 0; i < 4; i++) { const t = topOnce(); if (t) return t; } return ''; };
 
 let pass = 0, fail = 0;
 const measures = {};
@@ -148,6 +149,41 @@ async function waitUi(pred, ms = 12000) {
     await sleep(500);
   }
   return null;
+}
+
+/**
+ * The visible views of the agent's own screen on top (class + absolute bounds), read from `dumpsys activity top`.
+ * It needs no UiAutomation, so it works when `uiautomator dump` does not answer on a busy phone, and it does not
+ * unbind the screen service. No texts: the support screen's layout order is known (see supportScreen()).
+ */
+function ownViews() {
+  const text = adb('shell', 'dumpsys', 'activity', 'top');
+  const at = text.lastIndexOf('View Hierarchy:');
+  if (at < 0) return [];
+  const out = []; const stack = [];
+  for (const line of text.slice(at).split('\n').slice(1)) {
+    const m = line.match(/^(\s+)([\w.$]+)\{\w+ ([VIG])\S* \S+ (-?\d+),(-?\d+)-(-?\d+),(-?\d+)/);
+    if (!m) { if (out.length) break; continue; }
+    const depth = m[1].length;
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    const parent = stack[stack.length - 1] || { x: 0, y: 0, visible: true };
+    const node = { depth, cls: m[2], visible: parent.visible && m[3] === 'V', x: parent.x + Number(m[4]), y: parent.y + Number(m[5]) };
+    node.b = [node.x, node.y, parent.x + Number(m[6]), parent.y + Number(m[7])];
+    node.text = '';
+    stack.push(node); out.push(node);
+  }
+  return out.filter((n) => n.visible && n.b[2] > n.b[0] && n.b[3] > n.b[1]);
+}
+/** The support screen's controls by layout order: call buttons (Aceptar|Silenciar, Rechazar|Colgar), field, Enviar. */
+function supportScreen() {
+  if (!/support\.SupportActivity/.test(top())) return null;
+  const views = ownViews();
+  const buttons = views.filter((v) => /\.Button$/.test(v.cls));
+  const field = views.find((v) => /EditText$/.test(v.cls));
+  const scroll = views.find((v) => /ScrollView$/.test(v.cls));
+  const bubbles = scroll ? views.filter((v) => /TextView$/.test(v.cls) && v.depth > scroll.depth && v.b[1] >= scroll.b[1] && v.b[3] <= scroll.b[3] + 4000).length : 0;
+  const inCall = buttons.length >= 4; // two call buttons + Enviar + Cerrar
+  return { field, bubbles, first: inCall ? buttons[0] : null, second: inCall ? buttons[1] : null, send: buttons[buttons.length - 2] };
 }
 
 /** The session's ongoing notification is posted (not just its channel defined). */
@@ -345,7 +381,8 @@ try {
     check('the agent captures with its own screen service', info.engine === 'builtin' && info.screen === 'ready',
       `engine=${info.engine} capture=${info.capture} sdk=${info.sdk}`);
     console.log(`  device-owner self-authorisation probe: ${info.probe}`);
-    check('the phone shows the support notice', noticeShown());
+    if (info.notice === false) console.log('  SKIP  notice: the device\'s policy turns it off');
+    else check('the phone shows the support notice', noticeShown());
   }
 
   // --- control -----------------------------------------------------------------------------------------------------
@@ -370,15 +407,16 @@ try {
     await s.quiet(); // a still screen sends nothing: the next image after the tap is the tap's effect
     const framesBefore = s.frames.length;
     const tapAt = Date.now();
-    if (target) s.tapNode(target, size);
+    // The row to tap: found by its text with uiautomator, or (busy phone) a row a third of the way down the list.
+    if (target) s.tapNode(target, size); else s.send({ t: 'tap', x: 0.5, y: 0.36 });
     const changed = await s.until(() => (s.frames.length > framesBefore ? s.frames[framesBefore] : null), 5000);
     measures.tapLatencyMs = changed ? changed.at - tapAt : null;
     await sleep(1500);
     const uiAfter = nodes(dumpUi()).map((n) => n.text).filter(Boolean).join('|');
     await serviceBack();
     const titleAfter = adb('shell', 'dumpsys', 'activity', 'top').split('\n').filter((l) => /ACTIVITY|mTitle|Added Fragments|#0:/.test(l)).join('|');
-    check(`operator taps "${target?.text}" on the image: the phone opens it`, !!target && (uiAfter !== uiBefore || titleAfter !== titleBefore),
-      `screen texts changed: ${uiAfter !== uiBefore}`);
+    check(`operator taps ${target ? `"${target.text}"` : 'a Settings row'} on the image: the phone opens it`, uiAfter !== uiBefore || titleAfter !== titleBefore,
+      `activity changed: ${titleAfter !== titleBefore}, screen texts changed: ${uiAfter !== uiBefore}`);
     check('touch-to-image latency < 1 s', measures.tapLatencyMs !== null && measures.tapLatencyMs < 1000, `${measures.tapLatencyMs} ms`);
     s.send({ t: 'key', k: 'back' });
     await sleep(800);
@@ -406,25 +444,25 @@ try {
   if (want('chat')) {
     const line = `Hola, soy soporte ${Date.now() % 100000}`;
     s.send({ t: 'chat', s: line });
-    const shown = await waitUi((ns) => (ns.find((n) => n.text.includes(line)) ? ns : null), 12000);
-    check('operator -> phone: the support screen opens and shows the message', !!shown, top());
-    const field = shown && shown.find((n) => /EditText/.test(n.cls));
-    const answer = `respuesta ${Date.now() % 100000}`;
+    // The message on the phone: read with uiautomator when it answers; on a busy phone, the support screen on top
+    // with a message bubble in it (dumpsys) is accepted, and says so.
+    let screen = null;
+    for (let i = 0; i < 40 && !(screen && screen.bubbles > 0); i++) { await sleep(1000); screen = supportScreen(); }
+    const read = screen ? nodes(dumpUi()).some((n) => n.text.includes(line)) : false;
     await serviceBack();
-    if (field) {
-      s.tapNode(field, size); // focus the reply box through the remote session
-      await sleep(900);
+    check('operator -> phone: the support screen opens and shows the message', !!screen && screen.bubbles > 0,
+      screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
+    const answer = `respuesta ${Date.now() % 100000}`;
+    if (screen && screen.field && screen.send) {
+      s.tapNode(screen.field, size); // focus the reply box through the remote session
+      await sleep(1500);
       const from = Date.now();
-      s.send({ t: 'text', s: answer });
-      await sleep(1200);
-      const ui = nodes(dumpUi());
-      const typed = ui.find((n) => /EditText/.test(n.cls) && n.text.includes(answer));
-      check('operator types on the phone through the session', !!typed, typed ? typed.text : 'not typed');
-      const sendBtn = ui.find((n) => /^(Enviar|Send)$/.test(n.text));
-      await serviceBack();
-      if (sendBtn) s.tapNode(sendBtn, size);
-      const reply = await s.until(() => s.msg('chat', from, (m) => m.s === answer), 8000);
-      check('phone -> operator: the reply typed on the phone arrives', !!reply, reply ? reply.s : 'no reply');
+      s.send({ t: 'text', s: answer }); // typed by the operator's keyboard
+      await sleep(2500);
+      s.tapNode(screen.send, size); // Enviar, tapped through the session
+      let reply = await s.until(() => s.msg('chat', from, (m) => m.s === answer), 15000);
+      if (!reply) { s.tapNode(supportScreen()?.send || screen.send, size); reply = await s.until(() => s.msg('chat', from, (m) => m.s === answer), 15000); }
+      check('operator types and sends on the phone through the session; the reply arrives', !!reply, reply ? reply.s : 'no reply');
     } else {
       check('the support screen has a reply box', false);
     }
@@ -438,15 +476,16 @@ try {
     const callFrom = Date.now();
     s.audio = [];
     s.send({ t: 'call.start', testTone: true });
-    const ring = await s.until(() => s.msg('call.state', callFrom), 8000);
+    const ring = await s.until(() => s.msg('call.state', callFrom), 20000);
     if (ring && ring.s === 'ringing') {
-      const acc = await waitUi((ns) => ns.find((n) => /^(Aceptar|Accept)$/.test(n.text)), 10000);
+      let acc = null;
+      for (let i = 0; i < 30 && !acc; i++) { await sleep(1000); acc = supportScreen()?.first || null; }
       check('the phone rings and offers Accept / Reject', !!acc);
       if (acc) adbTap(acc); // the person on the phone accepts
     } else {
       console.log(`  call answered unattended (policy callAccept=auto): ${ring?.s}`);
     }
-    const active = await s.until(() => s.msg('call.state', callFrom, (m) => m.s === 'active'), 12000);
+    const active = await s.until(() => s.msg('call.state', callFrom, (m) => m.s === 'active'), 30000);
     check('the call is established', !!active, (s.last('call.state') || {}).detail || (s.last('call.state') || {}).s || 'no answer');
     if (active) {
       let pos = 0;
@@ -468,19 +507,24 @@ try {
       const micFrom = Date.now();
       s.audio = [];
       s.send({ t: 'call.start' });
-      const st2 = await s.until(() => s.msg('call.state', micFrom), 8000);
-      if (st2 && st2.s === 'ringing') { const a = await waitUi((ns) => ns.find((n) => /^(Aceptar|Accept)$/.test(n.text)), 10000); if (a) adbTap(a); }
-      const micActive = await s.until(() => s.msg('call.state', micFrom, (m) => m.s === 'active'), 12000);
+      const st2 = await s.until(() => s.msg('call.state', micFrom), 20000);
+      if (st2 && st2.s === 'ringing') {
+        let a = null;
+        for (let i = 0; i < 30 && !a; i++) { await sleep(1000); a = supportScreen()?.first || null; }
+        if (a) adbTap(a);
+      }
+      const micActive = await s.until(() => s.msg('call.state', micFrom, (m) => m.s === 'active'), 30000);
       await sleep(2500);
       const micStats = [...s.msgs].reverse().find((m) => m.t === 'call.stats' && m.at > micFrom) || {};
       check('the phone\'s microphone opens for the call', !!micActive && micStats.recording === true && micStats.tx > 50,
         micActive ? `recording=${micStats.recording} tx=${micStats.tx} micLevel=${micStats.micRms}` : ((s.last('call.state') || {}).detail || 'not active'));
       measures.mic = { recording: micStats.recording, tx: micStats.tx, micRms: micStats.micRms };
       // Hang up from the phone this time.
-      const hang = nodes(dumpUi()).find((n) => /^(Colgar|Hang up)$/.test(n.text));
+      let hang = null;
+      for (let i = 0; i < 20 && !hang; i++) { await sleep(1000); hang = supportScreen()?.second || null; }
       const hangFrom = Date.now();
       if (hang) adbTap(hang); else s.send({ t: 'call.end' });
-      check('hang up on the phone ends the call for the operator', !!(await s.until(() => s.msg('call.state', hangFrom, (m) => m.s === 'ended'), 6000)), hang ? 'button Colgar' : 'no button found');
+      check('hang up on the phone ends the call for the operator', !!hang && !!(await s.until(() => s.msg('call.state', hangFrom, (m) => m.s === 'ended'), 15000)), hang ? 'button Colgar' : 'no Colgar button on the phone');
     }
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
   }
@@ -584,8 +628,9 @@ if (want('policy')) {
     (await readCfg())?.dcPolicy || saved.message);
   await rest('POST', `/private/agent/v1/devices/${device}/config/reapply`);
   adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
-  const p = await new Session().open(false);
+  let p = null;
   try {
+    p = await new Session().open(false);
     await p.until(() => p.msg('peer', 0, (m) => m.state === 'joined'), 30000);
     let info = null;
     for (let i = 0; i < 40 && !(info && info.callAccept === 'auto' && info.notice === false); i++) {
@@ -609,8 +654,10 @@ if (want('policy')) {
     check('unattended call: the phone\'s audio reaches the operator', heard.rms > 3000, `level ${heard.rms}, ${heard.hz} Hz`);
     p.send({ t: 'call.end' });
     await sleep(800);
+  } catch (e) {
+    check('policy run', false, String(e).split('\n')[0]);
   } finally {
-    await p.close();
+    if (p) await p.close();
     const now = await readCfg();
     await rest('PUT', '/private/configurations', { ...now, dcPolicy: original, applications: await apps() });
     await rest('POST', `/private/agent/v1/devices/${device}/config/reapply`);

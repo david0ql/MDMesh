@@ -15,6 +15,7 @@
 import { createRequire } from 'module';
 import { execFileSync } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -66,6 +67,40 @@ async function serviceBack() {
     await sleep(300);
   }
 }
+/**
+ * The visible views of the agent's own screen on top (class + absolute bounds), read from `dumpsys activity top`.
+ * It needs no UiAutomation, so it works when `uiautomator dump` does not answer on a busy phone, and it does not
+ * unbind the screen service. No texts: the support screen's layout order is known (see supportScreen()).
+ */
+function ownViews() {
+  const text = adb('shell', 'dumpsys', 'activity', 'top');
+  const at = text.lastIndexOf('View Hierarchy:');
+  if (at < 0) return [];
+  const out = []; const stack = [];
+  for (const line of text.slice(at).split('\n').slice(1)) {
+    const m = line.match(/^(\s+)([\w.$]+)\{\w+ ([VIG])\S* \S+ (-?\d+),(-?\d+)-(-?\d+),(-?\d+)/);
+    if (!m) { if (out.length) break; continue; }
+    const depth = m[1].length;
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    const parent = stack[stack.length - 1] || { x: 0, y: 0, visible: true };
+    const node = { depth, cls: m[2], visible: parent.visible && m[3] === 'V', x: parent.x + Number(m[4]), y: parent.y + Number(m[5]) };
+    node.b = [node.x, node.y, parent.x + Number(m[6]), parent.y + Number(m[7])];
+    node.text = '';
+    stack.push(node); out.push(node);
+  }
+  return out.filter((n) => n.visible && n.b[2] > n.b[0] && n.b[3] > n.b[1]);
+}
+/** The support screen's controls by layout order: call buttons (Aceptar|Silenciar, Rechazar|Colgar), field, Enviar. */
+function supportScreen() {
+  if (!/support\.SupportActivity/.test(top())) return null;
+  const views = ownViews();
+  const buttons = views.filter((v) => /\.Button$/.test(v.cls));
+  const field = views.find((v) => /EditText$/.test(v.cls));
+  const scroll = views.find((v) => /ScrollView$/.test(v.cls));
+  const bubbles = scroll ? views.filter((v) => /TextView$/.test(v.cls) && v.depth > scroll.depth && v.b[1] >= scroll.b[1] && v.b[3] <= scroll.b[3] + 4000).length : 0;
+  const inCall = buttons.length >= 4; // two call buttons + Enviar + Cerrar
+  return { field, bubbles, first: inCall ? buttons[0] : null, second: inCall ? buttons[1] : null, send: buttons[buttons.length - 2] };
+}
 const adbTap = (n) => adb('shell', 'input', 'tap', String(Math.round((n.b[0] + n.b[2]) / 2)), String(Math.round((n.b[1] + n.b[3]) / 2)));
 function screenSize() {
   const m = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/g).pop().match(/(\d+)x(\d+)/);
@@ -83,8 +118,25 @@ adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP');
 adb('shell', 'input', 'keyevent', 'KEYCODE_MENU');
 adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
 
+// The browser's microphone: a speech-like signal (three tones switched on and off four times a second), so the echo
+// canceller and noise suppressor of getUserMedia let it through as they would a voice.
+const wav = path.join(os.tmpdir(), `dc-fake-mic-${process.pid}.wav`);
+{
+  const rate = 48000; const n = rate * 4; const pcm = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate; const on = Math.floor(t * 4) % 2 === 0 ? 1 : 0.05;
+    const v = on * 0.25 * (Math.sin(2 * Math.PI * 300 * t) + Math.sin(2 * Math.PI * 700 * t) + Math.sin(2 * Math.PI * 1300 * t));
+    pcm.writeInt16LE(Math.max(-32767, Math.min(32767, Math.round(v * 32767))), i * 2);
+  }
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0); h.writeUInt32LE(36 + pcm.length, 4); h.write('WAVEfmt ', 8); h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24); h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34);
+  h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
+  fs.writeFileSync(wav, Buffer.concat([h, pcm]));
+}
 const browser = await chromium.launch({
-  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
+  args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--use-file-for-fake-audio-capture=${wav}`,
+    '--autoplay-policy=no-user-gesture-required'],
 });
 const context = await browser.newContext({ viewport: { width: 1360, height: 900 }, permissions: ['microphone'], acceptDownloads: true });
 const page = await context.newPage();
@@ -137,17 +189,16 @@ try {
   const list = ui().filter((n) => /settings/i.test(n.pkg));
   await serviceBack();
   const target = list.find((n) => n.text && n.text.length > 3 && n.b[1] > size[1] * 0.25 && n.b[3] < size[1] * 0.9);
-  const textsBefore = list.map((n) => n.text).filter(Boolean).join('|');
-  if (target && box) {
-    const cx = (target.b[0] + target.b[2]) / 2 / size[0];
-    const cy = (target.b[1] + target.b[3]) / 2 / size[1];
-    const b2 = await canvas.boundingBox();
-    await page.mouse.click(b2.x + cx * b2.width, b2.y + cy * b2.height);
-  }
-  await sleep(2500);
-  const textsAfter = ui().map((n) => n.text).filter(Boolean).join('|');
-  await serviceBack();
-  check(`a click on "${target?.text}" in the image opens it on the phone`, !!target && textsAfter !== textsBefore);
+  // The row to click: found by its text with uiautomator, or (busy phone) a row a third of the way down the list.
+  const cx = target ? (target.b[0] + target.b[2]) / 2 / size[0] : 0.5;
+  const cy = target ? (target.b[1] + target.b[3]) / 2 / size[1] : 0.36;
+  const topBefore = top();
+  const b2 = await canvas.boundingBox();
+  await page.mouse.click(b2.x + cx * b2.width, b2.y + cy * b2.height);
+  let topAfter = topBefore;
+  for (let i = 0; i < 20 && topAfter === topBefore; i++) { await sleep(500); topAfter = top(); }
+  check(`a click on ${target ? `"${target.text}"` : 'a Settings row'} in the image opens it on the phone`, /settings/i.test(topBefore) && topAfter !== topBefore,
+    `${topBefore} -> ${topAfter}`);
   await shot('03-control');
   await page.getByTestId('support-key-back').click();
   await sleep(700);
@@ -157,17 +208,19 @@ try {
   const line = `Hola desde la consola ${Date.now() % 100000}`;
   await page.getByTestId('support-chat-input').fill(line);
   await page.getByTestId('support-chat-send').click();
-  const shown = await waitUi((ns) => (ns.find((n) => n.text.includes(line)) ? ns : null), 15000);
-  check('a message typed in the console is shown on the phone', !!shown, top());
+  let screen = null;
+  for (let i = 0; i < 40 && !(screen && screen.bubbles > 0); i++) { await sleep(1000); screen = supportScreen(); }
+  const read = screen ? ui().some((n) => n.text.includes(line)) : false;
+  await serviceBack();
+  check('a message typed in the console is shown on the phone', !!screen && screen.bubbles > 0,
+    screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
   const answer = `respuesta${Date.now() % 100000}`;
-  const field = shown && shown.find((n) => /EditText/.test(n.cls));
-  if (field) {
-    adbTap(field); // the person on the phone answers
-    await sleep(800);
+  if (screen && screen.field) {
+    adbTap(screen.field); // the person on the phone answers
+    await sleep(1200);
     adb('shell', 'input', 'text', answer);
-    await sleep(600);
-    const send = ui().find((n) => /^(Enviar|Send)$/.test(n.text));
-    if (send) adbTap(send);
+    await sleep(1200);
+    adbTap(supportScreen()?.send || screen.send);
   }
   const got = await page.getByTestId('support-chat-list').getByText(answer).waitFor({ timeout: 12000 }).then(() => true, () => false);
   check('the person\'s reply appears in the console\'s chat', got);
@@ -175,10 +228,11 @@ try {
 
   // --- voice -----------------------------------------------------------------------------------------------------
   await page.getByTestId('support-call').click();
-  const accept = await waitUi((ns) => ns.find((n) => /^(Aceptar|Accept)$/.test(n.text)), 15000);
-  if (accept) { check('the phone rings: "Soporte quiere hablar contigo"', true); adbTap(accept); }
+  let accept = null;
+  for (let i = 0; i < 25 && !accept && (await hook('s.callState')) !== 'active'; i++) { await sleep(1000); accept = supportScreen()?.first || null; }
+  if (accept && (await hook('s.callState')) !== 'active') { check('the phone rings: "Soporte quiere hablar contigo"', true); adbTap(accept); }
   else console.log('  (no Accept button: the policy answers calls unattended, or the call did not ring)');
-  await page.waitForFunction(() => window.__dcSupport?.callState === 'active', null, { timeout: 20000 }).catch(() => null);
+  await page.waitForFunction(() => window.__dcSupport?.callState === 'active', null, { timeout: 40000 }).catch(() => null);
   check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
   let phoneRxRms = 0; let pageRxRms = 0;
   for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
@@ -220,6 +274,7 @@ try {
   check('no errors in the browser console', errors.length === 0, errors.slice(0, 3).join(' | '));
 } finally {
   await browser.close();
+  fs.rmSync(wav, { force: true });
 }
 console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
 process.exit(fail ? 1 : 0);

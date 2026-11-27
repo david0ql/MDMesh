@@ -82,6 +82,13 @@ class SupportSessionManager @Inject constructor(
         Thread(it, "support-capture").apply { isDaemon = true }
     }
     private val files = SupportFiles(context)
+    /**
+     * The operator's touches and keys, in order, on a thread of their own: an accessibility call can wait seconds
+     * for a busy app, and that must not hold up the chat, the call or the frame acknowledgements.
+     */
+    private val inputExecutor = Executors.newSingleThreadExecutor {
+        Thread(it, "support-input").apply { isDaemon = true }
+    }
 
     @Volatile private var sessionId: String? = null
     @Volatile private var connection: SupportChannel.Connection? = null
@@ -249,7 +256,9 @@ class SupportSessionManager @Inject constructor(
             }
             "screen.stop" -> stopStream()
             "ack" -> m.int("seq")?.let { ackedSeq = it }
-            "tap", "swipe", "key", "text", "wake" -> if (!viewOnly) input(type, m)
+            "tap", "swipe", "key", "text", "wake" -> if (!viewOnly) {
+                inputExecutor.execute { runCatching { input(type, m) }.onFailure { Log.w(TAG, "input $type failed", it) } }
+            }
             "chat" -> m.str("s")?.takeIf { it.isNotBlank() }?.let(::onChat)
             "call.start" -> onCallStart(m.bool("testTone") == true)
             "call.end" -> { stopCall(notifyPeer = false); sendCallState("ended") }
