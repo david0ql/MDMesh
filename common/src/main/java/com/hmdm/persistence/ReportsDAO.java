@@ -86,6 +86,13 @@ public class ReportsDAO {
         return mapper.complianceRows(customerId);
     }
 
+    /** Most commands the latency report reads in one go. */
+    public static final int COMMAND_TIMINGS_LIMIT = 300_000;
+
+    public List<Map<String, Object>> commandTimings(int customerId, long from, long to) {
+        return mapper.commandTimings(customerId, from, to, COMMAND_TIMINGS_LIMIT);
+    }
+
     public List<Map<String, Object>> decommissioned(int customerId, long from, long to) {
         return mapper.decommissioned(customerId, from, to);
     }

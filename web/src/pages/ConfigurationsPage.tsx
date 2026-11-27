@@ -706,6 +706,7 @@ function ConfigEditor({
       />
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)}
+        apps={allowed.filter((a) => !!a.pkg && a.action !== 2).map((a) => ({ pkg: a.pkg as string, name: a.name }))}
         wifiRadio={typeof draft.wifi === 'boolean' ? draft.wifi : null} />
 
       {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}

@@ -3,7 +3,7 @@ import { SavedScriptsPanel } from './SavedScriptsPanel';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ACTION_TEMPLATES, type CommandTemplateExt, queueCommand, getDeviceState,
-  listCommandHistory, forceSync, type DeviceState, type CommandHistoryItem,
+  listCommandHistory, forceSync, cancelCommand, OFFLINE_QUEUED_NOTE, type DeviceState, type CommandHistoryItem,
 } from '../api/commands';
 import { getActivity, type DeviceEvent } from '../api/events';
 import { useToast } from '../ui/toast';
@@ -74,12 +74,33 @@ export function ActionConsole({ device }: { device: Device }) {
       const req = t.build ? t.build(values) : t.request;
       const res = await queueCommand(device.number, req);
       const id = (res?.id as number | string | undefined) ?? '';
-      toast.push('ok', `${t.label}: enviado`, id ? `Orden ${id}` : '');
+      if (res?.deviceOnline === false) {
+        toast.push('ok', `${t.label}: en cola`, OFFLINE_QUEUED_NOTE);
+      } else {
+        toast.push('ok', `${t.label}: enviado`, id ? `Orden ${id}` : '');
+      }
       await forceSync(device.number).catch(() => undefined); // nudge (no-op until MQTT lands)
       await refresh();
     } catch (e) {
       toast.push('err', `${t.label}: falló`, e instanceof Error ? e.message : '');
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancel(c: CommandHistoryItem) {
+    const name = COMMAND_LABELS[c.type] ?? c.type;
+    const warn = c.status === 'delivered'
+      ? '\n\nEl equipo ya la recibió: cancelarla evita que se reenvíe, pero pudo haberse ejecutado.' : '';
+    if (!window.confirm(`¿Cancelar la orden «${name}»?${warn}`)) return;
+    setBusy(true);
+    try {
+      await cancelCommand(device.number, c.id);
+      toast.push('ok', `${name}: cancelada`, '');
+    } catch (e) {
+      toast.push('err', `${name}: no se pudo cancelar`, e instanceof Error ? e.message : '');
+    } finally {
+      await refresh();
       setBusy(false);
     }
   }
@@ -149,7 +170,7 @@ export function ActionConsole({ device }: { device: Device }) {
 
       <ScriptPanel device={device} onQueued={() => { void refresh(); }} />
 
-      <RecentActivity history={history} activity={activity} />
+      <RecentActivity history={history} activity={activity} onCancel={(c) => { void cancel(c); }} busy={busy} />
 
 
       {active && (
@@ -226,7 +247,9 @@ function DeviceStatePanel({ state }: { state: DeviceState | null }) {
  *  - "Enviados desde consola": the command history (what the console sent TO the device).
  *  - "Actividad en el dispositivo": on-device user activity (what the user did ON the device — app/camera openings).
  */
-function RecentActivity({ history, activity }: { history: CommandHistoryItem[]; activity: DeviceEvent[] }) {
+function RecentActivity({ history, activity, onCancel, busy }: {
+  history: CommandHistoryItem[]; activity: DeviceEvent[]; onCancel?: (c: CommandHistoryItem) => void; busy?: boolean;
+}) {
   const [tab, setTab] = useState<'sent' | 'onDevice'>('sent');
   return (
     <section className="timeline">
@@ -238,25 +261,61 @@ function RecentActivity({ history, activity }: { history: CommandHistoryItem[]; 
           Actividad en el dispositivo
         </button>
       </div>
-      {tab === 'sent' ? <CommandTimeline items={history} /> : <ActivityTimeline items={activity} />}
+      {tab === 'sent' ? <CommandTimeline items={history} onCancel={onCancel} busy={!!busy} /> : <ActivityTimeline items={activity} />}
     </section>
   );
 }
 
-function CommandTimeline({ items }: { items: CommandHistoryItem[] }) {
+/** "1,4 s" under a minute, then "3 min 20 s", "2 h 5 min", "3 d 4 h". */
+function fmtLatency(ms?: number): string | null {
+  if (ms === undefined || ms === null || ms < 0) return null;
+  if (ms < 60_000) return `${(ms / 1000).toLocaleString('es-CO', { maximumFractionDigits: 1 })} s`;
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 3600) return `${Math.floor(totalSec / 60)} min ${totalSec % 60} s`;
+  const h = Math.floor(totalSec / 3600);
+  if (h < 48) return `${h} h ${Math.floor((totalSec % 3600) / 60)} min`;
+  return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+const fmtClock = (ts?: number) => (ts ? new Date(ts).toLocaleString('es-CO') : null);
+
+function CommandTimeline({ items, onCancel, busy }: {
+  items: CommandHistoryItem[]; onCancel?: (c: CommandHistoryItem) => void; busy: boolean;
+}) {
   if (!items.length) return <p className="muted">Aún no se han enviado órdenes a este dispositivo.</p>;
   return (
     <ul>
-      {items.map((c) => (
-        <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
-          <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
-          <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
-          {(c.completedAt ?? c.createdAt) && (
-            <span className="t-when muted small">{new Date((c.completedAt ?? c.createdAt) as number).toLocaleString('es-CO')}</span>
-          )}
-          {c.detail && <CommandDetail text={c.detail} />}
-        </li>
-      ))}
+      {items.map((c) => {
+        const open = c.status === 'pending' || c.status === 'delivered';
+        const ran = c.status === 'done' || c.status === 'failed' || c.status === 'unsupported';
+        const deliveryLat = fmtLatency(c.deliveryMs);
+        const totalLat = fmtLatency(c.totalMs);
+        const endWord = c.status === 'cancelled' ? 'Cancelada' : c.status === 'expired' ? 'Venció' : 'Completada';
+        return (
+          <li key={String(c.id)} className={`timeline-item status-${c.status}`}>
+            <span className="t-type" title={c.type}>{COMMAND_LABELS[c.type] ?? c.type}{c.subject ? ` · ${c.subject}` : ''}</span>
+            <span className={`t-status status-${c.status}`}>{STATUS_LABELS[c.status] ?? c.status}</span>
+            {open && onCancel && (
+              <button type="button" className="btn btn-sm t-cancel" disabled={busy} onClick={() => onCancel(c)}>
+                Cancelar
+              </button>
+            )}
+            <span className="t-steps muted small">
+              <span>Creada {fmtClock(c.createdAt) ?? '—'}</span>
+              <span>→ Entregada {c.deliveredAt ? `${fmtClock(c.deliveredAt)}${deliveryLat ? ` (${deliveryLat})` : ''}` : '—'}</span>
+              <span>→ {endWord} {c.completedAt ? `${fmtClock(c.completedAt)}${ran && totalLat ? ` (${totalLat})` : ''}` : '—'}</span>
+            </span>
+            <span className="t-who muted small">
+              Enviada por {c.issuerName || '—'}{c.issuerIp ? ` · ${c.issuerIp}` : ''}
+              {(c.deliveries ?? 0) > 1 ? ` · entregada ${c.deliveries} veces` : ''}
+            </span>
+            {c.status === 'pending' && (
+              <span className="t-detail">En cola: se ejecutará cuando el equipo vuelva a conectarse.</span>
+            )}
+            {c.detail && <CommandDetail text={c.detail} />}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -289,8 +348,8 @@ function ActivityTimeline({ items }: { items: DeviceEvent[] }) {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'En cola', delivered: 'Entregada', accepted: 'Recibida', done: 'Hecha',
-  failed: 'Falló', unsupported: 'No soportada', expired: 'Venció',
+  pending: 'Pendiente', delivered: 'Entregado', accepted: 'Entregado', done: 'Ejecutado',
+  failed: 'Fallido', unsupported: 'No soportado', expired: 'Vencido', cancelled: 'Cancelado',
 };
 
 const COMMAND_LABELS: Record<string, string> = {

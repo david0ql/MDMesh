@@ -29,6 +29,24 @@ public class CommandHistoryView {
     private Long completedAt;
     /** The package an {@code app.install}/{@code app.uninstall} targets; null for every other type. */
     private String subject;
+    /** Who queued it (a console login, or "sistema" for automatic commands) and from which address. */
+    private String issuerName;
+    private String issuerIp;
+    /** Times it was handed to the device; more than one means a delivery went unanswered and was repeated. */
+    private Integer deliveries;
+    /** Milliseconds from queueing to delivery, and from queueing to the device's result; null while not reached. */
+    private Long deliveryMs;
+    private Long totalMs;
+    /**
+     * Only on the answer to queueing a command: whether the device's live channel was open at that moment. False
+     * means the command stays in the queue and runs when the device connects again.
+     */
+    private Boolean deviceOnline;
+
+    /** The span between two instants, or null when either is missing or they are out of order. */
+    static Long span(Long from, Long to) {
+        return from == null || to == null || to < from ? null : Long.valueOf(to - from);
+    }
 
     public static CommandHistoryView from(AgentCommand c) {
         CommandHistoryView v = new CommandHistoryView();
@@ -40,6 +58,13 @@ public class CommandHistoryView {
         v.setDeliveredAt(c.getDeliveredAt());
         v.setCompletedAt(c.getCompletedAt());
         v.setSubject(subjectOf(c.getType(), c.getPayload()));
+        v.setIssuerName(c.getIssuerName());
+        v.setIssuerIp(c.getIssuerIp());
+        v.setDeliveries(c.getDeliveries());
+        v.setDeliveryMs(span(c.getCreatedAt(), c.getDeliveredAt()));
+        // Only a result the device reported is a latency; an expiry or a cancellation is not.
+        boolean ran = "done".equals(c.getStatus()) || "failed".equals(c.getStatus()) || "unsupported".equals(c.getStatus());
+        v.setTotalMs(ran ? span(c.getCreatedAt(), c.getCompletedAt()) : null);
         return v;
     }
 

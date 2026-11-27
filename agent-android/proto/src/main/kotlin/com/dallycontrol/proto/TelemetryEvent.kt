@@ -65,6 +65,16 @@ object EventType {
      */
     const val APP_NO_VERSION = "appNoVersion"
 
+    /**
+     * Mobile data: a limit of the policy reached its warning threshold. `detail` is a readable line per limit,
+     * e.g. `Equipo: 410 MB de 500 MB (82 %)` or `YouTube (com.google.android.youtube): 85 MB de 100 MB (85 %)`.
+     * Recorded once per limit and period.
+     */
+    const val DATA_WARNING = "dataWarning"
+
+    /** Mobile data: a limit was spent; the app (or every non-essential app) lost mobile data until the next period. */
+    const val DATA_LIMIT = "dataLimit"
+
     /** The Wi-Fi safeguard lifted the lock-down: no usable network for the grace period. `detail` says why. */
     const val WIFI_LOCKDOWN_RELAXED = "wifiLockdownRelaxed"
     /** The lock-down the safeguard had lifted is in force again. */

@@ -97,4 +97,15 @@
         </rollback>
     </changeSet>
 
+    <!-- Role 200 ("Visor", view-only, created by the main changelog) must not get this plugin's permission. The
+         changeSets above grant it to every role that exists when they run: on a fresh install role 200 already
+         exists by then, on installs older than the role it did not. Least privilege, same as production; a no-op
+         where the grant is absent. -->
+    <changeSet id="plugin-messaging-26.11.27-visor-least-privilege" author="dallycontrol" context="common">
+        <sql>
+            DELETE FROM userRolePermissions
+                WHERE roleId = 200 AND permissionId IN (SELECT id FROM permissions WHERE name IN ('plugin_messaging_send'));
+        </sql>
+        <rollback/>
+    </changeSet>
 </databaseChangeLog>

@@ -78,8 +78,45 @@ data class DynamicState(
     val appUsage: AppUsageReport? = null,
     /** Android's "usage access" is on for the agent (needed for per-app screen time and the battery estimate). */
     val usageAccess: Boolean? = null,
+    /** Mobile-data restriction as enforced right now (null = the configuration does not manage it). */
+    val mobileData: MobileDataStatus? = null,
     /** The policy's Wi-Fi networks and lock-down as they stand on the phone; null = the policy manages no Wi-Fi. */
     val managedWifi: ManagedWifiReport? = null,
+)
+
+/**
+ * The mobile-data policy as the device enforces it. [mechanism]: `dpm` (system metered-data restriction), `vpn`
+ * (the agent's local VPN) or `none`. [vpnActive]: the VPN tunnel is up now (it is only up on a mobile network).
+ * [blocked]: packages without mobile data and why (`policy`, `appLimit`, `deviceLimit`). [problem]: why the policy
+ * could not be enforced as asked (another always-on VPN, not Device Owner…), null when all is well.
+ */
+@Serializable
+data class MobileDataStatus(
+    val mode: String,
+    val mechanism: String,
+    val vpnActive: Boolean? = null,
+    val blocked: List<MobileDataBlocked> = emptyList(),
+    val blockedCount: Int = 0,
+    val period: String = "monthly",
+    val periodStart: Long = 0,
+    val periodEnd: Long = 0,
+    val deviceBytes: Long = 0,
+    val deviceLimitBytes: Long? = null,
+    val warnPercent: Int = 80,
+    val apps: List<MobileDataAppUsage> = emptyList(),
+    val problem: String? = null,
+    val evaluatedAt: Long = 0,
+)
+
+@Serializable
+data class MobileDataBlocked(val pkg: String, val reason: String)
+
+@Serializable
+data class MobileDataAppUsage(
+    val pkg: String,
+    val label: String? = null,
+    val bytes: Long = 0,
+    val limitBytes: Long? = null,
 )
 
 /** State of the policy's Wi-Fi on the device, as the agent sees it at [checkedAt] (epoch ms). */

@@ -81,7 +81,9 @@ class DiagnoseHandler(
         val atm = context.getSystemService(ActivityManager::class.java)
         o.put("kiosk", JSONObject()
             .put("locked", when (atm.lockTaskModeState) { ActivityManager.LOCK_TASK_MODE_LOCKED -> "bloqueado"; ActivityManager.LOCK_TASK_MODE_PINNED -> "fijado"; else -> "no" })
-            .put("allowedApps", JSONArray(runCatching { handle.dpm.getLockTaskPackages(handle.admin).toList() }.getOrDefault(emptyList()))))
+            .put("allowedApps", JSONArray(lockTaskPackages())))
+        // Location: what the last fresh-position request tried, how long each provider took, who answered.
+        o.put("location", locationTrace())
         // Apps that came to the front lately (needs usage access)
         o.put("foreground", JSONArray(foreground(now - 30 * 60_000L, now)))
         // Battery / network
@@ -91,6 +93,25 @@ class DiagnoseHandler(
         o.put("agentExits", ExitReasons.recent(context))
         return o
     }
+
+    private fun locationTrace(): Any {
+        val t = com.dallycontrol.core.location.FixPolicy.lastTrace ?: return JSONObject.NULL
+        val attempts = t.attempts.map { a ->
+            JSONObject().put("provider", a.provider).put("allowedMs", a.allowedMs)
+                .put("tookMs", a.tookMs).put("answered", a.answered)
+        }
+        return JSONObject().put("at", t.at).put("available", JSONArray(t.available))
+            .put("budgetSec", t.budgetSec).put("answeredBy", t.answeredBy ?: JSONObject.NULL)
+            .put("totalMs", t.totalMs).put("summary", t.summary()).put("attempts", JSONArray(attempts))
+    }
+
+    /** Packages allowed in lock task; the getter exists from Android 8 (API 26). */
+    private fun lockTaskPackages(): List<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { handle.dpm.getLockTaskPackages(handle.admin).toList() }.getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
 
     private fun foreground(from: Long, to: Long): List<JSONObject> = runCatching {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager

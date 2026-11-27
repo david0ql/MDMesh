@@ -3413,6 +3413,31 @@
         </sql>
     </changeSet>
 
+    <changeSet id="26.11.27-command-issuer-deliveries" author="dallycontrol">
+        <comment>Remote commands that are never lost: who queued each command (console user id, login and address, or
+                 "sistema"), how many times it was handed to the device (a delivery without answer is repeated), and
+                 the "wiped" mark of a device that received a remote wipe and stopped reporting.</comment>
+        <sql>
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerId INT;
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerName VARCHAR(255);
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerIp VARCHAR(64);
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS deliveries INT NOT NULL DEFAULT 0;
+            UPDATE agentCommand SET deliveries = 1 WHERE deliveries = 0 AND deliveredAt IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS agentCommand_createdAt_idx ON agentCommand (createdAt);
+            ALTER TABLE devices ADD COLUMN IF NOT EXISTS wipedAt BIGINT;
+            ALTER TABLE devices ADD COLUMN IF NOT EXISTS wipedBy VARCHAR(255);
+        </sql>
+        <rollback>
+            ALTER TABLE devices DROP COLUMN IF EXISTS wipedBy;
+            ALTER TABLE devices DROP COLUMN IF EXISTS wipedAt;
+            DROP INDEX IF EXISTS agentCommand_createdAt_idx;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS deliveries;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerIp;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerName;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerId;
+        </rollback>
+    </changeSet>
+
     <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
          still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
          where the grant already exists. -->
@@ -3569,6 +3594,369 @@
             DROP TABLE IF EXISTS agent_install_origin;
         </rollback>
     </changeSet>
+
+    <changeSet id="26.11.27-alert-offline-minutes" author="dallycontrol">
+        <comment>The "disconnected" threshold the administrator sets in the Alerts page is saved per customer, so the
+                 alert e-mails use the same value (it was a fixed 20 minutes there).</comment>
+        <sql>
+            ALTER TABLE geofence_settings ADD COLUMN IF NOT EXISTS offlineMinutes INT NOT NULL DEFAULT 20;
+        </sql>
+        <rollback>
+            ALTER TABLE geofence_settings DROP COLUMN IF EXISTS offlineMinutes;
+        </rollback>
+    </changeSet>
+
+    <!-- More objects that only existed in the production database, found by scripts/schema-drift-check.sh (the
+         mappers use them, no changeSet created them, so a fresh install or a restore into a new server failed on
+         the policy history, saved scripts and the settings page). Same definitions as production.
+         Idempotent: a no-op where they already exist. -->
+    <changeSet id="26.11.27-backfill-drift-check" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS config_audit (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                configurationId INT,
+                configurationName VARCHAR(255),
+                userId INT,
+                userName VARCHAR(255),
+                action VARCHAR(16) NOT NULL,
+                changesJson TEXT,
+                revision VARCHAR(64),
+                createdAt BIGINT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS config_audit_cfg_idx ON config_audit (configurationId, id DESC);
+            CREATE INDEX IF NOT EXISTS config_audit_customer_idx ON config_audit (customerId);
+
+            CREATE TABLE IF NOT EXISTS savedScript (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name VARCHAR(100) NOT NULL,
+                description VARCHAR(500),
+                body TEXT NOT NULL,
+                paramsJson TEXT,
+                quickAction BOOLEAN NOT NULL DEFAULT FALSE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS idx_savedscript_customer ON savedScript (customerId);
+
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS dashboardRefreshSeconds INTEGER;
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS offlineThresholdDays INTEGER;
+        </sql>
+        <rollback/>
+    </changeSet>
+
+    <!-- Role permissions that only existed in the production database (granted by hand), found by
+         scripts/schema-drift-check.sh (role comparison): the manage_scripts permission itself (ScriptsResource checks
+         it; no changeSet created it, so on a fresh install nobody could author saved scripts) for roles 2 (Admin)
+         and 3 (User), and add_config for role 3. By role id; a no-op where they already exist. -->
+    <changeSet id="26.11.27-backfill-role-permissions" author="dallycontrol">
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y borrar scripts guardados', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ((ur.id IN (2, 3) AND p.name = 'manage_scripts') OR (ur.id = 3 AND p.name = 'add_config'))
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback/>
+    </changeSet>
+
+
+    <changeSet id="26.11.27-device-conn-diag" author="dallycontrol">
+        <comment>Connection diagnostics per device (device_connection is the presence history, another thing): screen/network as of the last report, the last network failure
+                 and the last explained silence reported by the agent (console: "Última falla de conexión", "En reposo").</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_conn_diag (
+                deviceNumber    VARCHAR(255) PRIMARY KEY,
+                updatedAt       BIGINT NOT NULL,
+                screenOn        BOOLEAN,
+                network         VARCHAR(16),
+                serverHost      VARCHAR(255),
+                usingBackup     BOOLEAN,
+                reconnects      BIGINT NOT NULL DEFAULT 0,
+                failureKind     VARCHAR(16),
+                failureAt       BIGINT,
+                failureDetail   VARCHAR(400),
+                failureHttpCode INT,
+                failureChannel  VARCHAR(16),
+                failureNetwork  VARCHAR(16),
+                failureSsid     VARCHAR(64),
+                failureHost     VARCHAR(255),
+                failureIssuer   VARCHAR(400),
+                failureCount    INT,
+                stopReason      VARCHAR(24),
+                stopAt          BIGINT,
+                stopResumedAt   BIGINT,
+                stopBattery     INT
+            );
+        </sql>
+        <sql splitStatements="false">
+            -- Own trigger (not the shared dallycontrol_delete_device_agent_data): deleting a device drops its diagnostics.
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_conn_diag() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM device_conn_diag WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <sql>
+            DROP TRIGGER IF EXISTS devices_delete_conn_diag ON devices;
+            CREATE TRIGGER devices_delete_conn_diag AFTER DELETE ON devices
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_delete_device_conn_diag();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS devices_delete_conn_diag ON devices;
+            DROP FUNCTION IF EXISTS dallycontrol_delete_device_conn_diag();
+            DROP TABLE IF EXISTS device_conn_diag;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-enroll-reliability" author="dallycontrol">
+        <comment>QR enrollment that always works (MDM-01): a single-use token remembers the device that consumed it
+                 (that device may retry when the answer was lost), hidden Wi-Fi on folder codes, and the log of
+                 enrollment attempts (reason, maker, model, Android) the console shows on the Enroll page.</comment>
+        <sql>
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS usedAt BIGINT;
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedHardwareId VARCHAR(128);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedSerial VARCHAR(64);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS claimedImei VARCHAR(32);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS deviceNumber VARCHAR(100);
+            ALTER TABLE agentEnrollmentToken ADD COLUMN IF NOT EXISTS wifiHidden BOOLEAN NOT NULL DEFAULT FALSE;
+
+            CREATE TABLE IF NOT EXISTS agent_enroll_attempt (
+                id SERIAL PRIMARY KEY,
+                customerId INT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                tokenId INT NULL REFERENCES agentEnrollmentToken(id) ON DELETE SET NULL,
+                groupId INT NULL REFERENCES groups(id) ON DELETE SET NULL,
+                at BIGINT NOT NULL,
+                lastAt BIGINT NOT NULL,
+                count INT NOT NULL DEFAULT 1,
+                outcome VARCHAR(16) NOT NULL,
+                reason VARCHAR(64) NOT NULL,
+                detail TEXT,
+                path VARCHAR(24),
+                manufacturer VARCHAR(100),
+                model VARCHAR(100),
+                androidRelease VARCHAR(32),
+                sdkInt INT,
+                agentVersion VARCHAR(32),
+                hardwareId VARCHAR(128),
+                serial VARCHAR(64),
+                ip VARCHAR(64),
+                deviceNumber VARCHAR(100),
+                tries INT
+            );
+            CREATE INDEX IF NOT EXISTS agent_enroll_attempt_customer_idx ON agent_enroll_attempt (customerId, lastAt DESC);
+            CREATE INDEX IF NOT EXISTS agent_enroll_attempt_token_idx ON agent_enroll_attempt (tokenId, lastAt DESC);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS agent_enroll_attempt;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS wifiHidden;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS deviceNumber;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedImei;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedSerial;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS claimedHardwareId;
+            ALTER TABLE agentEnrollmentToken DROP COLUMN IF EXISTS usedAt;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-mobile-data" author="dallycontrol">
+        <comment>Mobile data per app: a device's own override of its policy's mobile-data section (apps always allowed
+                 or blocked on that device, limits ignored, or no restriction at all). Removed with the device.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_mobile_data (
+                deviceId  INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                settings  TEXT NOT NULL,
+                updatedAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_mobile_data;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-audit-trail" author="dallycontrol">
+        <comment>Audit trail of what every console user does (who, when, from where, what, on what, result, change).
+                 Append-only: UPDATE is always refused and DELETE only passes inside the retention purge, which sets
+                 dallycontrol.audit_purge for its own transaction. Rows are chained by hash per customer (prevHash / hash).
+                 audit_settings holds each customer's retention (default 365 days).</comment>
+        <sql splitStatements="false">
+            CREATE TABLE IF NOT EXISTS audit_trail (
+                id BIGSERIAL PRIMARY KEY,
+                createdAt BIGINT NOT NULL,
+                customerId INT,
+                userId INT,
+                login TEXT,
+                userName TEXT,
+                roleId INT,
+                roleName TEXT,
+                ip TEXT,
+                userAgent TEXT,
+                category VARCHAR(32) NOT NULL,
+                action VARCHAR(96) NOT NULL,
+                label TEXT NOT NULL,
+                method VARCHAR(8),
+                path TEXT,
+                targetType VARCHAR(24),
+                targetId TEXT,
+                targetName TEXT,
+                deviceNumbers TEXT[],
+                groupIds INT[],
+                result VARCHAR(8) NOT NULL,
+                httpStatus INT,
+                message TEXT,
+                detail TEXT,
+                durationMs INT,
+                prevHash VARCHAR(64),
+                hash VARCHAR(64) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS audit_trail_customer_idx ON audit_trail (customerId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_chain_idx ON audit_trail (customerId, id);
+            CREATE INDEX IF NOT EXISTS audit_trail_user_idx ON audit_trail (userId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_devices_idx ON audit_trail USING GIN (deviceNumbers);
+            CREATE INDEX IF NOT EXISTS audit_trail_groups_idx ON audit_trail USING GIN (groupIds);
+
+            CREATE TABLE IF NOT EXISTS audit_settings (
+                customerId INT PRIMARY KEY,
+                retentionDays INT NOT NULL DEFAULT 365
+            );
+
+            CREATE OR REPLACE FUNCTION dallycontrol_audit_trail_guard() RETURNS trigger AS $fn$
+            BEGIN
+                IF TG_OP = 'DELETE' AND current_setting('dallycontrol.audit_purge', true) = 'on' THEN
+                    RETURN OLD;
+                END IF;
+                RAISE EXCEPTION 'audit_trail is append-only (% refused)', TG_OP;
+            END
+            $fn$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS audit_trail_no_change ON audit_trail;
+            CREATE TRIGGER audit_trail_no_change BEFORE UPDATE OR DELETE ON audit_trail
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+            DROP TRIGGER IF EXISTS audit_trail_no_truncate ON audit_trail;
+            CREATE TRIGGER audit_trail_no_truncate BEFORE TRUNCATE ON audit_trail
+                FOR EACH STATEMENT EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS audit_settings;
+            DROP TABLE IF EXISTS audit_trail;
+            DROP FUNCTION IF EXISTS dallycontrol_audit_trail_guard();
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-audit-permission" author="dallycontrol">
+        <comment>Permission,new: view_audit — opens the Auditoría screen (and the activity of a device or a user).
+                 Granted by id to the super-administrator (1) and the administrator (2); a folder role that receives
+                 it only sees the rows of its own folders and users.</comment>
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'view_audit', 'Ver la auditoria de acciones (el usuario de carpetas solo la de sus carpetas)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'view_audit');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'view_audit'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'view_audit');
+            DELETE FROM permissions WHERE name = 'view_audit';
+        </rollback>
+    </changeSet>
+
+    <!-- More objects that existed only in the production database (applied by hand), found by running the role and
+         audit tests on an empty database: the saved scripts, the policy change history and the permission that
+         gates script authoring. Without them a fresh install could not save a script nor record a policy edit.
+         Idempotent: a no-op where they already exist. Granted by role id (1 super-admin, 2 administrator). -->
+    <changeSet id="26.11.27-backfill-scripts-config-audit" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS savedScript (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                description TEXT,
+                body TEXT,
+                paramsJson TEXT,
+                quickAction BOOLEAN NOT NULL DEFAULT FALSE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS savedscript_customer_idx ON savedScript (customerId);
+
+            CREATE TABLE IF NOT EXISTS config_audit (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                configurationId INT,
+                configurationName VARCHAR(255),
+                userId INT,
+                userName VARCHAR(255),
+                action VARCHAR(32),
+                changesJson TEXT,
+                revision VARCHAR(64),
+                createdAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS config_audit_configuration_idx ON config_audit (configurationId, id);
+
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y eliminar scripts', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'manage_scripts'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-enroll-permission-enforced" author="dallycontrol">
+        <comment>enroll_devices is now checked by the server (enrollment tokens and codes; until now edit_devices
+                 opened them and enroll_devices was only a row in the role matrix). So that nobody loses what they
+                 can do today, every role that operates devices (edit_devices) receives enroll_devices; an
+                 administrator can then untick it per role. Idempotent.</comment>
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT DISTINCT urp.roleId, e.id
+                FROM userRolePermissions urp
+                    INNER JOIN permissions p ON p.id = urp.permissionId AND p.name = 'edit_devices'
+                    CROSS JOIN permissions e
+                WHERE e.name = 'enroll_devices'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = urp.roleId AND x.permissionId = e.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-role-templates" author="dallycontrol">
+        <comment>Two ready-made roles (by fixed id, like the view-only role 200) that an administrator can assign as
+                 they are or duplicate: 210 "Solo lectura" (sees devices, applications and files; changes nothing and
+                 sends no command) and 211 "Técnico de soporte" (operates devices with the safe actions and remote
+                 control, edits their description; no interrupting actions — lock, reboot, change passcode, wipe —
+                 and no fleet, policy or enrollment changes). Idempotent.</comment>
+        <sql>
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 210, 'Solo lectura', 'Solo ve: dispositivos, aplicaciones y archivos. No modifica nada ni envia comandos', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 210 OR name = 'Solo lectura');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 210, p.id FROM permissions p
+                WHERE p.name IN ('applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 210 AND name = 'Solo lectura')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 210 AND x.permissionId = p.id);
+
+            INSERT INTO userRoles (id, name, description, superadmin)
+                SELECT 211, 'Técnico de soporte', 'Opera dispositivos con acciones seguras y control remoto, sin acciones que interrumpen (bloquear, reiniciar, cambiar clave, borrar)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM userRoles WHERE id = 211 OR name = 'Técnico de soporte');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT 211, p.id FROM permissions p
+                WHERE p.name IN ('edit_devices', 'edit_device_desc', 'applications', 'files')
+                  AND EXISTS (SELECT 1 FROM userRoles WHERE id = 211 AND name = 'Técnico de soporte')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions x WHERE x.roleId = 211 AND x.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE roleId IN (210, 211);
+            DELETE FROM userRoles WHERE id IN (210, 211);
 
     <changeSet id="26.11.27-wifi-certificates" author="dallycontrol">
         <comment>Certificates of enterprise Wi-Fi networks (the RADIUS server's CA; the client's PKCS#12 for EAP-TLS).

@@ -35,8 +35,8 @@ no escribes una nueva, se conserva la que estaba. Tampoco salen en el historial 
 | Red oculta | Para redes que no anuncian su nombre | todas |
 | Conectarse automáticamente | Apagada: la red queda guardada pero el equipo no entra solo | todas |
 | Prioridad (0–999) | Con varias redes gestionadas al alcance, el equipo se pasa a la de mayor prioridad | todas (ver nota) |
-| Dirección MAC | Aleatoria o la del dispositivo (para filtros por MAC o reservas DHCP) | Android 10+ |
-| Uso de datos | Medida / no medida | Android 9+ |
+| Dirección MAC | Aleatoria o la del dispositivo (para filtros por MAC o reservas DHCP) | Android 13+ (en 10–12 Android puede rechazarla; antes de 10 siempre es la del dispositivo) |
+| Uso de datos | Medida / no medida | Android 11+ (en 9–10 Android puede rechazarla) |
 | Proxy | Manual (servidor, puerto, excepciones) o archivo PAC | Android 8+ |
 | Dirección IP | Fija (IP, prefijo, puerta de enlace, DNS) en lugar de DHCP | todas |
 
@@ -69,7 +69,9 @@ Un certificado que usa alguna política no se puede eliminar. Subir y eliminar c
 políticas nuevas»; verlos y usarlos en una red, el de «Ver políticas».
 
 En el equipo, el agente instala la CA (`installCaCert`) y el par de claves del cliente (`installKeyPair`) como Device
-Owner, y los quita cuando ninguna red de la política los usa.
+Owner, y los quita cuando ninguna red de la política los usa. En Android 9 y anteriores el almacén de claves del
+sistema solo acepta el par de claves si el equipo tiene bloqueo de pantalla; sin él, la red EAP‑TLS igual queda
+configurada con su propia copia del certificado (es la que usa el Wi‑Fi).
 
 ## Bloqueos de Wi‑Fi
 
@@ -138,8 +140,8 @@ Además lista los bloqueos en vigor, los que esa versión de Android no tiene y,
 | Seguridad mínima | — | — | — | `setMinimumRequiredWifiSecurityLevel` |
 | Proxy | — (API 26+: `setHttpProxy`) | `setHttpProxy` | igual | igual |
 | IP fija | campos ocultos de `WifiConfiguration` | igual | igual | `setIpConfiguration` (API pública) |
-| MAC | siempre la del dispositivo | campo oculto `macRandomizationSetting` | igual | `setMacRandomizationSetting` (API pública) |
-| Medida | campo oculto `meteredOverride` (API 28) | igual | igual | igual |
+| MAC | siempre la del dispositivo | campo oculto `macRandomizationSetting` | igual (rechazado en el emulador de Android 11) | `setMacRandomizationSetting` (API pública) |
+| Medida | campo oculto `meteredOverride` (rechazado en el emulador de Android 9) | igual | igual (aplicado en Android 11) | igual (aplicado en Android 15) |
 
 **Por qué `WifiConfiguration` y no `WifiNetworkSuggestion`.** `WifiConfiguration`/`addNetwork` está obsoleta para apps
 normales desde Android 10, pero sigue siendo la API de un Device Owner y la única que: guarda la red sin preguntar al
@@ -150,6 +152,14 @@ en ese caso la ficha del equipo marca la red «como sugerencia».
 
 Las opciones marcadas como «campo oculto» no tienen API pública en esa versión: el agente lo intenta y, si Android lo
 rechaza, guarda la red sin la opción y lo reporta (no hay fallo silencioso).
+
+Dos detalles de cómo Android trata las redes de un Device Owner, que el agente resuelve solo:
+
+- Una red recién guardada queda **deshabilitada para conexión automática** hasta que Android acepta `enableNetwork`, y
+  lo rechaza mientras el radio está arrancando. El agente espera al radio antes de guardar y, cada minuto, habilita las
+  redes gestionadas que sigan deshabilitadas.
+- Para saber si una red está al alcance hace falta un escaneo reciente: el agente pide uno al aplicar la política y
+  cada 5 minutos. Sin escaneo, la ficha dice «Configurada» en vez de inventar «Fuera de alcance».
 
 ## Compatibilidad con agentes anteriores
 
@@ -176,8 +186,8 @@ Crea una CA y un PKCS#12 de prueba con `openssl`, los sube, guarda en la políti
 (PSK oculta, SAE, transición, OWE, PEAP, TTLS, EAP‑TLS y una con todas las opciones) y comprueba en el teléfono, con
 `cmd wifi list-networks`, `dumpsys wifi` y `dumpsys device_policy`, que quedaron con los parámetros correctos, que los
 certificados se instalaron, que el bloqueo impide olvidarlas (`cmd wifi forget-network`), que en Android 13+ la lista
-de SSID y la seguridad mínima sacan al equipo de una red no permitida, que la salvaguarda actúa al quedarse sin red
-(unos 3 minutos; `--skip-safeguard` la omite) y que al quitar las redes de la política desaparecen del teléfono con
+de SSID y la seguridad mínima sacan al equipo de una red no permitida, que el radio forzado se repone, que la
+salvaguarda actúa al quedarse sin red (unos 3 minutos; `--skip-safeguard` la omite) y que al quitar las redes de la política desaparecen del teléfono con
 sus certificados. Usa una política sin redes Wi‑Fi propias: la deja como estaba al terminar.
 
 La consola se prueba aparte, en un navegador sin ventana:

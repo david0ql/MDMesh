@@ -31,6 +31,15 @@ class GetProvisioningModeActivity : Activity() {
         val extras = adminExtras()
         ServerConfigStore(applicationContext)
             .save(extras?.getString(AdminReceiver.EXTRA_SERVER_URL))
+        // Keep the token too. The callbacks that normally deliver it (ADMIN_POLICY_COMPLIANCE, or the older
+        // PROFILE_PROVISIONING_COMPLETE) only come when the phone's setup wizard finishes and asks Android to
+        // finalize provisioning; a maker's wizard that never does left a phone that is Device Owner with no token,
+        // managed but never in the console. ProvisioningIntake.adoptPending uses this copy once the agent owns the
+        // device and nothing else delivered the payload.
+        com.dallycontrol.core.enroll.EnrollStatusStore(applicationContext).savePending(
+            extras?.getString(AdminReceiver.EXTRA_ENROLL_TOKEN),
+            extras?.getString(AdminReceiver.EXTRA_SERVER_URL),
+        )
 
         val result = Intent().apply {
             putExtra(
