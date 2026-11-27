@@ -295,7 +295,7 @@ def take_slot(owner):
                 continue
             open(f"{SLOTS}/slot{n}/owner", "w").write(owner + "\n")
             return n, port
-        time.sleep(60)
+        time.sleep(5)
 
 
 def release_slot(n):
@@ -309,6 +309,17 @@ def release_slot(n):
         os.rmdir(f"{SLOTS}/slot{n}")
     except OSError:
         pass
+
+
+def clean_avd(avd):
+    """Free the disk an AVD's data takes (hundreds of MB each); every run wipes it anyway. Keeps config.ini."""
+    import shutil
+    d = os.path.expanduser(f"~/.android/avd/{avd}.avd")
+    for name in os.listdir(d) if os.path.isdir(d) else []:
+        if name == "config.ini":
+            continue
+        path = os.path.join(d, name)
+        shutil.rmtree(path, ignore_errors=True) if os.path.isdir(path) else os.remove(path)
 
 
 def matrix(a):
@@ -350,6 +361,8 @@ def matrix(a):
         finally:
             kill(serial)
             release_slot(slot)
+            if a.clean_avd:
+                clean_avd(avd)
         results.append(line)
         open(os.path.join(a.out, "summary.txt"), "w").write("\n".join(results) + "\n")
     print("\n".join(["", "==== SUMMARY ===="] + results), flush=True)
@@ -373,6 +386,7 @@ def main():
     m.add_argument("--out", required=True); m.add_argument("--owner", default="qr-matrix")
     m.add_argument("--mint", help="console base URL: mint a token per device and wait until it enrolls")
     m.add_argument("--admin", default="admin:admin"); m.add_argument("--timeout", type=int, default=420)
+    m.add_argument("--clean-avd", action="store_true", help="delete each AVD's data after its run (frees disk)")
     m.add_argument("--run-args", nargs=argparse.REMAINDER, default=[])
     m.add_argument("avds", nargs="+")
     a = p.parse_args()

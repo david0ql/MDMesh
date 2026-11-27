@@ -105,8 +105,8 @@ public class AgentEnrollmentTokenDAO {
     public void logAttempt(com.hmdm.persistence.domain.AgentEnrollAttempt attempt) {
         if (mapper.bumpAttempt(attempt) == 0) {
             mapper.insertAttempt(attempt);
-            // Housekeeping on the insert path: nothing older than 60 days is of use to anyone.
-            if (java.util.concurrent.ThreadLocalRandom.current().nextInt(50) == 0) {
+            // Housekeeping on the insert path (about one insert in fifty): nothing older than 60 days is of use.
+            if (attempt.getAt() % 50 == 0) {
                 mapper.purgeAttempts(System.currentTimeMillis() - 60L * 24 * 3600 * 1000);
             }
         }

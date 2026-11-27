@@ -12,7 +12,7 @@ export function EnrollAttemptsPanel() {
   const [onlyProblems, setOnlyProblems] = useState(false);
 
   const load = useCallback(async () => {
-    try { setRows(await listEnrollAttempts(150)); } catch { setRows((r) => r ?? []); }
+    try { setRows(await listEnrollAttempts(60)); } catch { setRows((r) => r ?? []); }
   }, []);
   useEffect(() => {
     void load();
