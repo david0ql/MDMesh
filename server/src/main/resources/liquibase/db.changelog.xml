@@ -3410,4 +3410,37 @@
         </sql>
     </changeSet>
 
+    <changeSet id="26.11.27-device-connection" author="dallycontrol">
+        <comment>Connection diagnostics per device: screen/network as of the last report, the last network failure
+                 and the last explained silence reported by the agent (console: "Última falla de conexión", "En reposo").</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_connection (
+                deviceNumber    VARCHAR(255) PRIMARY KEY,
+                updatedAt       BIGINT NOT NULL,
+                screenOn        BOOLEAN,
+                network         VARCHAR(16),
+                serverHost      VARCHAR(255),
+                usingBackup     BOOLEAN,
+                reconnects      BIGINT NOT NULL DEFAULT 0,
+                failureKind     VARCHAR(16),
+                failureAt       BIGINT,
+                failureDetail   VARCHAR(400),
+                failureHttpCode INT,
+                failureChannel  VARCHAR(16),
+                failureNetwork  VARCHAR(16),
+                failureSsid     VARCHAR(64),
+                failureHost     VARCHAR(255),
+                failureIssuer   VARCHAR(400),
+                failureCount    INT,
+                stopReason      VARCHAR(24),
+                stopAt          BIGINT,
+                stopResumedAt   BIGINT,
+                stopBattery     INT
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_connection;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

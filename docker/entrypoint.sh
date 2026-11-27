@@ -102,6 +102,7 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="base.directory"  value="/opt/dallycontrol"/>
     <Parameter name="files.directory" value="/opt/dallycontrol/files"/>
     <Parameter name="base.url"        value="${BASE_URL}"/>
+    <Parameter name="agent.backup.urls" value="${AGENT_BACKUP_URLS:-}"/>
 
     <Parameter name="usage.scenario"    value="private"/>
     <Parameter name="secure.enrollment" value="${SECURE_ENROLLMENT}"/>

@@ -99,6 +99,46 @@ public class AgentResource {
     private AnnouncementSender announcements;
     private String baseUrl;
 
+    private com.hmdm.persistence.DeviceConnectionDAO connectionDAO;
+    private List<String> backupUrls = java.util.Collections.emptyList();
+
+    /** Connection diagnostics storage + the backup URLs handed to agents (method injection: optional collaborators). */
+    @Inject
+    public void setConnectionSupport(com.hmdm.persistence.DeviceConnectionDAO connectionDAO,
+                                     @javax.inject.Named("agent.backup.urls") String configuredBackupUrls) {
+        this.connectionDAO = connectionDAO;
+        this.backupUrls = com.hmdm.util.ConnectionStatus.backupUrls(configuredBackupUrls);
+    }
+
+    /**
+     * Stores what the device looked like at this report (screen, network) and whatever its agent explains about its
+     * connection; a newly reported failure or silence also goes to the device timeline. Never fails the check-in.
+     */
+    private void recordConnection(String deviceNumber, AgentCheckInRequest request) {
+        if (connectionDAO == null) return;
+        try {
+            long now = System.currentTimeMillis();
+            com.hmdm.persistence.domain.DeviceConnection row = com.hmdm.util.ConnectionStatus.toRow(
+                    deviceNumber, now, request.getConnection(), request.getTelemetry());
+            if (row.getFailureKind() != null || row.getStopReason() != null) {
+                com.hmdm.persistence.domain.DeviceConnection before = connectionDAO.find(deviceNumber);
+                if (row.getFailureKind() != null && (before == null || !row.getFailureAt().equals(before.getFailureAt()))) {
+                    commandDAO.insertEvent(deviceNumber, "connectionFailure", row.getFailureAt(),
+                            com.hmdm.util.ConnectionStatus.failureEventDetail(row));
+                }
+                boolean sameStop = before != null && java.util.Objects.equals(row.getStopAt(), before.getStopAt())
+                        && (row.getStopResumedAt() == null) == (before.getStopResumedAt() == null);
+                if (row.getStopReason() != null && !sameStop) {
+                    commandDAO.insertEvent(deviceNumber, "connectionGap", row.getStopAt(),
+                            com.hmdm.util.ConnectionStatus.gapEventDetail(row));
+                }
+            }
+            connectionDAO.upsert(row);
+        } catch (Exception e) {
+            logger.warn("Could not record connection diagnostics of {}: {}", deviceNumber, e.getMessage());
+        }
+    }
+
     /**
      * <p>A constructor required by Swagger.</p>
      */
@@ -347,6 +387,9 @@ public class AgentResource {
             logger.warn("Could not record presence of {}: {}", deviceNumber, e.getMessage());
         }
 
+        // Connection diagnostics (optional block) + screen/network as of this report.
+        recordConnection(deviceNumber, request);
+
         // Persist the latest device-state snapshot (powers the admin console).
         String appliedRevision = validRevision(deviceNumber,
                 request.getState() == null ? null : request.getState().getAppliedConfigRevision());
@@ -539,7 +582,9 @@ public class AgentResource {
             }
         }
 
-        return Response.OK(new AgentCheckInResponse(commands));
+        AgentCheckInResponse checkInResponse = new AgentCheckInResponse(commands);
+        if (!backupUrls.isEmpty()) checkInResponse.setBackupUrls(backupUrls);
+        return Response.OK(checkInResponse);
     }
 
     // =================================================================================================================
