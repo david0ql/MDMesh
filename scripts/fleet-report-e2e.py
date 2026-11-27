@@ -197,10 +197,13 @@ def refresh(wait_for=None, timeout=60):
     r = api("POST", f"{FLEET}/devices/refresh", {"numbers": [A.device_id]})
     t0 = time.time()
     while time.time() - t0 < timeout:
-        s = summary()
-        if (s.get("stateAt") or 0) >= r["at"] and (wait_for is None or wait_for(s)):
-            return time.time() - t0, r
-        time.sleep(0.5)
+        # The device's own state is a cheap read; the fleet summary (every device) is asked only once it is fresh.
+        st = api("GET", f"/rest/private/agent/v1/devices/{urllib.parse.quote(A.device_id)}/state") or {}
+        if (st.get("updatedAt") or 0) >= r["at"]:
+            if wait_for is None or wait_for(summary()):
+                return time.time() - t0, r
+            time.sleep(1)
+        time.sleep(0.3)
     return None, r
 
 
