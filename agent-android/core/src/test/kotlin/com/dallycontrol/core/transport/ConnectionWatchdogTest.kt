@@ -130,6 +130,65 @@ class TransportReconnectTest {
         }
     }
 
+    @Test fun `a handshake that never answers is retried by ensureConnected`() {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE))
+        server.enqueue(accept())
+        server.start()
+        val base = server.url("/").toString().trimEnd('/')
+        val t = TransportManager(OkHttpClient(), { base })
+        try {
+            t.start("dev", "s") {}
+            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+            assertFalse(t.ensureConnected(stuckAfterMs = 60_000)) // an attempt is in flight: leave it
+            assertTrue(t.ensureConnected(stuckAfterMs = 0))
+            assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+            waitUntil { t.isOpen }
+            assertFalse(t.ensureConnected(stuckAfterMs = 0)) // open: nothing to do
+        } finally {
+            t.stop()
+            server.shutdown()
+        }
+    }
+
+    @Test fun `every failure is followed by another attempt, however fast it fails`() {
+        val server = MockWebServer()
+        repeat(60) { server.enqueue(MockResponse().setResponseCode(503)) }
+        server.start()
+        val base = server.url("/").toString().trimEnd('/')
+        val t = TransportManager(OkHttpClient(), { base }, backoff = { 1L })
+        try {
+            t.start("dev", "s") {}
+            waitUntil { server.requestCount >= 40 } // one lost retry and the chain would stop short
+        } finally {
+            t.stop()
+            server.shutdown()
+        }
+    }
+
+    @Test fun `a handshake that fails before the socket is even assigned is retried`() {
+        // A dispatcher that runs calls on the calling thread: the failure callback fires INSIDE newWebSocket(),
+        // before the manager has stored the socket — the race, made deterministic.
+        val direct = object : java.util.concurrent.AbstractExecutorService() {
+            override fun execute(command: Runnable) = command.run()
+            override fun shutdown() = Unit
+            override fun shutdownNow(): MutableList<Runnable> = mutableListOf()
+            override fun isShutdown() = false
+            override fun isTerminated() = false
+            override fun awaitTermination(timeout: Long, unit: TimeUnit) = true
+        }
+        val client = OkHttpClient.Builder().dispatcher(okhttp3.Dispatcher(direct)).build()
+        val refused = java.net.ServerSocket(0).use { it.localPort } // nothing listens here any more
+        val attempts = java.util.concurrent.atomic.AtomicInteger()
+        val t = TransportManager(client, { attempts.incrementAndGet(); "http://127.0.0.1:$refused" }, backoff = { 1L })
+        try {
+            t.start("dev", "s") {}
+            waitUntil { attempts.get() >= 5 }
+        } finally {
+            t.stop()
+        }
+    }
+
     @Test fun `a refused upgrade is recorded with its status`() {
         val server = MockWebServer()
         server.enqueue(MockResponse().setResponseCode(403))

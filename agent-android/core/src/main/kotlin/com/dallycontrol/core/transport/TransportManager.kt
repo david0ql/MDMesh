@@ -57,6 +57,11 @@ class TransportManager internal constructor(
     @Volatile private var openedAt = 0L
     @Volatile private var open = false
     @Volatile private var everOpened = false
+    @Volatile private var lastAttemptAt = 0L
+
+    // Which connection attempt is the current one. Callbacks carry the number of the attempt they belong to, so a
+    // late callback of a replaced socket is told apart without comparing socket objects (see [scheduleReconnect]).
+    private var generation = 0
     private var reconnectJob: Job? = null
 
     private var deviceId: String = ""
@@ -116,6 +121,7 @@ class TransportManager internal constructor(
     private fun dropSocket() {
         reconnectJob?.cancel()
         reconnectJob = null
+        generation++
         ws?.cancel()
         ws = null
         open = false
@@ -124,6 +130,8 @@ class TransportManager internal constructor(
 
     private fun connect() {
         if (!running) return
+        lastAttemptAt = System.currentTimeMillis()
+        val attemptId = ++generation
         val base = baseUrl()
         val url = "$base/agent/ws/$deviceId"
         ws = client.newWebSocket(
@@ -131,6 +139,10 @@ class TransportManager internal constructor(
             Request.Builder().url(url).addHeader("Authorization", "Bearer $secret").build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    if (!isCurrent(attemptId)) {
+                        webSocket.cancel() // replaced while its handshake was in flight
+                        return
+                    }
                     openedAt = System.currentTimeMillis()
                     open = true
                     if (everOpened) diagnostics?.recordReconnect()
@@ -157,25 +169,34 @@ class TransportManager internal constructor(
                 // Only the current socket reconnects: a socket replaced by start() (new credentials) reports its
                 // cancellation here, and reconnecting for it would drop the new socket and open a second one.
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    if (webSocket !== ws) return
-                    runCatching {
-                        diagnostics?.recordFailure(t, ConnectionDiagnostics.CHANNEL_SOCKET, response?.code)
+                    if (scheduleReconnect(attemptId)) {
+                        runCatching {
+                            diagnostics?.recordFailure(t, ConnectionDiagnostics.CHANNEL_SOCKET, response?.code)
+                        }
                     }
-                    scheduleReconnect(webSocket)
                 }
 
                 // A server-initiated clean close is a failure for backoff purposes too — otherwise
                 // an accept-then-close server drives a reconnect every second, forever.
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                    scheduleReconnect(webSocket)
+                    scheduleReconnect(attemptId)
                 }
             },
         )
     }
 
     @Synchronized
-    private fun scheduleReconnect(failed: WebSocket) {
-        if (!running || failed !== ws) return
+    private fun isCurrent(attemptId: Int): Boolean = running && attemptId == generation
+
+    /**
+     * @return false when [attemptId] is not the current attempt. Told by number, not by comparing the socket with
+     * [ws]: a handshake can fail before `newWebSocket` has returned and [ws] been assigned, and the comparison then
+     * took the failure for a replaced socket's — nothing was scheduled and, [start] being a no-op while running,
+     * the channel stayed down until the process restarted.
+     */
+    @Synchronized
+    private fun scheduleReconnect(attemptId: Int): Boolean {
+        if (!running || attemptId != generation) return false
         ws = null
         open = false
         // Reset backoff only after a stable session (open ≥30s); resetting in onOpen let a
@@ -186,13 +207,30 @@ class TransportManager internal constructor(
         attempt++
         reconnectJob = scope.launch {
             delay(waitMs)
-            synchronized(this@TransportManager) { if (running && ws == null) connect() }
+            synchronized(this@TransportManager) { if (running && attemptId == generation) connect() }
         }
+        return true
+    }
+
+    /**
+     * Safety net, called every minute by the host: the channel should be up, is not, and nothing has tried for
+     * [stuckAfterMs] (a handshake that never answers, a retry that was lost) — connect again.
+     * @return true when it had to.
+     */
+    @Synchronized
+    fun ensureConnected(stuckAfterMs: Long = STUCK_AFTER_MS): Boolean {
+        val stuck = running && !open && System.currentTimeMillis() - lastAttemptAt >= stuckAfterMs
+        if (stuck) {
+            runCatching { Log.w(TAG, "wake channel stuck closed: connecting again") }
+            reconnectNow()
+        }
+        return stuck
     }
 
     companion object {
         private const val TAG = "TransportManager"
         private const val STABLE_SESSION_MS = 30_000L
+        private const val STUCK_AFTER_MS = 45_000L
         /** Any kind other than "interactive" makes the host run one check-in. */
         private const val KIND_CATCH_UP = "commands"
 

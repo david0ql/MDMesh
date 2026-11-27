@@ -117,6 +117,7 @@ class ConnectionKeeper @Inject constructor(
         while (true) {
             delay(ConnectionWatchdog.TICK_MS)
             runCatching { connection.markAlive() }
+            if (network.current().connected) runCatching { transport.ensureConnected() }
             val action = watchdog.decide(
                 now = System.currentTimeMillis(),
                 lastSuccessAt = connection.lastSuccessAt,

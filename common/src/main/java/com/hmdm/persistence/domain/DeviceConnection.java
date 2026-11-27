@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * Latest connection diagnostics of a device (table {@code device_connection}, one row per device number): what the
+ * Latest connection diagnostics of a device (table {@code device_conn_diag}, one row per device number): what the
  * device looked like at its last report (screen, network) and the last failure / silence its agent explained.
  */
 @Getter

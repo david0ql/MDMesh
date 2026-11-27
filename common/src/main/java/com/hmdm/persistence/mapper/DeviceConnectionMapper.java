@@ -9,13 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * MyBatis mapper for {@code device_connection}. The upsert refreshes the "as of the last report" columns every time
+ * MyBatis mapper for {@code device_conn_diag}. The upsert refreshes the "as of the last report" columns every time
  * and keeps the last failure / silence until a newer one arrives (a check-in with nothing to report must not erase
  * the explanation of yesterday's gap).
  */
 public interface DeviceConnectionMapper {
 
-    @Insert({"INSERT INTO device_connection (deviceNumber, updatedAt, screenOn, network, serverHost, usingBackup, reconnects, " +
+    @Insert({"INSERT INTO device_conn_diag (deviceNumber, updatedAt, screenOn, network, serverHost, usingBackup, reconnects, " +
             "failureKind, failureAt, failureDetail, failureHttpCode, failureChannel, failureNetwork, failureSsid, failureHost, failureIssuer, failureCount, " +
             "stopReason, stopAt, stopResumedAt, stopBattery) " +
             "VALUES (#{deviceNumber}, #{updatedAt}, #{screenOn}, #{network}, #{serverHost}, #{usingBackup}, COALESCE(#{reconnects}, 0), " +
@@ -23,26 +23,26 @@ public interface DeviceConnectionMapper {
             "#{stopReason}, #{stopAt}, #{stopResumedAt}, #{stopBattery}) " +
             "ON CONFLICT (deviceNumber) DO UPDATE SET " +
             "updatedAt = EXCLUDED.updatedAt, screenOn = EXCLUDED.screenOn, network = EXCLUDED.network, " +
-            "serverHost = COALESCE(EXCLUDED.serverHost, device_connection.serverHost), " +
-            "usingBackup = COALESCE(EXCLUDED.usingBackup, device_connection.usingBackup), " +
-            "reconnects = device_connection.reconnects + EXCLUDED.reconnects, " +
-            "failureKind = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureKind ELSE EXCLUDED.failureKind END, " +
-            "failureAt = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureAt ELSE EXCLUDED.failureAt END, " +
-            "failureDetail = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureDetail ELSE EXCLUDED.failureDetail END, " +
-            "failureHttpCode = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureHttpCode ELSE EXCLUDED.failureHttpCode END, " +
-            "failureChannel = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureChannel ELSE EXCLUDED.failureChannel END, " +
-            "failureNetwork = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureNetwork ELSE EXCLUDED.failureNetwork END, " +
-            "failureSsid = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureSsid ELSE EXCLUDED.failureSsid END, " +
-            "failureHost = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureHost ELSE EXCLUDED.failureHost END, " +
-            "failureIssuer = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureIssuer ELSE EXCLUDED.failureIssuer END, " +
-            "failureCount = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_connection.failureCount ELSE EXCLUDED.failureCount END, " +
-            "stopReason = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_connection.stopReason ELSE EXCLUDED.stopReason END, " +
-            "stopAt = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_connection.stopAt ELSE EXCLUDED.stopAt END, " +
-            "stopResumedAt = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_connection.stopResumedAt ELSE EXCLUDED.stopResumedAt END, " +
-            "stopBattery = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_connection.stopBattery ELSE EXCLUDED.stopBattery END"})
+            "serverHost = COALESCE(EXCLUDED.serverHost, device_conn_diag.serverHost), " +
+            "usingBackup = COALESCE(EXCLUDED.usingBackup, device_conn_diag.usingBackup), " +
+            "reconnects = device_conn_diag.reconnects + EXCLUDED.reconnects, " +
+            "failureKind = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureKind ELSE EXCLUDED.failureKind END, " +
+            "failureAt = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureAt ELSE EXCLUDED.failureAt END, " +
+            "failureDetail = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureDetail ELSE EXCLUDED.failureDetail END, " +
+            "failureHttpCode = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureHttpCode ELSE EXCLUDED.failureHttpCode END, " +
+            "failureChannel = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureChannel ELSE EXCLUDED.failureChannel END, " +
+            "failureNetwork = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureNetwork ELSE EXCLUDED.failureNetwork END, " +
+            "failureSsid = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureSsid ELSE EXCLUDED.failureSsid END, " +
+            "failureHost = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureHost ELSE EXCLUDED.failureHost END, " +
+            "failureIssuer = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureIssuer ELSE EXCLUDED.failureIssuer END, " +
+            "failureCount = CASE WHEN EXCLUDED.failureKind IS NULL THEN device_conn_diag.failureCount ELSE EXCLUDED.failureCount END, " +
+            "stopReason = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_conn_diag.stopReason ELSE EXCLUDED.stopReason END, " +
+            "stopAt = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_conn_diag.stopAt ELSE EXCLUDED.stopAt END, " +
+            "stopResumedAt = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_conn_diag.stopResumedAt ELSE EXCLUDED.stopResumedAt END, " +
+            "stopBattery = CASE WHEN EXCLUDED.stopReason IS NULL THEN device_conn_diag.stopBattery ELSE EXCLUDED.stopBattery END"})
     void upsert(DeviceConnection row);
 
-    @Select({"SELECT * FROM device_connection WHERE deviceNumber = #{deviceNumber}"})
+    @Select({"SELECT * FROM device_conn_diag WHERE deviceNumber = #{deviceNumber}"})
     DeviceConnection find(@Param("deviceNumber") String deviceNumber);
 
     /** One row per device of the customer: last report time, battery, and its connection row (LEFT JOIN: may be absent). */
@@ -53,7 +53,7 @@ public interface DeviceConnectionMapper {
             "c.failureIssuer AS failureissuer, c.failureCount AS failurecount, " +
             "c.stopReason AS stopreason, c.stopAt AS stopat, c.stopResumedAt AS stopresumedat, c.stopBattery AS stopbattery " +
             "FROM devices d LEFT JOIN device_state s ON s.deviceNumber = d.number " +
-            "LEFT JOIN device_connection c ON c.deviceNumber = d.number " +
+            "LEFT JOIN device_conn_diag c ON c.deviceNumber = d.number " +
             "WHERE d.customerId = #{customerId}"})
     List<Map<String, Object>> listForCustomer(@Param("customerId") int customerId);
 }
