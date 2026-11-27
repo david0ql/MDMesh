@@ -226,7 +226,8 @@ public class FleetResource {
         }
         com.hmdm.rest.resource.support.FleetExportService.Request rq = new com.hmdm.rest.resource.support.FleetExportService.Request();
         rq.groupId = groupId;
-        rq.days = days;
+        // The CSV has no connection-history sheet: it only needs the sessions still open.
+        rq.days = "csv".equalsIgnoreCase(format) ? Integer.valueOf(1) : days;
         rq.tz = tz;
         rq.numbers = numbers;
         // A folder administrator exports only their folders' devices.

@@ -432,3 +432,24 @@ the local VPN there was no consent dialog, `always_on_vpn_app` was the agent and
 The emulated cellular network is counted per app by `NetworkStatsManager`, so the limits ran for real: a 1.3 MB
 download against a 2 MB app limit with a 50 % threshold raised the warning, the next one the limit alert, and the app
 lost mobile data without the server telling it to.
+
+More fleet-inventory checks (2026-11-27, own stack, machine under heavy load — figures marked with the load):
+
+- `scripts/fleet-console-e2e.mjs` — the console in headless Chromium (`npx -y -p playwright@1.48 node …`): Dispositivos →
+  Exportar (Excel and CSV; everything / what the table shows / the selection, every downloaded file opened), the
+  "Dato de" column, "Actualizar ahora" (list and device page), Reportes → Inventario de la flota (tiles, thresholds,
+  exports) and Envíos programados (create, edit, pause, resume, "Enviar ahora", delete; `--no-smtp` for the notice).
+  `--folder-user` signs in as a folder administrator. `--slow N` multiplies the waits on a loaded machine.
+- `scripts/fleet-report-scope-e2e.py` — a user limited to one folder, over the API: exports, inventory report and
+  scheduled e-mails hold only that folder's devices; other folders' schedules cannot be seen, edited, sent or deleted.
+- `scripts/dev-synthetic-fleet.py` — SQL for a synthetic fleet (folders, devices with their census, a month of
+  sessions) to load-test a dev database; `--remove` deletes it.
+
+Results: browser as administrator 33/33 (5,001 devices: 29 checks before the mail part, then 33/33 with STARTTLS mail);
+browser as folder administrator 35 checks passed (262 of 5,001 devices; mail verified over the API); browser without
+SMTP 31/31; folder scope over the API 33/33; Android 9 (API 28): device 76/76 and browser with the live device 34/34
+(refresh 1.6 s, load 33); Android 15 (API 35): device 76/76 and browser 34/34 (refresh 4.4 s, load 38; enrolling
+needed the `dpm set-device-owner` retry of the first minutes after boot). Scheduled e-mails over STARTTLS + user/password against Mailpit started with
+`--smtp-require-starttls --smtp-auth-file` (it answers 530 without STARTTLS or without AUTH): "Enviar ahora" and the
+scheduler-fired run both delivered. 5,000 devices + 103,000 sessions, server heap capped at 512 MB: Excel 5.9–6.5 s,
+CSV 0.6–1.4 s, inventory report 1 s (measured before the machine saturated).

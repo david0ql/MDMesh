@@ -101,6 +101,14 @@ public class UserScopeFilter implements Filter {
             // (already scoped), so the picker only offers folders they manage.
             new Rule("GET PUT", "/dc/users", null),
             new Rule("DELETE", "/dc/users/(\\d+)", null),
+            // Fleet inventory: CSV / filtered export and "Actualizar ahora" (the resource narrows both to the user's
+            // devices), and scheduled report e-mails (ReportScheduleResource: manage_fleet, own folders only).
+            new Rule("GET", "/fleet/v1/export.csv", null),
+            new Rule("POST", "/fleet/v1/export", null),
+            new Rule("POST", "/fleet/v1/devices/refresh", null),
+            new Rule("POST", "/reports/v1/schedules", null),
+            new Rule("PUT DELETE", "/reports/v1/schedules/(\\d+)", null),
+            new Rule("POST", "/reports/v1/schedules/(\\d+)/send", null),
             // Geofences: the resource shows a folder editor only the zones of their folders/devices and checks every
             // folder/device a zone is assigned to; the track history is checked here against the device's folder.
             new Rule("GET", "/geofences/v1/devices/([^/]+)/(track|track/export|zones)", "device"),
