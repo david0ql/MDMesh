@@ -23,6 +23,7 @@ import com.dallycontrol.agent.R
  * sessions need nobody at the phone. The console shows "Falta autorización" until this is done, and can bring this
  * screen up again (`remote.inputSetup`).
  */
+@Suppress("MagicNumber") // layout sizes in dp, next to the views they size
 class RemoteSetupActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())

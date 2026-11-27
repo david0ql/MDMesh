@@ -66,8 +66,10 @@ class SupportChannel @Inject constructor(client: OkHttpClient) {
                 webSocket.close(NORMAL, null)
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) =
-                listener.onClosed(refused = code == POLICY_VIOLATION || code == NORMAL, reason = reason.ifEmpty { "closed" })
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                val refused = code == POLICY_VIOLATION || code == NORMAL
+                listener.onClosed(refused, reason.ifEmpty { "closed" })
+            }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 val status = response?.code

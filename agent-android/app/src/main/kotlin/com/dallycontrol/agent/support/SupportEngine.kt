@@ -30,6 +30,7 @@ import kotlinx.coroutines.delay
  * Both attempts are still made once per start ([probeDeviceOwnerRoutes]) and their outcome reported, so a release
  * of Android that allows one is used without a new agent.
  */
+@Suppress("TooManyFunctions") // one small question or action each; they share the stored settings
 object SupportEngine {
     private const val TAG = "SupportEngine"
     private const val PREFS = "mdm_support"
@@ -119,6 +120,7 @@ object SupportEngine {
      * Switch the screen service on if the agent may. True when it is (or was already) on in the settings.
      * A service enabled this way connects a moment later: see [awaitService].
      */
+    @Suppress("ReturnCount") // not allowed / already on / cannot / switched on
     fun ensureServiceOn(context: Context): Boolean {
         if (!settings(context).builtinAllowed || Build.VERSION.SDK_INT < SupportReadiness.MIN_SDK_CONTROL) return false
         syncComponent(context)
@@ -160,7 +162,8 @@ object SupportEngine {
             )
         }.fold({ if (canSelfEnable(context)) "granted" else "refused($it)" }, { "threw ${it.javaClass.simpleName}" })
         val secure = if (canSelfEnable(context)) "skipped" else runCatching {
-            val current = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            val current = Settings.Secure
+                .getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
                 ?.takeIf { it.isNotBlank() && it != "null" }
             dpm.setSecureSetting(
                 admin, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
@@ -172,6 +175,7 @@ object SupportEngine {
     }
 
     /** The connected service, waiting a moment for one that was just switched on. */
+    @Suppress("ReturnCount")
     suspend fun awaitService(context: Context, timeoutMs: Long = SERVICE_WAIT_MS): SupportAccessibilityService? {
         SupportAccessibilityService.instance?.let { return it }
         if (!ensureServiceOn(context)) return null
@@ -185,7 +189,7 @@ object SupportEngine {
 
     private const val POLL_MS = 100L
 
-    internal fun onServiceChanged(context: Context) {
+    internal fun onServiceChanged() {
         notifyChanged()
     }
 
@@ -200,7 +204,7 @@ object SupportEngine {
             screen = screen,
             control = screen == SupportScreenState.READY,
             voice = if (hasMicrophone(context) || grantMicrophone(context)) "ready" else "needsPermission",
-            capture = if (screen == SupportScreenState.READY) SupportReadiness.capture(Build.VERSION.SDK_INT) else "none",
+            capture = if (screen != SupportScreenState.READY) "none" else SupportReadiness.capture(Build.VERSION.SDK_INT),
             selfEnable = canSelfEnable(context),
         )
     }
@@ -223,13 +227,16 @@ object SupportEngine {
      * was installed less than [ENROLL_WINDOW_MS] ago), when the policy allows it. A phone already in the field that
      * receives this agent as an update is never interrupted: the console asks there (`remote.inputSetup`).
      */
+    @Suppress("ReturnCount") // each line is one reason not to ask
     fun shouldPrompt(context: Context): Boolean {
         val s = settings(context)
         if (!s.setupPrompt || prefs(context).getBoolean(KEY_PROMPTED, false)) return false
         if (screenState(context) != SupportScreenState.NEEDS_AUTHORIZATION) return false
         val dpm = context.getSystemService(DevicePolicyManager::class.java)
         if (dpm == null || !dpm.isDeviceOwnerApp(context.packageName)) return false
-        val installedAt = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime }.getOrDefault(0L)
+        val installedAt = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+        }.getOrDefault(0L)
         return System.currentTimeMillis() - installedAt < ENROLL_WINDOW_MS
     }
 

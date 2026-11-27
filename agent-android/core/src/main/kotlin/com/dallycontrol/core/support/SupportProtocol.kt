@@ -16,7 +16,8 @@ import kotlinx.serialization.json.put
  * messages (`{"t": "<type>", …}`) and binary messages whose first byte names the content. The server relays them
  * to the operator's console untouched.
  *
- * Console → device: `info.get`, `screen.start {maxDim, quality}`, `screen.set`, `screen.stop`, `ack {seq}`, `tap {x, y}`,
+ * Console → device: `info.get`, `screen.start {maxDim, quality}`, `screen.set`, `screen.stop`, `ack {seq}`,
+ * `tap {x, y}`,
  * `swipe {pts: [[x, y, tMs]…]}`, `key {k}`, `text {s}`, `chat {s}`, `call.start {accept?, testTone?}`, `call.end`,
  * `clip.set {s}`, `clip.get`, `file.put {id, name, size}` + chunks + `file.end {id}`, `file.list {path}`,
  * `file.get {id, path}`, `bye`. Coordinates are fractions (0..1) of the screen.
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.put
  * Device → console: `info {…}`, frames, `chat {s}`, `call.state {s}`, `call.stats {…}`, `clip {s}`,
  * `file.entries {…}`, `file.put`/chunks/`file.end`, `file.saved {id, path}`, `error {what, detail}`.
  */
+@Suppress("MagicNumber", "TooManyFunctions") // byte layout of the frames; small pure helpers
 object SupportProtocol {
     const val BIN_FRAME: Byte = 1
     const val BIN_AUDIO: Byte = 2
@@ -38,9 +40,14 @@ object SupportProtocol {
     fun frame(seq: Int, width: Int, height: Int, jpeg: ByteArray, length: Int = jpeg.size): ByteArray {
         val out = ByteArray(FRAME_HEADER + length)
         out[0] = BIN_FRAME
-        out[1] = (seq ushr 24).toByte(); out[2] = (seq ushr 16).toByte(); out[3] = (seq ushr 8).toByte(); out[4] = seq.toByte()
-        out[5] = (width ushr 8).toByte(); out[6] = width.toByte()
-        out[7] = (height ushr 8).toByte(); out[8] = height.toByte()
+        out[1] = (seq ushr 24).toByte()
+        out[2] = (seq ushr 16).toByte()
+        out[3] = (seq ushr 8).toByte()
+        out[4] = seq.toByte()
+        out[5] = (width ushr 8).toByte()
+        out[6] = width.toByte()
+        out[7] = (height ushr 8).toByte()
+        out[8] = height.toByte()
         System.arraycopy(jpeg, 0, out, FRAME_HEADER, length)
         return out
     }
@@ -172,10 +179,15 @@ object TextEdit {
     /** Backspace: delete the selection, or the character before the caret (a whole surrogate pair). */
     fun backspace(current: String, start: Int, end: Int): State {
         val (a, b) = range(current, start, end)
-        if (a != b) return State(current.substring(0, a) + current.substring(b), a)
-        if (a == 0) return State(current, 0)
-        val cut = if (a >= 2 && Character.isLowSurrogate(current[a - 1]) && Character.isHighSurrogate(current[a - 2])) 2 else 1
-        return State(current.substring(0, a - cut) + current.substring(a), a - cut)
+        return when {
+            a != b -> State(current.substring(0, a) + current.substring(b), a)
+            a == 0 -> State(current, 0)
+            else -> {
+                val pair = a >= 2 && Character.isLowSurrogate(current[a - 1]) && Character.isHighSurrogate(current[a - 2])
+                val cut = if (pair) 2 else 1
+                State(current.substring(0, a - cut) + current.substring(a), a - cut)
+            }
+        }
     }
 
     /** A missing selection (-1) means "at the end", as accessibility reports for a field never touched. */

@@ -65,6 +65,7 @@ import kotlin.coroutines.resume
  * closes it, the person on the phone hangs it up, or the network stays away for longer than [REJOIN_MS].
  */
 @Singleton
+@Suppress("TooManyFunctions") // one session, five features (screen, input, chat, voice, files): a short function each
 class SupportSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val channel: SupportChannel,
@@ -77,7 +78,9 @@ class SupportSessionManager @Inject constructor(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val main = Handler(Looper.getMainLooper())
-    private val captureExecutor = Executors.newSingleThreadExecutor { Thread(it, "support-capture").apply { isDaemon = true } }
+    private val captureExecutor = Executors.newSingleThreadExecutor {
+        Thread(it, "support-capture").apply { isDaemon = true }
+    }
     private val files = SupportFiles(context)
 
     @Volatile private var sessionId: String? = null
@@ -120,6 +123,7 @@ class SupportSessionManager @Inject constructor(
     /**
      * Join the session the console opened. Returns null once the socket is up (or was already), else the reason.
      */
+    @Suppress("ReturnCount") // each early return is one reason not to dial
     suspend fun join(id: String): String? {
         if (!SupportChannel.isSessionId(id)) return "invalid session"
         if (sessionId == id && open) return null
@@ -155,7 +159,8 @@ class SupportSessionManager @Inject constructor(
             }
 
             override fun onMessage(type: String, message: JsonObject) {
-                if (sessionId == id) runCatching { handle(type, message) }.onFailure { Log.w(TAG, "message $type failed", it) }
+                if (sessionId != id) return
+                runCatching { handle(type, message) }.onFailure { Log.w(TAG, "message $type failed", it) }
             }
 
             override fun onBinary(kind: Byte, data: ByteArray) {
@@ -222,6 +227,8 @@ class SupportSessionManager @Inject constructor(
 
     private fun send(text: String): Boolean = connection?.send(text) == true
 
+    // One branch per message type of the protocol: long by nature, flat to read.
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
     private fun handle(type: String, m: JsonObject) {
         when (type) {
             "session" -> {
@@ -250,19 +257,22 @@ class SupportSessionManager @Inject constructor(
             "clip.get" -> readClipboard()
             "file.put" -> {
                 val id = m.int("id") ?: return
-                val error = files.begin(id, m.str("name"), m.long("size") ?: 0)
-                if (error != null) send(SupportProtocol.message("file.error") { put("id", id); put("detail", error) })
+                files.begin(id, m.str("name"), m.long("size") ?: 0)?.let { fileError(id, it) }
             }
             "file.end" -> {
                 val id = m.int("id") ?: return
                 runCatching { files.finish(id) }.fold(
                     { path -> send(SupportProtocol.message("file.saved") { put("id", id); put("path", path) }) },
-                    { e -> send(SupportProtocol.message("file.error") { put("id", id); put("detail", e.message ?: "error") }) },
+                    { e -> fileError(id, e.message ?: "error") },
                 )
             }
             "file.list" -> listFiles(m.str("path"))
             "file.get" -> sendFile(m.int("id") ?: 0, m.str("path") ?: "")
         }
+    }
+
+    private fun fileError(id: Int, detail: String) {
+        send(SupportProtocol.message("file.error") { put("id", id); put("detail", detail) })
     }
 
     private fun handleBinary(kind: Byte, bytes: ByteArray) {
@@ -271,8 +281,7 @@ class SupportSessionManager @Inject constructor(
             SupportProtocol.BIN_FILE -> {
                 if (bytes.size < 2) return
                 val id = bytes[1].toInt() and BYTE_MASK
-                val error = files.chunk(id, bytes, 2, bytes.size - 2)
-                if (error != null) send(SupportProtocol.message("file.error") { put("id", id); put("detail", error) })
+                files.chunk(id, bytes, 2, bytes.size - 2)?.let { fileError(id, it) }
             }
         }
     }
@@ -320,6 +329,9 @@ class SupportSessionManager @Inject constructor(
         sendInfo()
     }
 
+    // The capture loop: wait for the previous image to be drawn, capture, scale, encode, skip if unchanged, send.
+    // Kept as one function so the pacing rules can be read top to bottom.
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "LoopWithTooManyJumpStatements", "ReturnCount")
     private suspend fun stream() {
         var service = SupportEngine.awaitService(context)
         if (service == null) {
@@ -373,10 +385,20 @@ class SupportSessionManager @Inject constructor(
             if (lastCapture - statsAt >= STATS_MS) {
                 val n = captures.coerceAtLeast(1)
                 send(SupportProtocol.message("screen.stats") {
-                    put("captures", captures); put("sent", sent); put("captureMs", captureMs / n); put("encodeMs", encodeMs / n)
-                    put("intervalMs", interval); put("bytes", sentBytes); put("windowMs", lastCapture - statsAt)
+                    put("captures", captures)
+                    put("sent", sent)
+                    put("captureMs", captureMs / n)
+                    put("encodeMs", encodeMs / n)
+                    put("intervalMs", interval)
+                    put("bytes", sentBytes)
+                    put("windowMs", lastCapture - statsAt)
                 })
-                statsAt = lastCapture; captures = 0; sent = 0; captureMs = 0; encodeMs = 0; sentBytes = 0
+                statsAt = lastCapture
+                captures = 0
+                sent = 0
+                captureMs = 0
+                encodeMs = 0
+                sentBytes = 0
             }
             val bitmap: Bitmap? = if (projection) {
                 if (!ProjectionCapture.active && !ProjectionCapture.ensure(context, current, maxDim)) {
@@ -386,7 +408,9 @@ class SupportSessionManager @Inject constructor(
                 ProjectionCapture.frame()
             } else {
                 val (b, error) = screenshot(current)
-                if (error == SupportAccessibilityService.ERROR_TOO_SOON) interval = minOf(interval + INTERVAL_STEP_MS, MAX_INTERVAL_MS)
+                if (error == SupportAccessibilityService.ERROR_TOO_SOON) {
+                    interval = minOf(interval + INTERVAL_STEP_MS, MAX_INTERVAL_MS)
+                }
                 b
             }
             if (bitmap == null) { delay(EMPTY_WAIT_MS); continue }
@@ -394,7 +418,8 @@ class SupportSessionManager @Inject constructor(
             captures++
             captureMs += captured - lastCapture
             val (w, h) = SupportProtocol.scaled(bitmap.width, bitmap.height, maxDim)
-            val scaled = if (w == bitmap.width && h == bitmap.height) bitmap else Bitmap.createScaledBitmap(bitmap, w, h, true)
+            val fits = w == bitmap.width && h == bitmap.height
+            val scaled = if (fits) bitmap else Bitmap.createScaledBitmap(bitmap, w, h, true)
             jpeg.reset()
             scaled.compress(Bitmap.CompressFormat.JPEG, quality, jpeg)
             if (scaled !== bitmap) scaled.recycle()
@@ -404,7 +429,10 @@ class SupportSessionManager @Inject constructor(
             crc.reset()
             crc.update(bytes)
             // An unchanged screen is not sent again (a still screen costs no data), except as a slow keep-alive.
-            if (crc.value == lastCrc && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) { delay(STILL_WAIT_MS); continue }
+            if (crc.value == lastCrc && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) {
+                delay(STILL_WAIT_MS)
+                continue
+            }
             lastCrc = crc.value
             if (conn.send(SupportProtocol.frame(seq, w, h, bytes))) {
                 sentSeq = seq
@@ -423,6 +451,7 @@ class SupportSessionManager @Inject constructor(
             }
         } ?: (null to SupportAccessibilityService.ERROR_UNSUPPORTED)
 
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // four kinds of input, each validated before use
     private fun input(type: String, m: JsonObject) {
         if (type == "wake") { wakeScreen(); return }
         val service = SupportAccessibilityService.instance ?: return
@@ -430,7 +459,8 @@ class SupportSessionManager @Inject constructor(
             "tap" -> {
                 val x = m.num("x") ?: return
                 val y = m.num("y") ?: return
-                service.gesture(listOf(Triple(x, y, 0L)), if (m.bool("long") == true) SupportAccessibilityService.LONG_PRESS_MS else TAP_MS)
+                val hold = if (m.bool("long") == true) SupportAccessibilityService.LONG_PRESS_MS else TAP_MS
+                service.gesture(listOf(Triple(x, y, 0L)), hold)
             }
             "swipe" -> {
                 val pts = (m["pts"] as? JsonArray)?.mapNotNull { p ->
@@ -494,8 +524,12 @@ class SupportSessionManager @Inject constructor(
         })
     }
 
+    @Suppress("ReturnCount") // already in a call / no microphone / answered by policy / ringing
     private fun onCallStart(testTone: Boolean) {
-        if (callState != CallState.IDLE) { sendCallState(if (callState == CallState.ACTIVE) "active" else "ringing"); return }
+        if (callState != CallState.IDLE) {
+            sendCallState(if (callState == CallState.ACTIVE) "active" else "ringing")
+            return
+        }
         pendingTone = testTone && BuildConfig.DEBUG
         if (!pendingTone && !SupportEngine.grantMicrophone(context)) {
             sendCallState("error", "microphone permission missing")
@@ -539,9 +573,8 @@ class SupportSessionManager @Inject constructor(
         scope.launch {
             SupportForegroundService.start(context, microphone = !pendingTone, projection = ProjectionCapture.active)
             val until = System.currentTimeMillis() + FOREGROUND_WAIT_MS
-            while (!SupportForegroundService.foreground && SupportForegroundService.lastError == null && System.currentTimeMillis() < until) {
-                delay(POLL_MS)
-            }
+            fun waiting() = !SupportForegroundService.foreground && SupportForegroundService.lastError == null
+            while (waiting() && System.currentTimeMillis() < until) delay(POLL_MS)
             val call = VoiceCall(context, pendingTone, { connection?.send(it) == true }) { s ->
                 send(SupportProtocol.message("call.stats") {
                     put("tx", s.txFrames); put("rx", s.rxFrames); put("micRms", s.micRms); put("rxRms", s.rxRms)
@@ -606,7 +639,8 @@ class SupportSessionManager @Inject constructor(
 
     private fun setClipboard(text: String) = main.post {
         val ok = runCatching {
-            context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Soporte", text.take(MAX_CLIP)))
+            val clip = ClipData.newPlainText("Soporte", text.take(MAX_CLIP))
+            context.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip)
         }.isSuccess
         send(SupportProtocol.message("clip.ok") { put("ok", ok) })
     }
@@ -641,7 +675,11 @@ class SupportSessionManager @Inject constructor(
                 put("limited", listing.limited)
                 put("entries", buildJsonArray {
                     for (e in listing.entries) add(buildJsonObject {
-                        put("name", e.name); put("path", e.path); put("dir", e.dir); put("size", e.size); put("modified", e.modified)
+                        put("name", e.name)
+                        put("path", e.path)
+                        put("dir", e.dir)
+                        put("size", e.size)
+                        put("modified", e.modified)
                     })
                 })
             }.toString())
@@ -653,18 +691,25 @@ class SupportSessionManager @Inject constructor(
         sendJob = scope.launch(Dispatchers.IO) {
             val file = files.open(path)
             if (file == null) {
-                send(SupportProtocol.message("file.error") { put("id", id); put("detail", "no se pudo abrir el archivo") })
+                fileError(id, "no se pudo abrir el archivo")
                 return@launch
             }
             file.stream.use { input ->
-                send(SupportProtocol.message("file.put") { put("id", id); put("name", file.name); put("size", file.size) })
+                send(SupportProtocol.message("file.put") {
+                    put("id", id)
+                    put("name", file.name)
+                    put("size", file.size)
+                })
                 val buffer = ByteArray(SupportProtocol.FILE_CHUNK)
-                while (isActive) {
+                var n = 0
+                while (isActive && n >= 0) {
                     val conn = connection ?: return@launch
-                    if (conn.backlog() > MAX_BACKLOG) { delay(BACKLOG_WAIT_MS); continue }
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    if (n > 0) conn.send(SupportProtocol.fileChunk(id, buffer, n))
+                    if (conn.backlog() > MAX_BACKLOG) {
+                        delay(BACKLOG_WAIT_MS)
+                    } else {
+                        n = input.read(buffer)
+                        if (n > 0) conn.send(SupportProtocol.fileChunk(id, buffer, n))
+                    }
                 }
                 send(SupportProtocol.message("file.end") { put("id", id) })
             }

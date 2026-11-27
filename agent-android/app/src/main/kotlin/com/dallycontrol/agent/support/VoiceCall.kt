@@ -33,7 +33,12 @@ class VoiceCall(
     private val onStats: (Stats) -> Unit,
 ) {
     data class Stats(
-        val txFrames: Long, val rxFrames: Long, val micRms: Int, val rxRms: Int, val recording: Boolean, val muted: Boolean,
+        val txFrames: Long,
+        val rxFrames: Long,
+        val micRms: Int,
+        val rxRms: Int,
+        val recording: Boolean,
+        val muted: Boolean,
     )
 
     @Volatile private var running = false
@@ -52,6 +57,7 @@ class VoiceCall(
 
     /** Start capturing and playing. Returns an error text, or null when the call is up. */
     @SuppressLint("MissingPermission") // checked by the caller (SupportEngine.grantMicrophone)
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // one audio set-up, each step with its own way to fail
     fun start(): String? {
         if (running) return null
         val audio = context.getSystemService(AudioManager::class.java)
@@ -68,8 +74,9 @@ class VoiceCall(
                 @Suppress("DEPRECATION") run { audio.isSpeakerphoneOn = true }
             }
         }
-        val minRecord = AudioRecord.getMinBufferSize(MuLaw.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        val minTrack = AudioTrack.getMinBufferSize(MuLaw.SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val pcm16 = AudioFormat.ENCODING_PCM_16BIT
+        val minRecord = AudioRecord.getMinBufferSize(MuLaw.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, pcm16)
+        val minTrack = AudioTrack.getMinBufferSize(MuLaw.SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, pcm16)
         if (minTrack <= 0) return "audio output unavailable"
         val out = runCatching {
             AudioTrack.Builder()
@@ -101,9 +108,10 @@ class VoiceCall(
             }
             record = rec
             val session = rec.audioSessionId
-            runCatching { if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(session)?.also { it.enabled = true; effects += it } }
-            runCatching { if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(session)?.also { it.enabled = true; effects += it } }
-            runCatching { if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(session)?.also { it.enabled = true; effects += it } }
+            // The platform's own echo canceller, noise suppressor and gain control, where the phone has them.
+            keep { if (AcousticEchoCanceler.isAvailable()) AcousticEchoCanceler.create(session) else null }
+            keep { if (NoiseSuppressor.isAvailable()) NoiseSuppressor.create(session) else null }
+            keep { if (AutomaticGainControl.isAvailable()) AutomaticGainControl.create(session) else null }
         }
         running = true
         runCatching { out.play() }
@@ -113,6 +121,10 @@ class VoiceCall(
         return null
     }
 
+    private fun keep(create: () -> android.media.audiofx.AudioEffect?) {
+        runCatching { create()?.also { it.enabled = true; effects += it } }
+    }
+
     /** A frame from the operator: `[2][µ-law…]`. Dropped when the phone falls behind (latency over smoothness). */
     fun onAudio(frame: ByteArray, offset: Int, length: Int) {
         if (!running || length <= 0) return
@@ -120,6 +132,7 @@ class VoiceCall(
         while (!incoming.offer(copy)) incoming.poll()
     }
 
+    @Suppress("NestedBlockDepth") // the read loop inside the frame loop
     private fun captureLoop() {
         val pcm = ShortArray(MuLaw.FRAME_SAMPLES)
         val encoded = ByteArray(MuLaw.FRAME_SAMPLES)

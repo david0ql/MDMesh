@@ -36,6 +36,7 @@ import java.util.concurrent.Executor
  * on once: by the agent itself when it holds WRITE_SECURE_SETTINGS (USB enrollment), otherwise by one tap on the
  * guided screen after a QR enrollment ([RemoteSetupActivity]). Android offers a Device Owner no API for it.
  */
+@Suppress("TooManyFunctions") // one small function per thing the operator can do on the phone
 class SupportAccessibilityService : AccessibilityService() {
 
     private val main = Handler(Looper.getMainLooper())
@@ -47,12 +48,12 @@ class SupportAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         Log.i(TAG, "screen service connected")
-        SupportEngine.onServiceChanged(applicationContext)
+        SupportEngine.onServiceChanged()
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         if (instance === this) instance = null
-        SupportEngine.onServiceChanged(applicationContext)
+        SupportEngine.onServiceChanged()
         return super.onUnbind(intent)
     }
 
@@ -139,7 +140,8 @@ class SupportAccessibilityService : AccessibilityService() {
         "quicksettings" -> performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
         "power" -> performGlobalAction(GLOBAL_ACTION_POWER_DIALOG)
         "lock" -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-        "screenshot" -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+        "screenshot" ->
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
         "backspace" -> backspace()
         "enter" -> enter()
         else -> false
@@ -150,6 +152,7 @@ class SupportAccessibilityService : AccessibilityService() {
 
     fun backspace(): Boolean = edit { current, start, end -> TextEdit.backspace(current, start, end) }
 
+    @Suppress("ReturnCount")
     fun enter(): Boolean {
         val node = focusedInput() ?: return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -162,6 +165,7 @@ class SupportAccessibilityService : AccessibilityService() {
     private fun focusedInput(): AccessibilityNodeInfo? =
         runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()?.takeIf { it.isEditable }
 
+    @Suppress("CyclomaticComplexMethod") // password, hint and plain fields each read their text differently
     private fun edit(change: (String, Int, Int) -> TextEdit.State): Boolean {
         val node = focusedInput() ?: return false
         val id = node.hashCode()
@@ -194,6 +198,7 @@ class SupportAccessibilityService : AccessibilityService() {
     }
 
     /** The text selected (or all the text) of the focused field: what "copy from the phone" can read. */
+    @Suppress("ReturnCount")
     fun focusedText(): String? {
         val node = focusedInput() ?: return null
         if (node.isPassword) return null

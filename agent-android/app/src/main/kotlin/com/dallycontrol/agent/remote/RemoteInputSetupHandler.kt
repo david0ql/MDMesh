@@ -34,7 +34,8 @@ class RemoteInputSetupHandler(
         // The agent's own screen service (ADR 0012) comes first: switched on by the agent when it may, else through
         // the guided screen. droidVNC-NG's service is only asked for when the policy keeps the built-in engine off.
         val builtin = com.dallycontrol.agent.support.SupportEngine
-        if (builtin.settings(context).builtinAllowed && Build.VERSION.SDK_INT >= 24) return setupBuiltin(command)
+        val own = builtin.settings(context).builtinAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+        if (own) return setupBuiltin(command)
         if (!vnc.isInstalled()) return CommandResults.failed(command, "remote support is not installed")
         if (vnc.isInputServiceEnabled()) return CommandResults.done(command, "control already enabled")
         val am = context.getSystemService(ActivityManager::class.java)
@@ -61,7 +62,8 @@ class RemoteInputSetupHandler(
         val builtin = com.dallycontrol.agent.support.SupportEngine
         if (builtin.ensureServiceOn(context)) return CommandResults.done(command, "remote support already authorised")
         val am = context.getSystemService(ActivityManager::class.java)
-        if (am?.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE && Build.VERSION.SDK_INT >= 26) {
+        val inKiosk = am?.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+        if (inKiosk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             runCatching {
                 val current = handle.dpm.getLockTaskPackages(handle.admin)
                 if (SETTINGS !in current) {

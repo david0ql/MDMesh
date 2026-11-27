@@ -5,6 +5,7 @@ package com.dallycontrol.core.support
  * frames of 16 kHz mono speech encoded this way (128 kbit/s): no native codec to bundle, every Android release
  * and every browser can do it, and companding keeps speech clear at 8 bits.
  */
+@Suppress("MagicNumber") // the G.711 bit layout (sign, 3-bit segment, 4-bit step), as in the standard
 object MuLaw {
     const val SAMPLE_RATE = 16_000
     /** Samples (and bytes on the wire) in one 20 ms frame. */

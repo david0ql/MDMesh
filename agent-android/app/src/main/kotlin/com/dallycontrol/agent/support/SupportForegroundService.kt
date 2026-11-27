@@ -24,6 +24,7 @@ class SupportForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    @Suppress("ReturnCount") // the two control actions return before the foreground start
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
@@ -42,7 +43,9 @@ class SupportForegroundService : Service() {
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 var type = 0
-                if (microphone && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                if (microphone && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                }
                 if (projection) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
                 if (type == 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
@@ -105,19 +108,18 @@ class SupportForegroundService : Service() {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val nm = context.getSystemService(NotificationManager::class.java)
             if (nm.getNotificationChannel(CHANNEL) == null) {
-                nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL, context.getString(R.string.support_channel), NotificationManager.IMPORTANCE_LOW),
-                )
+                val name = context.getString(R.string.support_channel)
+                nm.createNotificationChannel(NotificationChannel(CHANNEL, name, NotificationManager.IMPORTANCE_LOW))
             }
             if (nm.getNotificationChannel(CHANNEL_CHAT) == null) {
-                nm.createNotificationChannel(
-                    NotificationChannel(CHANNEL_CHAT, context.getString(R.string.support_channel_chat), NotificationManager.IMPORTANCE_HIGH),
-                )
+                val name = context.getString(R.string.support_channel_chat)
+                nm.createNotificationChannel(NotificationChannel(CHANNEL_CHAT, name, NotificationManager.IMPORTANCE_HIGH))
             }
         }
 
         private fun open(context: Context): PendingIntent = PendingIntent.getActivity(
-            context, 0, SupportActivity.intent(context), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            context, 0, SupportActivity.intent(context),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
         fun notification(context: Context, inCall: Boolean): Notification {
@@ -125,7 +127,9 @@ class SupportForegroundService : Service() {
             val b = NotificationCompat.Builder(context, CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_phone_call_forward)
                 .setContentTitle(context.getString(R.string.support_notice_title))
-                .setContentText(context.getString(if (inCall) R.string.support_notice_call else R.string.support_notice_text))
+                .setContentText(
+                    context.getString(if (inCall) R.string.support_notice_call else R.string.support_notice_text),
+                )
                 .setOngoing(true)
                 .setContentIntent(open(context))
             if (inCall) {

@@ -24,6 +24,7 @@ import com.dallycontrol.agent.R
  * the voice call (accept / reject while it rings, mute / hang up while it is on). It opens by itself when support
  * writes or calls, also in kiosk and over the lock screen.
  */
+@Suppress("MagicNumber") // layout sizes in dp, next to the views they size
 class SupportActivity : Activity() {
 
     private lateinit var manager: SupportSessionManager
@@ -48,7 +49,9 @@ class SupportActivity : Activity() {
             setTurnScreenOn(true)
         } else {
             @Suppress("DEPRECATION")
-            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+            )
         }
         setContentView(build())
     }
@@ -110,13 +113,20 @@ class SupportActivity : Activity() {
         scroll = ScrollView(this).apply { addView(lines) }
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        val compose = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val compose = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
         input = EditText(this).apply {
             hint = getString(R.string.support_reply_hint)
             contentDescription = getString(R.string.support_reply_hint)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             imeOptions = EditorInfo.IME_ACTION_SEND
-            setOnEditorActionListener { _, action, _ -> if (action == EditorInfo.IME_ACTION_SEND) { sendReply(); true } else false }
+            setOnEditorActionListener { _, action, _ ->
+                val send = action == EditorInfo.IME_ACTION_SEND
+                if (send) sendReply()
+                send
+            }
         }
         compose.addView(input, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         compose.addView(button(R.string.support_send) { sendReply() })
@@ -154,7 +164,8 @@ class SupportActivity : Activity() {
             }
             SupportSessionManager.CallState.ACTIVE -> {
                 callPanel.visibility = View.VISIBLE
-                callText.text = getString(if (manager.muted) R.string.support_call_muted else R.string.support_call_active)
+                callText.text =
+                    getString(if (manager.muted) R.string.support_call_muted else R.string.support_call_active)
                 accept.visibility = View.GONE
                 mute.visibility = View.VISIBLE
                 mute.text = getString(if (manager.muted) R.string.support_unmute else R.string.support_mute)
@@ -169,12 +180,16 @@ class SupportActivity : Activity() {
     }
 
     private fun bubble(line: SupportSessionManager.ChatLine) = TextView(this).apply {
-        text = if (line.fromSupport) getString(R.string.support_line_support, line.text) else getString(R.string.support_line_me, line.text)
+        text = getString(if (line.fromSupport) R.string.support_line_support else R.string.support_line_me, line.text)
         textSize = BODY_SP
         setTextColor(Color.BLACK)
         setPadding(dp(10), dp(8), dp(10), dp(8))
-        background = GradientDrawable().apply { setColor(if (line.fromSupport) SUPPORT_BG else ME_BG); cornerRadius = dp(10).toFloat() }
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+        background = GradientDrawable().apply {
+            setColor(if (line.fromSupport) SUPPORT_BG else ME_BG)
+            cornerRadius = dp(10).toFloat()
+        }
+        val wrap = LinearLayout.LayoutParams.WRAP_CONTENT
+        layoutParams = LinearLayout.LayoutParams(wrap, wrap).apply {
             topMargin = dp(6)
             gravity = if (line.fromSupport) Gravity.START else Gravity.END
         }
@@ -190,7 +205,9 @@ class SupportActivity : Activity() {
         private const val ME_BG = 0xFFD2E3FC.toInt()
 
         fun intent(context: Context): Intent = Intent(context, SupportActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            .addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+            )
 
         /** Bring the support screen up (a Device Owner may start it from the background). */
         fun open(context: Context) {

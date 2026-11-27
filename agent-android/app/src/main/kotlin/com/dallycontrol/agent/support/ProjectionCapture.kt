@@ -48,6 +48,7 @@ object ProjectionCapture {
     val active: Boolean get() = projection != null
 
     /** Ask for (and self-accept) the capture, sized to fit [maxDim]. False when it could not be obtained. */
+    @Suppress("ReturnCount") // already running / could not ask / the answer
     suspend fun ensure(context: Context, service: SupportAccessibilityService, maxDim: Int): Boolean {
         val (sw, sh) = service.screenSize()
         val (w, h) = SupportProtocol.scaled(sw, sh, maxDim)
@@ -61,7 +62,9 @@ object ProjectionCapture {
         width = w
         height = h
         runCatching {
-            context.startActivity(Intent(context, ProjectionRequestActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            context.startActivity(
+                Intent(context, ProjectionRequestActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
         }.onFailure {
             Log.w(TAG, "could not ask for screen capture", it)
             return false
@@ -144,7 +147,8 @@ object ProjectionCapture {
             val rowPixels = plane.rowStride / plane.pixelStride
             val padded = Bitmap.createBitmap(rowPixels, image.height, Bitmap.Config.ARGB_8888)
             padded.copyPixelsFromBuffer(plane.buffer)
-            val bitmap = if (rowPixels == image.width) padded else Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+            val bitmap = if (rowPixels == image.width) padded
+            else Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
             last = bitmap
             bitmap
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
@@ -171,6 +175,7 @@ object ProjectionCapture {
      * Called by the screen service for System UI windows: while a capture request of ours is pending, press the
      * consent's positive button (ticking "Don't show again" first where the dialog has it).
      */
+    @Suppress("ReturnCount") // guards: no request pending, not System UI, no window to read
     internal fun onSystemWindow(service: SupportAccessibilityService, event: AccessibilityEvent) {
         if (System.currentTimeMillis() > consentUntil || event.packageName?.toString() != SYSTEM_UI) return
         val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: event.source ?: return

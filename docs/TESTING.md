@@ -253,3 +253,36 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Remote support through the agent (ADR 0012)
+
+Screen, touch, voice, chat and files over the agent's own session channel, with no droidVNC-NG. Unit tests:
+`SupportSessionsTest` (relay rules, view-only, audit, capabilities, policy), `SupportHubTest` (when a session ends by
+itself), `UserScopeFilterTest#remoteSupportIsScopedToTheirDevices`, and on the agent `SupportProtocolTest` (µ-law
+codec, frame layout, scaling, typing, readiness, compatibility with older servers) and `SupportChannelTest` (the
+device's socket against a real WebSocket server).
+
+End to end, on an emulator or a phone (`scripts/remote-e2e.mjs --support …` runs both):
+
+```bash
+# the operator's side of the session socket, no browser: every check is on the wire or read back over adb
+node scripts/remote-support-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554 [--authorize]
+# the console's screen in headless Chromium (synthetic microphone): image, soft keys, click, chat, call, history
+node scripts/remote-support-console-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554
+# from a shell: status, start (prints key + token), stop, log
+scripts/remote-session.sh --api http://localhost:8088 --device <id> --support --status
+```
+
+**QR-style enrollment on an emulator.** `adb install -g` (what `scripts/adb-enroll.sh --apk …` does) grants the agent
+WRITE_SECURE_SETTINGS, so that device needs no tap at all. To reproduce a QR / zero-touch enrollment, install the
+agent first **without** `-g` (`adb install agent.apk`) and run `scripts/adb-enroll.sh` without `--apk`: the agent then
+holds nothing a Device Owner cannot grant itself, shows the guided screen by itself after enrolling, and
+`remote-support-e2e.mjs --authorize` does the one tap on the phone's real Settings screens before going on.
+
+`uiautomator dump` (used by both scripts to read what is on the phone) makes Android unbind every accessibility
+service for a moment, the agent's screen service included; the scripts wait for it to be bound again. A real session
+never meets that.
+
+Voice on an emulator started with `-no-audio`: the phone's microphone records silence, so a debug agent sends a 440 Hz
+tone when the call is started with `testTone` (the scripts do), and the checks are on level and pitch at both ends;
+the real microphone path is still opened and checked (`recording`, frames flowing).

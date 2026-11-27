@@ -20,9 +20,12 @@ import java.io.OutputStream
  *   the USB enroller) that is everything; without it Android only shows the agent its own Soporte folder and the
  *   phone's photos, videos and audio (media permissions a Device Owner grants itself).
  */
+@Suppress("TooManyFunctions") // receiving, listing and sending are a few short steps each
 class SupportFiles(private val context: Context) {
 
-    private class Incoming(val name: String, val stream: OutputStream, val uri: Uri?, val file: File?, var received: Long, val size: Long)
+    private class Incoming(val name: String, val stream: OutputStream, val uri: Uri?, val file: File?) {
+        var received = 0L
+    }
 
     private val incoming = HashMap<Int, Incoming>()
 
@@ -42,11 +45,11 @@ class SupportFiles(private val context: Context) {
                 val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                     ?: error("no se pudo crear el archivo")
                 val stream = context.contentResolver.openOutputStream(uri) ?: error("no se pudo abrir el archivo")
-                incoming[id] = Incoming(name, stream, uri, null, 0, size)
+                incoming[id] = Incoming(name, stream, uri, null)
             } else {
                 val dir = legacyFolder()
                 val file = unique(dir, name)
-                incoming[id] = Incoming(file.name, file.outputStream(), null, file, 0, size)
+                incoming[id] = Incoming(file.name, file.outputStream(), null, file)
             }
             null
         }.getOrElse { it.message ?: "no se pudo guardar" }
@@ -78,7 +81,8 @@ class SupportFiles(private val context: Context) {
         val t = incoming.remove(id) ?: error("transferencia desconocida")
         t.stream.close()
         if (t.uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            context.contentResolver.update(t.uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+            val published = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
+            context.contentResolver.update(t.uri, published, null, null)
         }
         return "${Environment.DIRECTORY_DOWNLOADS}/$FOLDER/${t.name}"
     }
@@ -121,7 +125,8 @@ class SupportFiles(private val context: Context) {
 
     /** The shared storage is readable as plain files (all-files access, or the pre-Android 11 storage permission). */
     private fun fullAccess(): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager() else root().canRead() && root().list() != null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Environment.isExternalStorageManager()
+        else root().canRead() && root().list() != null
 
     /** A path the operator sent, confined to the shared storage. Null when it points outside. */
     private fun resolve(path: String?): File? {
@@ -139,7 +144,10 @@ class SupportFiles(private val context: Context) {
             .filter { !it.name.startsWith(".") }
             .sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }))
             .take(MAX_ENTRIES)
-            .map { Entry(it.name, if (rel.isEmpty()) it.name else "$rel/${it.name}", it.isDirectory, if (it.isFile) it.length() else 0, it.lastModified()) }
+            .map {
+                val path = if (rel.isEmpty()) it.name else "$rel/${it.name}"
+                Entry(it.name, path, it.isDirectory, if (it.isFile) it.length() else 0, it.lastModified())
+            }
         return Listing(rel, entries, limited = false)
     }
 
@@ -152,14 +160,19 @@ class SupportFiles(private val context: Context) {
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) collections += MediaStore.Downloads.EXTERNAL_CONTENT_URI
-        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATE_MODIFIED)
+        val columns = arrayOf(
+            MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE,
+            MediaStore.MediaColumns.DATE_MODIFIED,
+        )
+        val newestFirst = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
         for (collection in collections) {
             runCatching {
-                context.contentResolver.query(collection, columns, null, null, "${MediaStore.MediaColumns.DATE_MODIFIED} DESC")?.use { c ->
+                context.contentResolver.query(collection, columns, null, null, newestFirst)?.use { c ->
                     var n = 0
                     while (c.moveToNext() && n++ < MAX_MEDIA_PER_KIND) {
-                        val uri = Uri.withAppendedPath(collection, c.getLong(0).toString())
-                        out += Entry(c.getString(1) ?: "archivo", uri.toString(), false, c.getLong(2), c.getLong(3) * MILLIS)
+                        val uri = Uri.withAppendedPath(collection, c.getLong(COL_ID).toString())
+                        val name = c.getString(COL_NAME) ?: "archivo"
+                        out += Entry(name, uri.toString(), false, c.getLong(COL_SIZE), c.getLong(COL_MODIFIED) * MILLIS)
                     }
                 }
             }.onFailure { Log.i(TAG, "media listing of $collection failed: ${it.message}") }
@@ -170,14 +183,19 @@ class SupportFiles(private val context: Context) {
     class Outgoing(val name: String, val size: Long, val stream: java.io.InputStream)
 
     /** Open a file the operator asked for (`file.get`): a path under the shared storage, or a media content URI. */
+    @Suppress("ReturnCount") // each early return is a file the operator may not have
     fun open(path: String): Outgoing? = runCatching {
         if (path.startsWith("content://")) {
             val uri = Uri.parse(path)
             if (uri.authority != MediaStore.AUTHORITY) return null
             var name = "archivo"
             var size = -1L
-            context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE), null, null, null)?.use { c ->
-                if (c.moveToFirst()) { name = c.getString(0) ?: name; size = c.getLong(1) }
+            val columns = arrayOf(MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.SIZE)
+            context.contentResolver.query(uri, columns, null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    name = c.getString(0) ?: name
+                    size = c.getLong(1)
+                }
             }
             Outgoing(name, size, context.contentResolver.openInputStream(uri) ?: return null)
         } else {
@@ -192,5 +210,9 @@ class SupportFiles(private val context: Context) {
         const val MAX_ENTRIES = 500
         const val MAX_MEDIA_PER_KIND = 150
         const val MILLIS = 1000L
+        const val COL_ID = 0
+        const val COL_NAME = 1
+        const val COL_SIZE = 2
+        const val COL_MODIFIED = 3
     }
 }

@@ -18,6 +18,7 @@ class RemoteSessionStartHandler(private val sessions: SupportSessionManager) : C
     @Serializable
     private data class Payload(val sessionId: String)
 
+    @Suppress("ReturnCount")
     override suspend fun handle(command: CommandEnvelope): CommandResult {
         val p = command.payload
             ?.let { runCatching { ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), it) }.getOrNull() }

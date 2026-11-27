@@ -138,13 +138,15 @@ class SupportProtocolTest {
     @Test
     fun `screen is ready when the service is on or the agent may switch it on`() {
         val s = SupportSettings()
-        assertEquals(SupportScreenState.READY, SupportReadiness.screen(34, s, serviceOn = true, canSelfEnable = false))
-        assertEquals(SupportScreenState.READY, SupportReadiness.screen(34, s, serviceOn = false, canSelfEnable = true))
+        fun state(sdk: Int, on: Boolean, self: Boolean, settings: SupportSettings = s) =
+            SupportReadiness.screen(sdk, settings, serviceOn = on, canSelfEnable = self)
+        assertEquals(SupportScreenState.READY, state(34, on = true, self = false))
+        assertEquals(SupportScreenState.READY, state(34, on = false, self = true))
         // QR enrollment before the one tap: the console must say "falta autorización".
-        assertEquals(SupportScreenState.NEEDS_AUTHORIZATION, SupportReadiness.screen(34, s, serviceOn = false, canSelfEnable = false))
-        assertEquals(SupportScreenState.UNSUPPORTED, SupportReadiness.screen(23, s, serviceOn = true, canSelfEnable = true))
+        assertEquals(SupportScreenState.NEEDS_AUTHORIZATION, state(34, on = false, self = false))
+        assertEquals(SupportScreenState.UNSUPPORTED, state(23, on = true, self = true))
         val vncOnly = SupportSettings.of("droidvnc", null, null, null)
-        assertEquals(SupportScreenState.DISABLED, SupportReadiness.screen(34, vncOnly, serviceOn = true, canSelfEnable = true))
+        assertEquals(SupportScreenState.DISABLED, state(34, on = true, self = true, settings = vncOnly))
     }
 
     @Test
@@ -187,9 +189,10 @@ class SupportProtocolTest {
 
     @Test
     fun `a configuration from an older server has no remote support section`() {
-        val old = ProtocolJson.json.decodeFromString(ConfigApplyPayload.serializer(), """{"revision":"r1","policies":{}}""")
+        val json = ProtocolJson.json
+        val old = json.decodeFromString(ConfigApplyPayload.serializer(), """{"revision":"r1","policies":{}}""")
         assertNull(old.remoteSupport)
-        val new = ProtocolJson.json.decodeFromString(
+        val new = json.decodeFromString(
             ConfigApplyPayload.serializer(),
             """{"revision":"r2","remoteSupport":{"callAccept":"auto","futureKey":1}}""",
         )
@@ -201,13 +204,16 @@ class SupportProtocolTest {
     fun `capability report keeps the fields older servers read`() {
         val cap = RemoteControlCapability(
             tier = "control", screenCapture = true, inputInjection = true, transport = listOf("support-ws"),
-            support = SupportCapability(screen = SupportScreenState.READY, control = true, voice = "ready", capture = "a11y"),
+            support = SupportCapability(
+                screen = SupportScreenState.READY, control = true, voice = "ready", capture = "a11y",
+            ),
         )
         val json = ProtocolJson.json.encodeToString(RemoteControlCapability.serializer(), cap)
         assertTrue(json, json.contains(""""tier":"control""""))
         assertTrue(json, json.contains(""""support":{"""))
         assertTrue(json, json.contains(""""screen":"ready""""))
         // An agent without the engine section serialises exactly as before.
-        assertFalse(ProtocolJson.json.encodeToString(RemoteControlCapability.serializer(), RemoteControlCapability()).contains("support"))
+        val plain = ProtocolJson.json.encodeToString(RemoteControlCapability.serializer(), RemoteControlCapability())
+        assertFalse(plain.contains("support"))
     }
 }
