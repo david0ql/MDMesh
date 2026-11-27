@@ -253,3 +253,33 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Auditoría y roles (MDM-15)
+
+What is checked, and with what:
+
+| Check | How |
+|-------|-----|
+| Every state-changing route is audited | `AuditCatalogCoverageTest` (server tests): reads the JAX-RS annotations of every resource and fails when a reachable POST / PUT / DELETE has no entry in `AuditCatalog` (or is recorded under another route's rule, or the catalog names a route that no longer exists) |
+| What a row contains, secrets never kept, before / after, result | `AuditTrailServiceTest`, `AuditPiecesTest`, `AuditTrailFilterTest`, `AuditHashTest` |
+| The trail end to end, as a limited technician | `scripts/audit-e2e.py` (needs an enrolled device; an emulator is enough) |
+| Each permission of the role matrix restricts the API | `scripts/roles-matrix-e2e.py` (no device needed) |
+| The Auditoría screen, the device / user activity, Roles | `scripts/audit-console-e2e.mjs` (headless Chromium) |
+
+```bash
+# the technician, the allowed and refused actions (a real command to the device, a wipe without permission…), the
+# rows, the scope of a folder user, the exports, immutability (also at SQL level) and the retention purge
+scripts/audit-e2e.py --api http://localhost:8080 --device <device number> --db-container dallycontrol-dev-postgres-1
+
+# for EACH permission: a role without it is refused on its endpoints, the same role with it passes; role life cycle,
+# no privilege escalation, the ready-made roles (--only perm1,perm2 runs a subset)
+scripts/roles-matrix-e2e.py --api http://localhost:8080 [--device <device number>]
+
+# the console (once: cd scripts/shots && npm install && npx playwright install chromium)
+node scripts/audit-console-e2e.mjs --web http://localhost:8088 --device <device number> --shots /tmp/audit-shots
+```
+
+A new mutating endpoint makes `AuditCatalogCoverageTest` fail until it gets a line in
+`server/src/main/java/com/hmdm/audit/AuditCatalog.java` (`audit(...)` with a Spanish label, or `skip(...)` with the
+reason). Until then the request is still recorded, with a generic label. A new permission belongs in
+`web/src/data/roleCapabilities.ts` and in the `MATRIX` of `scripts/roles-matrix-e2e.py`, with the endpoints it gates.

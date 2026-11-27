@@ -49,9 +49,9 @@ export default function App() {
               <Route path="/alerts" element={<RequirePermission name="manage_fleet"><AlertsPage /></RequirePermission>} />
               <Route path="/scripts" element={<RequirePermission name="manage_scripts"><ScriptsPage /></RequirePermission>} />
               <Route path="/enroll" element={<RequirePermission name="enroll_devices"><EnrollPage /></RequirePermission>} />
-              <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
+              <Route path="/settings" element={<AdminOnly><RequirePermission name="settings"><SettingsPage /></RequirePermission></AdminOnly>} />
               <Route path="/users" element={<RequirePermission name="manage_users"><UsersPage /></RequirePermission>} />
-              <Route path="/roles" element={<AdminOnly><RolesPage /></AdminOnly>} />
+              <Route path="/roles" element={<AdminOnly><RequirePermission name="settings"><RolesPage /></RequirePermission></AdminOnly>} />
               <Route path="/geofences" element={<RequirePermission name="manage_fleet"><GeofencesPage /></RequirePermission>} />
               <Route path="/audit" element={<RequirePermission name="view_audit"><AuditPage /></RequirePermission>} />
             </Route>

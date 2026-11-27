@@ -49,7 +49,7 @@ class Api:
 
     def call(self, method, path, body=None, text=None):
         data = None
-        headers = {"Accept": "application/json", "User-Agent": "roles-matrix-e2e/1.0"}
+        headers = {"Accept": "application/json, */*", "User-Agent": "roles-matrix-e2e/1.0"}
         if text is not None:
             data, headers["Content-Type"] = text.encode(), "text/plain"
         elif body is not None:
@@ -111,6 +111,7 @@ def main():
     ap.add_argument("--admin", default="admin")
     ap.add_argument("--password", default="admin")
     ap.add_argument("--device")
+    ap.add_argument("--only", help="comma-separated permissions to check (default: all of them)")
     a = ap.parse_args()
     stamp = time.strftime("%H%M%S")
 
@@ -163,7 +164,7 @@ def main():
             ("POST", "/private/scripts/%d/run" % NO, {"deviceIds": [NO]}, "both"),
             ("POST", "/private/announcements", {}, "both"),
             ("POST", "/private/fleet/v1/devices/refresh", {}, "fleet"),
-            ("POST", "/private/devices/deleteBulk", {"ids": [NO]}, "both"),
+            ("POST", "/private/devices/deleteBulk", {"ids": [NO]}, "fleet"),  # a folder user is refused an id outside their folders
             ("DELETE", "/private/devices/%d" % NO, None, "fleet"),
             ("POST", "/private/agent/v1/rollout", {}, "fleet"),
             ("POST", "/private/fleet/v1/groups/%d/commands" % empty_folder["id"], {"command": {"type": "device.ring"}}, "both"),
@@ -199,7 +200,7 @@ def main():
             ("POST", "/private/agent/v1/apps/install/retry", {}, "fleet"),
             ("POST", "/private/geofences/v1/zones", {}, "both"),
             ("DELETE", "/private/geofences/v1/zones/%d" % NO, None, "both"),
-            ("POST", "/private/geofences/v1/recipients", {}, "both"),
+            ("POST", "/private/geofences/v1/recipients", {"groupId": empty_folder["id"]}, "both"),
             ("GET", "/private/reports/v1/schedules", None, "both"),
             ("POST", "/private/reports/v1/schedules", {}, "fleet"),
             ("GET", "/private/reports/v1/inventory", None, "both"),
@@ -298,7 +299,10 @@ def main():
                                            "permissions": all_ids(names)})
 
     total = 0
+    only = [p.strip() for p in a.only.split(",")] if a.only else list(MATRIX)
     for perm in MATRIX:
+        if perm not in only:
+            continue
         others = [n for n in MATRIX if n != perm]
         results = {}
         for holds in (False, True):
@@ -418,7 +422,7 @@ def main():
         admin.call("DELETE", "/private/fleet/v1/groups/%d" % folder["id"])
 
     failed = [n for n, ok in checks if not ok]
-    print("\n%d permisos, %d llamadas de la matriz, %d comprobaciones, %d fallidas" % (len(MATRIX), total, len(checks), len(failed)))
+    print("\n%d permisos, %d llamadas de la matriz, %d comprobaciones, %d fallidas" % (len(only), total, len(checks), len(failed)))
     return 1 if failed else 0
 
 

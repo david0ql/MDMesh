@@ -56,7 +56,7 @@ class Api:
     def raw(self, method, path, body=None, text=None):
         """-> (http status, bytes, headers). Never raises on an HTTP error status."""
         data = None
-        headers = {"Accept": "application/json", "User-Agent": UA}
+        headers = {"Accept": "application/json, */*", "User-Agent": UA}
         if self.forwarded_for:
             headers["X-Forwarded-For"] = self.forwarded_for
         if text is not None:
@@ -71,6 +71,24 @@ class Api:
                 return r.status, r.read(), dict(r.headers)
         except urllib.error.HTTPError as e:
             return e.code, e.read(), dict(e.headers)
+
+    def upload(self, path, filename, content):
+        """multipart/form-data upload of one file (field "file"). -> (http status, envelope dict or None)."""
+        boundary = "----auditE2E7MA4YWxkTrZu0gW"
+        data = (("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
+                 "Content-Type: application/octet-stream\r\n\r\n" % (boundary, filename)).encode()
+                + content + ("\r\n--%s--\r\n" % boundary).encode())
+        req = urllib.request.Request(self.base + "/rest" + path, data=data, method="POST", headers={
+            "Accept": "application/json", "User-Agent": UA, "Content-Type": "multipart/form-data; boundary=" + boundary})
+        try:
+            with self.opener.open(req, timeout=120) as r:
+                status, raw = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            status, raw = e.code, e.read()
+        try:
+            return status, json.loads(raw.decode() or "null")
+        except ValueError:
+            return status, None
 
     def call(self, method, path, body=None, text=None):
         """-> (http status, envelope dict or None)."""
@@ -332,8 +350,15 @@ def main():
                                           "roleId": role_id, "folders": [folder_a["id"]]})
     admin.ok("POST", "/private/fleet/v1/groups/%d/commands" % folder_a["id"],
              {"command": {"type": "device.ring", "requiresCapability": "device.ring", "payload": json.dumps({"durationMs": 1000})}})
+    # The audit only observes: an upload (a body it does not keep) must arrive intact.
+    payload = ("contenido de prueba " + stamp + "\n").encode() * 2000
+    s, e = admin.upload("/private/web-ui-files", "aud-%s.txt" % stamp, payload)
+    check("carga de archivo (multipart) a través del filtro de auditoría", s == 200 and isinstance(e, dict) and e.get("status") == "OK", (s, e))
     time.sleep(2)
     mine = audit(user=admin_id)
+    r = find(mine, "file.upload", "ok")
+    check("carga de archivo registrada, con su tamaño y sin el contenido",
+          r and "carga de" in (r.get("detail") or "") and "contenido de prueba" not in (r.get("detail") or ""), r)
     r = find(mine, "role.save", "ok", role_id)
     d = json.loads(r["detail"]) if r and r.get("detail") else {}
     check("cambio de permisos del rol con antes / después (permiso agregado)",

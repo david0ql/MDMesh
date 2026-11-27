@@ -288,7 +288,7 @@ public final class AuditCatalog {
                 .target("rollout", "path:id");
 
         // --- carpetas y flota -----------------------------------------------------------------------------------
-        audit("POST", "/private/fleet/v1/groups", FLEET, "group.create", "Creación de carpeta").target("group", "body:parentId");
+        audit("POST", "/private/fleet/v1/groups", FLEET, "group.create", "Creación de carpeta").target("group", "body:id");
         audit("PUT", "/private/fleet/v1/groups/{id}", FLEET, "group.update", "Edición de carpeta (nombre, política o ubicación)")
                 .target("group", "path:id").snapshot();
         audit("DELETE", "/private/fleet/v1/groups/{id}", FLEET, "group.delete", "Eliminación de carpeta")

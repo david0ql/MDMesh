@@ -97,6 +97,12 @@ public class AuditTrailService {
         String targetId;
         Map<String, Object> deviceBefore;
         Map<String, String> before;
+        /** The devices a bulk action names, as they were before it (a bulk delete leaves nothing to look up). */
+        List<Map<String, Object>> devicesBefore;
+        /** The folders of the user the action is about, before it (a deleted user has none afterwards). */
+        List<Integer> groupsBefore;
+        /** The start of the response, to read the id of what a creation made. */
+        String responseStart;
     }
 
     // --- before the request ----------------------------------------------------------------------------------------
@@ -118,8 +124,16 @@ public class AuditTrailService {
             }
             if (rule.targetType == null) return;
             s.targetType = rule.targetType;
+            if ("devices".equals(rule.targetType)) {
+                String key = rule.targetSource.substring(rule.targetSource.indexOf(':') + 1);
+                s.devicesBefore = devices(s.body, key, null);
+                return;
+            }
             s.targetId = source(rule.targetSource, s);
             if (s.targetId == null) return;
+            if ("user".equals(rule.targetType) && parseInt(s.targetId) != null) {
+                s.groupsBefore = db.userFolderIds(parseInt(s.targetId));
+            }
             if ("device".equals(rule.targetType)) {
                 s.deviceBefore = db.deviceByNumber(s.targetId);
             } else if ("deviceId".equals(rule.targetType)) {
@@ -146,6 +160,7 @@ public class AuditTrailService {
             AuditOutcome outcome = AuditOutcome.of(httpStatus, responseStart, responseJson, signIn);
             Integer userId = s.userId != null ? s.userId : userIdAfter;
             if (!shouldRecord(s, rule, outcome, userId)) return;
+            s.responseStart = responseJson ? responseStart : null;
             final long now = System.currentTimeMillis();
             writer.execute(() -> {
                 try {
@@ -163,6 +178,8 @@ public class AuditTrailService {
     boolean shouldRecord(Seen s, AuditCatalog.Rule rule, AuditOutcome outcome, Integer userId) {
         boolean priv = s.path.startsWith("/private/");
         if (rule != null && rule.kind == AuditCatalog.Kind.AUDIT) {
+            // A sign-out with no session behind it closed nothing.
+            if ("session.logout".equals(rule.action) && userId == null) return false;
             // Under /private an anonymous request cannot be attributed to anyone (an expired session): not recorded.
             return !priv || userId != null;
         }
@@ -334,8 +351,20 @@ public class AuditTrailService {
         if ("devices".equals(type)) {
             e.targetType = "devices";
             String key = rule.targetSource.substring(rule.targetSource.indexOf(':') + 1);
-            List<Map<String, Object>> rows = devices(body, key, customer);
-            addDevices(rows, numbers, groups);
+            // Before and after: a moved device counts for the folder it left and the one it reached, and a deleted
+            // one is only known from before.
+            List<Map<String, Object>> rows = new ArrayList<>();
+            Set<String> seen = new LinkedHashSet<>();
+            if (s.devicesBefore != null) {
+                for (Map<String, Object> d : s.devicesBefore) {
+                    if (customer >= 0 && sameCustomer(d, customer) && seen.add(str(d.get("number")))) rows.add(d);
+                }
+                List<Map<String, Object>> before = new ArrayList<>(rows);
+                addDevices(before, numbers, groups);
+            }
+            List<Map<String, Object>> now = devices(body, key, customer);
+            addDevices(now, numbers, groups);
+            for (Map<String, Object> d : now) if (seen.add(str(d.get("number")))) rows.add(d);
             describeDevices(rows, countOf(body, key), e, detail);
             return;
         }
@@ -363,8 +392,13 @@ public class AuditTrailService {
         e.targetId = clamp(s.targetId, 120);
         Integer id = parseInt(s.targetId);
         if (id == null) {
-            // A creation: the name the request gives it.
+            // A creation: the name the request gives it, and the id the server answered with.
             if (body != null) e.targetName = clamp(firstText(body, "name", "login", "title", "label"), 255);
+            Integer created = AuditOutcome.OK.equals(e.result) ? createdId(s.responseStart) : null;
+            if (created != null) {
+                e.targetId = String.valueOf(created);
+                if ("group".equals(type)) groups.add(created);
+            }
             return;
         }
         Map<String, String> row = s.before != null ? s.before : snapshot(type, s.targetId);
@@ -386,6 +420,7 @@ public class AuditTrailService {
             }
         } else if ("user".equals(type)) {
             // A folder administrator sees what is done to the users of their folders.
+            if (s.groupsBefore != null) groups.addAll(s.groupsBefore);
             groups.addAll(db.userFolderIds(id));
         }
     }
@@ -425,7 +460,8 @@ public class AuditTrailService {
         }
     }
 
-    private List<Map<String, Object>> devices(JsonNode body, String key, int customer) {
+    /** The devices a body lists under {@code key}; with {@code customer == null} unfiltered (the caller filters later). */
+    private List<Map<String, Object>> devices(JsonNode body, String key, Integer customer) {
         List<Map<String, Object>> out = new ArrayList<>();
         if (body == null || !body.has(key) || !body.get(key).isArray()) return out;
         List<Integer> ids = new ArrayList<>();
@@ -438,7 +474,7 @@ public class AuditTrailService {
         List<Map<String, Object>> rows = new ArrayList<>();
         if (!ids.isEmpty()) rows.addAll(db.devicesByIds(ids));
         if (!ns.isEmpty()) rows.addAll(db.devicesByNumbers(ns));
-        for (Map<String, Object> r : rows) if (customer >= 0 && sameCustomer(r, customer)) out.add(r);
+        for (Map<String, Object> r : rows) if (customer == null || (customer >= 0 && sameCustomer(r, customer))) out.add(r);
         return out;
     }
 
@@ -548,6 +584,16 @@ public class AuditTrailService {
             default:
                 return null;
         }
+    }
+
+    private static final java.util.regex.Pattern CREATED_ID =
+            java.util.regex.Pattern.compile("^\\{\"status\"\\s*:\\s*\"OK\"\\s*,\\s*\"message\"\\s*:\\s*(?:null|\"[^\"]*\")\\s*,\\s*\"data\"\\s*:\\s*\\{\\s*\"id\"\\s*:\\s*(\\d+)");
+
+    /** The id in {"status":"OK","message":…,"data":{"id":N,…}} — what a create call answers; null when it is not there. */
+    static Integer createdId(String responseStart) {
+        if (responseStart == null) return null;
+        java.util.regex.Matcher m = CREATED_ID.matcher(responseStart);
+        return m.find() ? parseInt(m.group(1)) : null;
     }
 
     static String commandType(JsonNode body) {

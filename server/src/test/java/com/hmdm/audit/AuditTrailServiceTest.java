@@ -40,6 +40,11 @@ public class AuditTrailServiceTest {
                 new Class<?>[]{AuditTrailMapper.class}, (proxy, method, args) -> {
                     String key = method.getName() + (args != null && args.length > 0 ? ":" + args[0] : "");
                     Object v = answers.containsKey(key) ? answers.get(key) : answers.get(method.getName());
+                    if (v instanceof Seq) {
+                        // One answer per call, for methods that return a list.
+                        List<Object> q = ((Seq) v).answers;
+                        v = q.isEmpty() ? null : q.remove(0);
+                    }
                     if (v instanceof List && !List.class.isAssignableFrom(method.getReturnType())) {
                         // A queue of answers: one per call (the row before and after an edit).
                         @SuppressWarnings("unchecked") List<Object> q = (List<Object>) v;
@@ -60,6 +65,15 @@ public class AuditTrailServiceTest {
         service = new AuditTrailService(dao);
         answers.put("userById:7", user(7, "tecnico1", "Técnico Uno", 3, "User"));
         answers.put("deviceByNumber:dev-1", device(11, "dev-1", "Tablet bodega", "5"));
+    }
+
+    /** A sequence of answers, one per call. */
+    private static final class Seq {
+        final List<Object> answers = new ArrayList<>();
+
+        Seq(Object... values) {
+            answers.addAll(Arrays.asList(values));
+        }
     }
 
     private static Map<String, Object> user(int id, String login, String name, int roleId, String roleName) {
@@ -270,6 +284,35 @@ public class AuditTrailServiceTest {
         assertNull(e.groupIdsLiteral);
     }
 
+    @Test
+    public void aBulkDeleteKnowsTheDevicesFromBeforeTheyWereDeleted() {
+        // Before the request both devices exist; afterwards the look-up finds nothing.
+        answers.put("devicesByIds", new Seq(
+                Arrays.asList(device(11, "dev-1", "Tablet bodega", "5"), device(12, "dev-2", "Caja 2", "6")),
+                new ArrayList<Map<String, Object>>()));
+        AuditEntry e = run(seen("POST", "/private/devices/deleteBulk", 7, "{\"ids\":[11,12]}"), 200, OK);
+        assertEquals("Eliminación masiva de dispositivos", e.label);
+        assertEquals("2 dispositivos", e.targetName);
+        assertEquals("{\"dev-1\",\"dev-2\"}", e.deviceNumbersLiteral);
+        assertEquals("{5,6}", e.groupIdsLiteral);
+        assertTrue(e.detail, e.detail.contains("Caja 2 (dev-2)"));
+    }
+
+    @Test
+    public void aCreationTakesItsIdFromTheAnswer() {
+        answers.put("groupName:5", "Bodega");
+        AuditEntry e = run(seen("POST", "/private/fleet/v1/groups", 7, "{\"name\":\"Sede norte\",\"parentId\":5}"), 200,
+                "{\"status\":\"OK\",\"message\":null,\"data\":{\"id\":42,\"name\":\"Sede norte\",\"parentId\":5}}");
+        assertEquals("Creación de carpeta", e.label);
+        assertEquals("42", e.targetId);
+        assertEquals("Sede norte", e.targetName);
+        // The new folder and the one it was created in.
+        assertEquals("{42,5}", e.groupIdsLiteral);
+        assertTrue(e.detail, e.detail.contains("\"carpetaSuperior\":\"Bodega\""));
+        assertNull(AuditTrailService.createdId("{\"status\":\"OK\",\"message\":null,\"data\":[{\"id\":1}]}"));
+        assertNull(AuditTrailService.createdId("{\"status\":\"ERROR\",\"message\":null,\"data\":{\"id\":1}}"));
+    }
+
     // --- what is, and is not, recorded ---------------------------------------------------------------------------
 
     @Test
@@ -308,6 +351,8 @@ public class AuditTrailServiceTest {
     public void whatCannotBeAttributedOrIsNotAUsersActionIsSkipped() {
         // No session: nobody to attribute it to.
         assertNull(run(seen("POST", "/private/agent/v1/devices/dev-1/commands", null, "{\"type\":\"device.lock\"}"), 403, null));
+        // A sign-out without a session.
+        assertNull(run(seen("POST", "/public/auth/logout", null, null), 204, null));
         // The device's own calls.
         assertNull(run(seen("POST", "/public/agent/v1/checkin", null, "{}"), 200, OK));
         // An upload part, an interface preference.
