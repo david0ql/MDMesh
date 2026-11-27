@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import {
-  getDeviceScope, listGroups, moveDevicesToGroup, setDevicesConfiguration,
+  getDeviceScope, listGroups, moveDevicesToGroup, setDevicesConfiguration, setDeviceAccountEmail,
   type DeviceScope, type FleetGroup, groupTree,
 } from '../api/fleet';
 import { useToast } from '../ui/toast';
@@ -30,11 +30,14 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
   const [groups, setGroups] = useState<FleetGroup[]>([]);
   const [configs, setConfigs] = useState<ConfigurationSummary[]>([]);
   const [busy, setBusy] = useState(false);
+  // Draft of the device-level email input (null = not editing / mirror the loaded value).
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [s, g] = await Promise.all([getDeviceScope(deviceId), listGroups()]);
     setScope(s);
     setGroups(g.groups);
+    setEmailDraft(null);
   }, [deviceId]);
 
   useEffect(() => {
@@ -106,6 +109,44 @@ export function DeviceScopeCard({ deviceId, onChanged }: { deviceId: number; onC
           </select>
         </div>
       )}
+      <div className="row">
+        <span className="k">Correo</span>
+        {canManage ? (
+          <span className="v" style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="sel"
+              style={{ flex: 1, minWidth: 140 }}
+              type="email"
+              aria-label="Cuenta de correo del dispositivo"
+              placeholder={scope.groupAccountEmail ? `Heredar (${scope.groupAccountEmail})` : 'Sin correo'}
+              value={emailDraft ?? scope.accountEmail ?? ''}
+              disabled={busy}
+              onChange={(e) => setEmailDraft(e.target.value)}
+            />
+            <button
+              className="btn btn-sm"
+              disabled={busy || (emailDraft === null) || emailDraft.trim() === (scope.accountEmail ?? '')}
+              onClick={() => {
+                const next = (emailDraft ?? '').trim();
+                void change(next ? 'Correo del dispositivo' : 'Correo heredado',
+                  () => setDeviceAccountEmail([deviceId], next || null));
+              }}
+            >
+              Guardar
+            </button>
+          </span>
+        ) : (
+          <span className="v">
+            {scope.effectiveAccountEmail ?? '—'}{' '}
+            {scope.accountEmailSource && (
+              <span className={`chip scope-${scope.accountEmailSource}`} title="De dónde viene este correo">
+                {SOURCE_LABEL[scope.accountEmailSource]}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+
       {scope.groupId != null && (
         <p className="muted scope-note">
           <Link to={`/devices?group=${scope.groupId}`}>Otros dispositivos en {scope.groupName}</Link>

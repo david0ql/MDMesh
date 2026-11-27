@@ -14,6 +14,10 @@ public class EnrollmentCodeView {
     private String wifiSsid;
     private String wifiPassword;
     private String wifiSecurity;
+    private String accountEmail;
+
+    public String getAccountEmail() { return accountEmail; }
+    public void setAccountEmail(String accountEmail) { this.accountEmail = accountEmail; }
 
     public String getWifiSsid() { return wifiSsid; }
     public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }

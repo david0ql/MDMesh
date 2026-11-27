@@ -52,6 +52,9 @@ public final class DeviceSummary {
         s.put("simPhone", row.get("simphone"));
         s.put("simMismatch", row.get("simmismatch"));
         s.put("stateAt", row.get("stateat"));
+        // Email account (metadata/identification): the device's own, else resolved from its folder chain.
+        Object ownEmail = row.get("accountemail");
+        s.put("accountEmail", ownEmail != null ? ownEmail : row.get("groupaccountemail"));
         return s;
     }
 

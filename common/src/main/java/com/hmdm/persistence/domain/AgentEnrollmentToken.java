@@ -68,6 +68,16 @@ public class AgentEnrollmentToken implements Serializable {
     public String getExpectedPhone() { return expectedPhone; }
     public void setExpectedPhone(String expectedPhone) { this.expectedPhone = expectedPhone; }
 
+    /**
+     * Optional email account associated with the enrollment, used to tag/identify the device. On enroll the device
+     * inherits this value (device > group/folder); it is a metadata/identification field only — it does NOT create
+     * any account on the phone.
+     */
+    private String accountEmail;
+
+    public String getAccountEmail() { return accountEmail; }
+    public void setAccountEmail(String accountEmail) { this.accountEmail = accountEmail; }
+
     public String getWifiSsid() { return wifiSsid; }
     public void setWifiSsid(String wifiSsid) { this.wifiSsid = wifiSsid; }
     public String getWifiPassword() { return wifiPassword; }

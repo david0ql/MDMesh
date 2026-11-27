@@ -49,6 +49,9 @@ export function EnrollPage() {
   // Operator-declared phone number of the device's SIM. Stored with the token and copied onto the device at
   // enrollment; the server later compares it against the number the SIM reports and flags a mismatch.
   const [expectedPhone, setExpectedPhone] = useState('');
+  // Optional email account tagged onto the enrolled device (metadata/identification only; no account is created on
+  // the phone). The device inherits it (device > group/folder). Baked into the token, so changing it re-mints.
+  const [accountEmail, setAccountEmail] = useState('');
   useEffect(() => { listGroups().then((o) => setGroups(o.groups)).catch(() => undefined); }, []);
   useEffect(() => {
     try { if (groupId) localStorage.setItem(ENROLL_GROUP_KEY, groupId); else localStorage.removeItem(ENROLL_GROUP_KEY); }
@@ -81,7 +84,11 @@ export function EnrollPage() {
     setBusy(true);
     setTokError(null);
     try {
-      const res = await mintEnrollToken({ groupId: validGroup ? gid : undefined, expectedPhone });
+      const res = await mintEnrollToken({
+        groupId: validGroup ? gid : undefined,
+        expectedPhone,
+        accountEmail: accountEmail.trim() || undefined,
+      });
       if (res.token) {
         setToken(res.token);
         setExpiresAt(res.expiresAt);
@@ -140,6 +147,18 @@ export function EnrollPage() {
               placeholder="opcional, p. ej. 3001234567"
               aria-label="Número de celular esperado"
               title="Número de la SIM que debería tener el equipo. Al inscribir se compara con el número real; si difiere se genera una alerta. Tras cambiarlo, genera un nuevo código."
+            />
+          </label>
+          <label className="enroll-group">
+            <span>Cuenta de correo (opcional)</span>
+            <input
+              className="sel"
+              type="email"
+              aria-label="Cuenta de correo"
+              placeholder="correo@empresa.com"
+              value={accountEmail}
+              onChange={(e) => setAccountEmail(e.target.value)}
+              onBlur={() => void generate()}
             />
           </label>
           <span className="seg" role="tablist" aria-label="Método de inscripción">

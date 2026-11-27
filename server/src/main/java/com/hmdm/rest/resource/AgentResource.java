@@ -194,6 +194,12 @@ public class AgentResource {
                 if (device != null && pinned) {
                     commandDAO.updateDevicePinned(device.getId(), true);
                 }
+                // Tag the new device with the token's email account, if any (metadata/identification only; it does
+                // not create an account on the phone). When the token has none, the device's account_email stays
+                // null and is resolved dynamically from its group/folder chain (device > group/folder).
+                if (device != null && token.getAccountEmail() != null) {
+                    commandDAO.updateDeviceAccountEmail(deviceId, token.getAccountEmail());
+                }
                 if (device == null) {
                     // Named error (not a generic internal one) — this exact failure cost a debugging
                     // session: valid token, reachable server, no device row.

@@ -83,6 +83,7 @@ export const DEVICE_COLUMNS: DeviceColumn[] = [
   { key: 'operator', label: 'Operador', width: '110px', render: (_d, s) => orDash(s?.operator ?? undefined) },
   { key: 'policy', label: 'Política', width: '140px', render: (_d, _s, c) => c.policy },
   { key: 'group', label: 'Carpeta', width: '130px', render: (_d, _s, c) => c.group },
+  { key: 'accountEmail', label: 'Correo', width: '180px', render: (_d, s) => orDash(s?.accountEmail ?? undefined) },
   { key: 'kiosk', label: 'Quiosco', width: '76px', render: (d, s) => ((s?.kioskActive ?? d.kioskMode) ? 'Sí' : 'No') },
   { key: 'simMatch', label: 'SIM esperada', width: '126px', render: (_d, s) => <SimMatchCell s={s} /> },
   { key: 'serial', label: 'Serie', width: '130px', render: (d) => orDash(d.serial) },
