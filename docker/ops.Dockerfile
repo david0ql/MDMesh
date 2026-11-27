@@ -5,7 +5,7 @@
 #   rclone, rsync, ssh   off-site copy (S3-compatible, any rclone remote, or rsync over SSH)
 #   openssl              optional encryption of the dumps
 FROM node:24-alpine
-RUN apk add --no-cache bash coreutils tzdata postgresql17-client rclone rsync openssh-client openssl tar gzip \
+RUN apk add --no-cache bash coreutils findutils tzdata postgresql17-client rclone rsync openssh-client openssl tar gzip \
  && addgroup -S ops && adduser -S -G ops -h /var/lib/monitor ops \
  && mkdir -p /var/lib/monitor /backups /config && chown ops:ops /var/lib/monitor
 COPY ops/ /ops/

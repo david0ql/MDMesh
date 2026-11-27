@@ -35,7 +35,6 @@ else
   psqlc -c "SELECT pg_promote(true, 60)" >/dev/null
   for _ in $(seq 1 30); do [ "$(psqlc -c 'SELECT pg_is_in_recovery()')" = f ] && break; sleep 1; done
   [ "$(psqlc -c 'SELECT pg_is_in_recovery()')" = f ] || { echo "La promoción no terminó." >&2; exit 1; }
-  psqlc -c "CREATE TABLE IF NOT EXISTS ha_failover_log (at timestamptz DEFAULT now(), note text); INSERT INTO ha_failover_log (note) VALUES ('promoted')" >/dev/null
   say "Base de datos promovida y aceptando escrituras en $(( $(date +%s) - T0 )) s."
 fi
 

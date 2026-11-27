@@ -28,9 +28,15 @@
 	lb_try_duration {$LB_TRY_DURATION:20s}
 	lb_try_interval 250ms
 	health_uri /rest/public/health
-	health_interval 2s
-	health_timeout 4s
-	health_fails 2
+	# Tells the server it is the load balancer asking, so a draining instance answers 503 to it (and only to it).
+	health_headers {
+		X-DallyControl-Health lb
+	}
+	health_interval 1s
+	# Tolerant on purpose: on a busy shared host an answer can take seconds, and taking the only instance out of
+	# rotation for a slow answer is worse than noticing a dead one three seconds later.
+	health_timeout 8s
+	health_fails 3
 	health_passes 1
 	fail_duration 4s
 	max_fails 2
@@ -57,6 +63,8 @@
 	# A client-supplied CF-Connecting-IP would be taken as the device's public IP. Only Cloudflare mode, where
 	# cloudflared sets it, keeps it (setup sets CF_IP_HEADER_STRIP to a dummy name there).
 	request_header -{$CF_IP_HEADER_STRIP:CF-Connecting-IP}
+	# Only the edge's own health checks may present themselves as the load balancer (see api_upstreams).
+	request_header -X-DallyControl-Health
 
 	# Canonical agent-APK URL: /files/agent.apk works on BOTH deployment shapes (native serves a
 	# real file from Tomcat; here it's the supervisor's sha256-verified release mirror — the same
@@ -155,12 +163,26 @@
 	}
 	handle @healthzDeep {
 		header Cache-Control "no-store"
-		reverse_proxy {
-			import api_upstreams
-			# A probe must answer now, not after waiting for an instance to come back.
-			lb_try_duration 0s
+		# Asks the instances directly, not through the health gate above: the answer is the server's own (which
+		# dependency fails), and an instance that is being drained but still serves is healthy to a monitor. An
+		# instance that is stopped or absent is skipped; one that answers "not ready" (503: it has just started, or its
+		# database is gone) gets a second opinion from the other instance, whose answer then stands.
+		reverse_proxy server:8080 server-b:8080 {
+			lb_policy first
+			lb_try_duration 2s
+			lb_try_interval 100ms
 			rewrite /rest/public/health
 			header_down -Server
+			@notready status 503
+			handle_response @notready {
+				reverse_proxy server-b:8080 server:8080 {
+					lb_policy first
+					lb_try_duration 1s
+					lb_try_interval 100ms
+					rewrite /rest/public/health
+					header_down -Server
+				}
+			}
 		}
 	}
 	handle @healthz {

@@ -81,6 +81,16 @@ public class HealthProbeTest {
     }
 
     @Test
+    public void monitorsSeeADrainingInstanceAsHealthyButNeverADownOne() {
+        AtomicBoolean dbUp = new AtomicBoolean(true);
+        HealthProbe probe = new HealthProbe(() -> true, 1000, 0, () -> 0L).add("db", dbUp::get);
+        Assert.assertEquals(HealthProbe.STATUS_DRAINING, probe.check(true).getStatus());
+        Assert.assertTrue(probe.check(false).isReady());
+        dbUp.set(false);
+        Assert.assertEquals(HealthProbe.STATUS_DOWN, probe.check(false).getStatus());
+    }
+
+    @Test
     public void aDownInstanceReportsDownNotDraining() {
         HealthProbe probe = new HealthProbe(() -> true, 1000, 0, () -> 0L).add("db", () -> false);
         Assert.assertEquals(HealthProbe.STATUS_DOWN, probe.check().getStatus());

@@ -7,7 +7,8 @@
 #   2. `docker compose config -q` for every compose file / overlay / profile combination the installers use.
 #   3. /healthz and /healthz/supervisor (with or without a trailing slash), served by that caddy against stub upstreams:
 #      503 + reason while the upstream is down or failing (not the SPA's or the recovery page's catch-all 200), 200 "ok"
-#      once it answers.
+#      once it answers. Also /healthz/deep (the server's own database-aware probe, passed through), /healthz/edge, and
+#      that the edge takes a server whose deep probe fails out of rotation.
 #   4. The dev stack (docker-compose.dev.yml over docker-compose.yml) with docker/dev.env alone, and that the overlay
 #      refuses to load without it.
 # Guards the v0.3.1 Cloudflare-mode break: `email {$ACME_EMAIL}` with the empty ACME_EMAIL that setup.sh and
@@ -92,6 +93,9 @@ set -u
 F=0
 SPA='<!doctype html><title>spa</title>'
 DOWN='server unavailable'
+DEEP_DOWN='{"status":"down","checks":{"server":"fail"}}'
+DEEP_OK='{"status":"ok","checks":{"db":"ok","files":"ok"}}'
+DEEP_DB='{"status":"down","checks":{"db":"fail","files":"ok"}}'
 SUP_DOWN='supervisor unavailable'
 command -v curl >/dev/null || { echo "  FAIL no curl in the caddy image (the probe reads 503 bodies with it)"; exit 1; }
 mkdir -p /srv /tmp/stub && echo "$SPA" > /srv/index.html
@@ -106,6 +110,13 @@ stub() {   # stub <port> <site body>: start a throwaway upstream on :<port> and 
   echo "  FAIL stub :$1 never answered"; exit 1
 }
 unstub() { kill "$(cat "/tmp/stub/$1.pid")"; wait "$(cat "/tmp/stub/$1.pid")" 2>/dev/null || true; }
+stub_b() {   # stub_b <site body>: the relay instance, `server-b` (127.0.0.2:8080)
+  printf '{\n\tadmin off\n}\n:8080 {\n\tbind 127.0.0.2\n%s\n}\n' "$1" > /tmp/stub/b
+  caddy run --config /tmp/stub/b --adapter caddyfile >/dev/null 2>&1 &
+  echo $! > /tmp/stub/b.pid
+  for _ in $(seq 1 50); do [ -n "$(http_code "http://127.0.0.2:8080/")" ] && return 0; sleep 0.1; done
+  echo "  FAIL stub server-b never answered"; exit 1
+}
 expect() { # expect <label> <path> <status> [body]
   rm -f /tmp/body
   code="$(http_code "http://127.0.0.1$2" /tmp/body)"; body="$(cat /tmp/body 2>/dev/null || true)"
@@ -117,6 +128,9 @@ expect "/healthz: 503 while the server is down"                    /healthz     
 expect "/healthz/: 503 while the server is down"                   /healthz/            503 "$DOWN"
 expect "/healthz/supervisor: 503 while the supervisor is down"     /healthz/supervisor  503 "$SUP_DOWN"
 expect "/healthz/supervisor/: 503 while the supervisor is down"    /healthz/supervisor/ 503 "$SUP_DOWN"
+expect "/healthz/deep: 503 + JSON while the server is down"        /healthz/deep        503 "$DEEP_DOWN"
+expect "/healthz/edge: 200 ok even with the server down"           /healthz/edge        200 ok
+expect "/estado: 404 without the monitor profile, not the SPA"     /estado              404
 expect "/: still the SPA"                                           /                    200 "$SPA"
 expect "/healthz/x: still the SPA (health paths match exactly)"     /healthz/x           200 "$SPA"
 stub 9000 '	respond /healthz "ok" 200
@@ -127,10 +141,38 @@ expect "/healthz/: 503 while the server is down, not the recovery page's 200" /h
 expect "/healthz/supervisor: 200 ok once the supervisor answers"   /healthz/supervisor  200 ok
 expect "/healthz/supervisor/: 200 ok once the supervisor answers"  /healthz/supervisor/ 200 ok
 expect "/rest/*: server down still falls back to the recovery page" /rest/public/name   200 'recovery page'
+# The edge routes only to an instance whose deep health probe passes (active health check, every second).
 stub 8080 '	respond /rest/public/name "{\"status\":\"OK\"}" 200
+	respond /rest/public/health "{\"status\":\"ok\",\"checks\":{\"db\":\"ok\",\"files\":\"ok\"}}" 200
 	respond "not found" 404'
+sleep 3
 expect "/healthz: 200 ok once the server answers /rest/public/name"  /healthz  200 ok
 expect "/healthz/: 200 ok once the server answers /rest/public/name" /healthz/ 200 ok
+expect "/healthz/deep: the server's own JSON once it is healthy"     /healthz/deep  200 "$DEEP_OK"
+expect "/healthz/deep/: same with a trailing slash"                   /healthz/deep/ 200 "$DEEP_OK"
+unstub 8080
+# Database gone: the server answers, its deep probe says 503. The deep probe passes the reason on; the API is taken
+# out of rotation (the recovery page after LB_TRY_DURATION), exactly like a server that is down.
+stub 8080 '	respond /rest/public/name "{\"status\":\"OK\"}" 200
+	respond /rest/public/health "{\"status\":\"down\",\"checks\":{\"db\":\"fail\",\"files\":\"ok\"}}" 503
+	respond "not found" 404'
+sleep 3
+expect "/healthz/deep: 503 and the server's reason while it cannot reach its database" /healthz/deep 503 "$DEEP_DB"
+expect "/rest/*: a server without its database is out of rotation"      /rest/public/name 200 'recovery page'
+unstub 8080
+# Relay (scripts/deploy.sh): `server` is not ready (just restarted, or draining) while `server-b` is healthy. The API
+# must be served by server-b, and the deep probe must report the healthy instance, not the first one's 503.
+stub 8080 '	bind 127.0.0.1
+	respond /rest/public/name "from server" 200
+	respond /rest/public/health "{\"status\":\"draining\",\"checks\":{\"db\":\"ok\",\"files\":\"ok\"}}" 503
+	respond "not found" 404'
+stub_b '	respond /rest/public/name "from server-b" 200
+	respond /rest/public/health "{\"status\":\"ok\",\"checks\":{\"db\":\"ok\",\"files\":\"ok\"}}" 200
+	respond "not found" 404'
+sleep 3
+expect "relay: the API is served by server-b while server is not ready" /rest/public/name 200 'from server-b'
+expect "relay: /healthz/deep reports the healthy instance"              /healthz/deep     200 "$DEEP_OK"
+unstub b
 unstub 8080
 stub 8080 '	respond "boom" 500'
 expect "/healthz: 503 while the server answers 5xx"                 /healthz             503 "$DOWN"
@@ -141,8 +183,8 @@ exit "$F"
 PROBE
 )"
 echo "Health routes (SITE_ADDRESS=:80, stub upstreams):"
-out="$(docker run --rm --network none --add-host server:127.0.0.1 --add-host supervisor:127.0.0.1 \
-    -e SITE_ADDRESS=:80 -e ACME_EMAIL= -v "$CADDYFILE:/etc/caddy/Caddyfile:ro" "$CADDY_IMAGE" \
+out="$(docker run --rm --network none --add-host server:127.0.0.1 --add-host server-b:127.0.0.2 --add-host supervisor:127.0.0.1 \
+    -e SITE_ADDRESS=:80 -e ACME_EMAIL= -e LB_TRY_DURATION=1s -v "$CADDYFILE:/etc/caddy/Caddyfile:ro" "$CADDY_IMAGE" \
     sh -c "$HEALTH_PROBE" 2>&1)" && rc=0 || rc=$?
 printf '%s\n' "$out"
 n="$(grep -c '^  FAIL' <<<"$out" || true)"

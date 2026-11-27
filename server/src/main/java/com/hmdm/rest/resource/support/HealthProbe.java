@@ -102,8 +102,18 @@ public class HealthProbe {
         return this;
     }
 
-    /** The current health; a recent outcome is reused. Draining is always evaluated fresh. */
-    public synchronized Result check() {
+    /** The current health as the load balancer must see it: a draining instance is not ready. */
+    public Result check() {
+        return check(true);
+    }
+
+    /**
+     * The current health; a recent outcome is reused. Draining is always evaluated fresh.
+     *
+     * @param reportDraining true for the load balancer (a draining instance must stop getting new requests); false
+     *                       for monitors, to which a draining instance that still serves correctly is simply healthy
+     */
+    public synchronized Result check(boolean reportDraining) {
         long now = clock.getAsLong();
         if (cached == null || now - cachedAt >= cacheMs || now < cachedAt) {
             Map<String, String> out = new LinkedHashMap<>();
@@ -115,6 +125,9 @@ public class HealthProbe {
             }
             cached = new Result(allOk ? STATUS_OK : STATUS_DOWN, out);
             cachedAt = now;
+        }
+        if (!reportDraining) {
+            return cached;
         }
         boolean isDraining;
         try {

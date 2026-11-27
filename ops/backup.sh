@@ -162,10 +162,10 @@ elif [ "$BACKUP_FILES" = 1 ]; then
 fi
 
 # ---- 4. retention ---------------------------------------------------------------------------------------------------
-( cd "$BACKUP_DIR/db" && ls -1 | grep -E '\.dump(\.enc)?$' | prune_list | while IFS= read -r f; do
+( cd "$BACKUP_DIR/db" && find . -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.enc' \) -printf '%f\n' | prune_list | while IFS= read -r f; do
     rm -f -- "$f" "$f.sha256" "${f%.enc}" "${f%.dump*}.manifest.json"; log "retención: eliminado $f"; done ) || true
-( cd "$BACKUP_DIR/config" && ls -1 | prune_list | while IFS= read -r f; do rm -f -- "$f"; done ) || true
-( cd "$BACKUP_DIR/files" && ls -1 | grep -E '^[0-9]{8}-[0-9]{6}$' | prune_list | while IFS= read -r d; do
+( cd "$BACKUP_DIR/config" && find . -maxdepth 1 -type f -printf '%f\n' | prune_list | while IFS= read -r f; do rm -f -- "$f"; done ) || true
+( cd "$BACKUP_DIR/files" && find . -mindepth 1 -maxdepth 1 -type d -name '[0-9]*-[0-9]*' -printf '%f\n' | prune_list | while IFS= read -r d; do
     rm -rf -- "$d"; log "retención: eliminada la instantánea $d"; done ) || true
 rm -rf "$BACKUP_DIR"/files/*.partial 2>/dev/null || true
 
@@ -194,6 +194,7 @@ if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
   export RCLONE_CONFIG_DCS3_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY:-}" RCLONE_CONFIG_DCS3_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_KEY:-}"
   export RCLONE_CONFIG_DCS3_ENDPOINT="${BACKUP_S3_ENDPOINT:-}" RCLONE_CONFIG_DCS3_REGION="${BACKUP_S3_REGION:-}"
   export RCLONE_CONFIG_DCS3_FORCE_PATH_STYLE="${BACKUP_S3_FORCE_PATH_STYLE:-true}"
+  export RCLONE_CONFIG=/dev/null   # everything comes from the environment; no config file to look for
   RDEST="dcs3:${BACKUP_S3_BUCKET}/${BACKUP_S3_PREFIX:-dallycontrol}"
   REMOTE_DESC="S3 ${BACKUP_S3_BUCKET}/${BACKUP_S3_PREFIX:-dallycontrol}"
 elif [ -n "${BACKUP_RCLONE_REMOTE:-}" ]; then

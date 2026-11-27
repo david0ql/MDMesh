@@ -83,9 +83,9 @@ services:
     # HealthResource). An older image without that endpoint (404) falls back to the plain liveness probe, so a rollback
     # to an older release is not reported unhealthy. start_period covers a first boot (Liquibase on an empty database).
     healthcheck:
-      test: ["CMD-SHELL", "c=$$(curl -s -o /dev/null -m 4 -w '%{http_code}' http://127.0.0.1:8080/rest/public/health); [ \"$$c\" = 200 ] || { [ \"$$c\" = 404 ] && curl -fsS -m 4 -o /dev/null http://127.0.0.1:8080/rest/public/name; }"]
+      test: ["CMD-SHELL", "c=$$(curl -s -o /dev/null -m 8 -w '%{http_code}' http://127.0.0.1:8080/rest/public/health); [ \"$$c\" = 200 ] || { [ \"$$c\" = 404 ] && curl -fsS -m 8 -o /dev/null http://127.0.0.1:8080/rest/public/name; }"]
       interval: 10s
-      timeout: 6s
+      timeout: 10s
       retries: 3
       start_period: 300s
       start_interval: 5s

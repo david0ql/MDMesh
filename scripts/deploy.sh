@@ -84,6 +84,8 @@ wait_healthy() {
   local svc="$1" deadline=$(( $(date +%s) + HEALTH_TIMEOUT )) c st
   while [ "$(date +%s)" -lt "$deadline" ]; do
     c=$(cid "$svc"); st=$(health "$c")
+    # The server reports a failed start in its log and then stays up, unhealthy: do not wait the whole timeout.
+    if [ -n "$c" ] && docker logs --tail 400 "$c" 2>&1 | grep -q 'Application initialization has failed'; then return 1; fi
     case "$st" in
       healthy) return 0 ;;
       exited|dead|missing) sleep 2; c=$(cid "$svc"); st=$(health "$c"); case "$st" in exited|dead|missing) return 1 ;; esac ;;
@@ -97,6 +99,23 @@ drain() {   # the instance answers "draining" (503) to health checks: Caddy stop
   sleep "$DRAIN_SECONDS"
 }
 enabled() { dc config --services 2>/dev/null | grep -qx "$1"; }
+# svc_image <service>: the image reference compose resolves for that service.
+svc_image() {
+  dc config 2>/dev/null | awk -v s="  $1:" '$0 == s { f = 1; next } f && /^  [^ ]/ { f = 0 } f && $1 == "image:" { print $2; exit }'
+}
+# steady <service>: the instance answers its health probe quickly several times in a row (a container can be
+# "healthy" and still be too slow to carry the traffic alone on a busy host).
+steady() {
+  local c ok=0 i
+  c=$(cid "$1")
+  for i in $(seq 1 30); do
+    if [ "$(docker exec "$c" curl -s -o /dev/null -m 2 -w '%{http_code}' http://127.0.0.1:8080/rest/public/health 2>/dev/null)" = 200 ]; then
+      ok=$((ok + 1)); [ "$ok" -ge 5 ] && return 0
+    else ok=0; fi
+    sleep 1
+  done
+  return 1
+}
 
 SERVER_C=$(cid server)
 [ -n "$SERVER_C" ] || { err "No hay contenedor del servidor: use ./setup.sh para instalar."; exit 1; }
@@ -179,10 +198,15 @@ if [ "$BUILD" = 1 ]; then
     fi
     say "1/5 Construyendo las imágenes nuevas (el servicio sigue con las actuales)…"
     T0=$(date +%s)
-    if ! dcx build server caddy supervisor backup; then
-      err "La construcción falló. No se cambió nada: el servicio sigue con la versión anterior."
-      cat "$STATE_DIR/env.previous" > .env; exit 1
-    fi
+    # One image at a time: building everything in parallel can starve the running service on a small or shared
+    # host (measured: a 25 s stall of the whole Docker host during a parallel build). Slower, but the service keeps
+    # its CPU and disk. Building elsewhere and pulling (a registry IMAGE_OWNER) avoids the load altogether.
+    for img in server caddy supervisor backup; do
+      if ! dcx build "$img"; then
+        err "La construcción de '$img' falló. No se cambió nada: el servicio sigue con la versión anterior."
+        cat "$STATE_DIR/env.previous" > .env; exit 1
+      fi
+    done
     say "    imágenes construidas en $(( $(date +%s) - T0 )) s"
   else
     say "1/5 Descargando las imágenes publicadas…"
@@ -208,134 +232,160 @@ else
   warn "2/5 Sin respaldo previo (--no-backup)."
 fi
 
-# ---- 3. server ------------------------------------------------------------------------------------------------------
-dcx rm -sf server-b >/dev/null 2>&1 || true   # a leftover relay of an interrupted run
-if [ "$RELAY" = 1 ]; then
-  say "3/5 Servidor: arrancando la instancia de relevo con la imagen nueva…"
-  T0=$(date +%s)
-  dcx up -d --no-deps server-b >/dev/null 2>&1 || true
-  if ! wait_healthy server-b; then
-    err "La versión nueva NO arrancó saludable en ${HEALTH_TIMEOUT} s. Últimas líneas de su registro:"
-    dcx logs --tail 40 server-b 2>&1 | sed 's/^/    /' >&2 || true
-    dcx rm -sf server-b >/dev/null 2>&1 || true
-    restore_previous_server
-    err "VUELTA ATRÁS AUTOMÁTICA: el servidor anterior nunca se tocó; los usuarios no notaron nada. Corrija y repita."
-    exit 1
-  fi
-  say "    relevo saludable en $(( $(date +%s) - T0 )) s; drenando la instancia anterior…"
-  drain server
-  T0=$(date +%s)
-  dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
-  if ! wait_healthy server; then
-    err "El servidor principal no quedó saludable con la imagen nueva; el relevo sigue atendiendo. Volviendo a la imagen anterior…"
-    dcx logs --tail 40 server 2>&1 | sed 's/^/    /' >&2 || true
-    restore_previous_server
-    dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
-    if wait_healthy server; then
-      drain server-b; dcx rm -sf server-b >/dev/null 2>&1 || true
-      err "VUELTA ATRÁS AUTOMÁTICA completada: el servicio sigue con la versión anterior."
-    else
-      err "La versión anterior tampoco arranca. El relevo (versión nueva) queda atendiendo. Intervención manual: docs/ops/RUNBOOK.md"
-    fi
-    exit 1
-  fi
-  say "    servidor principal saludable en $(( $(date +%s) - T0 )) s; retirando el relevo…"
-  drain server-b
-  dcx rm -sf server-b >/dev/null 2>&1 || true
-else
-  say "3/5 Servidor: recreando en su sitio (corte de un arranque)…"
-  T0=$(date +%s)
-  dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
-  if ! wait_healthy server; then
-    err "La versión nueva no quedó saludable en ${HEALTH_TIMEOUT} s. Últimas líneas de su registro:"
-    dcx logs --tail 40 server 2>&1 | sed 's/^/    /' >&2 || true
-    restore_previous_server
-    dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
-    if wait_healthy server; then err "VUELTA ATRÁS AUTOMÁTICA completada: el servicio volvió a la versión anterior."
-    else err "La versión anterior tampoco arranca. Intervención manual: docs/ops/RUNBOOK.md"; fi
-    exit 1
-  fi
-  say "    servidor saludable tras $(( $(date +%s) - T0 )) s"
+# The relay also needs the TARGET image to have the deep health probe: the edge only routes to an instance that
+# answers it. An image from before this mechanism (a rollback to it) gets the old procedure, in the old order.
+WEB_FIRST=0
+NEW_SERVER_REF=$(svc_image server)
+HAS_HEALTH=$(docker run --rm --entrypoint sh "$NEW_SERVER_REF" -c 'command -v jar >/dev/null || { echo unknown; exit 0; }
+  if jar tf /usr/local/tomcat/webapps/ROOT.war | grep -q "rest/resource/HealthResource.class"; then echo yes; else echo no; fi' 2>/dev/null || echo unknown)
+if [ "$HAS_HEALTH" = no ]; then
+  RELAY=0; WEB_FIRST=1
+  warn "La imagen del servidor que se va a instalar es anterior al despliegue con relevo (no tiene la comprobación de salud profunda)."
+  warn "Se instala a la manera clásica, primero el borde y después el servidor: HABRÁ un corte de un arranque del servidor."
 fi
+
+# ---- 3. server ------------------------------------------------------------------------------------------------------
+update_server() {
+  dcx rm -sf server-b >/dev/null 2>&1 || true   # a leftover relay of an interrupted run
+  if [ "$RELAY" = 1 ]; then
+    say "3/5 Servidor: arrancando la instancia de relevo con la imagen nueva…"
+    T0=$(date +%s)
+    dcx up -d --no-deps server-b >/dev/null 2>&1 || true
+    if ! wait_healthy server-b; then
+      err "La versión nueva NO arrancó saludable (falló al iniciar, o pasaron ${HEALTH_TIMEOUT} s). Últimas líneas de su registro:"
+      dcx logs --tail 40 server-b 2>&1 | sed 's/^/    /' >&2 || true
+      dcx rm -sf server-b >/dev/null 2>&1 || true
+      restore_previous_server
+      err "VUELTA ATRÁS AUTOMÁTICA: el servidor anterior nunca se tocó; los usuarios no notaron nada. Corrija y repita."
+      exit 1
+    fi
+    if [ "$HAS_HEALTH" = yes ] && ! steady server-b; then
+      err "El relevo arrancó pero responde con lentitud (¿servidor saturado?): no es seguro dejarle todo el tráfico."
+      dcx rm -sf server-b >/dev/null 2>&1 || true
+      restore_previous_server
+      err "VUELTA ATRÁS AUTOMÁTICA: el servidor anterior nunca se tocó. Repita cuando el servidor tenga CPU libre, o use --classic en ventana."
+      exit 1
+    fi
+    say "    relevo saludable y estable en $(( $(date +%s) - T0 )) s; drenando la instancia anterior…"
+    drain server
+    T0=$(date +%s)
+    dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
+    if ! wait_healthy server; then
+      err "El servidor principal no quedó saludable con la imagen nueva; el relevo sigue atendiendo. Volviendo a la imagen anterior…"
+      dcx logs --tail 40 server 2>&1 | sed 's/^/    /' >&2 || true
+      restore_previous_server
+      dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
+      if wait_healthy server; then
+        drain server-b; dcx rm -sf server-b >/dev/null 2>&1 || true
+        err "VUELTA ATRÁS AUTOMÁTICA completada: el servicio sigue con la versión anterior."
+      else
+        err "La versión anterior tampoco arranca. El relevo (versión nueva) queda atendiendo. Intervención manual: docs/ops/RUNBOOK.md"
+      fi
+      exit 1
+    fi
+    [ "$HAS_HEALTH" != yes ] || steady server || warn "El servidor principal responde con lentitud; se retira el relevo igualmente (está saludable)."
+    say "    servidor principal saludable en $(( $(date +%s) - T0 )) s; retirando el relevo…"
+    drain server-b
+    dcx rm -sf server-b >/dev/null 2>&1 || true
+  else
+    say "3/5 Servidor: recreando en su sitio (corte de un arranque)…"
+    T0=$(date +%s)
+    dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
+    if ! wait_healthy server; then
+      err "La versión nueva no quedó saludable (falló al iniciar, o pasaron ${HEALTH_TIMEOUT} s). Últimas líneas de su registro:"
+      dcx logs --tail 40 server 2>&1 | sed 's/^/    /' >&2 || true
+      restore_previous_server
+      dcx up -d --no-deps --force-recreate server >/dev/null 2>&1 || true
+      if wait_healthy server; then err "VUELTA ATRÁS AUTOMÁTICA completada: el servicio volvió a la versión anterior."
+      else err "La versión anterior tampoco arranca. Intervención manual: docs/ops/RUNBOOK.md"; fi
+      exit 1
+    fi
+    say "    servidor saludable tras $(( $(date +%s) - T0 )) s"
+  fi
+}
 
 # ---- 4. web / edge --------------------------------------------------------------------------------------------------
 WEB_MODE="sin cambios"
-rollback_web_recreate() {
-  [ -z "$OLD_WEB_ID" ] || docker tag "$OLD_WEB_ID" "$OLD_WEB_REF" || true
-  WEB_IMAGE="$OLD_WEB_REF" dcx up -d --no-deps --force-recreate caddy >/dev/null 2>&1 || true
-}
-if [ "$WEB" = 1 ] && [ -n "$CADDY_C" ]; then
-  NEW_WEB_REF=$(dc config --images caddy 2>/dev/null | head -1)
-  NEW_WEB_ID=$(docker image inspect -f '{{.Id}}' "$NEW_WEB_REF" 2>/dev/null || true)
-  if [ -z "$NEW_WEB_ID" ]; then
-    warn "4/5 Web: no encuentro la imagen $NEW_WEB_REF; el borde no se toca."
-  elif [ "$NEW_WEB_ID" = "$OLD_WEB_ID" ]; then
-    say "4/5 Web: la imagen no cambió."
-  else
-    # In place when only the content changed: same Caddy binary, same entrypoint, same service definition.
-    SAME_DEF=0
-    LABEL=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$CADDY_C" 2>/dev/null || true)
-    HASH=$(WEB_IMAGE="$OLD_WEB_REF" dc config --hash caddy 2>/dev/null | awk '{print $2}')
-    [ -n "$LABEL" ] && [ "$LABEL" = "$HASH" ] && SAME_DEF=1
-    OLD_BIN=$(docker exec "$CADDY_C" sh -c 'caddy version; sha256sum /web-entrypoint.sh' 2>/dev/null || true)
-    NEW_BIN=$(docker run --rm --entrypoint sh "$NEW_WEB_ID" -c 'caddy version; sha256sum /web-entrypoint.sh' 2>/dev/null || true)
-    if [ "$SAME_DEF" = 1 ] && [ -n "$OLD_BIN" ] && [ "$OLD_BIN" = "$NEW_BIN" ]; then
-      say "4/5 Web: copiando la consola nueva dentro del borde en ejecución (sin reinicio)…"
-      TMPC=$(docker create "$NEW_WEB_ID"); TMPD=$(mktemp -d)
-      docker cp "$TMPC:/srv" "$TMPD/srv" && docker cp "$TMPC:/etc/caddy/Caddyfile" "$TMPD/Caddyfile"
-      docker rm "$TMPC" >/dev/null
-      docker exec -u 0 "$CADDY_C" rm -rf /srv.new /srv.prev /etc/caddy/Caddyfile.new
-      docker cp "$TMPD/srv" "$CADDY_C:/srv.new"
-      docker cp "$TMPD/Caddyfile" "$CADDY_C:/etc/caddy/Caddyfile.new"
-      rm -rf "$TMPD"
-      # Hashed assets first (new names, nothing is overwritten), index.html last and atomically: a browser never gets
-      # an index that points to files that are not there yet. The previous tree is kept for the rollback.
-      if docker exec -u 0 -e NEW_ID="$NEW_WEB_ID" "$CADDY_C" sh -ec '
-            changed=0
-            if ! cmp -s /etc/caddy/Caddyfile /etc/caddy/Caddyfile.new; then
-              caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile >/dev/null 2>&1
-              changed=1
-            fi
-            cp -a /srv /srv.prev
-            mv /srv.new/index.html /srv.new/.index.html.new
-            cp -a /srv.new/. /srv/
-            mv -f /srv/.index.html.new /srv/index.html
-            rm -rf /srv.new
-            chown -R caddy:caddy /srv
-            if [ "$changed" = 1 ]; then
-              cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.prev
-              cat /etc/caddy/Caddyfile.new > /etc/caddy/Caddyfile
-              caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || {
-                cat /etc/caddy/Caddyfile.prev > /etc/caddy/Caddyfile
-                caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; exit 1; }
-            fi
-            rm -f /etc/caddy/Caddyfile.new
-            printf "%s\n" "$NEW_ID" > /etc/caddy/.web-image-id
-            rm -rf /srv.prev'; then
-        WEB_MODE="en caliente (sin reinicio)"
-      else
-        err "No se pudo actualizar la web en caliente; se restaura la anterior."
-        docker exec -u 0 "$CADDY_C" sh -c '[ -d /srv.prev ] && { cp -a /srv.prev/. /srv/; rm -rf /srv.prev /srv.new; }' || true
-        WEB_MODE="FALLÓ (se conserva la anterior)"
-      fi
+update_web() {
+  rollback_web_recreate() {
+    [ -z "$OLD_WEB_ID" ] || docker tag "$OLD_WEB_ID" "$OLD_WEB_REF" || true
+    WEB_IMAGE="$OLD_WEB_REF" dcx up -d --no-deps --force-recreate caddy >/dev/null 2>&1 || true
+  }
+  if [ "$WEB" = 1 ] && [ -n "$CADDY_C" ]; then
+    NEW_WEB_REF=$(svc_image caddy)
+    NEW_WEB_ID=$(docker image inspect -f '{{.Id}}' "$NEW_WEB_REF" 2>/dev/null || true)
+    if [ -z "$NEW_WEB_ID" ]; then
+      warn "4/5 Web: no encuentro la imagen $NEW_WEB_REF; el borde no se toca."
+    elif [ "$NEW_WEB_ID" = "$OLD_WEB_ID" ]; then
+      say "4/5 Web: la imagen no cambió."
     else
-      warn "4/5 Web: cambió el binario de Caddy o la definición del servicio: hay que recrear el borde (corte de pocos segundos)."
-      T0=$(date +%s)
-      dcx up -d --no-deps caddy >/dev/null 2>&1 || true
-      if wait_healthy caddy; then
-        WEB_MODE="recreado en $(( $(date +%s) - T0 )) s"
+      # In place when only the content changed: same Caddy binary, same entrypoint, same service definition.
+      SAME_DEF=0
+      LABEL=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$CADDY_C" 2>/dev/null || true)
+      HASH=$(WEB_IMAGE="$OLD_WEB_REF" dc config --hash caddy 2>/dev/null | awk '{print $2}')
+      [ -n "$LABEL" ] && [ "$LABEL" = "$HASH" ] && SAME_DEF=1
+      OLD_BIN=$(docker exec "$CADDY_C" sh -c 'caddy version; sha256sum /web-entrypoint.sh' 2>/dev/null || true)
+      NEW_BIN=$(docker run --rm --entrypoint sh "$NEW_WEB_ID" -c 'caddy version; sha256sum /web-entrypoint.sh' 2>/dev/null || true)
+      if [ "$SAME_DEF" = 1 ] && [ -n "$OLD_BIN" ] && [ "$OLD_BIN" = "$NEW_BIN" ]; then
+        say "4/5 Web: copiando la consola nueva dentro del borde en ejecución (sin reinicio)…"
+        TMPC=$(docker create "$NEW_WEB_ID"); TMPD=$(mktemp -d)
+        docker cp "$TMPC:/srv" "$TMPD/srv" && docker cp "$TMPC:/etc/caddy/Caddyfile" "$TMPD/Caddyfile"
+        docker rm "$TMPC" >/dev/null
+        docker exec -u 0 "$CADDY_C" rm -rf /srv.new /srv.prev /etc/caddy/Caddyfile.new
+        docker cp "$TMPD/srv" "$CADDY_C:/srv.new"
+        docker cp "$TMPD/Caddyfile" "$CADDY_C:/etc/caddy/Caddyfile.new"
+        rm -rf "$TMPD"
+        # Hashed assets first (new names, nothing is overwritten), index.html last and atomically: a browser never gets
+        # an index that points to files that are not there yet. The previous tree is kept for the rollback.
+        if docker exec -u 0 -e NEW_ID="$NEW_WEB_ID" "$CADDY_C" sh -ec '
+              changed=0
+              if ! cmp -s /etc/caddy/Caddyfile /etc/caddy/Caddyfile.new; then
+                caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile >/dev/null 2>&1
+                changed=1
+              fi
+              cp -a /srv /srv.prev
+              mv /srv.new/index.html /srv.new/.index.html.new
+              cp -a /srv.new/. /srv/
+              mv -f /srv/.index.html.new /srv/index.html
+              rm -rf /srv.new
+              chown -R caddy:caddy /srv
+              if [ "$changed" = 1 ]; then
+                cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.prev
+                cat /etc/caddy/Caddyfile.new > /etc/caddy/Caddyfile
+                caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || {
+                  cat /etc/caddy/Caddyfile.prev > /etc/caddy/Caddyfile
+                  caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; exit 1; }
+              fi
+              rm -f /etc/caddy/Caddyfile.new
+              printf "%s\n" "$NEW_ID" > /etc/caddy/.web-image-id
+              rm -rf /srv.prev'; then
+          WEB_MODE="en caliente (sin reinicio)"
+        else
+          err "No se pudo actualizar la web en caliente; se restaura la anterior."
+          docker exec -u 0 "$CADDY_C" sh -c '[ -d /srv.prev ] && { cp -a /srv.prev/. /srv/; rm -rf /srv.prev /srv.new; }' || true
+          WEB_MODE="FALLÓ (se conserva la anterior)"
+        fi
       else
-        err "El borde nuevo no quedó saludable; volviendo al anterior…"
-        rollback_web_recreate
-        wait_healthy caddy || err "El borde anterior tampoco responde: docs/ops/RUNBOOK.md"
-        WEB_MODE="FALLÓ (vuelta atrás)"
+        warn "4/5 Web: cambió el binario de Caddy o la definición del servicio: hay que recrear el borde (corte de pocos segundos)."
+        T0=$(date +%s)
+        dcx up -d --no-deps caddy >/dev/null 2>&1 || true
+        if wait_healthy caddy; then
+          WEB_MODE="recreado en $(( $(date +%s) - T0 )) s"
+        else
+          err "El borde nuevo no quedó saludable; volviendo al anterior…"
+          rollback_web_recreate
+          wait_healthy caddy || err "El borde anterior tampoco responde: docs/ops/RUNBOOK.md"
+          WEB_MODE="FALLÓ (vuelta atrás)"
+        fi
       fi
+      say "    web: $WEB_MODE"
     fi
-    say "    web: $WEB_MODE"
+  else
+    say "4/5 Web: omitida."
   fi
-else
-  say "4/5 Web: omitida."
-fi
+}
+
+if [ "$WEB_FIRST" = 1 ]; then update_web; update_server; else update_server; update_web; fi
 
 # ---- 5. the rest + verification -------------------------------------------------------------------------------------
 AUX=()

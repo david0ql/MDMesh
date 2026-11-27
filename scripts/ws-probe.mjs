@@ -61,7 +61,13 @@ function connect() {
     // The server closes an unauthorized socket right after the handshake: tell that apart from a real session.
     let closedEarly = true;
     setTimeout(() => { closedEarly = false; }, 1500);
-    socket.on('data', () => { /* wake frames are not needed for the measurement */ });
+    // Frames are not decoded, except the two that matter: close (0x8: the server ends the session and waits for our
+    // close, so end it) and ping (0x9: answer with an empty masked pong so the session is kept).
+    socket.on('data', (d) => {
+      const opcode = d[0] & 0x0f;
+      if (opcode === 0x8) socket.destroy();
+      else if (opcode === 0x9 && (d[1] & 0x7f) === 0) socket.write(Buffer.from([0x8a, 0x80, 1, 2, 3, 4]));
+    });
     socket.on('error', () => { /* the close event follows */ });
     socket.on('close', () => {
       if (stopping) return;

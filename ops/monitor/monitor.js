@@ -226,7 +226,7 @@ function sendMail(subject, text) {
 async function notify(subject, text) {
   const channels = [];
   if (CFG.mail.host && CFG.mail.to.length) channels.push(['correo', () => sendMail(subject, text)]);
-  if (CFG.webhook) channels.push(['webhook', () => postJson(CFG.webhook, { text: subject + '\n' + text, title: subject, body: text, service: CFG.name })]);
+  if (CFG.webhook) channels.push(['webhook', () => postJson(CFG.webhook, { text: subject + '\n' + text })]);
   if (CFG.telegram.token && CFG.telegram.chat) {
     channels.push(['telegram', () => postJson('https://api.telegram.org/bot' + CFG.telegram.token + '/sendMessage',
       { chat_id: CFG.telegram.chat, text: subject + '\n' + text, disable_web_page_preview: true })]);

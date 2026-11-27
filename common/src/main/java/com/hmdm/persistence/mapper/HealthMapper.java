@@ -7,6 +7,6 @@ import org.apache.ibatis.annotations.Select;
 public interface HealthMapper {
 
     @Select("SELECT 1")
-    @Options(timeout = 3, useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
+    @Options(timeout = 5, useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     int ping();
 }
