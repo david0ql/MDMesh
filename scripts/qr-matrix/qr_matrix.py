@@ -39,7 +39,13 @@ FAILURE = re.compile(
 
 
 def adb(serial, *args, timeout=60, check=False):
-    p = subprocess.run([ADB, "-s", serial, *args], capture_output=True, text=True, timeout=timeout)
+    try:
+        # Three times the nominal limit: several emulators on one machine make every adb call slow.
+        p = subprocess.run([ADB, "-s", serial, *args], capture_output=True, text=True, timeout=timeout * 3)
+    except subprocess.TimeoutExpired:
+        if check:
+            raise
+        return ""
     if check and p.returncode != 0:
         raise RuntimeError(f"adb {' '.join(args)}: {p.stderr.strip()}")
     return (p.stdout or "") + (p.stderr or "")
@@ -87,8 +93,10 @@ def kill(serial):
 
 def build_helper(out_dir):
     dex = os.path.join(out_dir, "provision.dex")
-    if os.path.exists(dex):
+    source = os.path.join(HERE, "ProvisionIntent.java")
+    if os.path.exists(dex) and os.path.getmtime(dex) >= os.path.getmtime(source):
         return dex
+    os.makedirs(out_dir, exist_ok=True)
     platforms = sorted(os.listdir(os.path.join(SDK, "platforms")))
     tools = sorted(os.listdir(os.path.join(SDK, "build-tools")))
     jar = os.path.join(SDK, "platforms", platforms[-1], "android.jar")
@@ -126,7 +134,7 @@ def setup_state(serial):
             + sh(serial, "settings get global device_provisioned").strip())
 
 
-def wait_network(serial, timeout=180):
+def wait_network(serial, timeout=60):
     """After the framework restart the emulator's network takes a while to come back; a phone has its Wi-Fi up (from
     the QR or the wizard) before Android starts the download, so wait for the same here."""
     end = time.time() + timeout
@@ -147,6 +155,17 @@ def unprovision(serial):
     So the framework is stopped, that file removed (a fresh emulator has nothing else in it) and started again - with
     the apps that mark an emulator as set up on every boot disabled, or they latch it again.
     """
+    if int(sh(serial, "getprop ro.build.version.sdk").strip() or 0) >= 26:
+        # Android 8+: ask the service to read the setting again (a platform test API) - no restart, network intact.
+        for _ in range(3):
+            sh(serial, "settings put secure user_setup_complete 0")
+            sh(serial, "settings put global device_provisioned 0")
+            out = sh(serial, "CLASSPATH=/data/local/tmp/provision.dex app_process / ProvisionIntent --reset-setup")
+            time.sleep(2)
+            if "re-read" in out and setup_state(serial) == "00":
+                return
+            print("  note: reset-setup said: " + out.strip()[-200:], flush=True)
+        raise SystemExit("RESULT HARNESS-FAILED could not return the emulator to the pre-setup state")
     for attempt in range(3):
         # AOSP's "Provision" and the emulator images' setup wizard finish "setup" by themselves on boot.
         sh(serial, "pm disable com.android.provision")
@@ -243,9 +262,10 @@ def run(a):
         past = time.localtime(time.time() - a.clock_back_years * 365 * 86400)
         stamp = time.strftime("%m%d%H%M%Y.%S", past)
         print("clock set back:", sh(serial, f"date {stamp}").strip(), flush=True)
+    adb(serial, "push", dex, "/data/local/tmp/provision.dex")
     unprovision(serial)
     wait_network(serial)
-    adb(serial, "push", dex, "/data/local/tmp/provision.dex")
+    adb(serial, "push", dex, "/data/local/tmp/provision.dex")  # again: a reboot (Android 7) may have cleared it
     adb(serial, "push", a.payload, "/data/local/tmp/payload.json")
     adb(serial, "logcat", "-c")
     started = time.time()

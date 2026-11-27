@@ -31,6 +31,10 @@ public final class ProvisionIntent {
     private static final String P = "android.app.extra.";
 
     public static void main(String[] args) throws Exception {
+        if (args[0].equals("--reset-setup")) {
+            resetSetup();
+            return;
+        }
         JSONObject json = new JSONObject(read(args[0]));
         Intent intent = new Intent(ACTION);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -61,6 +65,31 @@ public final class ProvisionIntent {
         intent.putExtra(P + "PROVISIONING_TRIGGER", 2);
         System.out.println("starting " + intent + " extras=" + intent.getExtras().keySet());
         System.out.println("result=" + start(intent));
+    }
+
+    /**
+     * DevicePolicyManagerService keeps its own "the user finished the setup wizard" flag and refuses Device-Owner
+     * provisioning once it is set. forceUpdateUserSetupComplete (a platform test API, Android 8+) makes it read the
+     * setting again, so an emulator that booted as "set up" goes back to the state of a phone in its wizard - with
+     * no reboot, and with its network left as it was.
+     */
+    private static void resetSetup() throws Exception {
+        Object binder = Class.forName("android.os.ServiceManager").getMethod("getService", String.class)
+                .invoke(null, "device_policy");
+        Object dpm = Class.forName("android.app.admin.IDevicePolicyManager$Stub")
+                .getMethod("asInterface", IBinder.class).invoke(null, binder);
+        for (Method m : dpm.getClass().getMethods()) {
+            if (m.getName().equals("forceUpdateUserSetupComplete")) {
+                Object[] values = new Object[m.getParameterTypes().length];
+                for (int i = 0; i < values.length; i++) {
+                    values[i] = 0;
+                }
+                m.invoke(dpm, values);
+                System.out.println("setup flag re-read");
+                return;
+            }
+        }
+        System.out.println("no forceUpdateUserSetupComplete on this release");
     }
 
     /** IActivityManager.startActivityAsUser through reflection: its signature differs across Android releases. */
