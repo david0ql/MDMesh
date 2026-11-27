@@ -30,6 +30,7 @@ import { ApiError } from '../api/client';
 import { isOnline as isOnlineByRecency } from '../ui/status';
 import { useToast } from '../ui/toast';
 import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
+import { getDeviceInstallProblems, retryNote, type DeviceInstallProblem } from '../api/installStatus';
 
 type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
 
@@ -145,6 +146,8 @@ export function DeviceDetailPage() {
   const [tele, setTele] = useState<TelemetrySnapshot | null>(null);
   const [ds, setDs] = useState<DeviceState | null>(null);
   const [cfgStatus, setCfgStatus] = useState<ConfigStatus | null>(null);
+  // Installs of this device that are held back (not Device Owner…) or failed, with the reason.
+  const [installProblems, setInstallProblems] = useState<DeviceInstallProblem[]>([]);
   const [tab, setTab] = useState<Tab>('control');
   const workRef = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
@@ -190,6 +193,7 @@ export function DeviceDetailPage() {
         getTelemetry(device.number).then((v) => { if (on) setTele(v); }).catch(() => undefined),
         getDeviceState(device.number).then((v) => { if (on) setDs(v); }).catch(() => undefined),
         getConfigStatus(device.number).then((v) => { if (on) setCfgStatus(v); }).catch(() => undefined),
+        getDeviceInstallProblems(device.number).then((v) => { if (on) setInstallProblems(v ?? []); }).catch(() => undefined),
       ]);
       if (!on) return;
       t = setTimeout(() => void poll(), 5000);
@@ -423,6 +427,23 @@ export function DeviceDetailPage() {
               <b>Sin tarjeta SIM.</b> La SIM fue retirada (mira en Eventos cuándo y cuál era).
             </div>
           )}
+
+          {installProblems.filter((p) => p.state === 'held').length > 0 && (
+            <div className="banner banner-warn" role="alert" data-testid="install-held">
+              <b>Instalaciones retenidas ({installProblems.filter((p) => p.state === 'held').length}).</b>{' '}
+              {installProblems.find((p) => p.state === 'held')?.reason}
+              <div className="mono small" style={{ marginTop: 4 }}>
+                {installProblems.filter((p) => p.state === 'held').map((p) => p.packageName).join(', ')}
+              </div>
+            </div>
+          )}
+          {installProblems.filter((p) => p.state === 'failed').map((p) => (
+            <div className="banner banner-alert" role="alert" key={p.packageName} data-testid={`install-failed-${p.packageName}`}>
+              <b>No se pudo instalar <span className="mono">{p.packageName}</span>.</b> {p.reason}
+              <div className="small" style={{ marginTop: 4 }}>{retryNote(p)}</div>
+              {p.detail && <div className="mono small" style={{ marginTop: 4, wordBreak: 'break-word' }}>Respuesta del equipo: {p.detail}</div>}
+            </div>
+          ))}
 
           <DeviceScopeCard
             deviceId={device.id}

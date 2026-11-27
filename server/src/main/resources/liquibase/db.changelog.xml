@@ -3413,6 +3413,19 @@
         </sql>
     </changeSet>
 
+    <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
+         still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
+         where the grant already exists. -->
+    <changeSet id="26.11.27-manage-users-by-role-id" author="dallycontrol">
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (2, 3) AND p.name = 'manage_users'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
     <changeSet id="26.11.27-device-connection" author="dallycontrol">
         <comment>Connection diagnostics per device: screen/network as of the last report, the last network failure
                  and the last explained silence reported by the agent (console: "Última falla de conexión", "En reposo").</comment>
