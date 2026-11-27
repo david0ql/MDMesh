@@ -539,3 +539,14 @@ block, so on Android 11+ `setFactoryResetProtectionPolicy` answers "unsupported"
 console to say "FRP inactiva: este equipo no admite…" instead of a false "activa". The FRP challenge after a reset
 by hardware buttons can only be confirmed on a physical phone with Google services: the steps are in
 [FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md), section 8.
+
+Result (2026-11-27, own stack, debug agent built from this branch after merging `integration/mobicontrol`; machine
+load 26-34 while measuring, so no timing is claimed):
+
+| Android | API | frp + lost | wipe-online | wipe-offline | console (`frp-console-e2e.mjs`) |
+|---------|-----|------------|-------------|--------------|----------------------------------|
+| 10 | 29 | 26/26: FRP active through Google Play services, account read back from its restrictions file | 8/8, `wipeData(flags=3)` | 13/13, `wipeData` with reason, flags 0 | 34/34 with lost mode really sent and turned off |
+| 15 | 35 | 25/25: restrictions held; `setFactoryResetProtectionPolicy` answers "The persistent data block service is not supported on this device" and the console shows "FRP inactiva: este equipo no admite…" | 8/8, `wipeDevice(flags=3)`; the image then erased its user data in place and restarted | 13/13 on a fresh emulator, `wipeDevice(flags=0)` | 32/33 before the script waited for the device's answer; not repeated on this API |
+
+`--only reenroll`: 11/11. Not covered on an emulator: the FRP challenge after a reset by hardware buttons, and FRP
+actually held on Android 11+ (no persistent data block on the images).
