@@ -314,10 +314,22 @@ from Google Play on Android 7-8), the setup wizard of each maker (Samsung/Knox, 
 Protect's verdict on the agent, factory-reset protection (FRP), captive portals, and real Zero-Touch / Knox Mobile
 Enrollment assignment. Emulator facts the script works around (none of them are agent behaviour):
 
-- A booted emulator is already "set up". The script clears `user_setup_complete` / `device_provisioned`, disables
-  AOSP's `com.android.provision` (it marks the device as set up on every boot) and restarts the framework without
-  `device_policies.xml`, because `DevicePolicyManagerService` latches "setup complete" there and then answers
-  "Device already provisioned".
+- A booted emulator is already "set up", and `DevicePolicyManagerService` keeps its own copy of that fact: with it,
+  Android answers "Device already provisioned". On Android 8+ the script clears the two settings and asks the service
+  to read them again (`forceUpdateUserSetupComplete`, a platform test API, through `ProvisionIntent --reset-setup`).
+  On Android 7 it disables the apps that mark an emulator as set up on every boot (`com.android.provision`,
+  `com.google.android.sdksetup`, the image's setup wizard), deletes `device_policies.xml` and reboots.
+- With no setup wizard running, nothing "finishes" the provisioning. Up to Android 11 the agent only receives the
+  QR's token at that moment, so after 45 s without an enrollment the script does what a wizard does at its end
+  (`PROVISION_FINALIZATION`, then the two settings). `--finalize-after 99999` never does it: the "wizard abandoned"
+  case, where the result line says whether the agent's own enrollment screen and notification are up.
+- `--pause-cmd` / `--resume-cmd` take the server away while the phone enrolls; `--replay-token` deletes the agent's
+  stored identity after it enrolled, so it presents the same single-use token again (the answer-was-lost case).
+- `matrix --callbacks-apk <apk>` is the fallback for a release whose emulator will not run the wizard part: the agent
+  is made Device Owner with adb and receives the payload through the same callbacks Android uses
+  (`ProvisionIntent --callback`). It verifies the agent's side only, and the result line says `flow=agent-callbacks`.
+- Several emulators at once make every step slow enough to time out; results taken on an overloaded machine are
+  reported as not obtained, not as failures.
 - Android 6 (API 23) has no QR provisioning (it arrived in Android 7.0): that release enrolls by cable or NFC only.
 - Every emulator of a release reports the same serial and IMEI, so "same phone after a factory reset" is checked
   with made-up identities by `enroll_api_check.py`, and the server ignores `EMULATOR*` serials for de-duplication.
@@ -334,3 +346,37 @@ running 13 agents' builds and emulators at the same time, 1-minute load 30–50,
 `scripts/command-console-e2e.mjs` (Chromium, console of the same stack): 16/16 — history with the three steps, latency,
 issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
 Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
+
+### Results (2026-11-27, dev stack + debug agent of this branch; published agent 0.9.8 where noted)
+
+New agent, QR payload from `web/src/enroll/payload.ts` (tracked download, clock, time zone, locale), from the
+provisioning intent to "enrolled with its configuration" in the console:
+
+| Android | Result | How the agent got the token |
+|---------|--------|------------------------------|
+| 6 (API 23) | not applicable | QR provisioning starts in Android 7 |
+| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled, first attempt, 52-56 s after Device Owner | `qr-legacy`: only once the setup wizard finalized |
+| 10 (API 29) | enrolled, first attempt | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized |
+| 11-17 (API 30-37) | **not obtained** | see below |
+
+Published agent 0.9.8 with the production QR payload of that day (to Device Owner only; it cannot enroll against the
+dev stack): Device Owner on Android 7.0, 7.1, 8.0, 8.1, 9, 10 and 11 (the Android 11 run had the agent already
+installed by an earlier attempt on the same emulator). Android 12+ not obtained.
+
+"Device Owner but never enrolled" (the wizard is abandoned, or does not finalize): reproduced on Android 7.0 and 9 -
+the agent is Device Owner and logs `no enrollment token available` until finalization. The delivery point is the
+same code path for every release up to Android 11, and 0.9.8 has no fallback on any of them. With this branch:
+Android 10 enrolls without the finalization (`qr-early`); on Android 7.0, left without it, the agent showed its
+enrollment screen ("Scan the console's QR" / folder code) and the notification.
+
+Seen on the way: on Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download ("Failed to
+perform a platform-requested role holder update ... offline provisioning is false") on an image without Google Play;
+with the extra the log says "allowOffline set, provisioning via platform" and the download and install proceed.
+On Android 9 the device clock jumped to the payload's `PROVISIONING_LOCAL_TIME` before `DownloadPackageTask`.
+
+Not obtained: Android 11-17 end to end, the clock-set-back runs, the server-outage and token-replay runs. The machine
+was running the emulators of several other test suites (load average 40-50): `uiautomator` and `pm` calls timed out,
+the dev server answered 502, and on the last Android 13 attempt the emulator's system server died mid-run. The
+token-replay and de-dup behaviour is covered at the API by `enroll_api_check.py` (24 checks), the agent's handling of
+each callback by unit tests; neither replaces the device run. The Windows enroller was run under PowerShell 7 on
+macOS with a simulated adb (`scripts/windows-enroller-sim.sh`), not on Windows PowerShell 5.1.

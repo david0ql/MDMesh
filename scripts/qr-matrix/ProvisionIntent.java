@@ -35,6 +35,10 @@ public final class ProvisionIntent {
             resetSetup();
             return;
         }
+        if (args[0].equals("--callback")) {
+            callback(args[1], new JSONObject(read(args[2])));
+            return;
+        }
         JSONObject json = new JSONObject(read(args[0]));
         Intent intent = new Intent(ACTION);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -65,6 +69,27 @@ public final class ProvisionIntent {
         intent.putExtra(P + "PROVISIONING_TRIGGER", 2);
         System.out.println("starting " + intent + " extras=" + intent.getExtras().keySet());
         System.out.println("result=" + start(intent));
+    }
+
+    /**
+     * Delivers the payload's admin extras to the agent through one of the provisioning callbacks Android itself
+     * uses (GET_PROVISIONING_MODE, ADMIN_POLICY_COMPLIANCE, PROVISIONING_SUCCESSFUL), as the platform does at that
+     * point of a QR provisioning. For releases where the emulator cannot run the setup-wizard part: the agent side
+     * of the flow is the same code.
+     */
+    private static void callback(String action, JSONObject json) throws Exception {
+        String component = json.getString(P + "PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME");
+        Intent intent = new Intent("android.app.action." + action);
+        intent.setPackage(component.substring(0, component.indexOf('/')));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PersistableBundle bundle = new PersistableBundle();
+        JSONObject o = json.getJSONObject(P + "PROVISIONING_ADMIN_EXTRAS_BUNDLE");
+        for (Iterator<String> k = o.keys(); k.hasNext(); ) {
+            String name = k.next();
+            bundle.putString(name, String.valueOf(o.get(name)));
+        }
+        intent.putExtra(P + "PROVISIONING_ADMIN_EXTRAS_BUNDLE", bundle);
+        System.out.println(action + " result=" + start(intent));
     }
 
     /**
