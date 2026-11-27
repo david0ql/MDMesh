@@ -44,17 +44,51 @@ El agente vuelve a aplicar todo esto en cada ciclo (cada check-in, al instalarse
 app instalada después o una restricción quitada por fuera se vuelve a cerrar sola. Al salir del quiosco (con la
 contraseña o desde la consola) se levanta únicamente lo que puso el quiosco.
 
+### El vigilante y el «acceso de uso» (equipos enrolados por QR)
+
+El vigilante de primer plano (Android 7–10 y 16+) necesita que DallyControl tenga el permiso especial «Acceso de uso».
+Android no deja que un Device Owner se lo dé a sí mismo (no es un permiso de ejecución: `setPermissionGrantState` no
+aplica, y cambiar el *app-op* exige firma de sistema). Lo dan:
+
+- el enrolamiento por cable (`scripts/adb-enroll.sh`), automáticamente; o
+- **un toque en el teléfono**: Ajustes → Acceso de uso → DallyControl. La consola lo pide a distancia: ficha del
+  equipo → interruptor del quiosco → **«Pedir autorización en el teléfono»** (abre esa pantalla aunque el equipo esté
+  en quiosco; al activarlo, el equipo vuelve solo al quiosco).
+
+El agente reporta el estado real y la consola lo muestra por equipo, debajo del interruptor del quiosco (evento
+`kioskGuard`):
+
+| Estado | Qué significa |
+|---|---|
+| «Quiosco reforzado: Android bloquea los Ajustes del sistema» (`lockTask`) | Android 11–15. No depende del acceso de uso. |
+| «Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco» (`guard`) | Android 7–10 / 16+ con acceso de uso. |
+| «Refuerzo incompleto: falta el acceso de uso» (`needsUsageAccess`) | Android 7–10 / 16+ **sin** acceso de uso (enrolado por QR y aún sin autorizar). Queda abierta una vía: una app permitida que enlace a Ajustes los abre y nada los cierra. En Android 7–10 el resto (barra, Recientes, `am start`) sigue cerrado por lock task; en Android 16+ la barra de estado está deshabilitada por defecto y las demás apps suspendidas. |
+
+Recomendación para flotas enroladas por QR: Android 11–15 no requiere nada; en Android 7–10 y 16+ autorizar el acceso
+de uso al entregar el equipo (un toque) y vigilar en la consola que ninguno quede en «Refuerzo incompleto».
+
 ### Por qué Android 16 es distinto
 
-En Android 16 el bloqueo de tareas hace caer `system_server` (un `NullPointerException` de `LockTaskController` al
-animar la transición de la app fijada; confirmado en Samsung A17), y el teléfono entra en un ciclo de reinicios. No se
-puede atrapar desde una app, así que desde el agente 0.9.0 en Android 16+ **no se usa lock task** («quiosco suave»).
-Antes de este cambio eso dejaba la barra de estado visible por defecto: ajustes rápidos → engranaje → Ajustes. Ahora
-la barra queda deshabilitada por defecto, las apps que no son de trabajo están suspendidas y, si aun así Ajustes
-llega a abrirse (con «Notificaciones = Sí», o desde una app permitida), el vigilante devuelve el equipo al quiosco.
+En Android 16 el bloqueo de tareas hace caer `system_server`: un `NullPointerException` dentro de
+`LockTaskController` cuando el sistema anima la transición de una tarea que está en la lista de lock task (traza en
+`DisplayContent.executeAppTransition`; confirmado en Samsung A17 con Android 16). Al caer `system_server` el teléfono
+se reinicia, vuelve al quiosco, abre la app y cae de nuevo: un ciclo de reinicios del que no se sale a distancia. No
+se puede atrapar desde una app y ocurre con solo tener paquetes en la lista de lock task (no hace falta llamar a
+`startLockTask`), así que desde el agente 0.9.0 en Android 16+ **no se usa lock task** («quiosco suave»): la lista se
+deja vacía.
 
-Límites conocidos en Android 16+ (sin lock task no hay API para ello): el menú de apagado no se puede cerrar y los
-botones Inicio/Recientes no se pueden ocultar (Inicio vuelve al quiosco; Recientes solo puede abrir apps permitidas).
+`LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` no lo arregla: es una opción *de* lock task, y el fallo está en lock
+task mismo. En el emulador de Android 16 (imagen de Google, no Samsung) no se reproduce la caída, de modo que el
+emulador no sirve para decidir si ya es seguro; reactivarlo exige probar en los modelos reales (ver «Solo en teléfono
+físico»). Mientras tanto Android 16+ queda así, **sin presentarlo como bloqueo absoluto**:
+
+- Cerrado de verdad: apps que no son de trabajo (suspendidas), barra de estado y ajustes rápidos (deshabilitados por
+  defecto), Inicio (vuelve al quiosco), modo seguro, usuarios, salida sin contraseña.
+- **Mitigado, no bloqueado:** los Ajustes del sistema. Si una app permitida los abre por intent (o el usuario toca el
+  engranaje con «Notificaciones = Sí»), se ven durante menos de un segundo y el vigilante devuelve el equipo al
+  quiosco. Sin acceso de uso no hay vigilante y esa vía queda abierta.
+- No se puede cerrar: el menú de apagado (apagar/reiniciar; al encender vuelve al quiosco) y los botones
+  Inicio/Recientes (Recientes solo puede reabrir apps permitidas; una tarjeta de Ajustes se devuelve igual).
 
 ## Salida del quiosco
 
