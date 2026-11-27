@@ -473,12 +473,12 @@ def t_legacy(mode):
         info("política antigua (gesto, sin contraseña)", "no se pudo insertar: " + r.stderr.strip()[-100:])
         return
     since = int(time.time() * 1000) - 2000
-    run("kiosk.enter", payload(mode, password=None))  # wakes the device; the raw row is delivered with it
-    time.sleep(6)
+    run("noop.wake", timeout=40)  # an unknown command: it only makes the device check in, which delivers the raw row
+    time.sleep(8)
     msg = try_exit(mode, "")
-    check("política antigua (gesto, sin contraseña): el agente se niega a salir", ("consola" in msg or "console" in msg or msg in ("no dialog",)) and not_exited(), msg)
-    check("…y lo reporta (kioskExitDenied)" if "cons" in msg else "…(sin diálogo: nada que reportar)",
-          "cons" not in msg or until(lambda: events("kioskExitDenied", since), 60, 3))
+    check("política antigua (gesto, sin contraseña): el agente se niega a salir y lo dice",
+          ("consola" in msg or "console" in msg) and not_exited(), msg)
+    check("…y lo reporta (kioskExitDenied)", until(lambda: events("kioskExitDenied", since), 60, 3))
 
 
 def t_reboot(mode):
