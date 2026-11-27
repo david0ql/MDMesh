@@ -64,21 +64,34 @@ export const DEVICE_COLUMNS: DeviceColumn[] = [
 
 export const DEFAULT_DEVICE_COLUMNS = ['status', 'network', 'model', 'android', 'battery', 'policy', 'group', 'lastSeen'];
 const KEY = 'dc.devices.columns';
+/** Per-user key so each operator keeps their own column choice on a shared browser; the old
+ *  bare key stays as a fallback (and as the anonymous default). */
+const keyFor = (uid?: number | null) => (uid == null ? KEY : `${KEY}.${uid}`);
 
 /** How many extra columns fit next to the name at this width (sidebar and name column taken off). */
 export function maxDeviceColumns(width = typeof window === 'undefined' ? 1440 : window.innerWidth): number {
   return Math.max(3, Math.min(DEVICE_COLUMNS.length, Math.floor((width - 240 - 300) / 118)));
 }
 
-export function loadDeviceColumns(): string[] {
+function readColumns(k: string): string[] | null {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    if (Array.isArray(v)) return v.filter((k) => DEVICE_COLUMNS.some((c) => c.key === k));
+    const v = JSON.parse(localStorage.getItem(k) ?? 'null');
+    if (Array.isArray(v)) return v.filter((key) => DEVICE_COLUMNS.some((c) => c.key === key));
   } catch { /* storage blocked */ }
+  return null;
+}
+
+/** The columns this user chose. Falls back to the shared (legacy) choice, then the defaults.
+ *  An empty array is a real choice (user hid every extra column) and is respected. */
+export function loadDeviceColumns(uid?: number | null): string[] {
+  const own = uid == null ? null : readColumns(keyFor(uid));
+  if (own) return own;
+  const legacy = readColumns(KEY);
+  if (legacy) return legacy;
   return DEFAULT_DEVICE_COLUMNS;
 }
 
-export function saveDeviceColumns(keys: string[]) {
-  try { localStorage.setItem(KEY, JSON.stringify(keys)); } catch { /* storage blocked */ }
+export function saveDeviceColumns(keys: string[], uid?: number | null) {
+  try { localStorage.setItem(keyFor(uid), JSON.stringify(keys)); } catch { /* storage blocked */ }
   window.dispatchEvent(new Event('dc-columns'));
 }
