@@ -28,18 +28,22 @@ object KioskHardening {
     /** `DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` (API 30). */
     const val LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK = 64
 
-    /** Android 14: Settings became exempt from suspension (`OP_SYSTEM_EXEMPT_FROM_SUSPENSION`). */
-    const val SETTINGS_UNSUSPENDABLE_SDK = 34
+    /** Android 11: lock task can block an allowed app from starting other apps' screens inside its own task. */
+    const val BLOCK_IN_TASK_SDK = 30
 
     /**
      * Lock task only stops an app from opening a screen in a NEW task; an allowed app can still start another app's
-     * screen inside its own task — e.g. Wi-Fi settings. Up to Android 13 the kiosk closes that by suspending
-     * Settings.
-     * Android 14+ refuses to suspend Settings (and hiding it instead leaves the phone without its boot-time home: it
-     * never finishes starting), so on Android 14/15 lock task itself is told to block in-task starts of anything
-     * that is not allowed in the kiosk. (Android 16+ has no lock task here: see [softKiosk].)
+     * screen inside its own task — e.g. Wi-Fi settings — and walk the whole Settings app from there. From Android 11
+     * lock task itself can be told to block that for anything not allowed in the kiosk; the kiosk always asks for it.
+     * (Suspending Settings instead is not an option on any release: it hosts Android's boot-time home.)
      */
-    fun blockInTaskStarts(sdk: Int): Boolean = sdk >= SETTINGS_UNSUSPENDABLE_SDK && !softKiosk(sdk)
+    fun blockInTaskStarts(sdk: Int): Boolean = sdk >= BLOCK_IN_TASK_SDK && !softKiosk(sdk)
+
+    /**
+     * Where nothing in the platform keeps Settings out of an allowed app's reach — Android 7–10 (no in-task block)
+     * and the soft kiosk (no lock task) — a foreground guard sends the phone back to the kiosk instead.
+     */
+    fun needsForegroundGuard(sdk: Int): Boolean = !blockInTaskStarts(sdk)
 
     /**
      * Soft kiosk only: whether the status bar (and with it the system quick settings and their gear to Settings) is
@@ -67,8 +71,8 @@ object KioskHardening {
      * Packages to suspend while in kiosk (a suspended app cannot be opened by anyone: not from Recents, a
      * notification, the quick-settings gear, nor by an allowed app's intent).
      *
-     *  - Always: the packages that serve the system Settings screens ([settingsPackages]). Lock task alone lets an
-     *    allowed app open them inside its own task on older Android.
+     *  - Always: the packages that lead into the system Settings ([settingsPackages]: its search app…). The Settings
+     *    app itself is passed in [protected] by the caller: it must never be suspended (boot-time home).
      *  - Soft kiosk: also every app with a launcher icon ([launchable]) that the kiosk does not allow, since
      *    nothing else keeps them closed there.
      *

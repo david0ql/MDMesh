@@ -141,7 +141,7 @@ class KioskLauncherActivity : ComponentActivity() {
     }
 
     /**
-     * The app's launch intent. Android 16+ (no lock task): when the app had opened a screen the kiosk keeps closed
+     * The app's launch intent. Android 7–10 and 16+ (where a guard sends Settings back): when the app had opened a screen the kiosk keeps closed
      * inside its own task (Settings), that task is started clean once, or returning to the app would land on that
      * screen again and be sent back here forever.
      */

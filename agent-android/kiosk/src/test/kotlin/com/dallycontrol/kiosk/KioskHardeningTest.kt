@@ -16,12 +16,26 @@ class KioskHardeningTest {
     }
 
     @Test
-    fun `in-task starts are blocked by lock task exactly where Settings cannot be suspended - Android 14 and 15`() {
+    fun `lock task blocks in-task starts from Android 11 to 15, the foreground guard covers the rest`() {
         assertFalse(KioskHardening.blockInTaskStarts(28))
-        assertFalse(KioskHardening.blockInTaskStarts(33))
-        assertTrue(KioskHardening.blockInTaskStarts(34))
+        assertFalse(KioskHardening.blockInTaskStarts(29))
+        assertTrue(KioskHardening.blockInTaskStarts(30))
         assertTrue(KioskHardening.blockInTaskStarts(35))
         assertFalse("no lock task on the soft kiosk", KioskHardening.blockInTaskStarts(36))
+        assertTrue("Android 7-10: an allowed app can open Settings in its own task", KioskHardening.needsForegroundGuard(29))
+        assertFalse(KioskHardening.needsForegroundGuard(30))
+        assertFalse(KioskHardening.needsForegroundGuard(35))
+        assertTrue("Android 16+: no lock task", KioskHardening.needsForegroundGuard(36))
+    }
+
+    @Test
+    fun `the Settings app itself is never suspended when the caller protects it - only what leads into it`() {
+        val plan = KioskHardening.suspendPlan(
+            soft = true, launchable, settings, allowed = listOf("com.work.app"),
+            protected = protected + "com.android.settings",
+        )
+        assertFalse("com.android.settings" in plan)
+        assertTrue("com.android.settings.intelligence" in plan)
     }
 
     @Test
@@ -62,7 +76,7 @@ class KioskHardeningTest {
     }
 
     @Test
-    fun `a policy that allows Settings itself keeps it usable`() {
+    fun `a policy that allows Settings itself keeps what it allows usable`() {
         val allowed = listOf("com.android.settings")
         val plan = KioskHardening.suspendPlan(soft = true, launchable, settings, allowed, protected)
         assertFalse("com.android.settings" in plan)

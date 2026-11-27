@@ -163,10 +163,15 @@ def suspended(pkg):
 
 
 def restrictions():
-    """User restrictions in force (dumpsys user; the guest defaults listed there are not this user's)."""
-    out = sh("dumpsys user").split("Guest restrictions")[0]
-    found = set(re.findall(r"^\s+(no_\w+)\s*$", out, re.M))
-    return found or set(re.findall(r"no_\w+", sh("dumpsys device_policy")))
+    """User restrictions set by device policy (dumpsys user lists them apart from the image's own base ones)."""
+    found, on = set(), False
+    for line in sh("dumpsys user").splitlines():
+        t = line.strip()
+        if t.endswith(":"):
+            on = "evice policy" in t
+        elif on and re.fullmatch(r"no_\w+", t):
+            found.add(t)
+    return found
 
 
 def ui():
@@ -205,10 +210,14 @@ def home():
 
 
 def seven_taps():
-    """7 quick taps on the kiosk's invisible top-right corner (they must land within 3 s: one shell, in parallel)."""
+    """7 quick taps on the kiosk's invisible top-right corner. They must land within 3 s, so they are injected by one
+    process (a monkey script); `input tap` starts a JVM per tap on Android 10 and older and is too slow there."""
     w, _, dp = screen()
     x, y = int(w - 20 * dp), int(52 * dp)
-    sh("for i in 1 2 3 4 5 6 7; do input tap %d %d & done; wait" % (x, y), timeout=90)
+    script = "type= raw events\\ncount= 7\\nspeed= 1.0\\nstart data >>\\n" + "UserWait(150)\\n".join(f"Tap({x},{y})\\n" for _ in range(7))
+    out = sh(f"printf '{script}' > /sdcard/dc-taps.txt; monkey -f /sdcard/dc-taps.txt 1", timeout=90)
+    if "Events injected" not in out:
+        sh("for i in 1 2 3 4 5 6 7; do input tap %d %d & done; wait" % (x, y), timeout=90)
     time.sleep(1.5)
 
 
@@ -293,13 +302,14 @@ def t_state(mode):
     for r in ["no_safe_boot", "no_add_user"] + (["no_user_switch", "no_system_error_dialogs"] if SDK >= 28 else []):
         check(f"restricción {r}", r in dp)
     check("modo seguro deshabilitado (safe_boot_disallowed=1)", sh("settings get global safe_boot_disallowed").strip() == "1")
-    if 24 <= SDK < 34:
-        check("Ajustes (com.android.settings) suspendido", until(lambda: suspended("com.android.settings"), 15))
-    elif SDK < 36:
-        # Android 14+ does not let anyone suspend Settings: lock task blocks in-task starts instead (flag 64).
-        check_mask("Android 14/15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", lambda f: f & 64)
+    # Settings itself is never suspended (it hosts Android's boot-time home): lock task keeps it out, from Android 11
+    # also inside an allowed app's task (flag 64); elsewhere the agent's foreground guard sends the phone back.
+    check("Ajustes no está suspendido (lo necesita el arranque de Android)", not suspended("com.android.settings"))
+    if 30 <= SDK < 36:
+        check_mask("Android 11–15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", lambda f: f & 64)
     else:
-        info("Android 16+", "Ajustes no se puede suspender ni hay lock task: lo devuelve el vigilante de primer plano (ver pruebas de intents)")
+        ops = sh(f"appops get {A.pkg} GET_USAGE_STATS")
+        check("Android 7–10 / 16+: el agente tiene acceso de uso (vigilante de primer plano)", "allow" in ops, ops.strip()[-60:])
     check("la app de trabajo no está suspendida", not suspended(APP))
     want = APP if mode == "single" else A.pkg
     check("en primer plano: " + ("la app fijada" if mode == "single" else "el inicio del quiosco"),
@@ -322,7 +332,7 @@ def t_settings_intents(mode):
             time.sleep(2.5)
             log = sh("logcat -d -s EscapeTest:I").strip().splitlines()
             check(f"app permitida → intent {action.split('.')[-1]}" + (" (tarea nueva)" if new_task else "") + ": no abre Ajustes",
-                  not settings_in_front(), top() + " | " + (log[-1][-90:] if log else "sin log"))
+                  until(lambda: not settings_in_front(), 6, 0.5), top() + " | " + (log[-1][-90:] if log else "sin log"))
             sh("input keyevent KEYCODE_BACK")
     home()
     # Open the work app the way the user does: its icon (multi-app) or the kiosk's "open <app>" button, which a
@@ -450,8 +460,6 @@ def t_tether(mode):
         check("Atrás desde zona Wi‑Fi vuelve al quiosco", kiosk_home_in_front(), top())
     home()
     time.sleep(1)
-    if 24 <= SDK < 34:
-        check("al volver, Ajustes queda suspendido de nuevo", until(lambda: suspended("com.android.settings"), 10))
     sh("am start -a android.settings.SETTINGS")
     time.sleep(2)
     check("después de Compartir datos, Ajustes sigue sin abrir", not settings_in_front(), top())
@@ -466,7 +474,7 @@ def t_exit(mode):
     msg = try_exit(mode, PASSWORD)
     check("4.º intento durante la espera: ni siquiera pide contraseña", msg not in ("", "no dialog", "no exit screen"), msg)
     check("…y la contraseña correcta no sirve durante la espera", not_exited(), top())
-    ev = until(lambda: [e for e in events("kioskExitFailed,kioskExitDenied", since)], 60, 3) or []
+    ev = until(lambda: [e for e in events("kioskExitFailed,kioskExitDenied", since)], 150, 4) or []
     kinds = sorted({e.get("type") for e in ev})
     check("intentos fallidos registrados en el servidor", "kioskExitFailed" in kinds, f"{kinds}")
     print("        (esperando los 30 s de bloqueo)", flush=True)
@@ -474,14 +482,13 @@ def t_exit(mode):
     msg = try_exit(mode, PASSWORD)
     check("pasada la espera, la contraseña correcta saca del quiosco",
           msg == "" and until(lambda: lock_task() == "NONE" and not kiosk_home_in_front() and not top().startswith(APP + "/"), 20), msg or top())
-    check("al salir: Ajustes deja de estar suspendido", until(lambda: not suspended("com.android.settings"), 15))
     sh("am start -a android.settings.SETTINGS")
     check("al salir: Ajustes vuelve a abrir (el quiosco ya no lo bloquea)", until(settings_in_front, 10), top())
     time.sleep(2)
     check("…y se queda abierto (nada lo devuelve)", settings_in_front(), top())
     sh("input keyevent KEYCODE_HOME")
     check("al salir: se levantan las restricciones del quiosco", until(lambda: not ({"no_add_user", "no_safe_boot"} & restrictions()), 10), str(sorted(restrictions())))
-    check("salida registrada en el servidor", until(lambda: events("kioskExit", since), 60, 3))
+    check("salida registrada en el servidor", until(lambda: events("kioskExit", since), 150, 4))
 
 
 def not_exited():
@@ -514,7 +521,7 @@ def t_legacy(mode):
     msg = try_exit(mode, "")
     check("política antigua (gesto, sin contraseña): el agente se niega a salir y lo dice",
           ("consola" in msg or "console" in msg) and not_exited(), msg)
-    check("…y lo reporta (kioskExitDenied)", until(lambda: events("kioskExitDenied", since), 60, 3))
+    check("…y lo reporta (kioskExitDenied)", until(lambda: events("kioskExitDenied", since), 150, 4))
 
 
 def t_reboot(mode):
@@ -532,14 +539,14 @@ def t_reboot(mode):
     adb("wait-for-device", timeout=300)
     until(lambda: sh("getprop sys.boot_completed").strip() == "1", 300, 3)
     time.sleep(25)
-    sh("input keyevent KEYCODE_WAKEUP")
-    sh("wm dismiss-keyguard")
+    if "mWakefulness=Asleep" in sh("dumpsys power"):
+        sh("input keyevent KEYCODE_WAKEUP")
     time.sleep(5)
     if root:
         check("reinicio pidiendo modo seguro: arranca NORMAL", "mSafeMode=true" not in sh("dumpsys window") and sh("getprop ro.sys.safemode").strip() != "1")
         adb("root"); time.sleep(3); sh("setprop persist.sys.safemode ''")
     want = APP if mode == "single" else A.pkg
-    check("tras reiniciar vuelve al quiosco", until(lambda: top().startswith(want + "/") or kiosk_home_in_front(), 60, 2), top())
+    check("tras reiniciar vuelve al quiosco SIN tocar nada", until(lambda: top().startswith(want + "/") or kiosk_home_in_front(), 120, 3), top())
     if SDK < 36:
         check("tras reiniciar: lock task LOCKED", until(lambda: lock_task() == "LOCKED", 40, 2), lock_task())
     sh("am start -a android.settings.SETTINGS")
@@ -562,6 +569,7 @@ def main():
     SDK = int(sh("getprop ro.build.version.sdk").strip())
     release = sh("getprop ro.build.version.release").strip()
     print(f"== {A.serial}: Android {release} (API {SDK})")
+    print(f"   (carga de la máquina: {subprocess.run(['uptime'], capture_output=True, text=True).stdout.strip().split('load')[-1]})")
     if APP not in sh(f"pm list packages {APP}"):
         print(adb("install", "-r", A.app_apk).strip())
     sh("settings put secure show_ime_with_hard_keyboard 1")

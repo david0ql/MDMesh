@@ -5,14 +5,14 @@ comprobar en un teléfono que no hay forma de salir a los Ajustes del sistema ni
 
 ## Qué cierra el quiosco
 
-| Capa | Android 6 a 13 | Android 14 y 15 | Android 16 o superior |
+| Capa | Android 7 a 10 | Android 11 a 15 | Android 16 o superior |
 |---|---|---|---|
 | Bloqueo de tareas (lock task) | Sí | Sí | No se usa (ver «Por qué Android 16 es distinto») |
 | Pantalla de inicio propia y persistente | Sí | Sí | Sí |
-| Ajustes del sistema (`com.android.settings`) | **Suspendido** (Android 7+) | Android no deja suspenderlo: lock task **bloquea los inicios dentro de la tarea** (`LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK`) | Android no deja suspenderlo: **vigilante de primer plano** que devuelve al quiosco |
-| Buscador de Ajustes y demás apps de sistema que llevan a Ajustes | Suspendidos | Suspendidos | Suspendidos |
+| Ajustes del sistema (`com.android.settings`) | Lock task (tareas nuevas) + **vigilante de primer plano** | Lock task, que además **bloquea los inicios dentro de la tarea** de una app permitida (`LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK`) | **Vigilante de primer plano** |
+| Buscador de Ajustes y otras apps que llevan a Ajustes | Suspendidos | Suspendidos | Suspendidos |
 | Todas las apps con ícono que no están en el quiosco, suspendidas | No hace falta (lock task) | No hace falta (lock task) | Sí |
-| Barra de estado / ajustes rápidos del sistema | Android los mantiene cerrados dentro de lock task | Igual | Deshabilitada, salvo «Notificaciones = Sí» |
+| Barra de estado / ajustes rápidos del sistema | Lock task deja solo las notificaciones (sin ajustes rápidos ni engranaje) | Igual | Deshabilitada, salvo «Notificaciones = Sí» |
 | Modo seguro bloqueado (`DISALLOW_SAFE_BOOT`) | Sí | Sí | Sí |
 | Crear usuarios / cambiar de usuario (`DISALLOW_ADD_USER`, `DISALLOW_USER_SWITCH`) | Sí | Sí | Sí |
 | Diálogos de «la app se detuvo» (su botón «Info de la app» abre Ajustes) | Bloqueados (Android 9+) | Bloqueados | Bloqueados |
@@ -20,23 +20,25 @@ comprobar en un teléfono que no hay forma de salir a los Ajustes del sistema ni
 
 **El hueco que cierra esto.** Lock task solo impide abrir una pantalla en una tarea *nueva*. Una app permitida puede
 abrir la pantalla de otra app *dentro de su propia tarea* (p. ej. `startActivity(Settings.ACTION_WIFI_SETTINGS)`), y
-desde ahí navegar por todo Ajustes. Comprobado en emulador con Android 15 antes del cambio.
+desde ahí navegar por todo Ajustes. Comprobado en emulador con Android 15 antes del cambio: la pantalla de Wi‑Fi de
+Ajustes se abría desde la app de trabajo.
 
-- **Android 7 a 13:** Ajustes queda *suspendido*. Una app suspendida no la abre nadie: ni el usuario desde Recientes
-  o una notificación, ni el engranaje, ni otra app con un *intent*, ni `adb shell am start`.
-- **Android 14 y 15:** Android marca Ajustes como exento de suspensión (`OP_SYSTEM_EXEMPT_FROM_SUSPENSION`). Se usa
-  la opción de lock task que bloquea iniciar, dentro de la tarea de una app permitida, pantallas de apps que no están
-  en el quiosco. **Efecto colateral a validar con la app de trabajo:** si la app abre *dentro de su tarea* otra app
-  que no está en el quiosco (cámara por intent, selector de archivos, visor de PDF, Chrome), ahora se bloquea: hay que
-  agregar esa app al quiosco (puede quedar en «Ocultar del quiosco» para que no tenga ícono). El diálogo de permisos
-  de Android sigue funcionando.
-- **Android 16+:** sin lock task y sin poder suspender Ajustes, el agente vigila qué app está en primer plano (acceso
-  de uso, que da el enrolamiento por cable) y, si aparece Ajustes, vuelve al quiosco de inmediato y lo reporta
-  (`kioskEscapeBlocked`). Es una mitigación: la pantalla puede verse un instante. Sin acceso de uso el agente avisa
-  en el historial (`kioskLockdownGap … coveredBy=NONE`).
+- **Android 11 a 15:** se activa la opción de lock task que bloquea iniciar, dentro de la tarea de una app permitida,
+  pantallas de apps que no están en el quiosco. Android muestra «esta app no está disponible». **Efecto colateral a
+  validar con la app de trabajo:** si la app abre *dentro de su tarea* otra app que no está en el quiosco (cámara por
+  intent, selector de archivos, visor de PDF, Chrome), ahora se bloquea: hay que agregar esa app al quiosco (puede
+  ir en «Ocultar del quiosco» para que no tenga ícono). El diálogo de permisos de Android sigue funcionando.
+- **Android 7 a 10** (no existe esa opción) **y Android 16+** (sin lock task): el agente vigila qué app está en primer
+  plano (acceso de uso, que da el enrolamiento por cable) y, si aparece Ajustes, vuelve al quiosco de inmediato y lo
+  reporta (`kioskEscapeBlocked`). Es una mitigación: la pantalla puede verse un instante (menos de un segundo). La
+  siguiente vez que se abre la app de trabajo arranca limpia, para que no quede Ajustes encima. Sin acceso de uso
+  el agente lo avisa en el historial (`kioskLockdownGap: settingsNotGuarded`).
 
-*Ocultar* Ajustes (`setApplicationHidden`) no es una opción: en Ajustes vive la pantalla de inicio que Android usa
-mientras arranca; con Ajustes oculto el teléfono no termina de encender (comprobado en emulador con Android 15).
+**Por qué no se suspende ni se oculta la app Ajustes.** En Ajustes vive la pantalla de inicio que Android usa
+mientras arranca (FallbackHome). Probado en emulador: con Ajustes *oculto* (`setApplicationHidden`) el teléfono no
+termina de encender (Android 15); con Ajustes *suspendido* enciende en un aviso «acción no permitida» en vez del
+quiosco y no entra al quiosco hasta que alguien lo toca (Android 10). Además Android 14+ ya no deja suspenderlo. Por
+eso el quiosco nunca toca esa app: solo suspende lo que lleva a ella y las apps que no son de trabajo.
 
 El agente vuelve a aplicar todo esto en cada ciclo (cada check-in, al instalarse una app y al arrancar), así que una
 app instalada después o una restricción quitada por fuera se vuelve a cerrar sola. Al salir del quiosco (con la
@@ -48,8 +50,8 @@ En Android 16 el bloqueo de tareas hace caer `system_server` (un `NullPointerExc
 animar la transición de la app fijada; confirmado en Samsung A17), y el teléfono entra en un ciclo de reinicios. No se
 puede atrapar desde una app, así que desde el agente 0.9.0 en Android 16+ **no se usa lock task** («quiosco suave»).
 Antes de este cambio eso dejaba la barra de estado visible por defecto: ajustes rápidos → engranaje → Ajustes. Ahora
-la barra queda deshabilitada por defecto y, aunque la política la habilite, Ajustes y las demás apps están
-suspendidos, de modo que el engranaje no lleva a ningún lado.
+la barra queda deshabilitada por defecto, las apps que no son de trabajo están suspendidas y, si aun así Ajustes
+llega a abrirse (con «Notificaciones = Sí», o desde una app permitida), el vigilante devuelve el equipo al quiosco.
 
 Límites conocidos en Android 16+ (sin lock task no hay API para ello): el menú de apagado no se puede cerrar y los
 botones Inicio/Recientes no se pueden ocultar (Inicio vuelve al quiosco; Recientes solo puede abrir apps permitidas).
@@ -113,14 +115,14 @@ Con el equipo en el quiosco de su política. Todo debe terminar **dentro** del q
 
 | # | Prueba | Resultado esperado |
 |---|---|---|
-| 1 | Deslizar desde arriba (barra de estado) y tocar el engranaje | Android ≤ 15: baja la barra, no hay ajustes rápidos del sistema ni engranaje. Android 16+: la barra no baja (o, con «Notificaciones = Sí», el engranaje no abre nada). |
+| 1 | Deslizar desde arriba (barra de estado) y tocar el engranaje | Android ≤ 15: baja la barra solo con notificaciones, sin ajustes rápidos del sistema ni engranaje. Android 16+: la barra no baja (con «Notificaciones = Sí» baja, y si se toca el engranaje el equipo vuelve al quiosco). |
 | 2 | Botón/gesto Inicio | Vuelve al quiosco (o a la app fijada). |
 | 3 | Botón/gesto Recientes; abrir lo que muestre | Solo apps permitidas; ninguna otra abre. |
 | 4 | Mantener el botón de encendido | Con «Bloquear botones» o antirrobo: no aparece el menú (Android 9–15). Sin eso: aparece; reiniciar vuelve al quiosco. |
 | 5 | Reiniciar | Enciende directo en el quiosco. |
 | 6 | Modo seguro (mantener «Apagar» en el menú, o volumen abajo durante el arranque) | No ofrece modo seguro; arranca normal, en el quiosco. |
-| 7 | Desde una app permitida, cualquier enlace a Ajustes (permisos, «Info de la app», Wi‑Fi…) | No abre Ajustes. |
-| 8 | `adb shell am start -a android.settings.SETTINGS` (si la depuración no está bloqueada) | No abre Ajustes. |
+| 7 | Desde una app permitida, cualquier enlace a Ajustes (permisos, «Info de la app», Wi‑Fi…) | Android 11–15: «esta app no está disponible». Android 7–10 y 16+: Ajustes puede asomar un instante y el equipo vuelve solo al quiosco; la app de trabajo se abre normal después. |
+| 8 | `adb shell am start -a android.settings.SETTINGS` (si la depuración no está bloqueada) | No abre Ajustes (Android 16+: vuelve solo al quiosco). |
 | 9 | 7 toques en la esquina superior derecha, contraseña incorrecta 3 veces | No sale; al tercer error indica la espera; un 4.º intento ni pide contraseña. En la consola quedan los intentos. |
 | 10 | 7 toques con la contraseña correcta (pasada la espera) | Sale al inicio normal del teléfono; en la consola queda «Salió del quiosco». |
 | 11 | Quiosco sin contraseña (personalizado, «solo remoto») y 7 toques | No hay salida en el teléfono. |

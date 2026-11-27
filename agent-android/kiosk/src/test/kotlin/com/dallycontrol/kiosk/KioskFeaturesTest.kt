@@ -11,10 +11,10 @@ import org.junit.Test
 class KioskFeaturesTest {
 
     @Test
-    fun `Android 14 and 15 add the block-in-task-starts flag, single-app and multi-app alike`() {
+    fun `Android 11 to 15 add the block-in-task-starts flag, single-app and multi-app alike`() {
         // 64 = LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK
-        assertEquals(16, lockTaskFeatures(KioskToggles(), sdk = 33))
-        assertEquals(16 or 64, lockTaskFeatures(KioskToggles(), sdk = 34))
+        assertEquals(16, lockTaskFeatures(KioskToggles(), sdk = 29))
+        assertEquals(16 or 64, lockTaskFeatures(KioskToggles(), sdk = 30))
         assertEquals(16 or 64, lockTaskFeatures(KioskToggles(), sdk = 35))
         assertEquals(64, lockTaskFeatures(KioskToggles(lockButtons = true), sdk = 35))
         val everything =

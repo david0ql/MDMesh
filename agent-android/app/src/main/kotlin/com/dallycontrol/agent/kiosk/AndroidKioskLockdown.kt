@@ -21,10 +21,14 @@ import com.dallycontrol.proto.KioskApplyPayload
  * kiosk of Android 16+, see [KioskHardening.softKiosk]):
  *
  *  - the kiosk user restrictions ([KioskHardening.restrictions]): no safe mode, no new users, no crash dialogs;
- *  - the system Settings app is suspended, so neither the quick-settings gear, nor a notification, nor an allowed
- *    app's intent can open it; on the soft kiosk every app outside the kiosk is suspended too. Android 14+ refuses to
- *    suspend Settings: Android 14/15 block it through lock task instead ([KioskHardening.blockInTaskStarts]), and on
- *    the soft kiosk [KioskForegroundGuard] sends the phone back to the kiosk the moment it shows up;
+ *  - the apps that lead into the system Settings (its search app…) are suspended, and on the soft kiosk every app
+ *    outside the kiosk is: a suspended app cannot be opened by anyone;
+ *  - the Settings app itself is NEVER suspended or hidden: it hosts the home screen Android shows while it starts
+ *    (FallbackHome). Suspended, the phone boots into an "action not allowed" notice instead of the kiosk; hidden, it
+ *    does not finish booting at all (both seen on emulators). It is kept out of reach by lock task, which from
+ *    Android 11 also blocks an allowed app from opening it inside its own task
+ *    ([KioskHardening.blockInTaskStarts]); where that is not available (Android 7–10, and the soft kiosk)
+ *    [KioskForegroundGuard] sends the phone back to the kiosk the moment Settings shows up;
  *  - on the soft kiosk the status bar is disabled unless the policy explicitly allows notifications.
  *
  * Only what this class set is undone on [release] (kept in its own preferences), so restrictions owned by the
@@ -53,9 +57,18 @@ class AndroidKioskLockdown(
             runCatching { dpm.setStatusBarDisabled(admin, closed) }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) suspend(soft, allowed)
-        // Soft kiosk: what Android would not suspend (Settings, on Android 14+) is kept out of the foreground.
-        val open = prefs.getString(KEY_GAP, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
-        if (soft && open.isNotEmpty()) {
+        // Settings (never suspended) and, on the soft kiosk, whatever Android refused to suspend are kept out of the
+        // foreground by the guard wherever lock task does not already do it.
+        val unsuspended = prefs.getString(KEY_GAP, "").orEmpty().split(',').filter { it.isNotBlank() }
+        val open = (settingsPackages().filter { it in BOOT_CRITICAL } + if (soft) unsuspended else emptyList()).toSet() -
+            allowed.toSet()
+        val blind = KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty() && !KioskForegroundGuard.canWatch(context)
+        if (blind != prefs.getBoolean(KEY_BLIND, false)) {
+            prefs.edit().putBoolean(KEY_BLIND, blind).apply()
+            // Without usage access nothing sends the phone back from Settings on this Android version: say so.
+            if (blind) events.record(EventType.KIOSK_LOCKDOWN_GAP, "settingsNotGuarded=sin acceso de uso para el agente")
+        }
+        if (KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty()) {
             KioskForegroundGuard.start(context, open, { it in lifted }) { pkg ->
                 events.record(EventType.KIOSK_ESCAPE_BLOCKED, pkg)
             }
@@ -75,7 +88,7 @@ class AndroidKioskLockdown(
         if (suspended.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             runCatching { dpm.setPackagesSuspended(admin, suspended.toTypedArray(), false) }
         }
-        prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_GAP).apply()
+        prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_GAP).remove(KEY_BLIND).apply()
         if (KioskHardening.softKiosk(Build.VERSION.SDK_INT)) runCatching { dpm.setStatusBarDisabled(admin, false) }
     }
 
@@ -119,15 +132,7 @@ class AndroidKioskLockdown(
         val gap = failed.sorted().joinToString(",")
         if (gap != prefs.getString(KEY_GAP, "").orEmpty()) {
             prefs.edit().putString(KEY_GAP, gap).apply()
-            if (gap.isNotEmpty()) {
-                val covered = when {
-                    KioskHardening.blockInTaskStarts(Build.VERSION.SDK_INT) -> "lockTask"
-                    soft && KioskForegroundGuard.canWatch(context) -> "guard"
-                    soft -> "NONE (grant usage access to the agent)"
-                    else -> "lockTask (new tasks only)"
-                }
-                events.record(EventType.KIOSK_LOCKDOWN_GAP, "notSuspended=$gap; coveredBy=$covered")
-            }
+            if (gap.isNotEmpty()) events.record(EventType.KIOSK_LOCKDOWN_GAP, "notSuspended=$gap")
         }
     }
 
@@ -161,11 +166,9 @@ class AndroidKioskLockdown(
         val dialer = runCatching {
             (context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
         }.getOrNull()
-        return (ALWAYS_PROTECTED + context.packageName + supportPackages + homes + keyboards + listOfNotNull(dialer))
-            // The agent's own HOME is in `homes`; Settings can also answer HOME on some phones (its fallback home):
-            // that must not protect it.
-            .filterNot { it in KNOWN_SETTINGS }
-            .distinct()
+        // `homes` includes Settings wherever it hosts Android's boot-time home (FallbackHome): never suspended.
+        return (ALWAYS_PROTECTED + BOOT_CRITICAL + context.packageName + supportPackages + homes + keyboards +
+            listOfNotNull(dialer)).distinct()
     }
 
     companion object {
@@ -174,11 +177,14 @@ class AndroidKioskLockdown(
         private const val KEY_RESTRICTIONS = "restrictions"
         private const val KEY_SUSPENDED = "suspended"
         private const val KEY_GAP = "gap"
+        private const val KEY_BLIND = "guard_blind"
         private val KNOWN_SETTINGS = listOf(
             "com.android.settings",
             "com.android.settings.intelligence",
             "com.google.android.settings.intelligence",
         )
+        /** Hosts the home screen Android shows while it boots: suspending or hiding it breaks the start-up. */
+        private val BOOT_CRITICAL = listOf("com.android.settings")
         private val ALWAYS_PROTECTED = listOf(
             "android",
             "com.android.systemui",
@@ -202,10 +208,10 @@ class AndroidKioskLockdown(
             pkg in context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
 
-        /** Let one package the kiosk keeps suspended open for a moment (see [TimedAllow]). */
+        /** Let one package the kiosk keeps closed (suspended, or sent back by the guard) open for a moment. */
         fun lift(context: Context, pkg: String) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !suspendedByKiosk(context, pkg)) return
             lifted += pkg
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !suspendedByKiosk(context, pkg)) return
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             runCatching { dpm.setPackagesSuspended(AdminReceiver.componentName(context), arrayOf(pkg), false) }
         }
@@ -222,10 +228,10 @@ class AndroidKioskLockdown(
 }
 
 /**
- * Soft kiosk (Android 16+, no lock task) only. Android will not let anyone suspend the system Settings there, and
- * hiding it leaves the phone unable to finish booting, so this is the last line: while the screen is on it looks at
+ * Where lock task cannot keep the system Settings closed — Android 7–10 (an allowed app may open it inside its own
+ * task) and the soft kiosk of Android 16+ (no lock task) — this is the last line: while the screen is on it looks at
  * which app is in front (usage access, granted by the cable enrollment) a few times a second and, when it is one the
- * kiosk wanted closed, brings the kiosk home back at once and reports it. A mitigation, not a wall: the screen can
+ * kiosk keeps closed, brings the kiosk home back at once and reports it. A mitigation, not a wall: the screen can
  * show for a moment.
  */
 internal object KioskForegroundGuard {
