@@ -3343,4 +3343,26 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.26-manage-users-permission" author="dallycontrol">
+        <comment>Permission,new: manage_users — gates the Users module. Granted to the full administrator (Admin)
+                 and to the folder editor (User) so a folder editor can add/manage users inside their own folders
+                 (DcUserResource scopes who they may see, create, edit and delete to a subset of their folders).
+                 NOT granted to the view-only "Visor" role. Super-admins hold every permission implicitly.</comment>
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                VALUES ('manage_users', 'Gestionar usuarios de la consola (el editor de carpetas solo dentro de sus carpetas)', FALSE);
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, (SELECT id FROM permissions WHERE name = 'manage_users')
+                FROM userRoles ur
+                WHERE ur.name IN ('Admin', 'User')
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id
+                          AND urp.permissionId = (SELECT id FROM permissions WHERE name = 'manage_users'));
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'manage_users');
+            DELETE FROM permissions WHERE name = 'manage_users';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

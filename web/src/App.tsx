@@ -12,6 +12,7 @@ import { AppsPage } from './pages/AppsPage';
 import { ConfigurationsPage } from './pages/ConfigurationsPage';
 import { EnrollPage } from './pages/EnrollPage';
 import { UsersPage } from './pages/UsersPage';
+import { RolesPage } from './pages/RolesPage';
 import { AdminOnly } from './auth/AdminOnly';
 import { RequirePermission } from './auth/RequirePermission';
 import { SettingsPage } from './pages/SettingsPage';
@@ -43,7 +44,8 @@ export default function App() {
               <Route path="/scripts" element={<RequirePermission name="manage_scripts"><ScriptsPage /></RequirePermission>} />
               <Route path="/enroll" element={<EnrollPage />} />
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
-              <Route path="/users" element={<AdminOnly><UsersPage /></AdminOnly>} />
+              <Route path="/users" element={<RequirePermission name="manage_users"><UsersPage /></RequirePermission>} />
+              <Route path="/roles" element={<AdminOnly><RolesPage /></AdminOnly>} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
