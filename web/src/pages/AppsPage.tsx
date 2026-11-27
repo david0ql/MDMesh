@@ -21,7 +21,10 @@ import {
   type PlayApp,
   type Application,
   type BundleUploadResult,
+  confirmSignatureChange,
 } from '../api/applications';
+import { AAB_MESSAGE, describeProgress, type UploadProgress } from '../api/chunkedUpload';
+import { InstallFleetModal } from '../components/InstallFleetModal';
 import { useAuth } from '../auth/AuthContext';
 import { hasPermission } from '../api/auth';
 import { searchFdroid, type FDroidApp } from '../api/fdroid';
@@ -165,6 +168,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
   const [bulk, setBulk] = useState<string | null>(null);
   // Which app's installed-devices panel is open (fleet targeting + mass uninstall).
   const [installed, setInstalled] = useState<{ pkg: string; label: string } | null>(null);
+  // Which app's "Instalación en la flota" is open (who has it, who is pending, who failed and why).
+  const [rollout, setRollout] = useState<{ pkg: string; label: string } | null>(null);
 
   const load = () => {
     // Groups of builds (several versions of one package, each policy on one of them) show as a group card.
@@ -242,6 +247,7 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
     <>
       {grouping && <MakeGroupDialog app={grouping} onClose={() => setGrouping(null)} onDone={() => { setGrouping(null); void load(); }} />}
       {installed && <InstalledDevicesModal packageName={installed.pkg} label={installed.label} onClose={() => setInstalled(null)} />}
+      {rollout && <InstallFleetModal packageName={rollout.pkg} label={rollout.label} onClose={() => setRollout(null)} />}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="dv-search" style={{ width: 260 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -281,7 +287,8 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
         <div className="app-grid">
           {shown.filter((a) => a.id != null && groups[a.id]).map((a) => (
             <VersionGroupCard key={a.id} app={a} group={groups[a.id!]} policies={policies} onDeploy={onDeploy}
-              onChanged={() => void load()} onShowDevices={() => setInstalled({ pkg: a.pkg, label: a.name })} />
+              onChanged={() => void load()} onShowDevices={() => setInstalled({ pkg: a.pkg, label: a.name })}
+              onShowInstall={() => setRollout({ pkg: a.pkg, label: a.name })} />
           ))}
           {shown.filter((a) => a.id == null || !groups[a.id]).map((a) => {
             const busy = a.pkg in fetching;
@@ -315,6 +322,9 @@ function LibrarySource({ onDeploy }: { onDeploy: (app: Application) => void }) {
                     <>
                       <button className="btn btn-sm btn-ghost" onClick={() => setInstalled({ pkg: a.pkg, label: a.name })}
                               data-testid={`devices-${a.pkg}`} title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
+                      <button className="btn btn-sm btn-ghost" onClick={() => setRollout({ pkg: a.pkg, label: a.name })}
+                              data-testid={`install-status-${a.pkg}`}
+                              title="Instalación en la flota: cuántos equipos la tienen, cuáles están pendientes y cuáles fallaron (con el motivo)">Instalación</button>
                       <button className="btn btn-sm btn-ghost" onClick={() => setGrouping(a)} data-testid={`versions-${a.pkg}`}
                               title="Para tener varias versiones de esta app (por ejemplo una por cliente) y que cada política use la suya">Hacer grupo</button>
                       {canEdit && a.id != null && (
@@ -398,6 +408,8 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   const [savedAppId, setSavedAppId] = useState<number | undefined>(undefined);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  /** Progress of the upload in course (big files travel in parts). */
+  const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [dropped, setDropped] = useState<string | null>(null);
   /** Optional name for the uploaded version (to tell builds apart and see which one each policy uses). */
   const [verLabel, setVerLabel] = useState('');
@@ -414,16 +426,28 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
       await onBundle(file);
       return;
     }
+    if (file.name.toLowerCase().endsWith('.aab')) {
+      toast.push('err', 'Los .aab no se pueden instalar', AAB_MESSAGE);
+      return;
+    }
     if (!file.name.toLowerCase().endsWith('.apk')) {
       toast.push('err', 'No es un APK', 'Suelta un archivo .apk, .xapk, .apks, .apkm o .zip.');
       return;
     }
     setBundle(null);
     setUploading(true);
+    setProgress(null);
     setDropped(file.name);
     try {
-      const up = await uploadApk(file);
+      const up = await uploadApk(file, setProgress);
       const fd = up.fileDetails;
+      // Signed with another certificate than the version already in the Library: the phones would refuse the update.
+      const signatureChanged = !!up.signature?.changed;
+      if (!confirmSignatureChange(up.signature)) {
+        toast.push('err', 'No se agregó la versión', 'La firma del APK no coincide con la de la versión anterior.');
+        setDropped(null);
+        return;
+      }
       if (fd) {
         if (fd.name) setName(fd.name);
         if (fd.pkg) setPkg(fd.pkg);
@@ -449,7 +473,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
         const vc = fd.versionCode ?? 0;
         const fresh = isNewVersion(versions, vc, fd.version);
         if (fresh && committedUrl) {
-          await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl });
+          await addApplicationVersion({ applicationId: existing.id, version: fd.version, versionCode: vc, url: committedUrl }, signatureChanged);
           await nameVersion(existing.id, fd.version, vc);
           toast.push('ok', 'Nueva versión agregada',
             `${fd.name || fd.pkg} ${fd.version ?? ''} (versionCode ${vc}): las políticas que la usan ahora instalan esta versión.`);
@@ -498,9 +522,15 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
   // There's no single URL, so we hold the parts and deploy them together.
   async function onBundle(file: File) {
     setUploading(true);
+    setProgress(null);
     setDropped(file.name);
     try {
-      const b = await uploadBundle(file);
+      const b = await uploadBundle(file, setProgress);
+      if (!confirmSignatureChange(b.signature)) {
+        toast.push('err', 'No se agregó el bundle', 'Su firma no coincide con la de la versión anterior.');
+        setDropped(null);
+        return;
+      }
       setBundle(b);
       setUrl('');
       setSha('');
@@ -649,7 +679,7 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
           <input
             ref={fileRef}
             type="file"
-            accept=".apk,.xapk,.apks,.apkm,.zip,application/vnd.android.package-archive"
+            accept=".apk,.xapk,.apks,.apkm,.zip,.aab,application/vnd.android.package-archive"
             hidden
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -658,7 +688,16 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             }}
           />
           {uploading ? (
-            <span className="dz-main"><span className="spin" /> Analizando {dropped}…</span>
+            <span className="dz-main">
+              <span><span className="spin" /> {progress && progress.sent < progress.total ? 'Subiendo' : 'Analizando'} {dropped}…</span>
+              {progress && (
+                <>
+                  <progress value={progress.sent} max={progress.total} style={{ width: '100%', marginTop: 8 }}
+                    aria-label="Progreso de la subida" />
+                  <span className="dz-sub">{describeProgress(progress)}</span>
+                </>
+              )}
+            </span>
           ) : dropped ? (
             <span className="dz-main">
               ✓ {dropped}
@@ -672,7 +711,8 @@ function CustomSource({ onDeploy }: { onDeploy: (s: DeploySubject) => void }) {
             <span className="dz-main">
               Suelta aquí un APK o un bundle dividido, o haz clic para buscarlo
               <span className="dz-sub">
-                APK, o .xapk / .apks / .apkm / .zip: completa automáticamente el paquete, la versión y las URL alojadas
+                APK, o .xapk / .apks / .apkm / .zip: completa automáticamente el paquete, la versión y las URL alojadas.
+                Los archivos grandes (más de 50 MB) se suben por partes y se reanudan si se corta la conexión
               </span>
             </span>
           )}

@@ -17,10 +17,12 @@ export const buildName = (v: LabeledVersion) => v.label?.trim() || v.version || 
  * A group of builds of one app (same package, e.g. Distribución for El Sol and for Disay). Each policy uses exactly
  * one build of the group, assigned here; uploading a new build adds it to the group without moving any policy.
  */
-export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, onShowDevices }: {
+export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, onShowDevices, onShowInstall }: {
   app: Application; group: VersionGroup; policies: PolicyRef[]; onChanged: () => void; onDeploy: (a: Application) => void;
   /** Open the fleet panel: which devices have this app installed (+ mass uninstall). */
   onShowDevices?: (a: Application) => void;
+  /** Opens "Instalación en la flota" for the app. */
+  onShowInstall?: (a: Application) => void;
 }) {
   const toast = useToast();
   const { user } = useAuth();
@@ -96,6 +98,10 @@ export function VersionGroupCard({ app, group, policies, onChanged, onDeploy, on
           {onShowDevices && (
             <button className="btn btn-sm btn-ghost" onClick={() => onShowDevices(app)} data-testid={`group-devices-${app.pkg}`}
               title="Ver en qué dispositivos está instalada y desinstalarla en masa">Equipos</button>
+          )}
+          {onShowInstall && (
+            <button className="btn btn-sm btn-ghost" onClick={() => onShowInstall(app)} data-testid={`group-install-${app.pkg}`}
+              title="Instalación en la flota: cuántos equipos la tienen, cuáles están pendientes y cuáles fallaron (con el motivo)">Instalación</button>
           )}
           {canEdit && app.id != null && (
             <button className="btn btn-sm btn-ghost" disabled={unlinking} onClick={() => void removeFromPolicies()}

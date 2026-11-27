@@ -171,3 +171,24 @@ Findings fixed along the way: the enroll half of reusable codes was missing; loc
 crash-loop guard released the kiosk (4× Back was a way out) and, once fixed, missed bounces when Android recreated the
 kiosk home; after a re-enrollment the wake socket kept the old device id; the in-call screen could lose the race with
 the phone-state broadcast; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.
+
+## App management: big uploads, silent install, failures (MDM-04 / MDM-05)
+
+`scripts/app-install-e2e.py` checks the whole path of a private APK. It puts a local proxy that refuses request bodies
+over 100 MB (what the Cloudflare tunnel does) in front of the stack and, through it: the big APK fails in one request
+(HTTP 413) and goes up in parts (damaged part refused, resume, whole file verified); the hosted file downloads by
+`Range`; a version signed with another key is warned about and blocked until confirmed; a corrupt APK and an `.aab` are
+refused with a clear message; an install on a device that is not Device Owner shows as held, with the reason. With a real
+enrolled agent (`--serial`, `--device-id`) it also installs and updates silently, and makes the installs fail (another
+signature, corrupt file, wrong SHA-256, no free space) to check the reason shown in "Instalación en la flota", the
+"Reintentar" button and the automatic retry.
+
+```bash
+scripts/build-install-testapps.sh /tmp/apks        # 120 MB v1, v2, v3 signed with another key, a corrupt one
+scripts/app-install-e2e.py --api http://localhost:8088 --apks /tmp/apks \
+    --serial emulator-5600 --device-id <id> \
+    --pg "docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol -d dallycontrol -At -c"
+```
+
+Without `--serial` only the server part runs. `--pg` is only for the automatic-retry check (it moves a failure 11
+minutes into the past and waits for the server's 5-minute timer); `--skip-auto-retry` and `--skip-storage` shorten the run.
