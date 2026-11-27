@@ -3957,6 +3957,8 @@
         <rollback>
             DELETE FROM userRolePermissions WHERE roleId IN (210, 211);
             DELETE FROM userRoles WHERE id IN (210, 211);
+        </rollback>
+    </changeSet>
 
     <changeSet id="26.11.27-wifi-certificates" author="dallycontrol">
         <comment>Certificates of enterprise Wi-Fi networks (the RADIUS server's CA; the client's PKCS#12 for EAP-TLS).
