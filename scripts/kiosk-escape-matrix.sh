@@ -5,6 +5,8 @@
 # Environment:
 #   EMU_PORT   emulator console port (default 5600; serial emulator-$EMU_PORT)
 #   WEB_PORT   the dev stack's console port on this machine (default 8088; the emulator reaches it at 10.0.2.2)
+#   API_URL    where THIS machine calls the admin API (default http://localhost:$WEB_PORT; the direct Tomcat port of
+#              the dev stack, http://localhost:8080, avoids proxy timeouts on a loaded machine)
 #   EMU_ARGS   extra emulator arguments (e.g. -read-only when another emulator already runs the same AVD)
 #   OUT        where logs and the per-release result tables go (default /tmp/dallycontrol-kiosk)
 #   LEGACY_PSQL  psql command of the stack (e.g. "docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol
@@ -16,7 +18,7 @@ APK=$1; shift
 HERE=$(cd "$(dirname "$0")" && pwd)
 SDK=${ANDROID_HOME:-$HOME/Library/Android/sdk}
 ADB=$SDK/platform-tools/adb; export PATH=$SDK/platform-tools:$PATH
-PORT=${EMU_PORT:-5600}; WEB=${WEB_PORT:-8088}
+PORT=${EMU_PORT:-5600}; WEB=${WEB_PORT:-8088}; API=${API_URL:-http://localhost:$WEB}
 OUT=${OUT:-/tmp/dallycontrol-kiosk}; mkdir -p "$OUT"
 [ -f "$HERE/testapp/escapetest.apk" ] || "$HERE/build-escapeapp.sh" >/dev/null
 for AVD in "$@"; do
@@ -30,9 +32,9 @@ for AVD in "$@"; do
   # Enroll and wait for the device id. On a loaded machine the first enroll call can time out on the device after
   # the server already spent the token: a new run of adb-enroll.sh mints another one.
   DID=""
-  for _ in 1 2 3; do
+  for _ in 1 2 3 4 5; do
     DALLYCONTROL_ADMIN_PASSWORD=${DALLYCONTROL_ADMIN_PASSWORD:-admin} "$HERE/adb-enroll.sh" --serial "$SER" --server "http://10.0.2.2:$WEB" \
-        --api-url "http://localhost:$WEB" --admin-user admin --apk "$APK" --debug-build >>"$LOG" 2>&1 || { sleep 10; continue; }
+        --api-url "$API" --admin-user admin --apk "$APK" --debug-build >>"$LOG" 2>&1 || { sleep 15; continue; }
     for _ in $(seq 1 30); do
       DID=$($ADB -s "$SER" shell run-as com.dallycontrol.agent.debug cat files/datastore/mdm_identity.preferences_pb 2>/dev/null | strings | grep -oE '[0-9a-f]{8}-[0-9a-f-]{27}' | head -1)
       [ -n "$DID" ] && break; sleep 3; done
@@ -44,7 +46,7 @@ for AVD in "$@"; do
     sleep 8
     LEGACY=(); [ -n "${LEGACY_PSQL:-}" ] && LEGACY=(--legacy-psql "$LEGACY_PSQL")
     # shellcheck disable=SC2086
-    python3 -u "$HERE/kiosk-escape-test.py" --serial "$SER" --device-id "$DID" --api "http://localhost:$WEB" \
+    python3 -u "$HERE/kiosk-escape-test.py" --serial "$SER" --device-id "$DID" --api "$API" \
         --reboot --summary "$OUT/$AVD.md" ${LEGACY[@]+"${LEGACY[@]}"} ${TEST_ARGS:-} >>"$LOG" 2>&1
     echo "RESULT $AVD: $(grep 'RESULT:' "$LOG" | tail -1)" | tee -a "$LOG"
   fi
