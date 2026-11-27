@@ -218,6 +218,10 @@ def fixed(short, pkg=PKG):
     return "POLICY_FIXED" in package_perms(pkg).get(PERM + short, (None, ""))[1]
 
 
+def any_fixed(pkg=PKG):
+    return any("POLICY_FIXED" in flags for _, flags in package_perms(pkg).values())
+
+
 def installed(pkg=PKG):
     return f"package:{pkg}" in sh(f"pm list packages {pkg}")
 
@@ -225,13 +229,13 @@ def installed(pkg=PKG):
 def device_policy_permission_policy():
     """The permission policy as `dumpsys device_policy` prints it: 0 prompt, 1 auto-grant, 2 auto-deny (None = not printed)."""
     dump = sh("dumpsys device_policy")
-    for pat in (r"mPermissionPolicy=(\d)", r"permissionPolicy=(\d)", r"PermissionPolicy[^\n]{0,80}?value=(\d)",
-                r"permission[_ ]?policy[^\n\d]{0,40}(\d)"):
+    # Android 14+: "Permission policy: {0=1}" (per user); older: "mPermissionPolicy=1" / "Permission policy: 1".
+    for pat in (r"Permission policy: \{\s*\d+=(\d)", r"mPermissionPolicy=(\d)", r"permissionPolicy=(\d)", r"Permission policy:\s*(\d)"):
         m = re.search(pat, dump, re.I)
         if m:
             return int(m.group(1))
-    m = re.search(r"PermissionPolicy.{0,400}?IntegerPolicyValue \{ ?mValue= ?(\d)", dump, re.S)
-    return int(m.group(1)) if m else None
+    # The key is absent while the policy is the default one (0 = prompt).
+    return 0 if "Device Owner" in dump else None
 
 
 def top_activity():
@@ -414,8 +418,8 @@ def body(sdk, cfg_id, storage):
 
     section("6. an app that was ALREADY installed gets its permissions when the rule arrives")
     edit_config(cfg_id, option="ASKALL", rules=None)
-    check("rule removed: permissions released (not fixed)", until(lambda: not fixed("ACCESS_FINE_LOCATION"), 90),
-          str(package_perms().get(PERM + "ACCESS_FINE_LOCATION")))
+    check("rule removed: every permission released (none fixed)", until(lambda: not any_fixed(), 90),
+          str({k: v for k, v in package_perms().items() if "POLICY_FIXED" in v[1]}))
     sh(f"pm uninstall {PKG}")
     adb("push", A.apk, "/data/local/tmp/permtest.apk")
     out = sh("pm install -r /data/local/tmp/permtest.apk")
@@ -423,16 +427,30 @@ def body(sdk, cfg_id, storage):
           out.strip()[:120])
     edit_config(cfg_id, rules={PKG: {"permissions": {"locationFine": "grant", "locationCoarse": "grant", "locationBackground": "grant",
                                                     "camera": "grant", "storage": "grant"}}})
+    last = "ACCESS_BACKGROUND_LOCATION" if sdk >= 29 else storage      # background location is granted last
     check("the rule grants location, camera and storage with no reinstall",
-          until(lambda: granted("ACCESS_FINE_LOCATION") is True and granted("CAMERA") is True and granted(storage) is True, 90),
+          until(lambda: granted("ACCESS_FINE_LOCATION") is True and granted("CAMERA") is True and granted(storage) is True
+                and granted(last) is True, 90),
           str({k: v for k, v in package_perms().items() if "LOCATION" in k or "CAMERA" in k}))
     check("…and only those: the microphone has no rule and stays as it was", granted("RECORD_AUDIO") is False and not fixed("RECORD_AUDIO"))
     if sdk >= 29:
         check("background location granted", granted("ACCESS_BACKGROUND_LOCATION") is True)
 
+    section("6b. a rule that is removed while the app is uninstalled does not come back with the app")
+    # Android 14+ remembers a fixed permission across an uninstall and applies it again on reinstall.
+    sh(f"pm uninstall {PKG}")
+    edit_config(cfg_id, option="ASKALL", rules=None)
+    applied()
+    time.sleep(5)
+    sh("pm install -r /data/local/tmp/permtest.apk")
+    check("reinstalled after its rule was removed: nothing stays fixed by the policy",
+          until(lambda: installed() and not any_fixed(), 60),
+          str({k: v for k, v in package_perms().items() if "POLICY_FIXED" in v[1]}))
+
     section("7. 'Conceder todo' as default policy: an app with NO rule gets what it asks, with no dialog")
     edit_config(cfg_id, option="GRANTALL", rules=None)
     until(lambda: device_policy_permission_policy() == 1, 90)
+    until(lambda: not any_fixed(), 60)
     sh(f"pm uninstall {PKG}")
     sh("pm install -r /data/local/tmp/permtest.apk")
     check("fresh install with no rule: camera not granted yet", granted("CAMERA") is False)
@@ -454,6 +472,11 @@ def body(sdk, cfg_id, storage):
         protected = sh("dumpsys device_policy | grep -i -A6 'protected packages\\|userControlDisabledPackages\\|UserControlDisabledPackages'")
         check("battery: the MDM protected the app (setUserControlDisabledPackages)", PKG in protected or PKG in sh("dumpsys device_policy"), protected[:200])
         check("…and the console says so", "protegida" in str(special.get("battery", {}).get("managed")), str(special.get("battery")))
+        bucket = sh(f"am get-standby-bucket {PKG}").strip()
+        if sdk >= 33:
+            check("…and Android exempts it from app standby (bucket 5 = EXEMPTED)", bucket == "5", bucket)
+        else:
+            print(f"        (app standby bucket on this Android: {bucket})")
         check("all files: reported as 'needs a tap', asked for", special.get("allFiles", {}).get("state") == "needsUser"
               and special.get("allFiles", {}).get("wanted") is True, str(special.get("allFiles")))
         status, detail = run("device.permissionScreen", {"packageName": PKG, "access": "allFiles"}, cap="device.permissionScreen")

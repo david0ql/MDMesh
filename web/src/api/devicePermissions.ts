@@ -58,7 +58,7 @@ export interface PermissionReport {
 }
 
 export interface DevicePermissions {
-  /** The agent enforces and reports permissions (0.9.9+). */
+  /** The agent enforces and reports permissions (it advertises device.permissionScan). */
   supported: boolean;
   policy: DesiredPermissions | null;
   effective: DesiredPermissions | null;

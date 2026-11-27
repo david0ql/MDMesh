@@ -59,5 +59,7 @@ origin (encrypted); the server then sends `transport: "wss"` in `remote.vnc.star
 | `device.reboot` | — | none (DO) |
 | `device.lock` | — | none |
 | `device.dataSharing` | `device.dataSharing` | `{ enabled: true \| false }` — per-device "share data" (tethering) override: `true` lifts `DISALLOW_CONFIG_TETHERING`, `false` blocks it; idempotent, wins over the policy |
+| `device.permissionScreen` | `device.permissionScreen` | `{ packageName, access }` — opens on the phone the Android screen where the person turns on a special access for that app (`allFiles`, `overlay`, `writeSettings`, `unknownSources`, `battery`, `unrestrictedData`, `notificationAccess`, `accessibility`): a Device Owner has no API to turn these on |
+| `device.permissionScan` | `device.permissionScan` | none — enforce the permission rules again; the result's `detail` is the permission report (also sent in `telemetry.dynamic.permissions` with the next check-in) |
 
 Per-type payload JSON Schemas go in `proto/payloads/` as the registry grows.

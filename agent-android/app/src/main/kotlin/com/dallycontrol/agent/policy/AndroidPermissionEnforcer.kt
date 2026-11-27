@@ -80,15 +80,21 @@ class AndroidPermissionEnforcer(private val context: Context, handle: DpmHandle)
     private fun enforceApps(policy: ConfigPermissions, onlyPackage: String?): String {
         val pass = Pass(grants.canGrantSensors() ?: true)
         val fixed = store.fixed.toMutableMap()
-        val targets = policy.apps.filter { it.packageName != context.packageName }
-            .filter { onlyPackage == null || it.packageName == onlyPackage }
-        for (app in targets) {
-            val info = grants.packageInfo(app.packageName)
-            // Not installed: forget what was fixed, a later install starts clean.
-            val now = if (info == null) emptyMap() else enforceApp(app, info, fixed[app.packageName].orEmpty(), pass)
-            if (now.isEmpty()) fixed.remove(app.packageName) else fixed[app.packageName] = now
+        val rules = policy.apps.associateBy { it.packageName }
+        // Every app with a rule, and every app something was fixed for: one that left the rules is released.
+        val targets = (rules.keys + fixed.keys).filter { it != context.packageName }
+            .filter { onlyPackage == null || it == onlyPackage }
+        for (pkg in targets) {
+            // Not installed: the record is KEPT. Android 14+ remembers a fixed permission across an uninstall and
+            // applies it again when the app comes back, so it must still be released then if its rule is gone.
+            val info = grants.packageInfo(pkg) ?: continue
+            val now = enforceApp(rules[pkg] ?: ConfigAppPermissions(pkg), info, fixed[pkg].orEmpty(), pass)
+            if (now.isEmpty()) fixed.remove(pkg) else fixed[pkg] = now
         }
-        if (onlyPackage == null) releaseDeparted(policy, fixed)
+        if (onlyPackage == null) {
+            val protect = policy.apps.filter { PermissionCatalog.BATTERY in it.special }.map { it.packageName }
+            special.releaseProtection(protect.toSet())
+        }
         store.fixed = fixed
         return pass.outcome()
     }
@@ -111,16 +117,6 @@ class AndroidPermissionEnforcer(private val context: Context, handle: DpmHandle)
         if (plan.blockedSensors.isNotEmpty()) pass.blockedSensors += app.packageName
         runCatching { special.manage(app) }.onFailure { Log.w(TAG, "special access of ${app.packageName}", it) }
         return now
-    }
-
-    /** Apps that left the rules: release what was fixed for them, and the protection nobody asks for any more. */
-    private fun releaseDeparted(policy: ConfigPermissions, fixed: MutableMap<String, Map<String, String>>) {
-        val managed = policy.apps.map { it.packageName }.toSet()
-        for (pkg in fixed.keys - managed) {
-            fixed.remove(pkg)?.keys?.forEach { permission -> grants.release(pkg, permission) }
-        }
-        val protect = policy.apps.filter { PermissionCatalog.BATTERY in it.special }.map { it.packageName }
-        special.releaseProtection(protect.toSet())
     }
 
     /** What one enforcement pass could not do; never a failure, always told. */

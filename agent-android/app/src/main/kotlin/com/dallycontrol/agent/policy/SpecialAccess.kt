@@ -60,8 +60,12 @@ internal class SpecialAccess(
     private fun protect(pkg: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val current = handle.dpm.getUserControlDisabledPackages(handle.admin)
-        if (pkg !in current) handle.dpm.setUserControlDisabledPackages(handle.admin, current + pkg)
-        store.protectedPackages = store.protectedPackages + pkg
+        // Only what THIS class protects is remembered (and later lifted): the agent and its remote-support app are
+        // protected elsewhere and must stay so.
+        if (pkg !in current) {
+            handle.dpm.setUserControlDisabledPackages(handle.admin, current + pkg)
+            store.protectedPackages = store.protectedPackages + pkg
+        }
     }
 
     /** Lifts the protection this class added from apps that no longer ask for it. */

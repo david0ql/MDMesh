@@ -26,6 +26,26 @@
         "theme": { "type": "object", "properties": { "backgroundColor": {"type":"string"}, "textColor": {"type":"string"}, "iconSize": {"type":"string"} } }
       }
     },
-    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } }
+    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } },
+    "permissions": {
+      "description": "App permissions without the user. Absent = the agent's baseline (grant on request, no per-app rule). defaultPolicy: what Android answers to any runtime-permission request (setPermissionPolicy). apps: per-app rules (setPermissionGrantState) — 'all' is the preset for every runtime permission the app declares, 'permissions' maps a group (locationFine, locationCoarse, locationBackground, camera, microphone, storage, contacts, phone, sms, notifications, nearbyDevices, activity, calendar) to a rule and wins over 'all'; 'special' lists special accesses the app should have.",
+      "type": "object",
+      "properties": {
+        "defaultPolicy": { "enum": ["grant", "prompt", "deny"] },
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["packageName"],
+            "properties": {
+              "packageName": { "type": "string" },
+              "all": { "enum": ["grant", "deny", "prompt"] },
+              "permissions": { "type": "object", "additionalProperties": { "enum": ["grant", "deny", "prompt"] } },
+              "special": { "type": "array", "items": { "enum": ["allFiles", "overlay", "writeSettings", "unknownSources", "battery", "unrestrictedData", "notificationAccess", "accessibility"] } }
+            }
+          }
+        }
+      }
+    }
   }
 }

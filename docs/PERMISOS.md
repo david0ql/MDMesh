@@ -3,7 +3,7 @@
 Cómo se conceden, deniegan o dejan al usuario los permisos de las apps desde la consola, qué hace el agente en el
 teléfono, qué reporta, y qué límites pone Android (con la referencia de la API).
 
-Requiere que el agente sea **propietario del dispositivo** (Device Owner) y agente 0.9.9 o superior. Un agente
+Requiere que el agente sea **propietario del dispositivo** (Device Owner) y un agente que anuncie la capacidad `device.permissionScan` (los posteriores a 0.9.8). Un agente
 anterior ignora la sección nueva y sigue como antes (concede todo lo que las apps piden); la consola lo dice en la
 pestaña **Permisos** del equipo.
 
