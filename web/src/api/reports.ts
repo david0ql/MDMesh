@@ -67,6 +67,9 @@ export const reportOutdatedApps = () => apiClient.get<ReportResult>(`${BASE}/out
 export const reportDataUsage = (days: number, limit: number) =>
   apiClient.get<ReportResult>(`${BASE}/data-usage${qs({ days, limit })}`);
 
+/** Mobile data: consumption of the period against the policy's limits, per device and per app with a limit. */
+export const reportDataLimits = () => apiClient.get<ReportResult>(`${BASE}/data-limits`);
+
 export const reportNonCompliance = () => apiClient.get<ReportResult>(`${BASE}/non-compliance`);
 
 export const reportDecommissioned = (from: number, to: number) =>

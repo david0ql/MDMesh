@@ -75,7 +75,7 @@ public class GeofenceResource {
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("America/Bogota");
     private static final Pattern COLOR = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final Set<String> ALERT_TYPES = new HashSet<>(Arrays.asList(
-            "disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter"));
+            "disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter", "dataWarning", "dataLimit"));
     private static final int MAX_NAME = 100;
     private static final double MIN_RADIUS_M = 20;
     private static final double MAX_RADIUS_M = 500_000;

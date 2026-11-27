@@ -18,6 +18,7 @@ import javax.inject.Inject
 class MdmApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var mobileData: dagger.Lazy<com.dallycontrol.agent.data.MobileDataEnforcer>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -32,5 +33,7 @@ class MdmApplication : Application(), Configuration.Provider {
         // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
         // WebSocket are not Doze-throttled — there is no FCM in this build. Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
+        // Mobile-data policy: resume the limits' clock and the network watch of the local VPN (no-op when not managed).
+        runCatching { mobileData.get().start() }
     }
 }

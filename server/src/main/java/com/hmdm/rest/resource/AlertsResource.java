@@ -87,7 +87,8 @@ public class AlertsResource {
 
     // --- alert type ----------------------------------------------------------------------------------------------
 
-    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter"};
+    private static final String[] TYPES = {"disconnected", "kioskExit", "simChange", "geofenceExit", "geofenceEnter",
+            "dataWarning", "dataLimit"};
 
     private static String typeLabel(String type) {
         if (type == null) return "";
@@ -97,6 +98,8 @@ public class AlertsResource {
             case "simChange": return "Cambio de SIM";
             case "geofenceExit": return "Salida de zona";
             case "geofenceEnter": return "Entrada a zona";
+            case "dataWarning": return "Datos móviles: cerca del límite";
+            case "dataLimit": return "Datos móviles: límite superado";
             default: return type;
         }
     }

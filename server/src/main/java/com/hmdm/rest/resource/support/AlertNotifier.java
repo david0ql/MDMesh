@@ -260,6 +260,8 @@ public class AlertNotifier implements Runnable {
             case "simChange": return "Cambio de SIM";
             case "geofenceExit": return "Salida de zona";
             case "geofenceEnter": return "Entrada a zona";
+            case "dataWarning": return "Datos móviles: cerca del límite";
+            case "dataLimit": return "Datos móviles: límite superado";
             default: return type;
         }
     }

@@ -108,7 +108,7 @@ public class ReportsResource {
     public enum Report {
         OFFLINE, SIM, SIM_MISMATCH, APP_INSTALLS, APP_INSTALL_DEVICES, BY_APP, APPS_CATALOG,
         NO_COMMANDS, OUTDATED_AGENTS, OUTDATED_APPS, DATA_USAGE, NON_COMPLIANCE, DECOMMISSIONED,
-        INVENTORY;
+        INVENTORY, DATA_LIMITS;
 
         static Report of(String name) {
             if (name == null) return null;
@@ -210,6 +210,15 @@ public class ReportsResource {
         return json(c -> dataUsage(c, days, limit));
     }
 
+    @ApiOperation(value = "Datos móviles: uso vs. límite",
+            notes = "Por equipo y por app con límite: consumo del periodo, límite de la política, porcentaje y estado.")
+    @GET
+    @Path("/data-limits")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response dataLimits() {
+        return json(this::dataLimits);
+    }
+
     @ApiOperation(value = "Incumplimiento de políticas", notes = "Equipos cuya revisión aplicada ≠ la revisión actual de su política.")
     @GET
     @Path("/non-compliance")
@@ -301,6 +310,7 @@ public class ReportsResource {
             case NON_COMPLIANCE: return nonCompliance(c);
             case DECOMMISSIONED: return decommissioned(c, from, to);
             case INVENTORY: return inventory(c, null, null, null, days);
+            case DATA_LIMITS: return dataLimits(c);
             default: throw new IllegalArgumentException("unknown report");
         }
     }
@@ -476,6 +486,22 @@ public class ReportsResource {
                 col("mobilebytes", "Datos móviles", "bytes"), col("wifibytes", "Wi-Fi", "bytes"),
                 col("lastday", "Último día", "text"));
         return new ReportData("data-usage", "Consumo de datos móviles (" + d + " días)", cols, rows);
+    }
+
+    // --- 7b. Mobile data: use against the policy's limits -------------------------------------------------------
+
+    private ReportData dataLimits(int c) {
+        com.hmdm.rest.resource.support.MobileDataService service = com.hmdm.rest.resource.support.MobileDataService.INSTANCE;
+        List<Map<String, Object>> rows = service == null ? new ArrayList<>() : service.fleetRows(c);
+        enrich(c, rows);
+        List<Column> cols = Arrays.asList(
+                col("name", "Equipo", "text"), col("number", "Número", "text"), col("group", "Carpeta", "text"),
+                col("configurationname", "Política", "text"), col("ambito", "Ámbito", "text"), col("app", "App", "text"),
+                col("pkg", "Paquete", "text"), col("usedbytes", "Consumo del periodo", "bytes"),
+                col("limitbytes", "Límite", "bytes"), col("percent", "% usado", "number"), col("estado", "Estado", "text"),
+                col("blocked", "Apps sin datos móviles", "number"), col("mechanism", "Mecanismo", "text"),
+                col("periodstart", "Periodo desde", "text"), col("source", "Dato de", "text"));
+        return new ReportData("data-limits", "Datos móviles: uso vs. límite", cols, rows);
     }
 
     // --- 8. Non-compliance -------------------------------------------------------------------------------------

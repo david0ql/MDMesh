@@ -38,6 +38,8 @@ class ConfigApplier(
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
+    /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
+    private val mobileData: ((com.dallycontrol.proto.ConfigMobileData?) -> String)? = null,
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -96,6 +98,11 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
+        if (doc.mobileData != null || previous?.mobileData != null) {
+            val o = mobileData?.let { runCatching { it(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") } }
+                ?: ConfigOutcome.UNSUPPORTED
+            if (doc.mobileData != null) outcomes["mobileData"] = o
+        }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
