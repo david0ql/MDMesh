@@ -85,6 +85,32 @@ public class AgentEnrollmentToken implements Serializable {
     public String getWifiSecurity() { return wifiSecurity; }
     public void setWifiSecurity(String wifiSecurity) { this.wifiSecurity = wifiSecurity; }
 
+    /** When the single-use token was consumed, and by which device (so that same device can retry with it). */
+    private Long usedAt;
+    private String claimedHardwareId;
+    private String claimedSerial;
+    private String claimedImei;
+    /** Device enrolled through this single-use token. */
+    private String deviceNumber;
+    /** The code's Wi-Fi does not broadcast its name (PROVISIONING_WIFI_HIDDEN). */
+    private boolean wifiHidden;
+
+    public Long getUsedAt() { return usedAt; }
+    public void setUsedAt(Long usedAt) { this.usedAt = usedAt; }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getClaimedHardwareId() { return claimedHardwareId; }
+    public void setClaimedHardwareId(String claimedHardwareId) { this.claimedHardwareId = claimedHardwareId; }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getClaimedSerial() { return claimedSerial; }
+    public void setClaimedSerial(String claimedSerial) { this.claimedSerial = claimedSerial; }
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public String getClaimedImei() { return claimedImei; }
+    public void setClaimedImei(String claimedImei) { this.claimedImei = claimedImei; }
+    public String getDeviceNumber() { return deviceNumber; }
+    public void setDeviceNumber(String deviceNumber) { this.deviceNumber = deviceNumber; }
+    public boolean isWifiHidden() { return wifiHidden; }
+    public void setWifiHidden(boolean wifiHidden) { this.wifiHidden = wifiHidden; }
+
     public AgentEnrollmentToken() {
     }
 

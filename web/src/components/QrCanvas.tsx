@@ -2,15 +2,19 @@ import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 
 /** Renders [text] as a QR code on a canvas (client-side; no server round-trip). */
-export function QrCanvas({ text, size = 320 }: { text: string; size?: number }) {
+export function QrCanvas({ text, size = 320, level = 'L' }: { text: string; size?: number; level?: 'L' | 'M' }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
     void QRCode.toCanvas(c, text, {
-      width: size,
-      margin: 2,
-      errorCorrectionLevel: 'M',
+      // Drawn at twice the shown size so every module is a whole number of crisp device pixels on dense screens.
+      width: size * 2,
+      // The 4-module quiet zone the QR standard asks for: phone cameras lock on faster with it.
+      margin: 4,
+      // On a screen nothing is torn or stained, so the lowest correction level is the right one: the same payload
+      // needs fewer, bigger modules, which is what a phone camera in a setup wizard reads best.
+      errorCorrectionLevel: level,
     })
       .then(() => {
         // qrcode sets an inline width/height in px on the canvas, which overrides the stylesheet and
@@ -21,7 +25,7 @@ export function QrCanvas({ text, size = 320 }: { text: string; size?: number }) 
         c.style.display = 'block';
       })
       .catch(() => undefined);
-  }, [text, size]);
+  }, [text, size, level]);
   return <canvas ref={ref} width={size} height={size} style={{ maxWidth: '100%', height: 'auto', display: 'block' }} />;
 }
 
@@ -29,9 +33,11 @@ export function QrCanvas({ text, size = 320 }: { text: string; size?: number }) 
  * Save [text] as a print-ready PNG: a large QR with the [caption] lines under it (folder, code, expiry…), so a QR sent
  * by chat or printed still says what it enrolls into.
  */
-export async function downloadQrPng(text: string, fileName: string, caption: string[] = []): Promise<void> {
+export async function downloadQrPng(
+  text: string, fileName: string, caption: string[] = [], level: 'L' | 'M' = 'M',
+): Promise<void> {
   const qr = document.createElement('canvas');
-  await QRCode.toCanvas(qr, text, { width: 900, margin: 4, errorCorrectionLevel: 'M' });
+  await QRCode.toCanvas(qr, text, { width: 900, margin: 4, errorCorrectionLevel: level });
   const lines = caption.map((l) => l.trim()).filter(Boolean);
   const lineH = 44;
   const out = document.createElement('canvas');

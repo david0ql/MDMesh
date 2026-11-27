@@ -77,4 +77,47 @@ public class AgentEnrollmentTokenDAO {
     public boolean deleteRevoked(int customerId, int id) {
         return mapper.deleteRevoked(customerId, id) == 1;
     }
+
+    // --- Enrollment reliability: retries by the same device, and the attempts log ---
+
+    public void updateWifiHidden(Integer id, boolean hidden) {
+        mapper.updateWifiHidden(id, hidden);
+    }
+
+    public void recordClaim(Integer id, String hardwareId, String serial, String imei) {
+        mapper.recordClaim(id, System.currentTimeMillis(), hardwareId, serial, imei);
+    }
+
+    public void recordDevice(Integer id, String deviceNumber) {
+        mapper.recordDevice(id, deviceNumber);
+    }
+
+    /** The one token starting with [prefix]; null when none or ambiguous. */
+    public AgentEnrollmentToken findByPrefix(String prefix) {
+        if (prefix == null || !prefix.matches("^[A-Za-z0-9-]{8,36}$")) {
+            return null;
+        }
+        java.util.List<AgentEnrollmentToken> found = mapper.findByPrefix(prefix);
+        return found.size() == 1 ? found.get(0) : null;
+    }
+
+    /** Log an enrollment attempt; a repeat of the last one within ten minutes only raises its counter. */
+    public void logAttempt(com.hmdm.persistence.domain.AgentEnrollAttempt attempt) {
+        if (mapper.bumpAttempt(attempt) == 0) {
+            mapper.insertAttempt(attempt);
+            // Housekeeping on the insert path: nothing older than 60 days is of use to anyone.
+            if (java.util.concurrent.ThreadLocalRandom.current().nextInt(50) == 0) {
+                mapper.purgeAttempts(System.currentTimeMillis() - 60L * 24 * 3600 * 1000);
+            }
+        }
+    }
+
+    public java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttempts(int customerId,
+                                                                                       boolean includeUnknown, int limit) {
+        return mapper.listAttempts(customerId, includeUnknown, Math.max(1, Math.min(limit, 500)));
+    }
+
+    public java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttemptsOfToken(int tokenId) {
+        return mapper.listAttemptsOfToken(tokenId);
+    }
 }

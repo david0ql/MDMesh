@@ -6,14 +6,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.os.PersistableBundle
 import android.os.UserManager
-import com.dallycontrol.core.config.ServerConfigStore
-import com.dallycontrol.core.store.EnrollTokenStore
 import com.dallycontrol.core.sync.CheckInWorker
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
  * Device-admin / Device-Owner receiver — the component named when binding the DPC
@@ -43,27 +37,17 @@ class AdminReceiver : DeviceAdminReceiver() {
         protectAgentProcess(context)
         // Capture the server URL from the QR bundle BEFORE any check-in, so one prebuilt APK can
         // serve any deployment (it falls back to the baked URL only when absent — dev/ADB).
-        ServerConfigStore(context.applicationContext).save(extrasString(intent, EXTRA_SERVER_URL))
-        // Capture the single-use enroll token handed in via the QR provisioning bundle, then
-        // trigger an immediate check-in so the device enrolls within seconds rather than on the
-        // periodic cycle.
-        CheckInWorker.schedule(context)
-
-        val token = extrasToken(intent)
-        if (token.isNullOrBlank()) {
-            CheckInWorker.scheduleNow(context)
-            return
-        }
-        // EnrollTokenStore.save is suspend; keep the receiver alive while it persists.
+        // This broadcast is the provisioning callback of Android 11 and below (Android 12+ uses
+        // AdminPolicyComplianceActivity). It used to store the token and the server only; the shared intake also
+        // applies the Device-Owner baseline (passcode-reset token, silent permission grants, telemetry permissions,
+        // remote-support preparation), starts the wake channel and keeps retrying the enrollment.
+        // The token is stored asynchronously; keep the receiver alive until it is on disk.
         val pending = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                EnrollTokenStore(context.applicationContext).save(token)
-            } finally {
-                CheckInWorker.scheduleNow(context)
-                pending.finish()
-            }
-        }
+        com.dallycontrol.agent.provisioning.ProvisioningIntake.accept(
+            context,
+            com.dallycontrol.agent.provisioning.ProvisioningIntake.extrasOf(intent),
+            com.dallycontrol.core.enroll.EnrollStatusStore.PATH_QR_LEGACY,
+        ) { runCatching { pending.finish() } }
     }
 
     /** Entering kiosk: block other apps/services from drawing toasts/dialogs over the kiosk. */
@@ -146,16 +130,6 @@ class AdminReceiver : DeviceAdminReceiver() {
                 dpm.clearUserRestriction(admin, UserManager.DISALLOW_CREATE_WINDOWS)
             }
         }
-    }
-
-    private fun extrasToken(intent: Intent): String? = extrasString(intent, EXTRA_ENROLL_TOKEN)
-
-    @Suppress("DEPRECATION") // typed getParcelableExtra is API 33+; we support minSdk 24
-    private fun extrasString(intent: Intent, key: String): String? {
-        val bundle = intent.getParcelableExtra<PersistableBundle>(
-            DevicePolicyManager.EXTRA_PROVISIONING_ADMIN_EXTRAS_BUNDLE,
-        )
-        return bundle?.getString(key)
     }
 
     companion object {

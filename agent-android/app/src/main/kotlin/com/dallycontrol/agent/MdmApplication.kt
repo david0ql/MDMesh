@@ -32,5 +32,8 @@ class MdmApplication : Application(), Configuration.Provider {
         // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
         // WebSocket are not Doze-throttled — there is no FCM in this build. Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
+        // Safety net for the Device-Owner baseline (a no-op once applied): covers phones provisioned through a path
+        // that skipped it - the older QR flow of agents up to 0.9.8, or a maker that dropped a provisioning callback.
+        Thread { runCatching { com.dallycontrol.agent.provisioning.ProvisioningBaseline.ensure(this) } }.start()
     }
 }

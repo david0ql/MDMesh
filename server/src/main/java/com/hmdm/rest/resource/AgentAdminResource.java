@@ -213,6 +213,8 @@ public class AgentAdminResource {
         public Long expiresAt;
         /** Optional Wi-Fi the code's QR provisions the phone on. */
         public String wifiSsid;
+        /** The Wi-Fi does not broadcast its name: the QR tells Android to look for it (PROVISIONING_WIFI_HIDDEN). */
+        public Boolean wifiHidden;
         public String wifiPassword;
         /** WPA (default), WEP or NONE. */
         public String wifiSecurity;
@@ -285,6 +287,9 @@ public class AgentAdminResource {
                 }
             }
         }
+        if (token.getWifiSsid() != null && Boolean.TRUE.equals(body.wifiHidden)) {
+            tokenDAO.updateWifiHidden(token.getId(), true);
+        }
         logger.info("Reusable enrollment code {} created for group {} (customer {})", token.getId(), body.groupId,
                 customerId.get());
         return Response.OK(tokenDAO.listCodes(customerId.get()).stream()
@@ -338,6 +343,66 @@ public class AgentAdminResource {
         }
         logger.info("Reusable enrollment code {} revoked (customer {})", id, customerId.get());
         return Response.OK();
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Enrollment token status", notes = "What became of a single-use token: still waiting, expired, "
+            + "or the device it enrolled, plus the attempts made with it. The Enroll page polls this while its QR is shown.")
+    @GET
+    @Path("/token/status")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response tokenStatus(@QueryParam("token") String value) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        AgentEnrollmentToken token = value == null ? null : tokenDAO.findByToken(value.trim());
+        if (token == null || token.getCustomerId() != customerId.get()
+                || (scope.restricted() && (token.getGroupId() == null || !scope.canGroup(token.getGroupId())))) {
+            return Response.ERROR("error.agent.token.invalid");
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("used", token.isUsed());
+        out.put("usedAt", token.getUsedAt());
+        out.put("expiresAt", token.getExpiresAt());
+        out.put("expired", !token.isUsed() && token.getExpiresAt() != null
+                && token.getExpiresAt() < System.currentTimeMillis());
+        out.put("deviceNumber", token.getDeviceNumber());
+        if (token.getDeviceNumber() != null) {
+            Device device = unsecureDAO.getDeviceByNumber(token.getDeviceNumber());
+            if (device != null) {
+                out.put("deviceId", device.getId());
+                if (device.getConfigurationId() != null) {
+                    com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                    out.put("configurationName", cfg == null ? null : cfg.getName());
+                }
+            }
+        }
+        out.put("attempts", tokenDAO.listAttemptsOfToken(token.getId()));
+        return Response.OK(out);
+    }
+
+    // =================================================================================================================
+    @ApiOperation(value = "Enrollment attempts", notes = "The latest enrollment attempts the server saw (agent downloads, "
+            + "refused and successful enrolls) with the reason and the phone's maker, model and Android release.")
+    @GET
+    @Path("/enroll/attempts")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response enrollAttempts(@QueryParam("limit") Integer limit) {
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        // Attempts with a token nobody issued belong to no customer: only the installation's administrator sees them.
+        boolean includeUnknown = !scope.restricted() && SecurityContext.get().isSuperAdmin();
+        java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> rows =
+                tokenDAO.listAttempts(customerId.get(), includeUnknown, limit == null ? 100 : limit);
+        java.util.Set<Integer> mine = scope.groups();
+        if (mine != null) {
+            rows = rows.stream().filter(a -> a.getGroupId() != null && mine.contains(a.getGroupId()))
+                    .collect(java.util.stream.Collectors.toList());
+        }
+        return Response.OK(rows);
     }
 
     // =================================================================================================================

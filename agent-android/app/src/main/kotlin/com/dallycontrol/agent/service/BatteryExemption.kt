@@ -45,8 +45,11 @@ object BatteryExemption {
         // 1. Best-effort silent Device-Owner exemption (Android 14+, privileged builds only).
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && exemptViaDevicePolicy(context, pkg)) return
 
-        // 2. Fall back to the public request intent (dialog off-DO; usually auto-handled on a managed device).
-        requestIgnore(context, pkg)
+        // During the setup wizard (QR / zero-touch provisioning starts this process before the device is set up) the
+        // request would put a Settings dialog on top of Android's provisioning screens. Wait until setup is done;
+        // this runs again on every start.
+        // 2. Otherwise fall back to the public request intent (dialog off-DO; usually auto-handled on a managed device).
+        if (setupComplete(context)) requestIgnore(context, pkg)
     }
 
     /**
@@ -69,6 +72,12 @@ object BatteryExemption {
             false
         }
     }
+
+    /** False while the device is still in its setup wizard (unknown reads as "set up": the old behaviour). */
+    internal fun setupComplete(context: Context): Boolean = runCatching {
+        Settings.Secure.getInt(context.contentResolver, "user_setup_complete", 1) != 0 &&
+            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVICE_PROVISIONED, 1) != 0
+    }.getOrDefault(true)
 
     /** Public / fallback path: ask the system to ignore battery optimizations for us. */
     private fun requestIgnore(context: Context, pkg: String) {

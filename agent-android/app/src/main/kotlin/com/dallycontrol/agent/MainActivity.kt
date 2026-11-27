@@ -120,9 +120,13 @@ class MainActivity : ComponentActivity() {
 
     /** "Enrolling…" plus the last sync error (if any), so a stuck enrollment is diagnosable on-device. */
     private fun enrollingLabel(): String {
-        val failure = syncStatus.lastError.value ?: return "Enrolling…"
-        val at = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(failure.atMillis))
-        return "Enrolling… (last error: ${failure.message} at $at)"
+        val snap = com.dallycontrol.core.enroll.EnrollStatusStore(applicationContext).snapshot()
+        val code = snap.errorCode ?: return syncStatus.lastError.value?.let {
+            getString(R.string.enroll_status_pending_error, it.message)
+        } ?: getString(R.string.enroll_status_pending)
+        val at = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(snap.errorAt))
+        val reason = com.dallycontrol.agent.provisioning.EnrollMessages.describe(this, code, snap.errorDetail)
+        return getString(R.string.enroll_status_failed, reason, at, snap.attempts)
     }
 
     private fun isLocked(): Boolean {
@@ -231,13 +235,26 @@ class MainActivity : ComponentActivity() {
                 serverConfig.save(url)
                 lifecycleScope.launch {
                     enrollTokens.save(typed)
+                    com.dallycontrol.core.enroll.EnrollStatusStore(applicationContext).apply {
+                        setPath(com.dallycontrol.core.enroll.EnrollStatusStore.PATH_CODE, replace = true)
+                    }
+                    com.dallycontrol.agent.provisioning.EnrollRetry.now(this@MainActivity)
                     CheckInWorker.scheduleNow(this@MainActivity)
                     ContextCompat.startForegroundService(this@MainActivity, Intent(this@MainActivity, CheckInService::class.java))
                     enrollStatus.text = getString(R.string.enroll_sent)
                 }
             }
         }
-        addView(server); addView(code); addView(submit); addView(enrollStatus)
+        // Same token / code again, right now (after fixing the Wi-Fi, the clock, or the server).
+        val retry = Button(this@MainActivity).apply {
+            text = getString(R.string.enroll_ui_retry)
+            contentDescription = "enroll-retry"
+            setOnClickListener {
+                com.dallycontrol.agent.provisioning.EnrollRetry.now(this@MainActivity)
+                enrollStatus.text = getString(R.string.enroll_sent)
+            }
+        }
+        addView(server); addView(code); addView(submit); addView(retry); addView(enrollStatus)
     }
 
     private fun label(s: String): TextView =

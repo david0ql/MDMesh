@@ -186,6 +186,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Provisioning (Android 8-11): the older Device-Owner flow ends here; shows the enrollment status. -->
+        <activity
+            android:name=".provisioning.ProvisioningSuccessActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Device Owner / Device Admin receiver. -->
         <receiver
             android:name=".admin.AdminReceiver"
