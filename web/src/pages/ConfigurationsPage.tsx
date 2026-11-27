@@ -705,7 +705,8 @@ function ConfigEditor({
         onChange={(dc) => set('dcPolicy', serializeDcPolicy(dc))}
       />
 
-      <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
+      <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)}
+        wifiRadio={typeof draft.wifi === 'boolean' ? draft.wifi : null} />
 
       {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}
 

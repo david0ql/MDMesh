@@ -18,6 +18,7 @@ import { LocationPanel } from '../components/LocationPanel';
 import { AppsPanel } from '../components/AppsPanel';
 import { RemotePanel } from '../components/RemotePanel';
 import { ConfigStatusCard } from '../components/ConfigStatusCard';
+import { ManagedWifiCard } from '../components/ManagedWifiCard';
 import { DeviceScopeCard } from '../components/DeviceScopeCard';
 import { getTelemetry, type TelemetrySnapshot } from '../api/telemetry';
 import { getConfigStatus, type ConfigStatus } from '../api/configSync';
@@ -450,6 +451,8 @@ export function DeviceDetailPage() {
           />
 
           <ConfigStatusCard status={cfgStatus} />
+
+          <ManagedWifiCard report={dyn.managedWifi} />
         </aside>
 
         {/* RIGHT: work */}
