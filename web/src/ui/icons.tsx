@@ -197,3 +197,11 @@ export const IconAudit = (p: P) => (
     <path d="M6 8h4.5M6 10.5h3" />
   </Svg>
 );
+
+export const IconHelp = (p: P) => (
+  <Svg {...p}>
+    <circle cx="8" cy="8" r="6" />
+    <path d="M6.3 6.2a1.8 1.8 0 1 1 2.6 1.7c-.6.3-.9.7-.9 1.4" />
+    <path d="M8 11.4v.2" />
+  </Svg>
+);

@@ -1,0 +1,40 @@
+/* Complemento de _plantilla/plantilla.css para manuales: capturas, rótulos de interfaz, índice y referencias.
+   Misma paleta y tipografías de la plantilla; no agrega colores. */
+h3{font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-weight:600;font-size:10pt;line-height:14pt;color:var(--ink);margin:3mm 0 1mm;break-after:avoid}
+h2{margin-top:5mm}
+a{color:var(--navy);text-decoration:none}
+/* Rótulo tal como aparece en la consola o en el teléfono: botón, menú, campo. */
+.ui{font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-weight:600;font-size:.94em;color:var(--ink)}
+code,.code{font-family:Menlo,Consolas,monospace;font-size:8pt;color:var(--ink)}
+pre{font-family:Menlo,Consolas,monospace;font-size:7.6pt;line-height:10.5pt;margin:1.5mm 0 3mm;padding:.5mm 0 .5mm 4mm;border-left:.75pt solid var(--line);white-space:pre-wrap;word-break:break-word;break-inside:avoid}
+/* Captura de pantalla numerada. */
+.fig{margin:3mm 0 3.5mm;break-inside:avoid}
+.fig img{display:block;width:84%;height:auto;border:.5pt solid var(--line)}
+.fig.m img{width:60%}
+.fig.s img{width:42%}
+.fig .cap{margin-top:1.2mm}
+/* Índice con número de página. */
+.toc{list-style:none;margin:2mm 0 0;padding:0;font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-size:9pt;line-height:13pt;columns:2;column-gap:8mm}
+.toc li{display:flex;gap:2mm;padding:.9mm 0;border-bottom:.5pt solid var(--line);break-inside:avoid}
+.toc li a{flex:1;color:var(--ink)}
+.toc li .n{color:var(--mute);width:6mm}
+.toc li .p{color:var(--mute);text-align:right;min-width:6mm}
+.toc.one{columns:1}
+/* Listas de pasos y listas dentro de tablas. */
+.steps li b{font-weight:600}
+.steps li{break-inside:avoid}
+ul.b li,td li{break-inside:avoid}
+td ul{margin:0;padding-left:3.5mm}
+td p{margin:0 0 .8mm}
+/* Marca de decisión pendiente y de función que llega con una integración posterior. */
+.pc{font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-weight:600;font-size:.9em;color:var(--warn);white-space:nowrap}
+.pend{font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-weight:500;font-size:7.5pt;letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+/* Dos columnas (guía rápida) y bloques que no se parten. */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:7mm}
+.cols>div{min-width:0}
+.callout{break-inside:avoid}
+.lead{font-size:11pt;line-height:16.5pt;color:var(--ink);max-width:150mm}
+table{margin:1.5mm 0 3mm}
+.chk{list-style:none;margin:0 0 3mm;padding:0;font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-size:9pt;line-height:13pt}
+.chk li{padding:1.3mm 0 1.3mm 7mm;border-bottom:.5pt solid var(--line);position:relative;break-inside:avoid}
+.chk li:before{content:"";position:absolute;left:0;top:1.9mm;width:3mm;height:3mm;border:.75pt solid var(--navy)}
