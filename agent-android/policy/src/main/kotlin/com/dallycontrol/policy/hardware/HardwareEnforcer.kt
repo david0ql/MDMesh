@@ -154,7 +154,11 @@ class HardwareEnforcer(private val backend: HardwareBackend, private val owned: 
                 TOKEN_USB_DATA -> backend.setUsbDataEnabled(!on)
                 else -> backend.setRestriction(token, on)
             }
-        }.exceptionOrNull()?.let { "failed: ${it.message ?: it.javaClass.simpleName}" }
+        }.exceptionOrNull()?.let { e ->
+            // Some Android builds know a restriction but do not let an admin set it ("Unsupported user restriction").
+            if (e.message.orEmpty().startsWith(PLATFORM_REFUSAL)) unsupported(WHY_PLATFORM)
+            else "failed: ${e.message ?: e.javaClass.simpleName}"
+        }
     }
 
     private fun isOn(token: String): Boolean? = runCatching {
@@ -175,6 +179,8 @@ class HardwareEnforcer(private val backend: HardwareBackend, private val owned: 
         const val WHY_NOT_OWNER = "not-device-owner"
         const val WHY_UNKNOWN = "unknown"
         const val WHY_DEVICE = "device"
+        const val WHY_PLATFORM = "platform"
+        private const val PLATFORM_REFUSAL = "Unsupported user restriction"
         const val WHY_HELD = "held"
         const val WHY_NOT_EFFECTIVE = "not-effective"
         fun unsupported(why: String): String = "unsupported: $why"

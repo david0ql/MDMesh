@@ -32,7 +32,7 @@ activa, no que se envió la orden.
 | Bluetooth | Apagado y no se puede encender | 8+ |
 | Compartir archivos por Bluetooth | Bluetooth funciona pero no envía archivos | 8+ |
 | Configurar Bluetooth | No se puede emparejar ni cambiar ajustes | 6+ |
-| NFC | Apaga la radio NFC | 15+ |
+| NFC | Apaga la radio NFC | 15+ (hay compilaciones de Android 15 que la rechazan: se reporta «No soportado por este Android»; verificado en Android 16) |
 | Enviar datos por NFC (Beam) | Sin envío por contacto | 6+ |
 | Wi‑Fi Direct | Sin conexiones directas entre equipos | 13+ |
 | Modo avión | El usuario no puede activarlo | 9+ |

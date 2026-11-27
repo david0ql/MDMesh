@@ -253,3 +253,21 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Hardware y puertos (MDM-12)
+
+`scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
+device uses (restored at the end) it: blocks every hardware rule, the older toggles (screenshots, USB storage,
+Bluetooth), data sharing and a free list of Android restrictions; checks the server status ("Restricciones aplicadas")
+rule by rule, `dumpsys user`, `dumpsys device_policy`, that a screenshot fails or is black, that the camera is refused,
+that MTP is refused (`svc usb`) and that the hotspot cannot be switched on in Settings; blocks USB debugging and checks
+that adb stops answering; reverts everything and checks that adb comes back by itself and nothing is left; and sets and
+removes a per-device camera exception. Rules newer than the device's Android must be reported `unsupported: sdk-N`.
+
+```bash
+scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <device number>
+# on a phone you reach only by cable, keep adb: --keep-usb-debug
+
+(cd scripts/shots && npm ci)       # once: Playwright
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```

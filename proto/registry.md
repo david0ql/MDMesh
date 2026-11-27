@@ -75,7 +75,7 @@ Value `allow` | `block`; a missing key is not managed. The agent reports each on
 | `physicalMedia` | `DISALLOW_MOUNT_PHYSICAL_MEDIA` | 21 |
 | `bluetoothSharing` | `DISALLOW_BLUETOOTH_SHARING` | 26 |
 | `bluetoothConfig` | `DISALLOW_CONFIG_BLUETOOTH` | 21 |
-| `nfc` | `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` | 35 |
+| `nfc` | `DISALLOW_NEAR_FIELD_COMMUNICATION_RADIO` (the API 35 emulator image refuses it → `unsupported: platform`; works on API 36) | 35 |
 | `nfcBeam` | `DISALLOW_OUTGOING_BEAM` | 22 |
 | `microphone` | `DISALLOW_UNMUTE_MICROPHONE` | 21 |
 | `airplaneMode` | `DISALLOW_AIRPLANE_MODE` | 28 |

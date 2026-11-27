@@ -115,8 +115,8 @@ class ConfigApplier(
         val held = com.dallycontrol.policy.hardware.HardwareCatalog.heldByOtherSections(
             doc.policies, doc.device?.tethering, doc.device?.factoryReset, doc.device?.installApps,
         )
-        val asked = doc.hardware?.let { h -> h.rules.keys.map { "hardware.$it" } + h.restrictions.map { "restrictions.$it" } }
-            .orEmpty()
+        val asked = doc.hardware?.rules?.keys.orEmpty().map { "hardware.$it" } +
+            doc.hardware?.restrictions.orEmpty().map { "restrictions.$it" }
         return hardware?.let { apply ->
             runCatching { apply(doc.hardware, held) }
                 .getOrElse { e -> asked.associateWith { ConfigOutcome.failed(e.message ?: "hardware") } }

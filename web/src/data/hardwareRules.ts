@@ -53,7 +53,7 @@ export const HARDWARE_RULES: HardwareRuleInfo[] = [
   { key: 'bluetoothConfig', group: 'Redes y radios', kind: 'rule', minSdk: 21, label: 'Configurar Bluetooth',
     help: 'El usuario no puede emparejar ni cambiar los ajustes de Bluetooth.' },
   { key: 'nfc', group: 'Redes y radios', kind: 'rule', minSdk: 35, label: 'NFC',
-    help: 'Apaga la radio NFC (pagos y lectura de etiquetas).' },
+    help: 'Apaga la radio NFC (pagos y lectura de etiquetas). Algunas versiones de Android 15 no dejan que el MDM la aplique (se reporta «no soportado por este Android»); en Android 16 sí.' },
   { key: 'nfcBeam', group: 'Redes y radios', kind: 'rule', minSdk: 22, label: 'Enviar datos por NFC (Beam)',
     help: 'No se pueden enviar datos a otro equipo acercándolos.' },
   { key: 'wifiDirect', group: 'Redes y radios', kind: 'rule', minSdk: 33, label: 'Wi‑Fi Direct',
@@ -165,6 +165,7 @@ export function describeOutcome(outcome: string | null | undefined, desired?: st
     const sdk = /^sdk-(\d+)$/.exec(why);
     if (sdk) return { tone: 'warn', label: 'No soportado', detail: `Este equipo tiene un Android anterior: requiere ${androidName(Number(sdk[1]))} o superior.` };
     if (why === 'device') return { tone: 'warn', label: 'No soportado por el equipo', detail: 'El fabricante no permite cortar los datos del puerto USB en este modelo.' };
+    if (why === 'platform') return { tone: 'warn', label: 'No soportado por este Android', detail: 'Esta versión de Android no deja que el MDM aplique esta restricción en el equipo.' };
     if (why === 'agent') return { tone: 'warn', label: 'Agente desactualizado', detail: 'El agente instalado no conoce esta opción: actualízalo para que la aplique.' };
     if (why === 'held') return { tone: 'warn', label: 'Sigue bloqueado', detail: 'Otra opción de la política mantiene este bloqueo.' };
     if (why === 'not-device-owner') return { tone: 'warn', label: 'No soportado', detail: 'El agente no es propietario del dispositivo (Device Owner).' };

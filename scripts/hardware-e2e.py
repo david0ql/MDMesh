@@ -37,6 +37,7 @@ A = P.parse_args()
 CJ = http.cookiejar.CookieJar()
 OP = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CJ))
 RESULTS = []
+PLATFORM_REFUSED = set()
 
 # rule key -> (first Android API level, user restrictions it sets). Mirrors HardwareCatalog.kt.
 RULES = {
@@ -80,12 +81,20 @@ def section(title):
 
 def api(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
-    req = urllib.request.Request(A.api + "/rest" + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    try:
-        with OP.open(req, timeout=30) as r:
-            return json.loads(r.read() or b"{}")
-    except urllib.error.HTTPError as e:
-        return {"status": "HTTP_%d" % e.code, "message": e.read()[:200].decode("utf-8", "replace")}
+    for attempt in range(4):  # a loaded server may take long to answer: wait, and retry a timeout
+        req = urllib.request.Request(A.api + "/rest" + path, data=data, method=method, headers={"Content-Type": "application/json"})
+        try:
+            with OP.open(req, timeout=90) as r:
+                return json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            if e.code in (502, 503, 504) and attempt < 3:
+                time.sleep(5)
+                continue
+            return {"status": "HTTP_%d" % e.code, "message": e.read()[:200].decode("utf-8", "replace")}
+        except (TimeoutError, urllib.error.URLError) as e:
+            if attempt == 3:
+                return {"status": "NO_ANSWER", "message": str(e)}
+            time.sleep(5)
 
 
 def adb(*args, timeout=60):
@@ -104,6 +113,16 @@ def adb_alive():
     return sh("echo alive", timeout=10).strip() == "alive"
 
 
+def adb_back(timeout=240):
+    """Wait for adb to answer again (after adbd restarted); nudges the adb server to reconnect."""
+    def alive():
+        if adb_alive():
+            return True
+        subprocess.run([A.adb, "reconnect", "offline"], capture_output=True, timeout=20)
+        return False
+    return until(alive, timeout, step=3.0)
+
+
 def until(fn, timeout, step=2.0):
     end = time.time() + timeout
     v = fn()
@@ -113,16 +132,25 @@ def until(fn, timeout, step=2.0):
     return v
 
 
+# `dumpsys user` blocks that list restrictions in force for the user. Others ("Guest restrictions", the per-user-type
+# "mDefaultRestrictions") are templates for users that do not exist.
+IN_FORCE = {"restrictions:", "effective restrictions:", "device policy restrictions:", "device policy global restrictions:",
+            "device policy local restrictions:", "base restrictions:"}
+
+
 def user_restrictions():
     """The user restrictions in force, as `dumpsys user` prints them (one `no_xxx` per line under a "... restrictions:"
-    header). The "Guest restrictions" block is the template for guest users, not something in force."""
+    header that is in force, see IN_FORCE)."""
     out, header = set(), ""
-    for line in sh("dumpsys user").splitlines():
+    dump = sh("dumpsys user")
+    if "Restrictions:" not in dump and "restrictions:" not in dump:
+        raise RuntimeError("adb did not return `dumpsys user`: " + dump[:120])
+    for line in dump.splitlines():
         t = line.strip()
         if t.lower().endswith("restrictions:"):
             header = t.lower()
         elif re.fullmatch(r"no_[a-z0-9_]+", t):
-            if not header.startswith("guest"):
+            if header in IN_FORCE:
                 out.add(t)
         elif t and t != "none":
             header = header if t.startswith("no_") else ""
@@ -156,6 +184,18 @@ def screenshot_is_blank():
     w, h = int.from_bytes(raw[0:4], "little"), int.from_bytes(raw[4:8], "little")
     px = raw[len(raw) - w * h * 4:] if 0 < w * h * 4 <= len(raw) else raw[16:]
     return max(px[0::4]) == 0 and max(px[1::4]) == 0 and max(px[2::4]) == 0
+
+
+def usb_functions_after_asking_for_mtp():
+    """`svc usb setFunctions mtp`, then what `svc usb getFunctions` says; None when the release cannot tell."""
+    sh("svc usb setFunctions mtp", timeout=20)
+    time.sleep(3)
+    if not adb_back(120):
+        return None
+    funcs = sh("svc usb getFunctions").strip().lower()
+    if not funcs or re.search(r"unknown|usage|error|exception|not found", funcs):
+        return None
+    return funcs
 
 
 def wake_screen():
@@ -238,7 +278,11 @@ def step_block(cfg, apps, sdk, rules):
     for key in rules:
         min_sdk = RULES[key][0]
         got = item(h, key).get("outcome")
-        if key == "usbData" and sdk >= min_sdk:
+        if got == "unsupported: platform" and sdk >= min_sdk:
+            # This Android build knows the restriction but does not let an admin set it: reported, never silent.
+            print(f"  NOTE  status {key}: this Android build refuses the restriction (unsupported: platform)")
+            PLATFORM_REFUSED.add(key)
+        elif key == "usbData" and sdk >= min_sdk:
             check(f"status {key}: applied, or not supported by this device's USB HAL", got in ("applied", "unsupported: device"), got)
             print(f"        usbData on this device: {got}")
         elif sdk >= min_sdk:
@@ -262,7 +306,7 @@ def step_block(cfg, apps, sdk, rules):
         want.add("no_bluetooth")
     for key in rules:
         min_sdk, keys = RULES[key]
-        if sdk < min_sdk:
+        if sdk < min_sdk or key in PLATFORM_REFUSED:
             continue
         if key == "dateTime" and sdk < 28:
             check("device: auto-time required (date/time before Android 9)", "autoTimeRequired=true" in sh("dumpsys device_policy").replace(" ", "")
@@ -292,16 +336,12 @@ def step_block(cfg, apps, sdk, rules):
         skip("opening the camera", "no camera app answered on this image; the policy state above is the evidence")
     sh("input keyevent KEYCODE_HOME")
 
-    # USB: MTP cannot be selected.
-    out = sh("svc usb setFunctions mtp")
-    time.sleep(2)
-    funcs = sh("svc usb getFunctions")
-    if "mtp" in funcs.lower() and "error" not in funcs.lower():
-        check("device: MTP is not offered over USB", False, funcs.strip())
-    elif re.search(r"unknown|usage|error|exception", funcs + out, re.I) and "mtp" not in funcs.lower():
-        check("device: MTP is not offered over USB (svc usb)", "no_usb_file_transfer" in have, (out + funcs).strip()[:120])
+    # USB: asking for MTP is ignored while file transfer is blocked. (Changing USB functions restarts adbd.)
+    mtp = usb_functions_after_asking_for_mtp()
+    if mtp is None:
+        skip("MTP over USB (svc usb)", "this release has no `svc usb getFunctions`; no_usb_file_transfer above is the evidence")
     else:
-        check("device: MTP is not offered over USB (svc usb getFunctions: %s)" % (funcs.strip() or "none"), True)
+        check("device: asking for MTP over USB is refused (svc usb getFunctions: %s)" % (mtp or "none"), "mtp" not in mtp)
 
     # Hotspot: Settings shows the tethering screen as blocked by the administrator.
     wake_screen()
@@ -338,7 +378,10 @@ def step_revert(cfg, apps, original, sdk, adb_was_blocked):
     check("policy saved without hardware rules", ok, str(r)[:300])
     h = apply_and_wait("revert")
     if adb_was_blocked:
-        check("adb answers again without touching the device", until(adb_alive, 90), "adb did not come back")
+        check("adb answers again without touching the device", adb_back(), "adb did not come back")
+        check("device: the USB debugging switch is on again", sh("settings get global adb_enabled").strip() == "1")
+    elif not adb_back(60):
+        sys.exit("adb stopped answering")
     check("status: no hardware rule is asked any more",
           not [i["key"] for i in h.get("items") or [] if i.get("desired") == "block"], json.dumps([i for i in h.get("items") or [] if i.get("desired")]))
     have = user_restrictions()
@@ -353,6 +396,11 @@ def step_revert(cfg, apps, original, sdk, adb_was_blocked):
     check("device: a screenshot shows the screen again", not screenshot_is_blank())
     if sdk >= 31:
         check("device: USB data signaling is enabled", "usbDataSignalingEnabled=false" not in sh("dumpsys device_policy").replace(" ", ""))
+    mtp = usb_functions_after_asking_for_mtp()
+    if mtp is not None:
+        check("device: MTP can be selected again (svc usb getFunctions: %s)" % (mtp or "none"), "mtp" in mtp)
+        sh("svc usb setFunctions", timeout=20)
+        adb_back(120)
     # Leave the configuration exactly as it was.
     save_config(cfg, apps, **original)
 

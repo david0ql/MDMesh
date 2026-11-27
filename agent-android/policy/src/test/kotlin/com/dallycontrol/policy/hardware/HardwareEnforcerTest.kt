@@ -18,10 +18,12 @@ class HardwareEnforcerTest {
         var usbData = true
         var autoTime = false
         var refuse: Set<String> = emptySet()
+        var platformRefuses: Set<String> = emptySet()
         var ignore: Set<String> = emptySet()
         override fun isDeviceOwner() = owner
         override fun setRestriction(key: String, on: Boolean) {
             if (key in refuse) throw SecurityException("no $key")
+            check(key !in platformRefuses) { "Unsupported user restriction $key" }
             if (key in ignore) return
             if (key == "no_debugging_features" && on) adb = false // what Android does
             if (on) restrictions += key else restrictions -= key
@@ -166,6 +168,14 @@ class HardwareEnforcerTest {
         assertEquals("failed: not-effective", out["hardware.airplaneMode"])
         assertEquals("applied", out["hardware.usbDebug"])
         assertFalse("no_printing" in mem.tokens)
+    }
+
+    @Test fun `a restriction this android build does not let an admin set is unsupported, not a failure`() {
+        val b = FakeBackend(sdk = 35).apply { platformRefuses = setOf("no_near_field_communication_radio") }
+        val out = HardwareEnforcer(b, Memory())
+            .apply(mapOf("nfc" to "block", "camera" to "block"), emptyList(), emptySet())
+        assertEquals("unsupported: platform", out["hardware.nfc"])
+        assertEquals("applied", out["hardware.camera"])
     }
 
     @Test fun `unknown rules, values and restrictions are refused`() {

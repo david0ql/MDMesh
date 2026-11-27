@@ -8,6 +8,6 @@
   "properties": {
     "revision": { "type": "string" },
     "outcomes": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^(applied|unsupported(: .*)?|failed(: .*)?)$" },
-                  "description": "keys: policies.<key>, kiosk, location, …, hardware.<rule>, restrictions.<no_xxx>. Hardware outcomes give the reason: `unsupported: sdk-<N>` (needs Android API N), `unsupported: device` (the hardware cannot), `unsupported: held` (another section keeps it blocked), `unsupported: unknown`, `failed: not-effective` (accepted but not in force)" }
+                  "description": "keys: policies.<key>, kiosk, location, …, hardware.<rule>, restrictions.<no_xxx>. Hardware outcomes give the reason: `unsupported: sdk-<N>` (needs Android API N), `unsupported: device` (the hardware cannot), `unsupported: platform` (this Android build does not let an admin set it), `unsupported: held` (another section keeps it blocked), `unsupported: unknown`, `failed: not-effective` (accepted but not in force)" }
   }
 }

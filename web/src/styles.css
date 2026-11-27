@@ -3546,8 +3546,10 @@ a {
 .hw-free-list ul { list-style: none; padding: 0; margin: 6px 0 0; columns: 2; }
 .hw-free-list li { break-inside: avoid; padding: 1px 0; }
 .hw-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
-.hw-table { margin-bottom: 14px; }
-.hw-table th:first-child, .hw-table td:first-child { width: 46%; }
+.hw-table { margin-bottom: 14px; table-layout: fixed; width: 100%; }
+.hw-table th:first-child, .hw-table td:first-child { width: 44%; }
+.hw-table th:nth-child(2), .hw-table td:nth-child(2) { width: 13%; }
+.hw-table th:nth-child(3), .hw-table td:nth-child(3) { width: 19%; }
 .hw-table td { vertical-align: top; }
 @media (max-width: 720px) {
   .hw-free-list ul { columns: 1; }
