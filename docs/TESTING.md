@@ -203,4 +203,4 @@ image another stack will pick up on its next `up`.
 
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
-e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3.
+e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
