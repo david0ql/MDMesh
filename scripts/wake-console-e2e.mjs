@@ -141,9 +141,9 @@ try {
     await wake.waitFor({ timeout: 20000 });
     await wake.scrollIntoViewIfNeeded();
     check('policy editor shows "Sondeo de respaldo" with the saved minutes',
-      (await wake.getByLabel('Sondeo normal en minutos').inputValue()) === '3'
-      && (await wake.getByLabel('Sondeo rápido en minutos').inputValue()) === '1'
-      && (await wake.getByLabel('Duración del sondeo rápido en minutos').inputValue()) === '15');
+      (await wake.getByLabel('Sondeo normal en minutos', { exact: true }).inputValue()) === '3'
+      && (await wake.getByLabel('Sondeo rápido en minutos', { exact: true }).inputValue()) === '1'
+      && (await wake.getByLabel('Duración del sondeo rápido en minutos', { exact: true }).inputValue()) === '15');
     await page.screenshot({ path: `${shots}/politica-sondeo.png`, fullPage: true });
     // The agent is told at its next check-in (the answer carries the schedule): it reports the pace back.
     await rest('POST', `/private/agent/v1/devices/${deviceNumber}/sync`);
