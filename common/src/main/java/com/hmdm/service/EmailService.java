@@ -139,9 +139,9 @@ public class EmailService {
             properties.put("mail.smtp.connectiontimeout", "20000");
             properties.put("mail.smtp.timeout", "60000");
             properties.put("mail.smtp.writetimeout", "60000");
-            // Without an explicit list this JavaMail offers only TLSv1 on STARTTLS, which Java 17 and current
-            // mail servers refuse ("Could not convert socket to TLS"): default to the versions in use today.
-            properties.put("mail.smtp.ssl.protocols", StringUtil.isEmpty(sslProtocols) ? "TLSv1.2 TLSv1.3" : sslProtocols);
+            if (!StringUtil.isEmpty(sslProtocols)) {
+                properties.put("mail.smtp.ssl.protocols", sslProtocols);
+            }
             if (!StringUtil.isEmpty(sslTrust)) {
                 properties.put("mail.smtp.ssl.trust", sslTrust);
             }
