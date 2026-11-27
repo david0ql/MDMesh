@@ -39,6 +39,17 @@ class KioskHardeningTest {
     }
 
     @Test
+    fun `the console is told how Settings is kept closed - by lock task, by the guard, or not yet`() {
+        assertEquals("lockTask", KioskHardening.settingsGuard(sdk = 33, guardNeeded = false, canWatch = false))
+        assertEquals("lockTask", KioskHardening.settingsGuard(sdk = 35, guardNeeded = false, canWatch = true))
+        assertEquals("guard", KioskHardening.settingsGuard(sdk = 29, guardNeeded = true, canWatch = true))
+        assertEquals("needsUsageAccess", KioskHardening.settingsGuard(sdk = 29, guardNeeded = true, canWatch = false))
+        assertEquals("guard", KioskHardening.settingsGuard(sdk = 36, guardNeeded = true, canWatch = true))
+        assertEquals("needsUsageAccess", KioskHardening.settingsGuard(sdk = 36, guardNeeded = true, canWatch = false))
+        assertEquals("the policy allows Settings itself", "lockTask", KioskHardening.settingsGuard(36, false, false))
+    }
+
+    @Test
     fun `soft kiosk closes the status bar unless the policy explicitly allows notifications`() {
         assertTrue(KioskHardening.statusBarDisabled(null))
         assertTrue(KioskHardening.statusBarDisabled(false))

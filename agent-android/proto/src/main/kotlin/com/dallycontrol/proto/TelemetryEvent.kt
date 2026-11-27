@@ -82,4 +82,10 @@ object EventType {
 
     /** Packages Android refused to suspend for the kiosk (`notSuspended=pkg[,pkg]`) or no guard; sent on change. */
     const val KIOSK_LOCKDOWN_GAP = "kioskLockdownGap"
+
+    /**
+     * How the kiosk keeps the system Settings closed on this phone (`detail`: `lockTask`, `guard` or
+     * `needsUsageAccess`); sent when it changes, so the console can show the real state per device.
+     */
+    const val KIOSK_GUARD = "kioskGuard"
 }

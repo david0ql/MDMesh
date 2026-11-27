@@ -524,6 +524,50 @@ def t_legacy(mode):
     check("…y lo reporta (kioskExitDenied)", until(lambda: events("kioskExitDenied", since), 150, 4))
 
 
+def guard_state(since):
+    ev = [e for e in events("kioskGuard", since)]
+    ev.sort(key=lambda e: e.get("ts") or 0)
+    return ev[-1].get("detail") if ev else None
+
+
+def t_usage_access(mode):
+    """What a phone enrolled WITHOUT the cable has (no usage access for the agent), and what the console is told."""
+    start = int(time.time() * 1000) - 3000
+    if 30 <= SDK < 36:
+        s0 = until(lambda: guard_state(0), 150, 5)
+        check("la consola recibe el estado del refuerzo: «lockTask» (no necesita acceso de uso)", s0 == "lockTask", str(s0))
+        return
+    sh(f"appops set {A.pkg} GET_USAGE_STATS ignore")
+    run("kiosk.exit")
+    s, d = enter(mode)
+    check("sin acceso de uso: el quiosco se aplica igual", s == "done", f"{s} {d}")
+    check("sin acceso de uso: la consola recibe «needsUsageAccess»", until(lambda: guard_state(start) == "needsUsageAccess", 150, 5), str(guard_state(start)))
+    out = sh("am start -a android.settings.SETTINGS")
+    time.sleep(3)
+    info("sin acceso de uso: adb am start SETTINGS", "ABRE Ajustes" if settings_in_front() else "no abre Ajustes (lock task)")
+    sh("input keyevent KEYCODE_BACK")
+    home()
+    sh(f"am start -n {APP}/.Main")
+    time.sleep(2)
+    sh(f"am start -n {APP}/.Main --es action android.settings.WIFI_SETTINGS")
+    time.sleep(4)
+    opened = settings_in_front()
+    info("sin acceso de uso: app permitida → intent WIFI_SETTINGS", "ABRE Ajustes y nada lo devuelve (vía abierta hasta autorizar)" if opened else "no abre Ajustes")
+    sh("input keyevent KEYCODE_BACK")
+    home()
+    start2 = int(time.time() * 1000) - 3000
+    sh(f"appops set {A.pkg} GET_USAGE_STATS allow")
+    run("kiosk.exit")
+    s, d = enter(mode)
+    check("al autorizar el acceso de uso la consola recibe «guard»", until(lambda: guard_state(start2) == "guard", 150, 5), str(guard_state(start2)))
+    sh(f"am start -n {APP}/.Main")
+    time.sleep(2)
+    sh(f"am start -n {APP}/.Main --es action android.settings.WIFI_SETTINGS")
+    check("con acceso de uso: el vigilante devuelve al quiosco", until(lambda: not settings_in_front(), 8, 0.5), top())
+    home()
+    run("kiosk.exit")
+
+
 def t_reboot(mode):
     s, d = enter(mode)
     check("quiosco antes de reiniciar: aplicado", s == "done", f"{s} {d}")
@@ -600,6 +644,10 @@ def main():
                 t_legacy(mode)
             s, d = run("kiosk.exit")
             check("salida desde la consola (kiosk.exit)", s == "done" and until(lambda: lock_task() == "NONE" and not suspended("com.android.settings"), 20), f"{s} {d}")
+        if modes:
+            MODE = modes[-1] + "+acceso"
+            print("== refuerzo de Ajustes y acceso de uso")
+            t_usage_access(modes[-1])
         if A.reboot and modes:
             MODE = modes[0] + "+reboot"
             print("== reinicio")

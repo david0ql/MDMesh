@@ -45,6 +45,22 @@ object KioskHardening {
      */
     fun needsForegroundGuard(sdk: Int): Boolean = !blockInTaskStarts(sdk)
 
+    const val GUARD_LOCK_TASK = "lockTask"
+    const val GUARD_WATCHING = "guard"
+    const val GUARD_MISSING_ACCESS = "needsUsageAccess"
+
+    /**
+     * How the system Settings is kept closed in this kiosk, as reported to the console:
+     * [GUARD_LOCK_TASK] (Android 11–15: the platform blocks it, nothing else needed), [GUARD_WATCHING] (the foreground
+     * guard is watching) or [GUARD_MISSING_ACCESS] (the guard is needed but the agent has no usage access: an allowed
+     * app, or the status bar on Android 16+, can still reach Settings until someone grants it on the phone).
+     */
+    fun settingsGuard(sdk: Int, guardNeeded: Boolean, canWatch: Boolean): String = when {
+        !needsForegroundGuard(sdk) || !guardNeeded -> GUARD_LOCK_TASK
+        canWatch -> GUARD_WATCHING
+        else -> GUARD_MISSING_ACCESS
+    }
+
     /**
      * Soft kiosk only: whether the status bar (and with it the system quick settings and their gear to Settings) is
      * disabled. Closed unless the policy explicitly asks for it ([softStatusBar], which the server sends only for an

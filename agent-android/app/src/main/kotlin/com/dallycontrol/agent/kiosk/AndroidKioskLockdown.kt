@@ -63,11 +63,12 @@ class AndroidKioskLockdown(
         val watched = settingsPackages().filter { it in BOOT_CRITICAL } + if (soft) unsuspended else emptyList()
         val open = watched.toSet() - allowed.toSet()
         val guarded = KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty()
-        val blind = guarded && !KioskForegroundGuard.canWatch(context)
-        if (blind != prefs.getBoolean(KEY_BLIND, false)) {
-            prefs.edit().putBoolean(KEY_BLIND, blind).apply()
-            // Without usage access nothing sends the phone back from Settings on this Android version: say so.
-            if (blind) events.record(EventType.KIOSK_LOCKDOWN_GAP, "settingsNotGuarded=sin acceso de uso")
+        // How Settings is kept closed on this phone, for the console (reported when it changes): by lock task, by the
+        // guard, or — the guard needs usage access, which only a person or the cable enrollment can give — not yet.
+        val state = KioskHardening.settingsGuard(sdk, guarded, guarded && KioskForegroundGuard.canWatch(context))
+        if (state != prefs.getString(KEY_GUARD, null)) {
+            prefs.edit().putString(KEY_GUARD, state).apply()
+            events.record(EventType.KIOSK_GUARD, state)
         }
         if (guarded) {
             KioskForegroundGuard.start(context, open, { it in lifted }) { pkg ->
@@ -89,7 +90,7 @@ class AndroidKioskLockdown(
         if (suspended.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             runCatching { dpm.setPackagesSuspended(admin, suspended.toTypedArray(), false) }
         }
-        prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_GAP).remove(KEY_BLIND).apply()
+        prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_GAP).remove(KEY_GUARD).apply()
         if (KioskHardening.softKiosk(Build.VERSION.SDK_INT)) runCatching { dpm.setStatusBarDisabled(admin, false) }
     }
 
@@ -178,7 +179,7 @@ class AndroidKioskLockdown(
         private const val KEY_RESTRICTIONS = "restrictions"
         private const val KEY_SUSPENDED = "suspended"
         private const val KEY_GAP = "gap"
-        private const val KEY_BLIND = "guard_blind"
+        private const val KEY_GUARD = "guard_state"
         private val KNOWN_SETTINGS = listOf(
             "com.android.settings",
             "com.android.settings.intelligence",

@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   kioskExitDenied: 'Intento de salir del quiosco rechazado (sin contraseña en la política o en espera)',
   powerPinFailed: 'Clave de apagado incorrecta',
   kioskEscapeBlocked: 'Quiosco: se abrió Ajustes y el equipo se devolvió al quiosco',
+  kioskGuard: 'Quiosco: estado del refuerzo de Ajustes',
   kioskLockdownGap: 'Quiosco: algo no quedó bloqueado (ver detalle)',
   geofenceExit: 'Salió de una zona (geocerca)',
   geofenceEnter: 'Entró a una zona (geocerca)',
