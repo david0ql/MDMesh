@@ -142,6 +142,8 @@ class AndroidManagedWifi(
             enforceRadio()
         }
         prefs.edit().remove(LEGACY_ADDED).apply()
+        // A fresh scan, so the next report can tell "out of range" from "not seen yet".
+        if (networks.isNotEmpty()) wifi.startScan()
         return ConfigOutcome.APPLIED
     }
 
@@ -284,6 +286,7 @@ class AndroidManagedWifi(
         enforceRadio()
         if (now - lastHeal >= HEAL_EVERY_MS) {
             lastHeal = now
+            if (s.networks.isNotEmpty() && wifi.isEnabled()) wifi.startScan()
             heal()
             prefer()
         }

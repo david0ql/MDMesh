@@ -235,6 +235,10 @@ def saved_ssids():
     return set(nets) if nets else set(config_blocks())
 
 
+def radio_off():
+    return "disabled" in sh("dumpsys wifi | grep -m1 'Wi-Fi is'").lower()
+
+
 def wifi_connected_ssid():
     out = sh("dumpsys wifi | grep -m1 -E 'mWifiInfo .*SSID' ; true")
     m = re.search(r'SSID: "?([^",]+)"?,', out)
@@ -414,16 +418,18 @@ def t_networks(state):
     else:
         check("WPA3-SAE and OWE are not saved on this Android (no API for them)", NETS["sae"] not in blocks and NETS["owe"] not in blocks)
     check("PEAP: EAP network with PEAP/MSCHAPv2, identities and domain",
-          has("peap", r"KeyMgmt:.*(WPA_EAP|IEEE8021X)", r"eap[_ ]method:? *\"?PEAP|eap PEAP", r"MSCHAPV2", r"equipo@e2e\.test", r"anonimo@e2e\.test",
+          has("peap", r"KeyMgmt:.*(WPA_EAP|IEEE8021X)", r"eap[_ ]method:? *\"?PEAP|eap PEAP|_PEAP_", r"MSCHAPV2", r"equipo@e2e\.test", r"anonimo@e2e\.test",
               r"domain_suffix_match \"radius\.e2e\.test\""),
           blocks.get(NETS["peap"], "")[-900:])
     check("PEAP: the CA is referenced by the network (not 'do not validate')", has("peap", r"ca_cert \"keystore://CACERT"), blocks.get(NETS["peap"], "")[-900:])
-    check("TTLS: EAP network with TTLS/PAP and the alternative-subject match", has("ttls", r"eap[_ ]method:? *\"?TTLS|eap TTLS", r"PAP", r"altsubject_match \"DNS:radius\.e2e\.test\""), blocks.get(NETS["ttls"], "")[-900:])
-    check("EAP-TLS: EAP network with TLS and a client certificate", has("tls", r"eap[_ ]method:? *\"?TLS|eap TLS", r"client_cert \"keystore://", r"(key_id|private_key|engine_id) \"\S+"), blocks.get(NETS["tls"], "")[-900:])
+    check("TTLS: EAP network with TTLS/PAP and the alternative-subject match", has("ttls", r"eap[_ ]method:? *\"?TTLS|eap TTLS|_TTLS_", r"PAP", r"altsubject_match \"DNS:radius\.e2e\.test\""), blocks.get(NETS["ttls"], "")[-900:])
+    check("EAP-TLS: EAP network with TLS and a client certificate", has("tls", r"eap[_ ]method:? *\"?TLS|eap TLS|_TLS_", r"client_cert \"keystore://", r"(key_id|private_key|engine_id) \"\S+"), blocks.get(NETS["tls"], "")[-900:])
     check("no EAP password shows in the dump", EAP_PW not in "".join(blocks.values()))
     check("options: static IP, gateway and DNS", has("opt", r"IP assignment: STATIC", r"192\.168\.77\.50/24", r"192\.168\.77\.1"), blocks.get(NETS["opt"], "")[-900:])
     check("options: manual proxy with its exclusion", has("opt", r"Proxy settings: STATIC", r"proxy\.e2e\.test", r"3128"), blocks.get(NETS["opt"], "")[-900:])
-    rep = managed_report(lambda r: len(r.get("networks") or []) >= 9 and net_status(r, A.open_ssid).get("connected"))
+    # a scan must have happened for "out of range" to be known: wait for it
+    rep = managed_report(lambda r: len(r.get("networks") or []) >= 9 and net_status(r, A.open_ssid).get("connected")
+                         and net_status(r, NETS["mix"]).get("reason") == "out_of_range")
     opt = net_status(rep, NETS["opt"])
     dropped = opt.get("unsupportedOptions") or []
     if "mac" in dropped:
@@ -451,7 +457,15 @@ def t_networks(state):
     else:
         check("the CA is in the user's trusted store (installCaCert)", False, store)
     keys = sh(f"run-as {A.pkg} cat shared_prefs/mdm_wifi_certs.xml")
-    check("the agent installed the CA and the EAP-TLS key pair (its record)", "ca:" in keys and "dc-wifi-" in keys, keys[:300])
+    check("the agent installed the CA (its record)", "ca:" in keys, keys[:300])
+    if "dc-wifi-" in keys:
+        check("the agent installed the EAP-TLS key pair with installKeyPair (its record)", True)
+    elif "Keystore is UNINITIALIZED" in sh("logcat -d -s KeyChain:E | tail -20"):
+        # Android 9 and older: the KeyChain takes keys only once a screen lock exists. The network itself already
+        # carries the client certificate (checked above), which is what the Wi-Fi stack uses.
+        skip("installKeyPair", "Android refuses KeyChain keys on a device without a screen lock; the network has its own copy")
+    else:
+        check("the agent installed the EAP-TLS key pair with installKeyPair (its record)", False, keys[:300])
 
     # what the phone reports per network
     open_net = net_status(rep, A.open_ssid)
@@ -551,11 +565,11 @@ def t_radio(state, cfg, base):
     ok, msg, _ = save_config(get_config(cfg["id"]), dict(base), radio=False)
     check("policy saved: Wi-Fi forced off, no networks", ok, msg)
     wait_applied()
-    off = until(lambda: "disabled" in sh("cmd wifi status 2>/dev/null || dumpsys wifi | grep -m1 'Wi-Fi is'").lower(), 40)
+    off = until(lambda: radio_off(), 40)
     check("the radio is off", off)
     sh("svc wifi enable")
     time.sleep(6)
-    again = until(lambda: "disabled" in sh("cmd wifi status 2>/dev/null || dumpsys wifi | grep -m1 'Wi-Fi is'").lower(), 90)
+    again = until(lambda: radio_off(), 90)
     check("switched on by hand, the agent switches it off again", again)
     rep = managed_report(lambda r: "radioOff" in ((r.get("rules") or {}).get("applied") or []))
     check("report: 'Wi-Fi forced off'", "radioOff" in ((rep.get("rules") or {}).get("applied") or []), rep.get("rules"))
@@ -569,7 +583,8 @@ def t_safeguard(state, cfg, base):
     section("safeguard (about 3 minutes)")
     if SDK < 33:
         dc = dict(base)
-        dc["wifi"] = [{"id": "e2epsk", "ssid": NETS["psk"], "security": "WPA", "password": PSK}]
+        dc["wifi"] = [{"id": "e2eopen", "ssid": A.open_ssid, "security": "NONE"},
+                      {"id": "e2epsk", "ssid": NETS["psk"], "security": "WPA", "password": PSK}]
         dc["wifiRules"] = {"lockManaged": True, "blockConfig": True, "safeguardMinutes": 1}
         cut = lambda: sh("svc wifi disable")  # noqa: E731  (no SSID policy before Android 13: the test takes Wi-Fi away itself)
     else:
