@@ -27,4 +27,6 @@ public class DesiredDevice {
     private List<String> frpAccounts;
     /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); MDM silent installs still work. */
     private String installApps;
+    /** "block" = no USB debugging nor developer options (DISALLOW_DEBUGGING_FEATURES). */
+    private String debugging;
 }

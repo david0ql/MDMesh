@@ -4014,4 +4014,15 @@
         </rollback>
     </changeSet>
 
+    <!-- Kiosk hardening: leaving a kiosk on the device always needs a password. Kiosk policies saved without one get
+         a random 8-digit password (shown in the policy editor, "Contraseña de salida del quiosco"), so a technician
+         can still leave the kiosk on the phone; until an agent re-applies, nothing changes on it. Idempotent. -->
+    <changeSet id="26.11.27-kiosk-exit-password" author="dallycontrol">
+        <sql>
+            UPDATE configurations
+            SET password = lpad(((('x' || substr(md5(random()::text || clock_timestamp()::text || id::text), 1, 8))::bit(32)::bigint) % 100000000)::text, 8, '0')
+            WHERE kioskMode = TRUE AND (password IS NULL OR btrim(password) = '');
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

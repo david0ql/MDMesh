@@ -275,6 +275,7 @@ public class DcPolicy {
             d.setAccountDomain(doms.size() == 1 ? doms.get(0) : null);
             d.setFactoryReset("block".equals(lower(device.getFactoryReset())) ? "block" : null);
             d.setInstallApps("block".equals(lower(device.getInstallApps())) ? "block" : null);
+            d.setDebugging("block".equals(lower(device.getDebugging())) ? "block" : null);
             if (device.getFrpAccounts() != null) {
                 List<String> ids = new ArrayList<String>();
                 for (String a : device.getFrpAccounts()) {
@@ -283,7 +284,8 @@ public class DcPolicy {
                 d.setFrpAccounts(ids.isEmpty() ? null : ids);
             }
             c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
-                    && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
+                    && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null
+                    && d.getDebugging() == null ? null : d;
         }
         c.mobileData = MobileDataPolicy.clean(mobileData);
         c.hardware = HardwarePolicy.clean(hardware, true);

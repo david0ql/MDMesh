@@ -42,6 +42,8 @@ export interface DcPolicy {
     accountDomains?: string[];
     factoryReset?: 'block';
     installApps?: 'block';
+    /** 'block' = no USB debugging nor developer options. */
+    debugging?: 'block';
     frpAccounts?: string[];
   };
   /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
@@ -221,9 +223,11 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
           <label>Compartir datos (zona Wi‑Fi)</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            «Permitir» (por defecto): el quiosco muestra el ícono «Compartir datos», que abre la pantalla de zona Wi‑Fi del teléfono
-            para encenderla o apagarla (Android no deja que el MDM la encienda por su cuenta). «Bloquear»: nadie puede compartir la
-            conexión y el ícono no aparece.
+            «Permitir» (por defecto): el quiosco muestra el ícono «Compartir datos», que abre únicamente la pantalla de zona Wi‑Fi
+            del teléfono para encenderla o apagarla (Android no deja que el MDM la encienda por su cuenta). Esa pantalla se abre
+            sola, sin el resto de Ajustes: «Atrás» vuelve al quiosco y se cierra al volver o a los 2 minutos. Riesgo: bajo; es la
+            única pantalla del sistema que el quiosco deja abrir. «Bloquear»: nadie puede compartir la conexión y el ícono no
+            aparece (lo más seguro).
           </span>
         </div>
         <div className="cfg-field-ctl">
@@ -305,12 +309,31 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
 
       <div className="cfg-field">
         <div className="cfg-field-label">
+          <label>Depuración USB y opciones de desarrollador</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Bloquear»: no se puede activar la depuración USB (adb) ni las opciones de desarrollador. Recomendado en un quiosco:
+            con un cable y adb se pueden abrir pantallas o desinstalar apps. Riesgo de bloquear: soporte tampoco podrá usar adb
+            ni el enrolamiento por cable en ese equipo hasta que lo permitas de nuevo aquí.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Depuración USB" disabled={disabled} value={p.device?.debugging ?? ''} data-testid="policy-debugging"
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), debugging: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Permitida</option>
+            <option value="block">Bloquear</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
           <label>Antirrobo: clave para apagar</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
             Con una clave (4 a 12 dígitos), en el quiosco el botón de encendido ya no abre el menú de apagado: para apagar o reiniciar
-            hay que escribir esta clave en «Ajustes rápidos». También se bloquean el modo seguro y el restablecimiento de fábrica desde
-            Ajustes. Android no permite impedir el apagado forzado (mantener el botón ~10 segundos); el teléfono vuelve a encender en
+            hay que escribir esta clave en «Ajustes rápidos» (tras 3 intentos fallidos hay una espera creciente). También se bloquea
+            el restablecimiento de fábrica desde Ajustes (el modo seguro ya lo bloquea todo quiosco). Android no permite impedir el apagado forzado (mantener el botón ~10 segundos); el teléfono vuelve a encender en
             el quiosco. Vacío = sin antirrobo.
           </span>
         </div>

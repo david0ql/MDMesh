@@ -30,7 +30,9 @@ export function buildKioskPayload(c: KioskChoice): object {
   const f = { ...DEFAULT_FEATURES, ...(c.features ?? {}) };
   const { quickSettings, ...bars } = f;
   const features = { ...bars, recents: bars.home ? bars.recents : false };
-  const base = { exitMode: c.exitMode, password: c.password || undefined, features, theme: c.theme ?? {}, quickSettings: !!quickSettings };
+  // Without a password the phone offers no exit at all (console only); the server enforces the same.
+  const password = c.password?.trim() ? c.password : undefined;
+  const base = { exitMode: password ? c.exitMode : 'remote', password, features, theme: c.theme ?? {}, quickSettings: !!quickSettings };
   return c.mode === 'single'
     ? { ...base, mode: 'single', pinPackage: c.packages[0], allowedPackages: c.packages }
     : { ...base, mode: 'launcher', allowedPackages: c.packages };
@@ -226,7 +228,9 @@ export function KioskEnterModal({
     if (m === 'single' && selected.size > 1) setSelected(new Set());
   }
 
-  const canApply = selected.size > 0 && (mode === 'launcher' || selected.size === 1);
+  // Leaving on the phone always needs a password (4+ characters); "Solo remoto" needs none.
+  const passwordOk = exitMode === 'remote' || password.trim().length >= 4;
+  const canApply = selected.size > 0 && (mode === 'launcher' || selected.size === 1) && passwordOk;
 
   async function apply() {
     setBusy(true);
@@ -364,7 +368,7 @@ export function KioskEnterModal({
           <span className="muted">Mostrar en el quiosco:</span>
           <label><input type="checkbox" checked={!!features.home} onChange={(e) => setFeatures((f) => ({ ...f, home: e.target.checked, recents: e.target.checked ? f.recents : false }))} /> Botón Inicio</label>
           <label><input type="checkbox" checked={!!features.recents} disabled={!features.home} onChange={(e) => setFeatures((f) => ({ ...f, recents: e.target.checked }))} /> Botón Recientes</label>
-          <label><input type="checkbox" checked={!!features.notifications} onChange={(e) => setFeatures((f) => ({ ...f, notifications: e.target.checked }))} /> Notificaciones (barra desplegable)</label>
+          <label title="En Android 16 o superior la barra queda cerrada en un quiosco personalizado."><input type="checkbox" checked={!!features.notifications} onChange={(e) => setFeatures((f) => ({ ...f, notifications: e.target.checked }))} /> Notificaciones (barra desplegable, Android 15 o anterior)</label>
           <label><input type="checkbox" checked={!!features.systemInfo} onChange={(e) => setFeatures((f) => ({ ...f, systemInfo: e.target.checked }))} /> Hora, batería y señal</label>
           <label><input type="checkbox" checked={!!features.quickSettings} onChange={(e) => setFeatures((f) => ({ ...f, quickSettings: e.target.checked }))} /> Ajustes rápidos (Wi‑Fi, brillo, volumen, Bluetooth)</label>
         </div>
@@ -375,14 +379,19 @@ export function KioskEnterModal({
             <select value={exitMode} onChange={(e) => setExitMode(e.target.value as typeof exitMode)}>
               <option value="gesture">Gesto (7 toques en la esquina)</option>
               <option value="visible">Botón visible</option>
-              <option value="remote">Solo remoto</option>
+              <option value="remote">Solo remoto (sin salida en el teléfono)</option>
             </select>
           </label>
-          <label className="field">
-            <span>Contraseña de salida</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="opcional" />
-          </label>
+          {exitMode !== 'remote' && (
+            <label className="field">
+              <span>Contraseña de salida (obligatoria)</span>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="mínimo 4 caracteres" data-testid="kiosk-enter-password" />
+            </label>
+          )}
         </div>
+        {!passwordOk && (
+          <p className="field-error">Para salir desde el teléfono se exige contraseña (mínimo 4 caracteres). Sin ella, elige «Solo remoto».</p>
+        )}
 
         </>
         )}

@@ -54,6 +54,8 @@ data class ConfigDevice(
     val frpAccounts: List<String>? = null,
     /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); the MDM's silent installs still work. */
     val installApps: String? = null,
+    /** "block" = no USB debugging / developer options (DISALLOW_DEBUGGING_FEATURES). */
+    val debugging: String? = null,
 )
 
 /** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */

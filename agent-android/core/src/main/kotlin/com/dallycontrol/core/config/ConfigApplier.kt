@@ -115,6 +115,9 @@ class ConfigApplier(
                 if (doc.remoteSupport != null) outcomes["remoteSupport"] = reason
             }
         outcomes.putAll(applyHardware(doc, previous))
+        // The app policy just un-suspended everything it allows; a kiosk keeps closed what is allowed on the phone
+        // but not in the kiosk, so its lock-down has the last word (a no-op when the device is not in kiosk).
+        runCatching { kiosk.reassert() }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result

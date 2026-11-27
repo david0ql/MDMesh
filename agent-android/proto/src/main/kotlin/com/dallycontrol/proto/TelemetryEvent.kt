@@ -65,6 +65,30 @@ object EventType {
      */
     const val APP_NO_VERSION = "appNoVersion"
 
+    /** Someone left the kiosk on the device with the exit password. */
+    const val KIOSK_EXIT = "kioskExit"
+
+    /** A wrong kiosk exit password. `detail`: failures in a row and the wait earned (`intento 3; espera 30 s`). */
+    const val KIOSK_EXIT_FAILED = "kioskExitFailed"
+
+    /** An exit attempt refused without comparing anything: no password in the policy, or still waiting. */
+    const val KIOSK_EXIT_DENIED = "kioskExitDenied"
+
+    /** A wrong anti-theft (power) PIN. Same `detail` as [KIOSK_EXIT_FAILED]. */
+    const val POWER_PIN_FAILED = "powerPinFailed"
+
+    /** Kiosk guard (Android 7–10, 16+): an app kept closed (`detail`: its package) came to the front; sent back. */
+    const val KIOSK_ESCAPE_BLOCKED = "kioskEscapeBlocked"
+
+    /** Packages Android refused to suspend for the kiosk (`notSuspended=pkg[,pkg]`) or no guard; sent on change. */
+    const val KIOSK_LOCKDOWN_GAP = "kioskLockdownGap"
+
+    /**
+     * How the kiosk keeps the system Settings closed on this phone (`detail`: `lockTask`, `guard` or
+     * `needsUsageAccess`); sent when it changes, so the console can show the real state per device.
+     */
+    const val KIOSK_GUARD = "kioskGuard"
+
     /**
      * Mobile data: a limit of the policy reached its warning threshold. `detail` is a readable line per limit,
      * e.g. `Equipo: 410 MB de 500 MB (82 %)` or `YouTube (com.google.android.youtube): 85 MB de 100 MB (85 %)`.

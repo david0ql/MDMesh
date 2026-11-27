@@ -41,7 +41,9 @@ export function BulkKioskModal({
     if (m === 'single' && selected.size > 1) setSelected(new Set([Array.from(selected)[0]]));
   }
 
-  const canApply = selected.size > 0 && (mode === 'launcher' || selected.size === 1);
+  // Leaving on the phone always needs a password (4+ characters); "remote" needs none.
+  const passwordOk = exitMode === 'remote' || password.trim().length >= 4;
+  const canApply = selected.size > 0 && (mode === 'launcher' || selected.size === 1) && passwordOk;
 
   async function apply() {
     setBusy(true);
@@ -100,7 +102,7 @@ export function BulkKioskModal({
         </label>
         <label className="field">
           <span>Contraseña de salida</span>
-          <input type="password" value={password} placeholder="opcional"
+          <input type="password" value={password} placeholder={exitMode === 'remote' ? 'no aplica' : 'obligatoria, mínimo 4 caracteres'} disabled={exitMode === 'remote'}
                  onChange={(e) => setPassword(e.target.value)} />
         </label>
 

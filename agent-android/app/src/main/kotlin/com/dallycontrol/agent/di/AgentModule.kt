@@ -258,7 +258,16 @@ object AgentModule {
     @Singleton
     fun provideKioskController(handle: DpmHandle): KioskController =
         // droidVNC-NG stays startable in kiosk so remote support works on locked devices (ADR 0010).
-        LockTaskKioskController(handle.dpm, handle.admin, supportPackages = listOf(DroidVncController.PACKAGE))
+        // Android's permission dialog opens inside the asking app's task: it stays allowed, or — with in-task starts
+        // blocked on Android 11–15 (KioskHardening.blockInTaskStarts) — kiosk apps could not ask for permissions.
+        LockTaskKioskController(
+            handle.dpm, handle.admin,
+            supportPackages = listOf(
+                DroidVncController.PACKAGE,
+                "com.google.android.permissioncontroller",
+                "com.android.permissioncontroller",
+            ),
+        )
 
     @Provides
     @Singleton
@@ -323,10 +332,25 @@ object AgentModule {
         store: KioskStateStore,
         roles: RoleResolver,
         @ApplicationContext context: Context,
+        lockdown: com.dallycontrol.core.kiosk.KioskLockdown,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles)
+        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles, lockdown)
     }
+
+    /**
+     * What keeps the kiosk closed beyond lock task: kiosk restrictions, Settings (and, on the soft kiosk, every app
+     * outside it) suspended, status bar. droidVNC-NG stays usable for remote support.
+     */
+    @Provides
+    @Singleton
+    fun provideKioskLockdown(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.core.kiosk.KioskLockdown = com.dallycontrol.agent.kiosk.AndroidKioskLockdown(
+        context, handle.dpm, handle.admin, events, supportPackages = listOf(DroidVncController.PACKAGE),
+    )
 
     /**
      * Lets a downgrade uninstall a kiosk-pinned app: on a kiosk device, bring the kiosk launcher forward so the

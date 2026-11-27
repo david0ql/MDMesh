@@ -33,6 +33,8 @@ class DeviceRules(private val context: Context, internal val handle: DpmHandle, 
         val blockInstall = rules?.installApps == "block"
         restriction(UserManager.DISALLOW_INSTALL_APPS, blockInstall)
         restriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES, blockInstall)
+        // "block" = no USB debugging and no developer options (adb is a way around any kiosk).
+        restriction(UserManager.DISALLOW_DEBUGGING_FEATURES, rules?.debugging == "block")
 
         val blockGoogle = rules?.googleAccounts == "block"
         if (blockGoogle != prefs.getBoolean(KEY_GOOGLE_BLOCKED, false)) {

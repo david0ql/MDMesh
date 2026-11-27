@@ -44,9 +44,10 @@ object AntiTheft {
 
     fun enabled(context: Context): Boolean = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_PIN)
 
-    fun pinMatches(context: Context, typed: String): Boolean {
-        val pin = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PIN, null) ?: return false
-        return java.security.MessageDigest.isEqual(pin.toByteArray(), typed.trim().toByteArray())
+    /** Checks the typed PIN through the attempt limiter (growing wait after repeated mistakes). */
+    fun checkPin(context: Context, typed: String): com.dallycontrol.kiosk.PinResult {
+        val pin = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_PIN, null)
+        return PinGates.power(context).verify(pin, typed.trim())
     }
 
     /** After the PIN: open the power menu for [UNLOCK_MS], then close it again. */
