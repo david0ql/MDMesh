@@ -38,8 +38,6 @@ public class AlertNotifier implements Runnable {
 
     private static final ZoneId ZONE = ZoneId.of("America/Bogota");
     private static final DateTimeFormatter WHEN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    /** Default "offline" threshold, minutes (same as the Alerts page). */
-    private static final int OFFLINE_MINUTES = 20;
     /** Alerts older than this are never mailed (a recipient added today does not get last week's). */
     private static final long MAX_AGE_MS = 24L * 3600_000L;
     private static final int MAX_ALERTS = 2000;
@@ -113,7 +111,9 @@ public class AlertNotifier implements Runnable {
     }
 
     private void generate(int customerId, long now) {
-        alertsDAO.generate(customerId, now - OFFLINE_MINUTES * 60_000L, now, ZONE.getId(), now - MAX_AGE_MS);
+        // The "disconnected" threshold is the one the administrator set in the Alerts page.
+        long offlineMs = dao.getSettings(customerId).offlineMinutes * 60_000L;
+        alertsDAO.generate(customerId, now - offlineMs, now, ZONE.getId(), now - MAX_AGE_MS);
     }
 
     /**

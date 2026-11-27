@@ -355,7 +355,12 @@ and the residual risks. `scripts/security-check.sh` re-checks the fixes against 
    (Observer for read-only) instead of sharing `admin`.
 5. Run the checks against the install (or a staging copy — it creates and deletes one temporary read-only user):
    `ADMIN_PW='<admin password>' scripts/security-check.sh https://mdm.example.com` — every line must PASS.
-6. Configure SMTP in `.env` if you want email password recovery.
+6. Configure SMTP in `.env` if you want email (password recovery, alert and scheduled-report emails): `SMTP_HOST`,
+   `SMTP_PORT`, `SMTP_FROM`, `SMTP_USERNAME`, `SMTP_PASSWORD` and the TLS mode your provider asks for —
+   `SMTP_STARTTLS=true` (usually port 587) or `SMTP_SSL=true` (implicit TLS, usually port 465); both default to `false`.
+   Then `docker compose up -d server`. The server checks the mail server's certificate against the public CAs; for a
+   test server with a self-signed certificate only, `SMTP_SSL_TRUST=<host>` (or `*`) skips that check. *Geocercas →
+   Notificaciones por correo → Enviar prueba* confirms the server can send.
 7. Keep backups of the `pgdata` and `dallycontroldata` volumes off the host.
 
 ### Existing installs on PostgreSQL 14

@@ -148,7 +148,7 @@ public class GeofenceService {
 
     private static boolean changed(GeofenceEvaluator.State prev, GeofenceEvaluator.State next) {
         if (prev == null) return true;
-        return !eq(prev.state, next.state) || !eq(prev.pending, next.pending) || prev.pendingCount != next.pendingCount
+        return !eq(prev.state, next.state) || prev.pendingSince != next.pendingSince || !eq(prev.pending, next.pending) || prev.pendingCount != next.pendingCount
                 || prev.alerted != next.alerted || next.lastFixAt - prev.lastFixAt >= TOUCH_EVERY_MS;
     }
 
@@ -161,6 +161,10 @@ public class GeofenceService {
     }
 
     private static String eventDetail(Geofence zone, GeofenceEvaluator.Outcome o, DeviceLocation fix) {
+        if (o.initial) {
+            return ("enter".equals(o.event) ? "Dentro de la zona «" : "Fuera de la zona «") + zone.name
+                    + "» desde la primera posición" + accuracyText(fix);
+        }
         return ("enter".equals(o.event) ? "Entró a la zona «" : "Salió de la zona «") + zone.name + "»" + accuracyText(fix);
     }
 
@@ -168,6 +172,11 @@ public class GeofenceService {
     static String alertDetail(Geofence zone, GeofenceEvaluator.Outcome o, DeviceLocation fix) {
         boolean keepOut = GeofenceEvaluator.RULE_KEEP_OUT.equals(zone.rule);
         boolean enter = GeofenceEvaluator.ALERT_ENTER.equals(o.alertType);
+        if (o.initial) {
+            // The zone began to apply with the device already where it must not be: there was no crossing to date.
+            return (keepOut ? "Dentro de la zona restringida «" : "Fuera de la zona permitida «") + zone.name
+                    + "» desde la primera posición" + accuracyText(fix);
+        }
         String what;
         if (keepOut) {
             what = enter ? "Entró a la zona restringida «" : "Salió de la zona restringida «";

@@ -13,7 +13,9 @@ import {
   type AlertStatus,
   type ExportFormat,
 } from '../api/alerts';
-import { getMailStatus } from '../api/geofences';
+import { getMailStatus, getGeofenceSettings, saveGeofenceSettings, type GeofenceSettings } from '../api/geofences';
+import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin, hasPermission } from '../api/auth';
 
 // ---------------------------------------------------------------------------------------------
 // Filters
@@ -45,6 +47,10 @@ const endOfDay = (s: string) => new Date(`${s}T23:59:59.999`).getTime();
 
 export function AlertsPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  // Only a full administrator changes the saved "offline" threshold (it also drives the alert e-mails).
+  const canSaveThreshold = !isFolderAdmin(user) && hasPermission(user, 'manage_fleet');
+  const [saved, setSaved] = useState<GeofenceSettings | null>(null);
 
   const [type, setType] = useState<AlertType | ''>('');
   const [status, setStatus] = useState<AlertStatus | ''>('');
@@ -69,6 +75,10 @@ export function AlertsPage() {
     setLoading(true);
     setError(null);
     try {
+      // The threshold is saved for the customer, so the alert e-mails use the same one as this page.
+      if (canSaveThreshold && saved && saved.offlineMinutes !== minutes) {
+        setSaved(await saveGeofenceSettings({ ...saved, offlineMinutes: minutes }));
+      }
       setResult(await listAlerts(filters()));
     } catch (e) {
       setResult(null);
@@ -76,11 +86,31 @@ export function AlertsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, canSaveThreshold, saved, minutes]);
 
-  // First load. Filter changes are applied with "Actualizar".
+  // First load, with the customer's saved threshold. Filter changes are applied with "Actualizar".
   useEffect(() => {
-    void load();
+    let alive = true;
+    (async () => {
+      let m = minutes;
+      try {
+        const s = await getGeofenceSettings();
+        if (!alive) return;
+        setSaved(s);
+        setMinutes(s.offlineMinutes);
+        m = s.offlineMinutes;
+      } catch { /* keep the default */ }
+      setLoading(true);
+      try {
+        const r = await listAlerts({ ...filters(), minutes: m });
+        if (alive) setResult(r);
+      } catch (e) {
+        if (alive) setError((e as Error).message || 'No se pudieron cargar las alertas');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -176,7 +206,9 @@ export function AlertsPage() {
           <input className="input" type="date" value={to} min={from} max={todayStr()} onChange={(e) => setTo(e.target.value)} />
         </label>
         <label className="report-field">
-          <span>Umbral desconexión</span>
+          <span title={canSaveThreshold
+            ? 'Se guarda al pulsar Actualizar y también se usa para los avisos por correo'
+            : 'Lo fija un administrador; aquí solo cambia lo que ves'}>Umbral desconexión</span>
           <span className="report-field-input">
             <input
               className="input"

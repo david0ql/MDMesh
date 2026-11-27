@@ -190,6 +190,10 @@ COMPOSE_PROFILES=${COMPOSE_PROFILES}
 SMTP_HOST=
 SMTP_PORT=25
 SMTP_FROM=mdm@${HOST}
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_STARTTLS=false
+SMTP_SSL=false
 EOF
   chmod 600 .env
   say "Wrote .env (secrets generated)."
