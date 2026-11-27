@@ -342,6 +342,9 @@ def t_settings_intents(mode):
     if button:
         tap(button)
     time.sleep(4)
+    if "BlockedAppActivity" in top():  # Android's notice of the blocked start is still up: acknowledge it
+        sh("input keyevent KEYCODE_BACK")
+        time.sleep(2)
     check("tras los intentos, la app de trabajo se abre normalmente (no queda Ajustes encima)",
           until(lambda: top().startswith(APP + "/"), 8), top())
     home()
@@ -368,7 +371,9 @@ def t_status_bar(mode):
 
 def in_kiosk_front():
     """The pinned/allowed app or a kiosk screen (after several exits of a pinned app the kiosk shows "open <app>")."""
-    return top().startswith(APP + "/") or top().startswith(A.pkg + "/")
+    t = top()
+    # BlockedAppActivity is Android's own "this app is not available" notice over a blocked start (Android 11+).
+    return t.startswith(APP + "/") or t.startswith(A.pkg + "/") or "BlockedAppActivity" in t
 
 
 def t_home_recents(mode):
