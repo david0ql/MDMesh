@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The agent's screen service for remote support (ADR 0012).
+      canTakeScreenshot       the operator sees the screen (Android 11+), with no consent dialog
+      canPerformGestures      the operator's touches are replayed
+      canRetrieveWindowContent  typing into the focused field, and pressing "Start now" on Android's
+                              screen-capture consent (Android 7-10)
+    Events: only System UI window changes (that consent). No other app's events are delivered.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
+    android:description="@string/support_service_description"
+    android:summary="@string/support_service_summary"
+    android:notificationTimeout="100"
+    android:packageNames="com.android.systemui" />

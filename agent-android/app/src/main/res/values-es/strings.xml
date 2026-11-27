@@ -73,4 +73,41 @@
     <string name="qs_font_now">Ahora: %1$d %%</string>
     <string name="qs_font_needs">Para cambiar el tamaño de letra, permite que DallyControl modifique ajustes del sistema (una vez).</string>
     <string name="qs_font_allow">Permitir</string>
+
+    <!-- Soporte remoto con el agente (ADR 0012). -->
+    <string name="support_service_label">Soporte remoto DallyControl</string>
+    <string name="support_service_summary">Permite que el soporte de tu organización vea y controle esta pantalla durante una sesión de soporte.</string>
+    <string name="support_service_description">Durante una sesión de soporte iniciada por tu organización, muestra la pantalla de este dispositivo al técnico de soporte y reproduce sus toques. Solo se usa mientras hay una sesión abierta, y se muestra un aviso en pantalla.</string>
+    <string name="support_channel">Soporte remoto</string>
+    <string name="support_channel_chat">Mensajes de soporte</string>
+    <string name="support_notice_title">Sesión de soporte remoto</string>
+    <string name="support_notice_text">Soporte está conectado a este dispositivo.</string>
+    <string name="support_notice_call">En llamada con soporte.</string>
+    <string name="support_viewing">Soporte está viendo tu pantalla</string>
+    <string name="support_title">Soporte técnico</string>
+    <string name="support_connected">Conectado con soporte.</string>
+    <string name="support_with">Conectado con %1$s.</string>
+    <string name="support_ended">La sesión de soporte terminó.</string>
+    <string name="support_not_connected">Sin conexión: el mensaje no se envió.</string>
+    <string name="support_chat_from">Soporte</string>
+    <string name="support_line_support">Soporte: %1$s</string>
+    <string name="support_line_me">Tú: %1$s</string>
+    <string name="support_reply_hint">Escribe una respuesta</string>
+    <string name="support_send">Enviar</string>
+    <string name="support_close">Cerrar</string>
+    <string name="support_call_ringing">Soporte quiere hablar contigo</string>
+    <string name="support_call_active">En llamada con soporte</string>
+    <string name="support_call_muted">En llamada con soporte (tu micrófono está silenciado)</string>
+    <string name="support_accept">Aceptar</string>
+    <string name="support_reject">Rechazar</string>
+    <string name="support_hang_up">Colgar</string>
+    <string name="support_mute">Silenciar</string>
+    <string name="support_unmute">Activar micrófono</string>
+    <string name="remote_setup_title">Activa el soporte remoto</string>
+    <string name="remote_setup_body">Para que soporte pueda ayudarte en este dispositivo sin que nadie tenga que aceptar cada vez, activa un interruptor, una sola vez:\n\n1. Toca «Abrir ajustes».\n2. Elige «%1$s» (en Apps instaladas o descargadas).\n3. Activa el interruptor y confirma con Permitir.\n\nEsta pantalla se cierra sola cuando termine.</string>
+    <string name="remote_setup_pending">Pendiente: el interruptor está apagado.</string>
+    <string name="remote_setup_done">Listo. El soporte remoto quedó activo.</string>
+    <string name="remote_setup_failed">No se pudieron abrir los ajustes. Abre Ajustes &gt; Accesibilidad a mano.</string>
+    <string name="remote_setup_open">Abrir ajustes</string>
+    <string name="remote_setup_later">Ahora no</string>
 </resources>

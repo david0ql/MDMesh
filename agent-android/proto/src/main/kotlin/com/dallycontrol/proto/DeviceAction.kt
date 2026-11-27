@@ -92,5 +92,6 @@ object DeviceAction {
         "passcodeReset", "wipe", "powerMode", "locationMode", "dataSharing", "configApply", "appLaunch", "appInstallForce", "openStore",
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
+        "supportSession",
     )
 }

@@ -149,6 +149,8 @@ public final class DesiredConfigBuilder {
             }
             d.setWifi(nets);
         }
+        // Remote support settings travel only when the policy sets one (so older policies keep their revision).
+        d.setRemoteSupport(dc.getRemoteSupport());
         // Device-level kiosk apps: add the phone's own "show in kiosk" packages before the revision is hashed,
         // so the device re-applies and the app appears in its kiosk without touching the shared policy.
         if (d.getKiosk() != null && extraKioskPackages != null && !extraKioskPackages.isEmpty()) {

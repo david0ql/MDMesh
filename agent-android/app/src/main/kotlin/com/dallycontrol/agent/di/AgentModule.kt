@@ -142,7 +142,8 @@ object AgentModule {
             policyKeys = registry::supportedPolicyKeys,
             // Remote view/control via droidVNC-NG (ADR 0010): probed per check-in, so installing it or
             // granting its input service shows up without an agent restart.
-            remoteControl = vnc::capability,
+            // The agent's own support engine (ADR 0012) is reported next to it.
+            remoteControl = { com.dallycontrol.agent.support.SupportEngine.capability(context, vnc.capability()) },
             oem = oemAdapter::capability,
             // Silent install needs Device Owner — advertise app.silentInstall only when we have it, so
             // the server's capability gate won't queue an app.install we can't perform.
@@ -604,6 +605,7 @@ object AgentModule {
         deviceRules = deviceRules::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
         setLocationFixTimeout = location::setFixTimeoutSec,
+        setRemoteSupport = { com.dallycontrol.agent.support.SupportEngine.applySettings(context, it) },
     )
 
     @Provides
@@ -638,4 +640,16 @@ object AgentModule {
     @Provides
     @IntoSet
     fun provideConfigApplyHandler(applier: ConfigApplier): CommandHandler = ConfigApplyHandler(applier)
+
+    // --- Remote support through the agent itself (ADR 0012) ---
+
+    @Provides
+    @IntoSet
+    fun provideRemoteSessionStartHandler(sessions: com.dallycontrol.agent.support.SupportSessionManager): CommandHandler =
+        com.dallycontrol.agent.support.RemoteSessionStartHandler(sessions)
+
+    @Provides
+    @IntoSet
+    fun provideRemoteSessionStopHandler(sessions: com.dallycontrol.agent.support.SupportSessionManager): CommandHandler =
+        com.dallycontrol.agent.support.RemoteSessionStopHandler(sessions)
 }

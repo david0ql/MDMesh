@@ -68,5 +68,8 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.GeofenceResource.class);
         this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
         this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
+        // Remote support (ADR 0012): eager so SupportHub.INSTANCE exists before a device or console socket connects.
+        this.bind(com.hmdm.notification.SupportHub.class).asEagerSingleton();
+        this.bind(com.hmdm.rest.resource.SupportResource.class);
     }
 }

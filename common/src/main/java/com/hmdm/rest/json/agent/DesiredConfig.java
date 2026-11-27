@@ -58,4 +58,6 @@ public class DesiredConfig {
     private DesiredSystemUpdate systemUpdate;
     /** Device security rules (data sharing, Google accounts, factory reset); null = none. */
     private DesiredDevice device;
+    /** Remote support settings (engine, notice, call acceptance); null = the agent's defaults. */
+    private DesiredRemoteSupport remoteSupport;
 }

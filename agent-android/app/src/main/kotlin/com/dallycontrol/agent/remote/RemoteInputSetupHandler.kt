@@ -31,6 +31,10 @@ class RemoteInputSetupHandler(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override suspend fun handle(command: CommandEnvelope): CommandResult {
+        // The agent's own screen service (ADR 0012) comes first: switched on by the agent when it may, else through
+        // the guided screen. droidVNC-NG's service is only asked for when the policy keeps the built-in engine off.
+        val builtin = com.dallycontrol.agent.support.SupportEngine
+        if (builtin.settings(context).builtinAllowed && Build.VERSION.SDK_INT >= 24) return setupBuiltin(command)
         if (!vnc.isInstalled()) return CommandResults.failed(command, "remote support is not installed")
         if (vnc.isInputServiceEnabled()) return CommandResults.done(command, "control already enabled")
         val am = context.getSystemService(ActivityManager::class.java)
@@ -53,9 +57,29 @@ class RemoteInputSetupHandler(
         )
     }
 
-    private suspend fun relockWhenDone() {
+    private fun setupBuiltin(command: CommandEnvelope): CommandResult {
+        val builtin = com.dallycontrol.agent.support.SupportEngine
+        if (builtin.ensureServiceOn(context)) return CommandResults.done(command, "remote support already authorised")
+        val am = context.getSystemService(ActivityManager::class.java)
+        if (am?.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE && Build.VERSION.SDK_INT >= 26) {
+            runCatching {
+                val current = handle.dpm.getLockTaskPackages(handle.admin)
+                if (SETTINGS !in current) {
+                    handle.dpm.setLockTaskPackages(handle.admin, current + SETTINGS)
+                    scope.launch { relockWhenDone { builtin.isServiceOn(context) } }
+                }
+            }
+        }
+        return if (com.dallycontrol.agent.support.RemoteSetupActivity.open(context)) {
+            CommandResults.done(command, "authorisation screen opened on the phone: turn on the support service")
+        } else {
+            CommandResults.failed(command, "could not open the authorisation screen")
+        }
+    }
+
+    private suspend fun relockWhenDone(isOn: () -> Boolean = vnc::isInputServiceEnabled) {
         val until = System.currentTimeMillis() + WINDOW_MS
-        while (System.currentTimeMillis() < until && !vnc.isInputServiceEnabled()) delay(2_000)
+        while (System.currentTimeMillis() < until && !isOn()) delay(2_000)
         if (Build.VERSION.SDK_INT >= 26) runCatching {
             val current = handle.dpm.getLockTaskPackages(handle.admin)
             handle.dpm.setLockTaskPackages(handle.admin, current.filter { it != SETTINGS }.toTypedArray())

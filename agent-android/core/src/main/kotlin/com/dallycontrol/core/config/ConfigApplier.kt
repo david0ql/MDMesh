@@ -38,6 +38,8 @@ class ConfigApplier(
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
+    /** Remote-support settings of the configuration (null = defaults). */
+    private val setRemoteSupport: (com.dallycontrol.proto.ConfigRemoteSupport?) -> Unit = {},
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -96,6 +98,9 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
+        runCatching { setRemoteSupport(doc.remoteSupport) }
+            .onSuccess { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.APPLIED }
+            .onFailure { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.failed(it.message ?: "remote support") }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result

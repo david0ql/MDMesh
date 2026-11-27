@@ -108,7 +108,12 @@ public class UserScopeFilter implements Filter {
             new Rule("PUT DELETE", "/geofences/v1/zones/(\\d+)", null),
             new Rule("GET", "/geofences/v1/(states|settings|mail)", null),
             new Rule("GET POST", "/geofences/v1/recipients", null),
-            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null)
+            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null),
+            // Remote support: per-device calls are checked here against the device's folder; the session log is
+            // filtered by the resource (and a session's events are checked against its device).
+            new Rule(ANY, "/support/v1/devices/([^/]+)(/.*)?", "device"),
+            new Rule("GET", "/support/v1/sessions", null),
+            new Rule("GET", "/support/v1/sessions/(\\d+)/events", null)
     );
 
     private final UserScope scope;

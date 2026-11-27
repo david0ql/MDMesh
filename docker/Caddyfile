@@ -22,7 +22,8 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "SAMEORIGIN"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+		# microphone=(self): the console's voice call of a remote-support session (ADR 0012); nothing else may ask.
+		Permissions-Policy "camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()"
 		Cross-Origin-Opener-Policy "same-origin"
 		-Server
 		-X-Powered-By

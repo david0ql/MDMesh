@@ -51,6 +51,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
     @Inject lateinit var deviceWatch: DeviceWatch
+    @Inject lateinit var supportSessions: com.dallycontrol.agent.support.SupportSessionManager
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -79,6 +80,9 @@ class CheckInService : LifecycleService() {
     @Suppress("DEPRECATION")
     override fun onCreate() {
         super.onCreate()
+        // The screen service was switched on or off: tell the console now instead of at the next periodic check-in.
+        com.dallycontrol.agent.support.SupportEngine.syncComponent(this)
+        com.dallycontrol.agent.support.SupportEngine.listeners += supportReport
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -167,7 +171,17 @@ class CheckInService : LifecycleService() {
         }
     }
 
+    private val supportReport: () -> Unit = {
+        lifecycleScope.launch { runCatching { coordinator.runOnce() } }
+    }
+
     private suspend fun onWake(signal: WakeSignal) {
+        // Remote support (ADR 0012): join the session right away; the check-in below then answers the queued command.
+        if (signal.kind == "support") {
+            signal.sessionId?.let { id ->
+                runCatching { supportSessions.join(id) }.onFailure { Log.w(TAG, "support join failed", it) }
+            }
+        }
         when (signal.kind) {
             "interactive" -> {
                 interactiveUntil = System.currentTimeMillis() + (signal.ttlSec ?: 120) * 1000L

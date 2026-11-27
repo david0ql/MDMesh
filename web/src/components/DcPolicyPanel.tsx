@@ -43,6 +43,9 @@ export interface DcPolicy {
     installApps?: 'block';
     frpAccounts?: string[];
   };
+  /** Remote support (ADR 0012). Only what differs from the defaults is stored: engine automatic, notice on,
+   *  the person accepts calls, the authorisation is asked for at enrolment. */
+  remoteSupport?: { engine?: 'builtin' | 'droidvnc'; notice?: false; callAccept?: 'auto'; setupPrompt?: false };
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -72,6 +75,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  if (p.remoteSupport && Object.values(p.remoteSupport).some((v) => v !== undefined)) out.remoteSupport = p.remoteSupport;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -553,6 +557,65 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
             }}
           />{' '}
           <span className="muted">segundos</span>
+        </div>
+      </div>
+
+      <div className="cfg-sec-h" style={{ marginTop: 18 }}>Soporte remoto</div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Motor</label>
+          <span className="cfg-field-help">
+            Con qué se muestra y se controla la pantalla en una sesión de soporte. Automático usa el propio agente y, donde no pueda,
+            droidVNC‑NG si está instalado. El chat, la llamada y los archivos siempre van por el agente.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Motor del soporte remoto" value={p.remoteSupport?.engine ?? 'auto'} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, engine: e.target.value === 'builtin' || e.target.value === 'droidvnc' ? e.target.value : undefined } })}>
+            <option value="auto">Automático</option>
+            <option value="builtin">Solo el agente</option>
+            <option value="droidvnc">Solo droidVNC‑NG</option>
+          </select>
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Aviso en el teléfono «Soporte está viendo tu pantalla»</label>
+          <span className="cfg-field-help">
+            Mientras dura una sesión, el teléfono muestra un aviso visible. Activado por defecto; apágalo solo para equipos desatendidos.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Aviso en el teléfono durante el soporte" checked={p.remoteSupport?.notice !== false} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, notice: e.target.checked ? undefined : false } })} />
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Llamada de voz</label>
+          <span className="cfg-field-help">
+            Qué pasa cuando soporte llama al teléfono durante una sesión: suena y la persona acepta, o se contesta sola (equipos sin nadie al frente).
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Llamada de voz del soporte remoto" value={p.remoteSupport?.callAccept ?? 'ask'} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, callAccept: e.target.value === 'auto' ? 'auto' : undefined } })}>
+            <option value="ask">El usuario debe aceptar</option>
+            <option value="auto">Se contesta sola (desatendida)</option>
+          </select>
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Pedir la autorización al inscribir</label>
+          <span className="cfg-field-help">
+            Al inscribir el teléfono, el agente pide activar «Soporte remoto DallyControl» en Accesibilidad (una sola vez). Activado por defecto;
+            si lo apagas, se pide desde la pestaña Remoto del dispositivo cuando haga falta.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Pedir la autorización de soporte remoto al inscribir" checked={p.remoteSupport?.setupPrompt !== false} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, setupPrompt: e.target.checked ? undefined : false } })} />
         </div>
       </div>
     </section>
