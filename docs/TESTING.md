@@ -262,3 +262,24 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Kiosk escape test (docs/KIOSK-HARDENING.md)
+
+`scripts/kiosk-escape-test.py` puts an enrolled Device-Owner device in the kiosk through the admin API (single app,
+then several apps) and tries every known way out over adb: Settings by `am start`, an allowed app opening Settings by
+intent (same task and new task), the status bar and its gear, Home, Recents, the power menu (open by default, closed
+with "lock buttons"), the "share data" screen, the 7-tap exit with wrong passwords (wait after the third, attempts
+reported to the server) and with the right one, a kiosk without password (no exit on the device), the kiosk an old
+server would send (`--legacy-psql`) and, with `--reboot`, a restart that must come back into the kiosk untouched.
+`scripts/build-escapeapp.sh` builds its stand-in work app; `scripts/kiosk-escape-matrix.sh` runs it on a clean
+emulator per release (headless; `EMU_PORT`, `WEB_PORT`, `LEGACY_PSQL`, `EMU_ARGS`); `scripts/kiosk-console-e2e.mjs`
+checks the console and server side of the exit password in headless Chromium.
+
+```bash
+scripts/build-escapeapp.sh
+LEGACY_PSQL="docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol -d dallycontrol" \
+  scripts/kiosk-escape-matrix.sh agent-android/app/build/outputs/apk/debug/app-debug.apk mdm_api29 mdm_api35 mdm_api36
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/kiosk-console-e2e.mjs --api http://localhost:8088
+```
+
+Results: see the table at the end of [KIOSK-HARDENING.md](KIOSK-HARDENING.md).

@@ -22,7 +22,7 @@ class KioskHardeningTest {
         assertTrue(KioskHardening.blockInTaskStarts(30))
         assertTrue(KioskHardening.blockInTaskStarts(35))
         assertFalse("no lock task on the soft kiosk", KioskHardening.blockInTaskStarts(36))
-        assertTrue("Android 7-10: an allowed app can open Settings in its own task", KioskHardening.needsForegroundGuard(29))
+        assertTrue("Android 7-10: no in-task block", KioskHardening.needsForegroundGuard(29))
         assertFalse(KioskHardening.needsForegroundGuard(30))
         assertFalse(KioskHardening.needsForegroundGuard(35))
         assertTrue("Android 16+: no lock task", KioskHardening.needsForegroundGuard(36))

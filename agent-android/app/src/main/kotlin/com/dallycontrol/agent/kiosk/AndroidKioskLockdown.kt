@@ -60,15 +60,16 @@ class AndroidKioskLockdown(
         // Settings (never suspended) and, on the soft kiosk, whatever Android refused to suspend are kept out of the
         // foreground by the guard wherever lock task does not already do it.
         val unsuspended = prefs.getString(KEY_GAP, "").orEmpty().split(',').filter { it.isNotBlank() }
-        val open = (settingsPackages().filter { it in BOOT_CRITICAL } + if (soft) unsuspended else emptyList()).toSet() -
-            allowed.toSet()
-        val blind = KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty() && !KioskForegroundGuard.canWatch(context)
+        val watched = settingsPackages().filter { it in BOOT_CRITICAL } + if (soft) unsuspended else emptyList()
+        val open = watched.toSet() - allowed.toSet()
+        val guarded = KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty()
+        val blind = guarded && !KioskForegroundGuard.canWatch(context)
         if (blind != prefs.getBoolean(KEY_BLIND, false)) {
             prefs.edit().putBoolean(KEY_BLIND, blind).apply()
             // Without usage access nothing sends the phone back from Settings on this Android version: say so.
-            if (blind) events.record(EventType.KIOSK_LOCKDOWN_GAP, "settingsNotGuarded=sin acceso de uso para el agente")
+            if (blind) events.record(EventType.KIOSK_LOCKDOWN_GAP, "settingsNotGuarded=sin acceso de uso")
         }
-        if (KioskHardening.needsForegroundGuard(sdk) && open.isNotEmpty()) {
+        if (guarded) {
             KioskForegroundGuard.start(context, open, { it in lifted }) { pkg ->
                 events.record(EventType.KIOSK_ESCAPE_BLOCKED, pkg)
             }
