@@ -231,6 +231,25 @@ export const ACTION_TEMPLATES: CommandTemplateExt[] = [
     }),
   },
   {
+    // Bulk-only: fija (no borra) la contraseña de bloqueo en los equipos seleccionados o en una carpeta.
+    // Reusa el comando del agente device.passcodeReset (que ya sabe fijar un valor). Para un solo equipo
+    // se usa 'passcode-reset' (que además permite quitarla). El servidor solo acepta fijar en masa, nunca quitar.
+    key: 'set-lock-password', label: 'Establecer contraseña de bloqueo', group: 'disruptive', danger: true,
+    description: 'Fija la contraseña o PIN de bloqueo (el que desbloquea el teléfono) en todos los equipos elegidos. Mínimo 4 caracteres. En Android 8+ el cambio remoto solo funciona si el equipo ya tiene activado el permiso (se activa desbloqueando el teléfono una vez con su clave actual después de inscribirlo); en los que no lo tengan, Android rechaza el cambio y quedan omitidos. No se puede usar en masa para QUITAR la clave (eso es equipo por equipo).',
+    confirm: 'simple',
+    params: [
+      { key: 'newPassword', label: 'Contraseña de bloqueo', kind: 'password', required: true },
+      { key: 'repeat', label: 'Repite la contraseña', kind: 'password', required: true },
+    ],
+    validate: (v) => (v.newPassword ?? '').length < 4 ? 'Mínimo 4 caracteres.'
+      : (v.newPassword ?? '') !== (v.repeat ?? '') ? 'Las claves no coinciden.' : null,
+    request: { type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset' },
+    build: (v) => ({
+      type: 'device.passcodeReset', requiresCapability: 'device.passcodeReset',
+      payload: JSON.stringify({ newPassword: v.newPassword ?? '' }),
+    }),
+  },
+  {
     key: 'clear-cache', label: 'Borrar caché de las apps', group: 'safe',
     description: 'Abre en el teléfono la confirmación de Android para borrar la caché de todas las apps (Android 11 o superior; la persona toca Aceptar). No borra datos ni sesiones.',
     request: { type: 'device.clearCache', requiresCapability: 'device.clearCache' },

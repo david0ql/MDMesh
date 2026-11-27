@@ -44,8 +44,9 @@ import java.util.function.Predicate;
  * <ul>
  *     <li><b>Configuration</b>: a device runs its own configuration when pinned, else its group's, else the global
  *     default ({@link ConfigurationScopes}). Changing a level re-resolves the devices under it and wakes them.</li>
- *     <li><b>Actions</b>: a command can be queued for a group or for all devices. Destructive commands (wipe, passcode
- *     reset) are refused here: they are issued one device at a time.</li>
+ *     <li><b>Actions</b>: a command can be queued for a group or for all devices. A factory reset (wipe) and
+ *     clearing the lock password are refused here (one device at a time); SETTING a lock password en masse is
+ *     allowed (disruptive_actions). See {@link com.hmdm.rest.resource.support.BulkCommandPolicy}.</li>
  * </ul>
  */
 @Singleton
@@ -56,7 +57,10 @@ public class FleetResource {
     private static final Logger logger = LoggerFactory.getLogger(FleetResource.class);
 
     /** Never fanned out to a group or the whole fleet (same rule as the device-list bulk actions). */
-    private static final Set<String> FANOUT_FORBIDDEN_TYPES = Set.of("device.wipe", "device.passcodereset");
+    /** Actions that interrupt the user (lock / reboot / change passcode). Fanning these out to a folder or the
+     *  whole fleet needs the disruptive_actions permission — mirrors AgentAdminResource. Lowercased. */
+    private static final Set<String> DISRUPTIVE_TYPES =
+            Set.of("device.lock", "device.reboot", "device.passcodereset");
     private static final int MAX_GROUP_NAME = 100;
 
     private AgentCommandDAO commandDAO;
@@ -701,7 +705,17 @@ public class FleetResource {
             return Response.ERROR("error.agent.command.invalid");
         }
         String type = cmd.getType().trim();
-        if (FANOUT_FORBIDDEN_TYPES.contains(type.toLowerCase(Locale.ROOT))) {
+        // Destructive types never fan out; device.passcodeReset only to SET a (non-empty) lock password,
+        // never to clear it for a whole folder / fleet. See BulkCommandPolicy.
+        if (!com.hmdm.rest.resource.support.BulkCommandPolicy.allowedInBulk(type, cmd.getPayload())) {
+            return Response.ERROR("error.agent.command.bulkForbidden");
+        }
+        // Interrupting actions (lock / reboot / change passcode) need the extra disruptive_actions permission,
+        // same as the per-device and bulk endpoints — a view-only folder role cannot fan these out.
+        if (DISRUPTIVE_TYPES.contains(type.toLowerCase(Locale.ROOT))
+                && !SecurityContext.get().hasPermission("disruptive_actions")) {
+            logger.warn("Permission denied: fan-out {} requires disruptive_actions (user {})", type,
+                    SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
             return Response.ERROR("error.agent.command.bulkForbidden");
         }
         int queued = 0;

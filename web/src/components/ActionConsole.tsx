@@ -126,7 +126,9 @@ export function ActionConsole({ device }: { device: Device }) {
         <section key={g.id} className="action-group">
           <h3 className="action-group-title">{g.title}</h3>
           <div className="action-grid">
-            {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id && !t.key.startsWith('kiosk-')).map((t) => (
+            {ACTION_TEMPLATES.filter((t) => (t.group ?? 'safe') === g.id && !t.key.startsWith('kiosk-')
+              // 'set-lock-password' es la variante masiva; para un solo equipo 'passcode-reset' ya fija y quita.
+              && t.key !== 'set-lock-password').map((t) => (
               <button
                 key={t.key}
                 className={`btn ${t.danger ? 'btn-danger' : ''}`}

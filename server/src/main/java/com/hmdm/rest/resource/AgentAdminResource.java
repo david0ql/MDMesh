@@ -408,11 +408,6 @@ public class AgentAdminResource {
         return Response.OK(CommandHistoryView.from(command));
     }
 
-    /** Command types that must never be issued in bulk (destructive group). Lowercased — matched
-     *  case-insensitively so a mixed-case type can't slip past this destructive-action guard. */
-    private static final Set<String> BULK_FORBIDDEN_TYPES =
-            Set.of("device.wipe", "device.passcodereset");
-
     /** Actions that interrupt the user (lock/reboot/change passcode/wipe). A role without the
      *  "disruptive_actions" permission (e.g. a view-only folder role) runs everything else but not these. */
     private static final Set<String> DISRUPTIVE_TYPES =
@@ -450,7 +445,9 @@ public class AgentAdminResource {
             return Response.ERROR("error.agent.command.invalid");
         }
         final String type = req.getCommand().getType().trim();
-        if (BULK_FORBIDDEN_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) {
+        // Destructive types are rejected in bulk; device.passcodeReset is allowed only to SET a (non-empty)
+        // lock password en masse, never to clear it. See BulkCommandPolicy.
+        if (!com.hmdm.rest.resource.support.BulkCommandPolicy.allowedInBulk(type, req.getCommand().getPayload())) {
             return Response.ERROR("error.agent.command.bulkForbidden");
         }
         if (requiresDisruptivePermission(type) && !SecurityContext.get().hasPermission("disruptive_actions")) {
