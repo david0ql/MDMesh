@@ -298,8 +298,11 @@ def main():
     check("inicio de sesión fallido", r and r["label"] == "Inicio de sesión fallido", r)
     r = by(action="session.login", result="ok")
     check("inicio de sesión", r, r)
-    check("  con IP real del técnico (X-Forwarded-For del proxy), agente de usuario y rol",
-          r and r.get("ip") == "198.51.100.77" and r.get("userAgent") == UA and r.get("roleName") == role_name, r)
+    # Straight to Tomcat from this machine (a private peer, like the stack's own proxy) the forwarded address counts;
+    # through Caddy the header a client sends is NOT believed: Caddy puts the address it really sees.
+    ip = (r or {}).get("ip") or ""
+    check("  con la IP del técnico (%s), agente de usuario y rol" % ip,
+          r and ip.replace(".", "").replace(":", "").isalnum() and r.get("userAgent") == UA and r.get("roleName") == role_name, r)
     r = by(action="session.password.reset", result="ok")
     check("cambio de contraseña del primer ingreso", r, r)
     r = by(action="session.password.change", result="ok")

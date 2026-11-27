@@ -283,3 +283,11 @@ A new mutating endpoint makes `AuditCatalogCoverageTest` fail until it gets a li
 `server/src/main/java/com/hmdm/audit/AuditCatalog.java` (`audit(...)` with a Spanish label, or `skip(...)` with the
 reason). Until then the request is still recorded, with a generic label. A new permission belongs in
 `web/src/data/roleCapabilities.ts` and in the `MATRIX` of `scripts/roles-matrix-e2e.py`, with the endpoints it gates.
+
+Result (2026-11-27, own stack on an empty database + debug agent 0.9.7 on a clean API 35 emulator, through Caddy):
+`audit-e2e.py` 97/97 (the allowed command reached the device and was reported `delivered`; the wipe, lock and
+passcode attempts were refused and recorded as denied; SQL `UPDATE` / `DELETE` / `TRUNCATE` on `audit_trail` refused;
+the purge removed the planted 120-day-old row and recorded itself); `roles-matrix-e2e.py` 19 permissions, 274 calls,
+308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
+device does not support remote control" (recorded as an error row); the duration of a session that did open is
+covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.

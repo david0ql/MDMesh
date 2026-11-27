@@ -104,7 +104,7 @@ try {
   // An edit with a visible before / after.
   await api('PUT', '/private/roles', { id: role.id, name: roleName, description: 'Soporte (prueba, editado)',
     permissions: ['edit_devices', 'edit_device_desc', 'view_audit', 'files'].map((n) => ({ id: perms[n] })) });
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(5000); // the audit rows are written in the background
 
   // --- the menu and the screen ------------------------------------------------------------------------------------
   await page.goto(`${web}/dashboard`);
@@ -121,7 +121,12 @@ try {
     ['Fecha y hora', 'Técnico', 'Módulo', 'Acción', 'Objetivo', 'Resultado', 'IP'].every((h) => headers.includes(h)), headers.join(' | '));
   await page.screenshot({ path: `${shots}/audit-list.png`, fullPage: true });
 
-  const search = async () => { await page.getByTestId('audit-search').click(); await page.waitForTimeout(1200); };
+  // Every search is a request to the server: wait for ITS answer (a loaded machine can take seconds), then for React.
+  const logResponse = () => page.waitForResponse((r) => r.url().includes('/audit/v1/log') && r.status() === 200, { timeout: 60000 });
+  const search = async () => {
+    await Promise.all([logResponse(), page.getByTestId('audit-search').click()]);
+    await page.waitForTimeout(400);
+  };
   // Filter: result.
   await page.getByTestId('audit-f-result').selectOption('denied');
   await search();
@@ -181,8 +186,8 @@ try {
   await page.getByTestId('audit-f-q').fill('');
   await page.getByTestId('audit-f-from').fill('2020-01-01');
   await search();
-  await page.getByTestId('audit-pagesize').selectOption('25');
-  await page.waitForTimeout(1200);
+  await Promise.all([logResponse(), page.getByTestId('audit-pagesize').selectOption('25')]);
+  await page.waitForTimeout(400);
   const all = Number((await page.getByTestId('audit-total').textContent()) ?? '0');
   const firstIds = await page.getByTestId('audit-row').evaluateAll((rs) => rs.map((r) => r.textContent));
   check('paginación en servidor: 25 filas por página', firstIds.length === Math.min(25, all), `filas ${firstIds.length} de ${all}`);
