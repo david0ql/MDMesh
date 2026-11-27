@@ -20,7 +20,8 @@ Two modes:
                                [--mailpit http://localhost:8025]
 
    Emulator note: on API 30+ images the emulated GNSS only accepts the first injected fix after boot (see
-   docs/TESTING.md), so use an API <= 29 AVD for this mode.
+   docs/TESTING.md), so use an API <= 29 AVD for the whole trip; on newer images --first-fix-only checks that the
+   position, its accuracy and the inside state arrive.
 
 Needs a database seeded like a real install (scripts/dev-seed.sh on the dev stack). It creates e2e-* zones and
 restores the geofence settings on exit. Exit code 0 = every check passed.
@@ -452,6 +453,8 @@ def emulator(api, args, clean):
         ok("it is not tagged low accuracy", f["lowAccuracy"] is False)
     st = wait_for(120, lambda: zone_state(api, zone["id"], number), every=5)
     chk("state: inside", (st or {}).get("state"), "inside")
+    if args.first_fix_only:
+        return
 
     def walk(lat, lon, label, kind, since_ms):
         geo(lat, lon)
@@ -517,6 +520,8 @@ def main():
     ap.add_argument("--mailpit", help="Mailpit/MailHog-compatible API base (e.g. http://localhost:8025) to verify the e-mail")
     ap.add_argument("--serial", help="adb serial of an enrolled emulator (enables the emulator mode)")
     ap.add_argument("--device", help="its device number in the console")
+    ap.add_argument("--first-fix-only", action="store_true",
+                    help="emulator mode: stop after the first position (API 30+ images accept only one injected fix)")
     args = ap.parse_args()
     if bool(args.serial) != bool(args.device):
         ap.error("--serial and --device go together")
