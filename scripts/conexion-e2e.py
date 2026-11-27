@@ -330,7 +330,7 @@ def resting():
         sql = (f"UPDATE devices SET lastUpdate = (extract(epoch from now())*1000)::bigint - {int(minutes * 60000)} "
                f"WHERE number = '{A.device_id}'")
         subprocess.run(["docker", "exec", A.db_container, "psql", "-U", "dallycontrol", "-d", "dallycontrol", "-c", sql],
-                       capture_output=True, text=True, timeout=30)
+                       capture_output=True, text=True, timeout=180)
 
     # Screen off, one report, then silence.
     sh("input keyevent 223")

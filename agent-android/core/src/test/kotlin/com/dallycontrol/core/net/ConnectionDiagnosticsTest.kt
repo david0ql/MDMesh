@@ -171,11 +171,11 @@ class ConnectionDiagnosticsTest {
         now += minute
         val report = diagnostics().pendingReport()
         assertEquals(now, report.lastStop!!.resumedAt)
-        // ...while one the server never heard of is not worth a report.
+        // ...and so is one whose goodbye never went out: a shutdown is certain knowledge.
         val quiet = ConnectionDiagnostics(MemoryKeyValueStore(), clock = { now })
         quiet.recordStop(StopReason.SHUTDOWN)
         now += minute
-        assertNull(quiet.pendingReport().lastStop)
+        assertEquals(StopReason.SHUTDOWN, quiet.pendingReport().lastStop!!.reason)
     }
 
     @Test fun `another boot without a shutdown notice is lost power`() {

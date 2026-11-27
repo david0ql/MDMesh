@@ -91,6 +91,7 @@ class ConnectionKeeper @Inject constructor(
      * before the system stops us.
      */
     fun onShutdown(context: Context) {
+        Log.i(TAG, "device shutting down: sending the goodbye report")
         runCatching { connection.recordStop(StopReason.SHUTDOWN, batteryPercent(context)) }
         shutdownScope.launch {
             runCatching { withTimeout(GOODBYE_TIMEOUT_MS) { coordinator.runGoodbye() } }
@@ -148,7 +149,7 @@ class ConnectionKeeper @Inject constructor(
     private companion object {
         const val TAG = "ConnectionKeeper"
         const val RETRY_DELAY_MS = 2_000L
-        const val GOODBYE_TIMEOUT_MS = 4_000L
+        const val GOODBYE_TIMEOUT_MS = 8_000L
         const val PERCENT = 100
 
         /** Outlives the service's own scope: the goodbye report runs while everything is being torn down. */
