@@ -139,5 +139,27 @@ try:
 except urllib.error.HTTPError as err:
     check("tracked download refuses other targets", err.code == 400, err.code)
 
+# 9. a Device Owner that never got its token reports itself; the console counts it until it enrolls
+before = q.api(BASE, "/rest/private/agent/v1/enroll/attempts/summary")["data"]
+body = {"protocolVersion": "1.1", "enrollToken": "", "hardwareId": "hw-" + run + "-orphan",
+        "agent": {"version": "0.9.9-test", "package": "com.dallycontrol.agent"},
+        "device": {"id": "", "androidSdkInt": 28, "androidRelease": "9", "manufacturer": "TestCo", "model": "Orphan",
+                   "isDeviceOwner": True}, "capabilities": {}, "diagnostics": {"path": "qr-legacy", "attempts": 0}}
+req = urllib.request.Request(BASE + "/rest/public/agent/v1/enroll/report", data=json.dumps(body).encode(),
+                             headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(req, timeout=20) as r:
+    check("the report endpoint answers OK and enrolls nothing", json.loads(r.read().decode())["status"] == "OK")
+rows = q.api(BASE, "/rest/private/agent/v1/enroll/attempts?limit=200")["data"]
+orphan = [r for r in rows if r.get("hardwareId") == "hw-" + run + "-orphan"]
+check("the log lists the Device Owner without a token, once", len(orphan) == 1 and orphan[0]["reason"] == "device.no-token"
+      and orphan[0]["model"] == "Orphan", orphan)
+after = q.api(BASE, "/rest/private/agent/v1/enroll/attempts/summary")["data"]
+check("the counter of Device Owners without a code goes up", after["ownerWithoutToken"] == before["ownerWithoutToken"] + 1, (before, after))
+check("it is counted among the phones still not enrolled", after["unresolvedDevices"] >= before["unresolvedDevices"] + 1, (before, after))
+t11 = mint()
+enroll(t11, "hw-" + run + "-orphan")
+done = q.api(BASE, "/rest/private/agent/v1/enroll/attempts/summary")["data"]
+check("and back down once that phone enrolls", done["ownerWithoutToken"] == before["ownerWithoutToken"], (before, done))
+
 print("\n%d failed" % len(failures))
 sys.exit(1 if failures else 0)

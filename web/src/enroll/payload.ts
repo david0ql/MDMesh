@@ -149,6 +149,14 @@ export function buildKmeJson(o: Pick<ProvisioningOptions, 'token' | 'serverUrl'>
 }
 
 /**
+ * The QR the AGENT scans (DallyControl > "Escanear el QR de la consola") on a phone that is already Device Owner but
+ * never received the provisioning payload. Only what the agent needs, so it is a coarse QR any camera reads at once.
+ */
+export function buildAgentQrJson(o: Pick<ProvisioningOptions, 'token' | 'serverUrl'>): string {
+  return JSON.stringify(adminExtras(o));
+}
+
+/**
  * The agent download address with a short reference to the token, routed through the server so the console can tell
  * "the phone downloaded the agent but never enrolled" from "the phone never got as far as the download".
  * [apkUrl] must be on [serverUrl]'s origin; otherwise it is returned unchanged.

@@ -101,7 +101,7 @@
     <string name="enroll_err_disabled">The server does not allow creating devices on enrollment. Ask the administrator.</string>
     <string name="enroll_err_other">Could not enroll: %1$s</string>
     <string name="enroll_scan_button">Scan the console\'s QR</string>
-    <string name="enroll_scan_hint">Point the camera at the enrollment QR shown in the console (Enroll > Scan QR).</string>
+    <string name="enroll_scan_hint">In the console: Enroll > Scan QR > “Phone already managed”. Point the camera at that small QR.</string>
     <string name="enroll_scan_not_ours">That QR is not a DallyControl enrollment QR. Use the one from the console.</string>
     <string name="enroll_scan_no_camera">The camera is not available. Go back and type a folder code instead.</string>
     <string name="enroll_prompt_channel">Enrollment</string>

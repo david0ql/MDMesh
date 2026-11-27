@@ -9,7 +9,7 @@
 //   VITE_AGENT_APK_TRACK   "0" = the QR points straight at the APK instead of the server's tracked download
 
 import {
-  buildKmeJson, buildProvisioningJson, buildZeroTouchJson, trackedApkUrl,
+  buildAgentQrJson, buildKmeJson, buildProvisioningJson, buildZeroTouchJson, trackedApkUrl,
   type ProvisioningClock, type ProvisioningOptions, type WifiConfig,
 } from './payload';
 
@@ -81,6 +81,11 @@ function options(token: string, wifi?: WifiConfig, extras: PayloadExtras = {}): 
 /** The provisioning JSON a fresh device scans (6-tap → QR scanner). Pass `wifi` to pre-connect it. */
 export function buildProvisioningPayload(token: string, wifi?: WifiConfig, extras: PayloadExtras = {}): string {
   return buildProvisioningJson(options(token, wifi, extras));
+}
+
+/** The small QR the agent itself scans on a phone that is managed but not enrolled (see payload.ts). */
+export function agentScanPayload(token: string): string {
+  return buildAgentQrJson({ token, serverUrl: serverBaseUrl() });
 }
 
 /** "DPC extras" JSON for the Zero-Touch portal (same content as the QR, release package). */

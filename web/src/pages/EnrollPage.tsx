@@ -14,7 +14,7 @@ import { EnrollmentCodesPanel } from '../components/EnrollmentCodesPanel';
 import { NoResetEnrollPanel } from '../components/NoResetEnrollPanel';
 import { UsbEnrollPanel } from '../components/UsbEnrollPanel';
 import {
-  buildProvisioningPayload, clockNow, qrDensity, serverBaseUrl, agentApkUrl,
+  agentScanPayload, buildProvisioningPayload, clockNow, qrDensity, serverBaseUrl, agentApkUrl,
   type EapMethod, type EapPhase2, type WifiConfig, type WifiSecurity,
 } from '../enroll/provisioning';
 import { getConfigurations, type Configuration } from '../api/configurations';
@@ -296,6 +296,21 @@ export function EnrollPage() {
                     )}>
                     Descargar QR
                   </button>
+                )}
+                {token && (
+                  <details className="wifi-block" data-testid="agent-qr">
+                    <summary>Equipo ya administrado que no se inscribió (sin formatear de nuevo)</summary>
+                    <div className="wifi-fields">
+                      <p className="note">
+                        Si el teléfono ya muestra DallyControl como administrador pero no aparece en la consola (el asistente
+                        se abandonó o el fabricante no entregó el QR al agente): en el teléfono abre <b>DallyControl</b> →
+                        <b> Escanear el QR de la consola</b> y apunta a este QR pequeño. Lleva el mismo código de un solo uso.
+                      </p>
+                      <div className="qr-frame" style={{ maxWidth: 240 }}>
+                        <QrCanvas text={agentScanPayload(token)} size={220} level="L" />
+                      </div>
+                    </div>
+                  </details>
                 )}
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
                   <summary>Conectar a Wi‑Fi durante la puesta en marcha (opcional)</summary>

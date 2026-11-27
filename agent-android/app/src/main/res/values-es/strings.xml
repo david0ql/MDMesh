@@ -99,7 +99,7 @@
     <string name="enroll_err_disabled">El servidor no permite crear dispositivos al inscribir. Avisa al administrador.</string>
     <string name="enroll_err_other">No se pudo inscribir: %1$s</string>
     <string name="enroll_scan_button">Escanear el QR de la consola</string>
-    <string name="enroll_scan_hint">Apunta la cámara al QR de inscripción que muestra la consola (Inscribir > Escanear QR).</string>
+    <string name="enroll_scan_hint">En la consola: Inscribir > Escanear QR > «Equipo ya administrado». Apunta la cámara a ese QR pequeño.</string>
     <string name="enroll_scan_not_ours">Ese QR no es de inscripción de DallyControl. Usa el de la consola.</string>
     <string name="enroll_scan_no_camera">La cámara no está disponible. Vuelve y escribe un código de carpeta.</string>
     <string name="enroll_prompt_channel">Inscripción</string>

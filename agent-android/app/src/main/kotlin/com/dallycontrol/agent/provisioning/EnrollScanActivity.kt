@@ -27,8 +27,24 @@ import com.dallycontrol.core.enroll.EnrollQr
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.GlobalHistogramBinarizer
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
+
+/** One camera preview frame (NV21: the luminance plane comes first) to the text of the QR in it, or null. */
+object QrFrameDecoder {
+    private val hints = mapOf(DecodeHintType.TRY_HARDER to true)
+
+    fun decode(reader: QRCodeReader, data: ByteArray, width: Int, height: Int): String? {
+        val source = PlanarYUVLuminanceSource(data, width, height, 0, 0, width, height, false)
+        // Two ways of telling dark from light: the local one copes with shadows and glare on a monitor, the global
+        // one with frames the local one misreads. Whichever reads first wins; the next frame gets both again.
+        return listOf({ BinaryBitmap(HybridBinarizer(source)) }, { BinaryBitmap(GlobalHistogramBinarizer(source)) })
+            .firstNotNullOfOrNull { bitmap ->
+                runCatching { reader.decode(bitmap(), hints).text }.getOrNull().also { reader.reset() }
+            }
+    }
+}
 
 /**
  * Scans the console's enrollment QR from inside the agent. For a phone that is already Device Owner but never
@@ -149,10 +165,7 @@ class EnrollScanActivity : Activity(), SurfaceHolder.Callback, Camera.PreviewCal
         if (posted != true) busy = false
     }
 
-    private fun decode(data: ByteArray, width: Int, height: Int): String? = runCatching {
-        val source = PlanarYUVLuminanceSource(data, width, height, 0, 0, width, height, false)
-        reader.decode(BinaryBitmap(HybridBinarizer(source)), mapOf(DecodeHintType.TRY_HARDER to true)).text
-    }.getOrNull().also { reader.reset() }
+    private fun decode(data: ByteArray, width: Int, height: Int): String? = QrFrameDecoder.decode(reader, data, width, height)
 
     private fun onText(text: String) {
         if (done) return

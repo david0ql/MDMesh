@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  androidLocale, buildKmeJson, buildProvisioningExtras, buildProvisioningJson, buildZeroTouchJson, qrDensity,
+  androidLocale, buildAgentQrJson, buildKmeJson, buildProvisioningExtras, buildProvisioningJson, buildZeroTouchJson, qrDensity,
   trackedApkUrl, type ProvisioningOptions,
 } from '../src/enroll/payload.ts';
 
@@ -110,6 +110,16 @@ test('Zero-Touch extras are the QR content without the clock; KME gets the admin
     'com.dallycontrol.ENROLL_TOKEN': base.token,
     'com.dallycontrol.SERVER_URL': base.serverUrl,
   });
+});
+
+test('the QR the agent scans carries only token and server, and is a coarse QR', () => {
+  const text = buildAgentQrJson(base);
+  assert.deepEqual(JSON.parse(text), {
+    'com.dallycontrol.ENROLL_TOKEN': base.token,
+    'com.dallycontrol.SERVER_URL': base.serverUrl,
+  });
+  // Version 6 or below: no version-information blocks, the size the agent's scanner reads without effort.
+  assert.ok(qrDensity(text, 'L').version <= 6, `version ${qrDensity(text, 'L').version}`);
 });
 
 test('the tracked download keeps a short token reference and only same-origin APK paths', () => {
