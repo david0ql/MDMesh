@@ -40,7 +40,7 @@ class InstallResultBus @Inject constructor() {
     private fun slotFor(sessionId: Int): CompletableDeferred<InstallResultEvent> =
         synchronized(lock) { pending.getOrPut(sessionId) { CompletableDeferred() } }
 
-    /** Sessions whose awaiter gave up ([awaitOrNull] timed out): a late answer for them is dropped, not kept forever. */
+    /** Sessions whose awaiter gave up ([awaitOrNull] timed out): a late answer for them is dropped, not kept. */
     private val givenUp = LinkedHashSet<Int>()
 
     /** Called by the result receiver for every committed session's outcome. */

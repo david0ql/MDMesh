@@ -40,7 +40,7 @@ public class CommandHistoryViewTest {
         new ObjectMapper().readTree(json).fieldNames().forEachRemaining(keys::add);
         Collections.sort(keys);
         // no payload, deviceNumber or requiresCapability key; null subject omitted (not "subject":null)
-        assertEquals(Arrays.asList("completedAt", "createdAt", "deliveredAt", "detail", "id", "status", "type"), keys);
+        assertEquals(Arrays.asList("completedAt", "createdAt", "deliveredAt", "deliveryMs", "detail", "id", "status", "totalMs", "type"), keys);
     }
 
     @Test public void subject_is_the_package_for_app_commands() {
@@ -77,5 +77,31 @@ public class CommandHistoryViewTest {
         assertEquals("com.a", out.get(0).getSubject());
         assertEquals("device.lock", out.get(1).getType());
         assertNull(out.get(1).getSubject());
+    }
+
+    @Test public void carries_who_sent_it_and_how_long_each_step_took() {
+        AgentCommand c = cmd("device.lock", null);
+        c.setIssuerName("ana"); c.setIssuerIp("190.0.0.7"); c.setDeliveries(2);
+        CommandHistoryView v = CommandHistoryView.from(c);
+        assertEquals("ana", v.getIssuerName());
+        assertEquals("190.0.0.7", v.getIssuerIp());
+        assertEquals(Integer.valueOf(2), v.getDeliveries());
+        assertEquals(Long.valueOf(10L), v.getDeliveryMs());
+        assertEquals(Long.valueOf(20L), v.getTotalMs());
+    }
+
+    @Test public void a_command_that_did_not_run_has_no_execution_latency() {
+        AgentCommand pending = cmd("device.lock", null);
+        pending.setStatus("pending"); pending.setDeliveredAt(null); pending.setCompletedAt(null);
+        assertNull(CommandHistoryView.from(pending).getDeliveryMs());
+        assertNull(CommandHistoryView.from(pending).getTotalMs());
+        for (String closed : new String[]{"expired", "cancelled"}) {
+            AgentCommand c = cmd("device.lock", null);
+            c.setStatus(closed);
+            assertNull(closed, CommandHistoryView.from(c).getTotalMs());
+        }
+        AgentCommand failed = cmd("device.lock", null);
+        failed.setStatus("failed");
+        assertEquals(Long.valueOf(20L), CommandHistoryView.from(failed).getTotalMs());
     }
 }

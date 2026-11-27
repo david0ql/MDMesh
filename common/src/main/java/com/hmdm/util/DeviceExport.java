@@ -1,7 +1,5 @@
 package com.hmdm.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hmdm.persistence.domain.DeviceGroupView;
 import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.ss.usermodel.BorderStyle;
@@ -15,7 +13,8 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,15 +32,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The fleet as an Excel workbook (Resumen, Dispositivos, Carpetas, Conexiones): device detail with links to the
- * console and to the map, folders with their policy, and the connection history (periods each device kept checking
- * in). Dates are real Excel dates in the given time zone.
+ * The fleet as an Excel workbook (Resumen, Dispositivos, Carpetas, Conexiones): the device inventory
+ * ({@link FleetInventory}: connection, battery, storage, Android, network, identifiers) with links to the console
+ * and to the map, folders with their policy, and the connection history (periods each device kept checking in).
+ * Dates are real Excel dates in the given time zone. {@link #writeCsv} gives the Dispositivos sheet as CSV.
  */
 public final class DeviceExport {
     /** Same as the console's "online" (ui/status.ts ONLINE_WINDOW_MS). */
-    public static final long ONLINE_WINDOW_MS = 20 * 60_000L;
-
-    private static final ObjectMapper JSON = new ObjectMapper();
+    public static final long ONLINE_WINDOW_MS = FleetInventory.ONLINE_WINDOW_MS;
 
     public static final class Input {
         public String baseUrl = "";
@@ -57,23 +55,72 @@ public final class DeviceExport {
         public String scopeLabel = "Todos los dispositivos";
         public long from;
         public long to;
+        /** Only these device numbers (the console's current filter or selection); null = all. */
+        public Set<String> onlyNumbers;
+        /** Devices whose live channel is open now: online whatever their last report says; may be null. */
+        public Set<String> live;
+        /** The agent version this server serves (for "agente desactualizado"); null = the newest seen. */
+        public String latestAgent;
+        public int lowBatteryPct = 20;
+        public int storageUsedPct = 90;
+        public int offlineDays = 7;
+    }
+
+    /** The inventory of an input: its columns, one row per exported device, and the fleet summary. */
+    public static final class Inventory {
+        public final List<ReportExport.Column> columns = FleetInventory.columns();
+        public List<Map<String, Object>> rows = new ArrayList<>();
+        public Map<String, Object> summary = new LinkedHashMap<>();
+        /** The exported devices' raw rows (after the folder and number filters). */
+        List<Map<String, Object>> devices = new ArrayList<>();
+        Map<Integer, String> paths = new HashMap<>();
+    }
+
+    /** Filter the input (folder branch, device numbers) and build its inventory rows and summary. */
+    public static Inventory inventory(Input in) {
+        Inventory inv = new Inventory();
+        Map<Integer, DeviceGroupView> byId = new HashMap<>();
+        for (DeviceGroupView g : in.groups) byId.put(g.getId(), g);
+        for (DeviceGroupView g : in.groups) inv.paths.put(g.getId(), path(g, byId));
+        for (Map<String, Object> d : in.devices) {
+            Integer gid = intOf(d.get("groupid"));
+            if (in.onlyGroups != null && (gid == null || !in.onlyGroups.contains(gid))) continue;
+            if (in.onlyNumbers != null && !in.onlyNumbers.contains(str(d.get("number")))) continue;
+            inv.devices.add(d);
+        }
+        Map<String, Long> openSince = new HashMap<>();
+        for (Map<String, Object> c : in.connections) {
+            long last = lng(c.get("lastseenat"));
+            if (in.now - last <= in.connectionGapMs) openSince.put(str(c.get("devicenumber")), lng(c.get("connectedat")));
+        }
+        FleetInventory.Options o = new FleetInventory.Options();
+        o.now = in.now;
+        o.live = in.live;
+        o.latestAgent = in.latestAgent;
+        o.lowBatteryPct = in.lowBatteryPct;
+        o.storageUsedPct = in.storageUsedPct;
+        o.offlineDays = in.offlineDays;
+        inv.rows = FleetInventory.rows(inv.devices, inv.paths, openSince, o);
+        inv.summary = FleetInventory.summary(inv.rows, o);
+        return inv;
+    }
+
+    /** The Dispositivos sheet as CSV (UTF-8 with BOM), fields separated by {@code separator}. */
+    public static void writeCsv(Input in, char separator, OutputStream out) throws IOException {
+        Inventory inv = inventory(in);
+        ReportExport.writeCsv(inv.columns, inv.rows, in.zone, separator, out);
     }
 
     private DeviceExport() {}
 
     public static void write(Input in, OutputStream out) throws IOException {
-        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+        // Streaming workbook: rows go to a temporary file as they are written (only a window stays in memory), so a
+        // fleet of thousands of devices with a month of connection history does not build the whole file in the heap.
+        try (SXSSFWorkbook wb = new SXSSFWorkbook(WINDOW)) {
             Styles st = new Styles(wb);
-            Map<Integer, DeviceGroupView> byId = new HashMap<>();
-            for (DeviceGroupView g : in.groups) byId.put(g.getId(), g);
-            Map<Integer, String> paths = new HashMap<>();
-            for (DeviceGroupView g : in.groups) paths.put(g.getId(), path(g, byId));
-
-            List<Map<String, Object>> devices = new ArrayList<>();
-            for (Map<String, Object> d : in.devices) {
-                Integer gid = intOf(d.get("groupid"));
-                if (in.onlyGroups == null || gid != null && in.onlyGroups.contains(gid)) devices.add(d);
-            }
+            Inventory inv = inventory(in);
+            Map<Integer, String> paths = inv.paths;
+            List<Map<String, Object>> devices = inv.devices;
             Map<String, Map<String, Object>> byNumber = new LinkedHashMap<>();
             for (Map<String, Object> d : devices) byNumber.put(str(d.get("number")), d);
 
@@ -82,64 +129,47 @@ public final class DeviceExport {
             Sheet sf = wb.createSheet("Carpetas");
             Sheet sc = wb.createSheet("Conexiones");
 
-            // --- Dispositivos -------------------------------------------------------------------------------------
-            String[] dh = {"Nombre", "Número", "Carpeta", "Política", "Estado", "Última conexión", "Conectado desde",
-                    "Modelo", "Fabricante", "Android", "Parche de seguridad", "Actualización de Android", "Agente", "Serie", "IMEI", "MAC Wi-Fi", "Teléfono", "SIM",
-                    "Batería %", "Cargando", "Quiosco", "Modo de conexión", "Ubicación", "Hora de la ubicación", "Inscrito"};
+            // --- Dispositivos (the inventory: FleetInventory defines the columns and the values) -----------------
+            List<ReportExport.Column> cols = inv.columns;
+            String[] dh = new String[cols.size()];
+            for (int i = 0; i < dh.length; i++) dh[i] = cols.get(i).label;
             header(sd, dh, st);
-            Map<String, Long> openSince = new HashMap<>();
-            for (Map<String, Object> c : in.connections) {
-                long last = lng(c.get("lastseenat"));
-                if (in.now - last <= in.connectionGapMs) openSince.put(str(c.get("devicenumber")), lng(c.get("connectedat")));
-            }
-            int r = 1, online = 0;
-            for (Map<String, Object> d : devices) {
-                JsonNode tel = parse(str(d.get("telemetry")));
-                JsonNode hw = tel.path("hardware"), idn = tel.path("identity"), dyn = tel.path("dynamic");
-                String number = str(d.get("number"));
-                String name = nonBlank(str(d.get("description")), number);
-                long last = lng(d.get("lastupdate"));
-                boolean on = last > 0 && in.now - last <= ONLINE_WINDOW_MS;
-                if (on) online++;
+            int r = 1;
+            for (Map<String, Object> v : inv.rows) {
+                if (r == WIDTH_ROWS) widths(sd, dh.length, r);
                 Row row = sd.createRow(r++);
-                int c = 0;
-                link(row.createCell(c++), name, in.baseUrl + "/devices/" + number, st);
-                text(row.createCell(c++), number, st);
-                Integer gid = intOf(d.get("groupid"));
-                if (gid != null) link(row.createCell(c++), paths.getOrDefault(gid, ""), in.baseUrl + "/devices?group=" + gid, st);
-                else text(row.createCell(c++), "Sin carpeta", st);
-                text(row.createCell(c++), str(d.get("configurationname")), st);
-                text(row.createCell(c++), on ? "En línea" : "Sin conexión", on ? st.ok : st.warn);
-                date(row.createCell(c++), last, in.zone, st);
-                date(row.createCell(c++), openSince.getOrDefault(number, 0L), in.zone, st);
-                text(row.createCell(c++), hw.path("model").asText(""), st);
-                text(row.createCell(c++), hw.path("manufacturer").asText(""), st);
-                text(row.createCell(c++), nonBlank(hw.path("osRelease").asText(""), str(d.get("androidrelease"))), st);
-                text(row.createCell(c++), hw.path("securityPatch").asText(""), st);
-                boolean pending = dyn.hasNonNull("systemUpdatePendingSince");
-                text(row.createCell(c++), pending ? "Pendiente" : "Al día", pending ? st.warn : st.plain);
-                text(row.createCell(c++), str(d.get("agentversion")), st);
-                text(row.createCell(c++), idn.path("serial").asText(""), st);
-                text(row.createCell(c++), join(idn.path("imei")), st);
-                text(row.createCell(c++), idn.path("wifiMac").asText(""), st);
-                text(row.createCell(c++), phones(dyn.path("sim"), idn.path("phoneNumber")), st);
-                text(row.createCell(c++), sim(dyn.path("sim")), st);
-                Object battery = d.get("battery");
-                if (battery instanceof Number && ((Number) battery).intValue() >= 0) row.createCell(c++).setCellValue(((Number) battery).intValue());
-                else c++;
-                text(row.createCell(c++), yesNo(d.get("charging")), st);
-                text(row.createCell(c++), yesNo(d.get("kioskactive")), st);
-                text(row.createCell(c++), "alwaysOn".equals(str(d.get("powermode"))) ? "Siempre conectado"
-                        : "adaptive".equals(str(d.get("powermode"))) ? "Ahorro de batería" : "", st);
-                JsonNode loc = dyn.path("location");
-                if (loc.hasNonNull("lat") && loc.hasNonNull("lon")) {
-                    String ll = String.format(java.util.Locale.ROOT, "%.6f,%.6f", loc.get("lat").asDouble(), loc.get("lon").asDouble());
-                    link(row.createCell(c++), ll, "https://www.google.com/maps?q=" + ll, st);
-                    date(row.createCell(c++), loc.path("capturedAt").asLong(0), in.zone, st);
-                } else {
-                    c += 2;
+                String number = str(v.get("number"));
+                boolean on = Boolean.TRUE.equals(v.get("online"));
+                for (int c = 0; c < cols.size(); c++) {
+                    ReportExport.Column col = cols.get(c);
+                    Object val = v.get(col.key);
+                    switch (col.key) {
+                        case "name":
+                            link(row.createCell(c), str(val), in.baseUrl + "/devices/" + number, st);
+                            continue;
+                        case "group":
+                            if (v.get("groupid") != null) link(row.createCell(c), str(val), in.baseUrl + "/devices?group=" + v.get("groupid"), st);
+                            else text(row.createCell(c), str(val), st);
+                            continue;
+                        case "status":
+                            text(row.createCell(c), str(val), on ? st.ok : st.warn);
+                            continue;
+                        case "location":
+                            if (val != null && !str(val).isEmpty()) link(row.createCell(c), str(val), "https://www.google.com/maps?q=" + val, st);
+                            continue;
+                        case "osupdate":
+                            text(row.createCell(c), str(val), Boolean.TRUE.equals(v.get("osupdatepending")) ? st.warn : st.plain);
+                            continue;
+                        case "alerts":
+                            text(row.createCell(c), str(val), val == null || str(val).isEmpty() ? st.plain : st.warn);
+                            continue;
+                        default:
+                    }
+                    if ("datetime".equals(col.type)) date(row.createCell(c), lng(val), in.zone, st);
+                    else if ("number".equals(col.type)) {
+                        if (val instanceof Number) row.createCell(c).setCellValue(((Number) val).doubleValue());
+                    } else text(row.createCell(c), str(val), st);
                 }
-                date(row.createCell(c), lng(d.get("enrolltime")), in.zone, st);
             }
             finish(sd, dh.length, r);
 
@@ -149,13 +179,12 @@ public final class DeviceExport {
             Map<Integer, List<Integer>> children = new HashMap<>();
             for (DeviceGroupView g : in.groups) children.computeIfAbsent(g.getParentId(), k -> new ArrayList<>()).add(g.getId());
             Map<Integer, int[]> counts = new HashMap<>(); // direct, online
-            for (Map<String, Object> d : devices) {
+            for (Map<String, Object> d : inv.rows) {
                 Integer gid = intOf(d.get("groupid"));
                 if (gid == null) continue;
                 int[] cnt = counts.computeIfAbsent(gid, k -> new int[2]);
                 cnt[0]++;
-                long last = lng(d.get("lastupdate"));
-                if (last > 0 && in.now - last <= ONLINE_WINDOW_MS) cnt[1]++;
+                if (Boolean.TRUE.equals(d.get("online"))) cnt[1]++;
             }
             List<DeviceGroupView> sorted = new ArrayList<>(in.groups);
             sorted.sort((a, b) -> paths.get(a.getId()).compareToIgnoreCase(paths.get(b.getId())));
@@ -169,6 +198,7 @@ public final class DeviceExport {
                     total += cnt[0];
                     on += cnt[1];
                 }
+                if (fr == WIDTH_ROWS) widths(sf, fh.length, fr);
                 Row row = sf.createRow(fr++);
                 link(row.createCell(0), paths.get(g.getId()), in.baseUrl + "/devices?group=" + g.getId(), st);
                 text(row.createCell(1), nonBlank(g.getConfigurationName(), "(hereda)"), st);
@@ -183,14 +213,20 @@ public final class DeviceExport {
             String[] ch = {"Dispositivo", "Número", "Carpeta", "Conectado", "Desconectado", "Duración (h)", "Estado"};
             header(sc, ch, st);
             int cr = 1;
+            String linked = null;
             for (Map<String, Object> c : in.connections) {
                 String number = str(c.get("devicenumber"));
                 Map<String, Object> d = byNumber.get(number);
                 if (d == null) continue;
                 long from = lng(c.get("connectedat")), last = lng(c.get("lastseenat"));
                 boolean open = in.now - last <= in.connectionGapMs;
+                if (cr == WIDTH_ROWS) widths(sc, ch.length, cr);
                 Row row = sc.createRow(cr++);
-                link(row.createCell(0), nonBlank(str(d.get("description")), number), in.baseUrl + "/devices/" + number, st);
+                // Sessions come ordered by device: only a device's first row links to its page. A hyperlink on each of
+                // the ~100,000 rows of a large fleet's month made the workbook several times slower and bigger.
+                if (number.equals(linked)) text(row.createCell(0), nonBlank(str(d.get("description")), number), st);
+                else link(row.createCell(0), nonBlank(str(d.get("description")), number), in.baseUrl + "/devices/" + number, st);
+                linked = number;
                 text(row.createCell(1), number, st);
                 Integer gid = intOf(d.get("groupid"));
                 text(row.createCell(2), gid == null ? "Sin carpeta" : paths.getOrDefault(gid, ""), st);
@@ -207,16 +243,14 @@ public final class DeviceExport {
             Cell title = t.createCell(0);
             title.setCellValue("DallyControl — relación de dispositivos");
             title.setCellStyle(st.title);
-            String[][] kv = {
-                    {"Alcance", in.scopeLabel},
-                    {"Dispositivos", String.valueOf(devices.size())},
-                    {"En línea (últimos 10 min)", String.valueOf(online)},
-                    {"Sin conexión", String.valueOf(devices.size() - online)},
-                    {"Conexiones desde", fmt(in.from, in.zone)},
-                    {"Conexiones hasta", fmt(in.to, in.zone)},
-                    {"Generado", fmt(in.now, in.zone)},
-                    {"Consola", in.baseUrl},
-            };
+            List<String[]> kvl = new ArrayList<>();
+            kvl.add(new String[]{"Alcance", in.scopeLabel});
+            kvl.addAll(FleetInventory.headline(inv.summary));
+            kvl.add(new String[]{"Conexiones desde", fmt(in.from, in.zone)});
+            kvl.add(new String[]{"Conexiones hasta", fmt(in.to, in.zone)});
+            kvl.add(new String[]{"Generado", fmt(in.now, in.zone)});
+            kvl.add(new String[]{"Consola", in.baseUrl});
+            String[][] kv = kvl.toArray(new String[0][]);
             int sr = 2;
             for (String[] p : kv) {
                 Row row = summary.createRow(sr++);
@@ -224,6 +258,7 @@ public final class DeviceExport {
                 k.setCellValue(p[0]);
                 k.setCellStyle(st.head);
                 if ("Consola".equals(p[0])) link(row.createCell(1), p[1], p[1], st);
+                else if (p[1] != null && p[1].matches("\\d+")) row.createCell(1).setCellValue(Double.parseDouble(p[1]));
                 else text(row.createCell(1), p[1], st);
             }
             sr++;
@@ -231,9 +266,9 @@ public final class DeviceExport {
             String[] sh = {"Hoja", "Contenido"};
             for (int i = 0; i < sh.length; i++) { Cell c = hr.createCell(i); c.setCellValue(sh[i]); c.setCellStyle(st.head); }
             String[][] sheets = {
-                    {"Dispositivos", "Cada dispositivo con su carpeta, política, estado, identificadores y última ubicación. El nombre abre su página en la consola."},
+                    {"Dispositivos", "Cada dispositivo con su carpeta, política, estado de conexión (y minutos desde su último reporte), batería, almacenamiento, red, identificadores y última ubicación. El nombre abre su página en la consola."},
                     {"Carpetas", "Cada carpeta con su política y cuántos dispositivos tiene (con y sin subcarpetas)."},
-                    {"Conexiones", "Cada periodo en que un dispositivo estuvo reportándose; una pausa de más de 20 minutos lo cierra."},
+                    {"Conexiones", "Cada periodo en que un dispositivo estuvo reportándose; una pausa de más de " + in.connectionGapMs / 60_000L + " minutos lo cierra."},
             };
             for (String[] s : sheets) {
                 Row row = summary.createRow(sr++);
@@ -245,7 +280,22 @@ public final class DeviceExport {
                 c.setCellStyle(st.link);
                 text(row.createCell(1), s[1], st);
             }
-            summary.setColumnWidth(0, 30 * 256);
+            // Breakdowns: how the exported devices split by Android version, model and agent version.
+            String[][] parts = {{"byAndroid", "Por versión de Android"}, {"byModel", "Por modelo"}, {"byAgent", "Por versión del agente"}};
+            for (String[] part : parts) {
+                sr++;
+                Row bh = summary.createRow(sr++);
+                Cell b0 = bh.createCell(0); b0.setCellValue(part[1]); b0.setCellStyle(st.head);
+                Cell b1 = bh.createCell(1); b1.setCellValue("Dispositivos"); b1.setCellStyle(st.head);
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> list = (List<Map<String, Object>>) inv.summary.get(part[0]);
+                for (Map<String, Object> e : list) {
+                    Row row = summary.createRow(sr++);
+                    text(row.createCell(0), str(e.get("label")), st);
+                    row.createCell(1).setCellValue(((Number) e.get("count")).doubleValue());
+                }
+            }
+            summary.setColumnWidth(0, 46 * 256);
             summary.setColumnWidth(1, 110 * 256);
             wb.write(out);
         }
@@ -256,7 +306,7 @@ public final class DeviceExport {
     private static final class Styles {
         final CellStyle head, plain, link, date, ok, warn, title;
 
-        Styles(XSSFWorkbook wb) {
+        Styles(Workbook wb) {
             Font bold = wb.createFont();
             bold.setBold(true);
             bold.setColor(IndexedColors.WHITE.getIndex());
@@ -300,14 +350,23 @@ public final class DeviceExport {
         s.createFreezePane(1, 1);
     }
 
+    /** Rows the streaming workbook keeps in memory per sheet; more than {@link #WIDTH_ROWS}, which are read back. */
+    private static final int WINDOW = 256;
+    /** Column widths are taken from the first rows, while the streaming sheet still holds them. */
+    private static final int WIDTH_ROWS = 200;
+
     private static void finish(Sheet s, int cols, int rows) {
         if (rows > 1) s.setAutoFilter(new CellRangeAddress(0, rows - 1, 0, cols - 1));
+        if (rows <= WIDTH_ROWS) widths(s, cols, rows); // longer sheets set them when row WIDTH_ROWS was reached
+    }
+
+    private static void widths(Sheet s, int cols, int rows) {
         for (int i = 0; i < cols; i++) s.setColumnWidth(i, Math.min(60, Math.max(12, width(s, i, rows))) * 256);
     }
 
     private static int width(Sheet s, int col, int rows) {
         int w = 0;
-        for (int r = 0; r < Math.min(rows, 200); r++) {
+        for (int r = 0; r < Math.min(rows, WIDTH_ROWS); r++) {
             Row row = s.getRow(r);
             Cell c = row == null ? null : row.getCell(col);
             if (c != null) w = Math.max(w, c.toString().length() + 2);
@@ -372,42 +431,6 @@ public final class DeviceExport {
         Map<Integer, List<Integer>> children = new HashMap<>();
         for (DeviceGroupView g : groups) children.computeIfAbsent(g.getParentId(), k -> new ArrayList<>()).add(g.getId());
         return new java.util.HashSet<>(subtree(id, children));
-    }
-
-    private static JsonNode parse(String json) {
-        try {
-            return json == null ? JSON.createObjectNode() : JSON.readTree(json);
-        } catch (Exception e) {
-            return JSON.createObjectNode();
-        }
-    }
-
-    private static String join(JsonNode arr) {
-        if (!arr.isArray()) return arr.asText("");
-        List<String> v = new ArrayList<>();
-        for (JsonNode n : arr) v.add(n.asText());
-        return String.join(", ", v);
-    }
-
-    private static String phones(JsonNode sim, JsonNode identityPhones) {
-        List<String> v = new ArrayList<>();
-        for (JsonNode s : sim.path("slots")) if (s.hasNonNull("number")) v.add(s.get("number").asText());
-        if (v.isEmpty()) for (JsonNode n : identityPhones) v.add(n.asText());
-        return String.join(", ", v);
-    }
-
-    private static String sim(JsonNode sim) {
-        String state = sim.path("state").asText("");
-        if (state.isEmpty()) return "";
-        if ("absent".equals(state)) return "Sin SIM";
-        if ("locked".equals(state)) return "Bloqueada (PIN/PUK)";
-        List<String> v = new ArrayList<>();
-        for (JsonNode s : sim.path("slots")) if (s.hasNonNull("carrier")) v.add(s.get("carrier").asText());
-        return v.isEmpty() ? ("ready".equals(state) ? "Lista" : state) : String.join(", ", v);
-    }
-
-    private static String yesNo(Object o) {
-        return o instanceof Boolean ? ((Boolean) o ? "Sí" : "No") : "";
     }
 
     private static String str(Object o) {

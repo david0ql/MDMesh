@@ -60,29 +60,49 @@ public final class ReportExport {
 
     public static void writeCsv(List<Column> cols, List<Map<String, Object>> rows, ZoneId zone, OutputStream out)
             throws IOException {
-        Writer w = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        writeCsv(cols, rows, zone, ';', out);
+    }
+
+    /** The separators a CSV export accepts; anything else falls back to ';' (what Excel in Spanish expects). */
+    public static char separator(String s) {
+        if (s == null) return ';';
+        switch (s.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case ",": case "comma": case "coma": return ',';
+            case "\t": case "tab": case "\\t": return '\t';
+            case "|": case "pipe": return '|';
+            default: return ';';
+        }
+    }
+
+    /** CSV in UTF-8 with BOM and CRLF rows, fields separated by {@code sep} (quoted when they contain it). */
+    public static void writeCsv(List<Column> cols, List<Map<String, Object>> rows, ZoneId zone, char sep,
+                                OutputStream out) throws IOException {
+        Writer w = new java.io.BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8), 1 << 16);
         // UTF-8 BOM so Excel on Windows opens accented Spanish correctly.
         w.write('﻿');
+        // Row by row: nothing but the current line is held, whatever the number of rows.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cols.size(); i++) {
-            if (i > 0) sb.append(';');
-            sb.append(csv(cols.get(i).label));
+            if (i > 0) sb.append(sep);
+            sb.append(csv(cols.get(i).label, sep));
         }
         sb.append("\r\n");
+        w.write(sb.toString());
         for (Map<String, Object> row : rows) {
+            sb.setLength(0);
             for (int i = 0; i < cols.size(); i++) {
-                if (i > 0) sb.append(';');
-                sb.append(csv(text(cols.get(i), row.get(cols.get(i).key), zone)));
+                if (i > 0) sb.append(sep);
+                sb.append(csv(text(cols.get(i), row.get(cols.get(i).key), zone), sep));
             }
             sb.append("\r\n");
+            w.write(sb.toString());
         }
-        w.write(sb.toString());
         w.flush();
     }
 
-    private static String csv(String v) {
+    private static String csv(String v, char sep) {
         if (v == null) return "";
-        boolean quote = v.contains(";") || v.contains("\"") || v.contains("\n") || v.contains("\r");
+        boolean quote = v.indexOf(sep) >= 0 || v.contains(";") || v.contains("\"") || v.contains("\n") || v.contains("\r");
         String s = v.replace("\"", "\"\"");
         return quote ? "\"" + s + "\"" : s;
     }
@@ -98,8 +118,20 @@ public final class ReportExport {
             case "bytes":
                 return humanBytes(asLong(v));
             default:
-                return String.valueOf(v);
+                return "text".equals(c.type) ? inert(String.valueOf(v)) : String.valueOf(v);
         }
+    }
+
+    /**
+     * A text cell that a spreadsheet would run as a formula (a device name such as {@code =HYPERLINK(...)}) is
+     * written with a leading apostrophe. Plain signed numbers and phone numbers ("+57 300…", "-74.08") are kept.
+     */
+    static String inert(String v) {
+        if (v.isEmpty()) return v;
+        char f = v.charAt(0);
+        boolean formula = f == '=' || f == '@' || f == '\t' || f == '\r'
+                || ((f == '+' || f == '-') && !v.matches("[+-][0-9 .,()\\-]*"));
+        return formula ? "'" + v : v;
     }
 
     // --- Excel -------------------------------------------------------------------------------------------------

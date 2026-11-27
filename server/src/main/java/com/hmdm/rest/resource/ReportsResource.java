@@ -93,6 +93,8 @@ public class ReportsResource {
         public final List<Column> columns;
         public final List<Map<String, Object>> rows;
         public final long generatedAt = System.currentTimeMillis();
+        /** Optional figures shown above the table (the fleet inventory's totals and breakdowns). */
+        public Map<String, Object> summary;
 
         ReportData(String report, String title, List<Column> columns, List<Map<String, Object>> rows) {
             this.report = report;
@@ -105,7 +107,10 @@ public class ReportsResource {
     /** Known reports. {@code export} = can be downloaded as CSV/Excel. */
     public enum Report {
         OFFLINE, SIM, SIM_MISMATCH, APP_INSTALLS, APP_INSTALL_DEVICES, BY_APP, APPS_CATALOG,
-        NO_COMMANDS, OUTDATED_AGENTS, OUTDATED_APPS, DATA_USAGE, NON_COMPLIANCE, DECOMMISSIONED;
+        NO_COMMANDS, OUTDATED_AGENTS, OUTDATED_APPS, DATA_USAGE, NON_COMPLIANCE, DECOMMISSIONED,
+        INVENTORY,
+        COMMAND_LATENCY,
+        DATA_LIMITS;
 
         static Report of(String name) {
             if (name == null) return null;
@@ -207,6 +212,15 @@ public class ReportsResource {
         return json(c -> dataUsage(c, days, limit));
     }
 
+    @ApiOperation(value = "Datos móviles: uso vs. límite",
+            notes = "Por equipo y por app con límite: consumo del periodo, límite de la política, porcentaje y estado.")
+    @GET
+    @Path("/data-limits")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response dataLimits() {
+        return json(this::dataLimits);
+    }
+
     @ApiOperation(value = "Incumplimiento de políticas", notes = "Equipos cuya revisión aplicada ≠ la revisión actual de su política.")
     @GET
     @Path("/non-compliance")
@@ -221,6 +235,16 @@ public class ReportsResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response decommissioned(@QueryParam("from") Long from, @QueryParam("to") Long to) {
         return json(c -> decommissioned(c, from, to));
+    }
+
+    @ApiOperation(value = "Latencia de comandos", notes = "?from=&to= (epoch ms)&groupId= — por tipo de comando: enviados, "
+            + "% ejecutados y latencia p50/p90/máxima (segundos) de entrega y de ejecución, en el rango y la carpeta.")
+    @GET
+    @Path("/command-latency")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response commandLatency(@QueryParam("from") Long from, @QueryParam("to") Long to,
+                                   @QueryParam("groupId") Integer groupId) {
+        return json(c -> commandLatency(c, from, to, groupId));
     }
 
     // --- export (CSV / Excel) ------------------------------------------------------------------------------------
@@ -238,7 +262,8 @@ public class ReportsResource {
                                             @QueryParam("pkgs") String pkgs,
                                             @QueryParam("minutes") Integer minutes,
                                             @QueryParam("limit") Integer limit,
-                                            @QueryParam("tz") String tz) {
+                                            @QueryParam("tz") String tz,
+                                            @QueryParam("groupId") Integer groupId) {
         Optional<Integer> customerId = reader();
         if (!customerId.isPresent()) {
             return javax.ws.rs.core.Response.status(403).build();
@@ -250,7 +275,8 @@ public class ReportsResource {
         final int c = customerId.get();
         final ReportData data;
         try {
-            data = scoped(build(rep, c, days, from, to, pkg, pkgs, minutes, limit));
+            data = rep == Report.COMMAND_LATENCY ? commandLatency(c, from, to, groupId)
+                    : scoped(build(rep, c, days, from, to, pkg, pkgs, minutes, limit));
         } catch (Exception e) {
             logger.warn("Report export {} failed for customer {}", reportName, c, e);
             return javax.ws.rs.core.Response.status(500).build();
@@ -297,8 +323,58 @@ public class ReportsResource {
             case DATA_USAGE: return dataUsage(c, days, limit);
             case NON_COMPLIANCE: return nonCompliance(c);
             case DECOMMISSIONED: return decommissioned(c, from, to);
+            case INVENTORY: return inventory(c, null, null, null, days);
+            case COMMAND_LATENCY: return commandLatency(c, from, to, null);
+            case DATA_LIMITS: return dataLimits(c);
             default: throw new IllegalArgumentException("unknown report");
         }
+    }
+
+    // --- Command latency (evidence for the remote-command criteria) --------------------------------------------
+
+    /**
+     * Per command type, over the commands created in the range: how many were sent, how many ran, and the
+     * p50/p90/maximum latency in seconds. The rows carry no device number, so the narrowing to a folder (and to a
+     * folder administrator's own devices) happens here, before the figures are computed.
+     */
+    private ReportData commandLatency(int c, Long from, Long to, Integer groupId) {
+        long[] r = range(from, to, 30);
+        java.util.Set<String> visible = scope == null ? null : scope.deviceNumbers();
+        java.util.Set<Integer> folder = null;
+        String folderName = null;
+        if (groupId != null) {
+            folder = new java.util.HashSet<>(commandDAO.groupSubtree(c, groupId));
+            folderName = groupPaths(c).get(groupId);
+        }
+        List<com.hmdm.util.CommandLatencyStats.Sample> samples = new ArrayList<>();
+        for (Map<String, Object> row : reportsDAO.commandTimings(c, r[0], r[1])) {
+            if (visible != null && !visible.contains(str(row.get("number")))) continue;
+            if (folder != null && !folder.contains(intOf(row.get("groupid")))) continue;
+            samples.add(new com.hmdm.util.CommandLatencyStats.Sample(str(row.get("type")), str(row.get("status")),
+                    longOf(row.get("createdat")), longOf(row.get("deliveredat")), longOf(row.get("completedat"))));
+        }
+        List<Map<String, Object>> rows = com.hmdm.util.CommandLatencyStats.byType(samples);
+        for (Map<String, Object> row : rows) {
+            String type = str(row.get("type"));
+            row.put("comando", com.hmdm.util.CommandLatencyStats.ALL.equals(type) ? "Todos los comandos"
+                    : com.hmdm.util.CommandLabels.of(type));
+        }
+        List<Column> cols = Arrays.asList(
+                col("comando", "Comando", "text"), col("type", "Tipo", "text"),
+                col("total", "Enviados", "number"), col("done", "Ejecutados", "number"),
+                col("donepct", "% ejecutados", "number"), col("failed", "Fallidos", "number"),
+                col("expired", "Vencidos", "number"), col("cancelled", "Cancelados", "number"),
+                col("open", "En curso", "number"),
+                col("deliveryp50", "Entrega p50 (s)", "number"), col("deliveryp90", "Entrega p90 (s)", "number"),
+                col("deliverymax", "Entrega máx. (s)", "number"),
+                col("execp50", "Ejecución p50 (s)", "number"), col("execp90", "Ejecución p90 (s)", "number"),
+                col("execmax", "Ejecución máx. (s)", "number"));
+        String title = "Latencia de comandos" + (folderName == null ? "" : " — " + folderName);
+        return new ReportData("command-latency", title, cols, rows);
+    }
+
+    private static Long longOf(Object o) {
+        return o instanceof Number ? ((Number) o).longValue() : null;
     }
 
     // --- 1. Offline --------------------------------------------------------------------------------------------
@@ -474,6 +550,22 @@ public class ReportsResource {
         return new ReportData("data-usage", "Consumo de datos móviles (" + d + " días)", cols, rows);
     }
 
+    // --- 7b. Mobile data: use against the policy's limits -------------------------------------------------------
+
+    private ReportData dataLimits(int c) {
+        com.hmdm.rest.resource.support.MobileDataService service = com.hmdm.rest.resource.support.MobileDataService.INSTANCE;
+        List<Map<String, Object>> rows = service == null ? new ArrayList<>() : service.fleetRows(c);
+        enrich(c, rows);
+        List<Column> cols = Arrays.asList(
+                col("name", "Equipo", "text"), col("number", "Número", "text"), col("group", "Carpeta", "text"),
+                col("configurationname", "Política", "text"), col("ambito", "Ámbito", "text"), col("app", "App", "text"),
+                col("pkg", "Paquete", "text"), col("usedbytes", "Consumo del periodo", "bytes"),
+                col("limitbytes", "Límite", "bytes"), col("percent", "% usado", "number"), col("estado", "Estado", "text"),
+                col("blocked", "Apps sin datos móviles", "number"), col("mechanism", "Mecanismo", "text"),
+                col("periodstart", "Periodo desde", "text"), col("source", "Dato de", "text"));
+        return new ReportData("data-limits", "Datos móviles: uso vs. límite", cols, rows);
+    }
+
     // --- 8. Non-compliance -------------------------------------------------------------------------------------
 
     private ReportData nonCompliance(int c) {
@@ -528,6 +620,97 @@ public class ReportsResource {
         return new ReportData("decommissioned", "Equipos dados de baja", cols, rows);
     }
 
+    // --- 10. Fleet inventory (battery, storage, Android, connection, network of every device) ---------------------
+
+    /** Builds the inventory (shared with the device list's Excel/CSV and the scheduled e-mails). */
+    @Inject
+    private com.hmdm.rest.resource.support.FleetExportService exportService;
+
+    @ApiOperation(value = "Inventario de la flota", notes = "Un equipo por fila con su último reporte (conexión, batería, "
+            + "almacenamiento, Android, red, identificadores) y un resumen: por versión de Android, por modelo, batería "
+            + "baja, almacenamiento casi lleno, sin conexión > N días y agente desactualizado. "
+            + "?group=<carpeta>&lowBattery=20&storagePct=90&offlineDays=7")
+    @GET
+    @Path("/inventory")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response inventory(@QueryParam("group") Integer group, @QueryParam("lowBattery") Integer lowBattery,
+                              @QueryParam("storagePct") Integer storagePct, @QueryParam("offlineDays") Integer offlineDays) {
+        return json(c -> inventory(c, group, lowBattery, storagePct, offlineDays));
+    }
+
+    @ApiOperation(value = "Exportar el inventario de la flota", notes = "?format=xlsx (libro con Resumen, Dispositivos, "
+            + "Carpetas y Conexiones) | csv (hoja Dispositivos; ?sep=; , tab pipe). Mismos filtros que /inventory.")
+    @GET
+    @Path("/inventory/export")
+    @Produces({"text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+    public javax.ws.rs.core.Response inventoryExport(@QueryParam("format") String format, @QueryParam("sep") String sep,
+                                                     @QueryParam("group") Integer group,
+                                                     @QueryParam("lowBattery") Integer lowBattery,
+                                                     @QueryParam("storagePct") Integer storagePct,
+                                                     @QueryParam("offlineDays") Integer offlineDays,
+                                                     @QueryParam("tz") String tz) {
+        Optional<Integer> customerId = reader();
+        if (!customerId.isPresent()) {
+            return javax.ws.rs.core.Response.status(403).build();
+        }
+        com.hmdm.rest.resource.support.FleetExportService.Built built =
+                inventoryInput(customerId.get(), group, lowBattery, storagePct, offlineDays, tz);
+        if (built == null) {
+            return javax.ws.rs.core.Response.status(404).build();
+        }
+        final com.hmdm.util.DeviceExport.Input input = built.input;
+        final boolean csv = "csv".equalsIgnoreCase(format);
+        final char separator = ReportExport.separator(sep);
+        StreamingOutput body = csv ? o -> com.hmdm.util.DeviceExport.writeCsv(input, separator, o)
+                : o -> com.hmdm.util.DeviceExport.write(input, o);
+        return javax.ws.rs.core.Response.ok(body)
+                .header("Content-Type", csv ? "text/csv; charset=utf-8"
+                        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .header("Content-Disposition", "attachment; filename=\"inventario-"
+                        + built.fileBase.replaceFirst("^dispositivos-?", "") + (csv ? ".csv" : ".xlsx") + "\"")
+                .header("Cache-Control", "no-store")
+                .build();
+    }
+
+    private com.hmdm.rest.resource.support.FleetExportService.Built inventoryInput(
+            int c, Integer group, Integer lowBattery, Integer storagePct, Integer offlineDays, String tz) {
+        com.hmdm.rest.resource.support.FleetExportService.Request rq =
+                new com.hmdm.rest.resource.support.FleetExportService.Request();
+        rq.groupId = group;
+        rq.tz = tz;
+        rq.days = 1; // the inventory needs only the open sessions, not the month of history
+        rq.lowBatteryPct = lowBattery;
+        rq.storageUsedPct = storagePct;
+        rq.offlineDays = offlineDays;
+        // A folder administrator gets only their folders' devices (and the summary counts only those).
+        return exportService.build(c, rq, scope == null ? null : scope.deviceNumbers(), scope == null ? null : scope.groups());
+    }
+
+    private ReportData inventory(int c, Integer group, Integer lowBattery, Integer storagePct, Integer offlineDays) {
+        com.hmdm.rest.resource.support.FleetExportService.Built built =
+                inventoryInput(c, group, lowBattery, storagePct, offlineDays, null);
+        if (built == null) {
+            return new ReportData("inventory", "Inventario de la flota", com.hmdm.util.FleetInventory.columns(), new ArrayList<>());
+        }
+        com.hmdm.util.DeviceExport.Inventory inv = com.hmdm.util.DeviceExport.inventory(built.input);
+        ReportData d = new ReportData("inventory", "Inventario de la flota · " + built.input.scopeLabel, inv.columns, inv.rows);
+        d.summary = inv.summary;
+        return d;
+    }
+
+    /**
+     * A report with its default filters for the scheduled e-mails (no signed-in user: the caller narrows the rows
+     * to the schedule's folder). Null for a report that is not a per-device list.
+     */
+    public ReportData scheduled(String reportName, int customerId) {
+        Report rep = Report.of(reportName);
+        if (rep == null || rep == Report.APPS_CATALOG || rep == Report.APP_INSTALLS || rep == Report.APP_INSTALL_DEVICES
+                || rep == Report.BY_APP || rep == Report.INVENTORY) {
+            return null;
+        }
+        return build(rep, customerId, null, null, null, null, null, null, null);
+    }
+
     // --- shared helpers ------------------------------------------------------------------------------------------
 
     /**
@@ -536,8 +719,10 @@ public class ReportsResource {
      * that carries a device number is dropped unless that device is in {@link UserScope#deviceNumbers()}).
      */
     private Optional<Integer> reader() {
-        return SecurityContext.get() == null ? Optional.empty()
-                : SecurityContext.get().getCurrentCustomerId();
+        // The Reportes module is what the role matrix calls "ver reportes" (manage_fleet): the console hides it
+        // without the permission, and the API refuses it too.
+        if (SecurityContext.get() == null || !SecurityContext.get().hasPermission("manage_fleet")) return Optional.empty();
+        return SecurityContext.get().getCurrentCustomerId();
     }
 
     /**
@@ -556,7 +741,9 @@ public class ReportsResource {
             if (num == null) { kept.add(row); continue; } // aggregate row (no device): no device leak
             if (visible.contains(String.valueOf(num))) kept.add(row);
         }
-        return new ReportData(d.report, d.title, d.columns, kept);
+        ReportData out = new ReportData(d.report, d.title, d.columns, kept);
+        out.summary = d.summary;
+        return out;
     }
 
     /**
@@ -607,6 +794,7 @@ public class ReportsResource {
         out.put("generatedAt", d.generatedAt);
         out.put("columns", cols);
         out.put("rows", d.rows);
+        if (d.summary != null) out.put("summary", d.summary);
         return out;
     }
 
@@ -700,6 +888,7 @@ public class ReportsResource {
             case "failed": return "Fallido";
             case "unsupported": return "No soportado";
             case "expired": return "Expirado";
+            case "cancelled": return "Cancelado";
             default: return status;
         }
     }

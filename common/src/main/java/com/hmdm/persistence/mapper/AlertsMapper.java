@@ -76,6 +76,18 @@ public interface AlertsMapper {
             "ON CONFLICT (deviceNumber, type, createdAt) DO NOTHING"})
     int generateSimChange(@Param("customerId") int customerId, @Param("since") long since);
 
+    /**
+     * Create a 'dataWarning' / 'dataLimit' alert for every mobile-data limit event the agent recorded since
+     * {@code since} (a limit of the policy reached its warning threshold, or was spent and the apps lost mobile data).
+     * The event's detail already reads "who: used of limit (n %)". Dedup by event ts.
+     */
+    @Insert({"INSERT INTO device_alert (customerId, deviceNumber, type, detail, createdAt, reviewed) " +
+            "SELECT d.customerId, e.deviceNumber, e.type, e.detail, e.ts, FALSE " +
+            "FROM device_event e JOIN devices d ON d.number = e.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND e.type IN ('dataWarning', 'dataLimit') AND e.ts >= #{since} " +
+            "ON CONFLICT (deviceNumber, type, createdAt) DO NOTHING"})
+    int generateDataLimits(@Param("customerId") int customerId, @Param("since") long since);
+
     // --- read ----------------------------------------------------------------------------------------------------
 
     /**

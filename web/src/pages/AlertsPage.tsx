@@ -13,6 +13,9 @@ import {
   type AlertStatus,
   type ExportFormat,
 } from '../api/alerts';
+import { getMailStatus, getGeofenceSettings, saveGeofenceSettings, type GeofenceSettings } from '../api/geofences';
+import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin, hasPermission } from '../api/auth';
 
 // ---------------------------------------------------------------------------------------------
 // Filters
@@ -23,6 +26,10 @@ const TYPE_OPTIONS: { id: AlertType | ''; label: string }[] = [
   { id: 'disconnected', label: 'Desconexión' },
   { id: 'kioskExit', label: 'Salida de kiosko' },
   { id: 'simChange', label: 'Cambio de SIM' },
+  { id: 'geofenceExit', label: 'Salida de zona' },
+  { id: 'geofenceEnter', label: 'Entrada a zona' },
+  { id: 'dataWarning', label: 'Datos móviles: cerca del límite' },
+  { id: 'dataLimit', label: 'Datos móviles: límite superado' },
 ];
 
 const STATUS_OPTIONS: { id: AlertStatus | ''; label: string }[] = [
@@ -42,6 +49,10 @@ const endOfDay = (s: string) => new Date(`${s}T23:59:59.999`).getTime();
 
 export function AlertsPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  // Only a full administrator changes the saved "offline" threshold (it also drives the alert e-mails).
+  const canSaveThreshold = !isFolderAdmin(user) && hasPermission(user, 'manage_fleet');
+  const [saved, setSaved] = useState<GeofenceSettings | null>(null);
 
   const [type, setType] = useState<AlertType | ''>('');
   const [status, setStatus] = useState<AlertStatus | ''>('');
@@ -53,6 +64,9 @@ export function AlertsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  // Whether the server can e-mail alerts (null = unknown yet).
+  const [mailOn, setMailOn] = useState<boolean | null>(null);
+  useEffect(() => { getMailStatus().then((m) => setMailOn(m.configured)).catch(() => setMailOn(null)); }, []);
 
   const filters = useCallback(
     () => ({ type, status, from: startOfDay(from), to: endOfDay(to), minutes }),
@@ -63,6 +77,10 @@ export function AlertsPage() {
     setLoading(true);
     setError(null);
     try {
+      // The threshold is saved for the customer, so the alert e-mails use the same one as this page.
+      if (canSaveThreshold && saved && saved.offlineMinutes !== minutes) {
+        setSaved(await saveGeofenceSettings({ ...saved, offlineMinutes: minutes }));
+      }
       setResult(await listAlerts(filters()));
     } catch (e) {
       setResult(null);
@@ -70,11 +88,31 @@ export function AlertsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, canSaveThreshold, saved, minutes]);
 
-  // First load. Filter changes are applied with "Actualizar".
+  // First load, with the customer's saved threshold. Filter changes are applied with "Actualizar".
   useEffect(() => {
-    void load();
+    let alive = true;
+    (async () => {
+      let m = minutes;
+      try {
+        const s = await getGeofenceSettings();
+        if (!alive) return;
+        setSaved(s);
+        setMinutes(s.offlineMinutes);
+        m = s.offlineMinutes;
+      } catch { /* keep the default */ }
+      setLoading(true);
+      try {
+        const r = await listAlerts({ ...filters(), minutes: m });
+        if (alive) setResult(r);
+      } catch (e) {
+        if (alive) setError((e as Error).message || 'No se pudieron cargar las alertas');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -129,8 +167,15 @@ export function AlertsPage() {
       </div>
 
       <p className="muted report-hint">
-        Alertas de desconexión, salida de modo kiosko y cambio de SIM. Marca cada una como revisada cuando la
-        atiendas; el reporte puede exportarse a Excel o CSV.
+        Alertas de desconexión, salida de modo kiosko, cambio de SIM y entrada o salida de zonas (geocercas). Marca cada una
+        como revisada cuando la atiendas; el reporte puede exportarse a Excel o CSV.{' '}
+        {mailOn === true && <>Los avisos por correo se configuran en <Link to="/geofences">Geocercas → Notificaciones por correo</Link>.</>}
+        {mailOn === false && (
+          <>
+            El servidor no tiene correo saliente (SMTP) configurado, así que no se envían avisos por correo; ver{' '}
+            <Link to="/geofences">Geocercas → Notificaciones por correo</Link>.
+          </>
+        )}
       </p>
 
       <div className="report-toolbar">
@@ -163,7 +208,9 @@ export function AlertsPage() {
           <input className="input" type="date" value={to} min={from} max={todayStr()} onChange={(e) => setTo(e.target.value)} />
         </label>
         <label className="report-field">
-          <span>Umbral desconexión</span>
+          <span title={canSaveThreshold
+            ? 'Se guarda al pulsar Actualizar y también se usa para los avisos por correo'
+            : 'Lo fija un administrador; aquí solo cambia lo que ves'}>Umbral desconexión</span>
           <span className="report-field-input">
             <input
               className="input"
@@ -238,7 +285,10 @@ export function AlertsPage() {
                     <td>{row.tipo}</td>
                     <td>
                       {row.number ? (
-                        <Link className="row-link-a" to={`/devices/${encodeURIComponent(String(row.number))}`}>
+                        <Link
+                          className="row-link-a"
+                          to={`/devices/${encodeURIComponent(String(row.number))}${String(row.type).startsWith('geofence') ? '?tab=location' : ''}`}
+                        >
                           {String(row.name ?? row.number)}
                         </Link>
                       ) : (

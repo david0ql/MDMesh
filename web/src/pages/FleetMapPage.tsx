@@ -7,6 +7,8 @@ import { escapeHtml } from '../ui/html';
 import { listFleetLocations, type FleetDevice, type FleetFix, type FleetLocations } from '../api/fleetLocations';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
 import { useDevices } from '../data/useDevices';
+import { listZones, listZoneStates, type Zone, type ZoneState } from '../api/geofences';
+import { drawZones } from '../ui/zoneLayer';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -63,6 +65,10 @@ export function FleetMapPage() {
   const [at, setAt] = useState<number>(range[1]);
   const [q, setQ] = useState('');
   const [folder, setFolder] = useState('all');
+  // Geofences: drawn under the trails; a device that is where its zone says it must not be gets a badge.
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [zoneStates, setZoneStates] = useState<ZoneState[]>([]);
+  const [showZones, setShowZones] = useState(true);
 
   // Folders (scoped to what the signed-in admin can see) and the device→folder map used to
   // filter the map by carpeta. The locations endpoint has no folder, so we match by `number`
@@ -95,6 +101,7 @@ export function FleetMapPage() {
 
   const mapEl = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
+  const zoneLayer = useRef<L.LayerGroup | null>(null);
   const trailLayer = useRef<L.LayerGroup | null>(null);
   const markerLayer = useRef<L.LayerGroup | null>(null);
   const fitted = useRef(false);
@@ -133,10 +140,28 @@ export function FleetMapPage() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '© colaboradores de OpenStreetMap',
     }).addTo(map.current);
+    zoneLayer.current = L.layerGroup().addTo(map.current);
     trailLayer.current = L.layerGroup().addTo(map.current);
     markerLayer.current = L.layerGroup().addTo(map.current);
     return () => { map.current?.remove(); map.current = null; };
   }, []);
+
+  // Zones and who is inside/outside, refreshed with each range load.
+  useEffect(() => {
+    listZones().then(setZones).catch(() => setZones([]));
+    listZoneStates().then(setZoneStates).catch(() => setZoneStates([]));
+  }, [range]);
+  useEffect(() => {
+    if (zoneLayer.current) drawZones(zoneLayer.current, showZones ? zones.filter((z) => z.active) : []);
+  }, [zones, showZones]);
+  const inAlert = useMemo(() => {
+    const names = new Map(zones.map((z) => [z.id, z.name]));
+    const m = new Map<string, string[]>();
+    for (const s of zoneStates) {
+      if (s.violating) m.set(s.number, [...(m.get(s.number) ?? []), names.get(s.zoneId) ?? 'zona']);
+    }
+    return m;
+  }, [zones, zoneStates]);
 
   // Trails (range-wide) + fit once per load.
   useEffect(() => {
@@ -229,6 +254,12 @@ export function FleetMapPage() {
           <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
           <span>Recorridos</span>
         </label>
+        {zones.length > 0 && (
+          <label className="fm-check">
+            <input type="checkbox" checked={showZones} onChange={(e) => setShowZones(e.target.checked)} />
+            <span>Zonas</span>
+          </label>
+        )}
       </div>
 
       {err && <div className="banner banner-alert">{err}</div>}
@@ -275,6 +306,13 @@ export function FleetMapPage() {
                   <span className="fm-meta">
                     {plural(d.fixes.length, 'posición', 'posiciones')} · última {fmt(last.capturedAt)}
                   </span>
+                  {inAlert.has(d.number) && (
+                    <span className="fm-meta">
+                      <span className="chip tone-alert" title={inAlert.get(d.number)!.join(', ')}>
+                        Fuera de lugar: {inAlert.get(d.number)!.join(', ')}
+                      </span>
+                    </span>
+                  )}
                   <span className="fm-actions">
                     <button type="button" className="t-more" onClick={() => {
                       map.current?.fitBounds(L.latLngBounds(d.fixes.map((f) => [f.lat, f.lon] as [number, number])),

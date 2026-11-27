@@ -55,8 +55,28 @@ public class AgentCommandDAO {
         this.eventMapper = eventMapper;
     }
 
+    /**
+     * Queue a command. Every route goes through here, so this is where the issuer is stamped: the console user
+     * serving the current request (id, login, address), or {@link AgentCommand#SYSTEM_ISSUER} when nobody is
+     * signed in on this thread (a device check-in, an enrollment, a background task).
+     */
     public void insert(AgentCommand command) {
+        stampIssuer(command);
         mapper.insert(command);
+    }
+
+    static void stampIssuer(AgentCommand command) {
+        if (command.getIssuerName() != null) return;
+        com.hmdm.security.SecurityContext ctx = com.hmdm.security.SecurityContext.get();
+        com.hmdm.persistence.domain.User user = ctx == null ? null : ctx.getCurrentUser().orElse(null);
+        if (user == null) {
+            command.setIssuerName(AgentCommand.SYSTEM_ISSUER);
+            return;
+        }
+        command.setIssuerId(user.getId());
+        String login = user.getLogin();
+        command.setIssuerName(login == null || login.trim().isEmpty() ? "usuario " + user.getId() : login);
+        command.setIssuerIp(com.hmdm.security.RequestOrigin.ip());
     }
 
     /** Delivered commands (other than an agent self-install) the device has not answered yet. */
@@ -84,27 +104,76 @@ public class AgentCommandDAO {
     }
 
     /**
-     * Lazy TTL expiry. Pending commands age out {@code pendingTtlMillis} after creation;
-     * delivered ones get their own {@code deliveredTtlMillis} leash from delivery time (the
-     * device already holds them — see the mapper note).
+     * Lazy housekeeping of a device's queue, by the per-type table in {@link com.hmdm.util.CommandPolicy}: commands
+     * whose wait is over end as expired, and delivered commands the device never answered go back to the queue
+     * (the answer, or the delivery itself, was lost). A check-in only happens once the phone's previous cycle ended
+     * (one at a time), so a command still running on the phone is never handed out a second time.
+     *
+     * @param ledger the device's agent advertises {@link com.hmdm.util.CommandPolicy#LEDGER_CAPABILITY}
      */
-    /**
-     * Re-queue a lost config.apply after 3 minutes and a lost app.install after 10. A check-in only happens once the
-     * phone's previous cycle ended (one at a time), so an install still downloading is never re-sent; one left
-     * unanswered (no internet for its download, the worker stopped) comes back on the next check-in.
-     */
-    public int requeueLostRepeatable(String deviceNumber) {
-        long now = System.currentTimeMillis();
-        return mapper.requeueLostRepeatable(deviceNumber, now - 3 * 60_000L, now - 10 * 60_000L);
+    public com.hmdm.util.CommandQueueSweep.Outcome sweep(final String deviceNumber, boolean ledger) {
+        return com.hmdm.util.CommandQueueSweep.run(queue(), deviceNumber, ledger, System.currentTimeMillis());
     }
 
-    /** How long an undelivered app.install (apps, remote support, agent updates) waits for a phone that is off. */
-    public static final long PENDING_INSTALL_TTL_MS = 30L * 24 * 3600_000L;
+    /** Close the device's overdue commands without handing anything out again (the console reading its history). */
+    public void expireOverdue(String deviceNumber) {
+        com.hmdm.util.CommandQueueSweep.expireOnly(queue(), deviceNumber, System.currentTimeMillis());
+    }
 
-    public void expireStale(String deviceNumber, long pendingTtlMillis, long deliveredTtlMillis) {
+    private com.hmdm.util.CommandQueueSweep.Queue queue() {
+        return new com.hmdm.util.CommandQueueSweep.Queue() {
+            @Override
+            public List<AgentCommand> listOpen(String number) {
+                return mapper.listOpen(number);
+            }
+
+            @Override
+            public void expire(Integer id, long now, String detail) {
+                mapper.expireOpen(id, now, detail);
+            }
+
+            @Override
+            public void requeue(Integer id) {
+                mapper.requeueDelivered(id);
+            }
+
+            @Override
+            public boolean newerDelivered(String number, Integer id, java.util.Set<String> lowerCaseTypes) {
+                return mapper.countNewerDelivered(number, id, String.join(",", lowerCaseTypes)) > 0;
+            }
+        };
+    }
+
+    /** Withdraw a command that has not run yet. @return false when it was already closed (or is not this device's). */
+    public boolean cancel(String deviceNumber, Integer commandId, String detail) {
+        return mapper.cancelOpen(deviceNumber, commandId, System.currentTimeMillis(), detail) > 0;
+    }
+
+    /** A device is taken as wiped when it received the wipe and stayed silent this long. */
+    public static final long WIPE_SILENCE_MS = 10 * 60_000L;
+    /** The check-in that carries the wipe (and its best-effort answer) may stamp lastUpdate slightly after delivery. */
+    public static final long WIPE_SLACK_MS = 60_000L;
+    public static final String DETAIL_WIPE_INFERRED =
+            "Borrado confirmado por silencio: el equipo recibió la orden y no volvió a reportar";
+    public static final String DETAIL_WIPE_REENROLLED = "El equipo se inscribió de nuevo después de recibir el borrado";
+    public static final String DETAIL_WIPE_WITHDRAWN = "Retirado: el equipo se inscribió de nuevo antes de recibirlo";
+
+    /**
+     * Bring the "wiped" marks of the customer's devices up to date and return them, keyed by device number
+     * ({@code wipedat}, {@code wipedby}). A device that received a wipe and went silent gets the mark; one that
+     * reports again loses it. The device row is never deleted.
+     */
+    public List<java.util.Map<String, Object>> refreshWipedDevices(int customerId) {
         long now = System.currentTimeMillis();
-        mapper.expireStale(deviceNumber, now - pendingTtlMillis, now - Math.max(pendingTtlMillis, PENDING_INSTALL_TTL_MS),
-                now - deliveredTtlMillis, now);
+        mapper.unmarkReportingDevices(customerId, WIPE_SLACK_MS);
+        mapper.markWipedDevices(customerId, now - WIPE_SILENCE_MS, WIPE_SLACK_MS);
+        mapper.closeWipesOfWipedDevices(customerId, DETAIL_WIPE_INFERRED);
+        return mapper.listWipedDevices(customerId);
+    }
+
+    /** A phone enrolling again must never receive the wipe queued for its previous life. */
+    public void closeWipesOnReenroll(String deviceNumber) {
+        mapper.closeWipesOnReenroll(deviceNumber, System.currentTimeMillis(), DETAIL_WIPE_REENROLLED, DETAIL_WIPE_WITHDRAWN);
     }
 
     /** Command lifecycle history for a device, newest first, created at/after {@code since}. */
@@ -168,6 +237,15 @@ public class AgentCommandDAO {
     /** Number of an existing device of [customerId] with this stable hardware id, or null (enroll de-dup). */
     public String findDeviceNumberByHardwareId(int customerId, String hardwareId) {
         return deviceMapper.findDeviceNumberByHardwareId(customerId, hardwareId);
+    }
+
+    /** Number of an existing device of [customerId] with this serial, or null (enroll de-dup across factory resets). */
+    public String findDeviceNumberBySerial(int customerId, String serial) {
+        return deviceMapper.findDeviceNumberBySerial(customerId, serial);
+    }
+
+    public String findDeviceNumberByImei(int customerId, String imei) {
+        return deviceMapper.findDeviceNumberByImei(customerId, imei);
     }
 
     /** Packages shown in a single device's kiosk (per-device "show in kiosk"). */
@@ -239,8 +317,13 @@ public class AgentCommandDAO {
      * inside the INSERT itself (single statement), so concurrent check-ins can't double-insert.
      */
     public void recordLocation(com.hmdm.persistence.domain.DeviceLocation location) {
+        recordLocationIfNew(location);
+    }
+
+    /** Same as {@link #recordLocation}; @return true when the fix was new and stored (geofences evaluate only those). */
+    public boolean recordLocationIfNew(com.hmdm.persistence.domain.DeviceLocation location) {
         location.setRecordedAt(System.currentTimeMillis());
-        deviceMapper.insertLocation(location);
+        return deviceMapper.insertLocation(location) > 0;
     }
 
     public java.util.List<com.hmdm.persistence.domain.DeviceLocation> listLocations(

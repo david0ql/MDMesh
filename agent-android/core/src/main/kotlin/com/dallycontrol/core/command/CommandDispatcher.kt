@@ -19,6 +19,7 @@ import com.dallycontrol.proto.CommandResult
 class CommandDispatcher(
     handlers: List<CommandHandler>,
     private val nowEpochSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
+    private val ledger: CommandLedger = CommandLedger.None,
 ) {
 
     private val handlersByType: Map<String, CommandHandler> = handlers.associateBy { it.type }
@@ -34,11 +35,21 @@ class CommandDispatcher(
             return CommandResults.done(command, "duplicate ignored")
         }
 
+        // Ran in a previous life of this process (the server repeats a command whose answer it never got):
+        // answer with the result it had then, without running it again.
+        ledger.find(command.commandId)?.let { return it }
+
         val handler = handlersByType[command.type]
             ?: return CommandResults.unsupported(command, "unknown command type: ${command.type}")
 
-        return runCatching { handler.handle(command) }
+        // A command that kills the agent before it can answer is written down first, or its repeat would run again.
+        if (command.type in RECORD_BEFORE_RUNNING) {
+            ledger.record(CommandResults.done(command, "ejecutado (confirmado después de reiniciar)"))
+        }
+
+        return runCatching { handler.handle(command).also { ledger.record(it) } }
             .getOrElse {
+                ledger.forget(command.commandId)
                 // Cancelled with the check-in (worker stopped): unanswered, so the server re-queues it — not a failure.
                 // Not run to the end: forget it, so the server's re-delivery runs it again instead of "duplicate ignored".
                 if (it is kotlinx.coroutines.CancellationException || it is RetryLaterException) {
@@ -47,6 +58,11 @@ class CommandDispatcher(
                 }
                 CommandResults.failed(command, it.message ?: "handler threw")
             }
+    }
+
+    private companion object {
+        /** Types whose handler takes the device down: the answer may never leave. */
+        val RECORD_BEFORE_RUNNING = setOf("device.reboot")
     }
 
     private fun isExpired(command: CommandEnvelope): Boolean {

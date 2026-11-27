@@ -51,6 +51,9 @@ import java.util.stream.Collectors;
 public class UserRoleResource {
     private UserRoleDAO userRoleDAO;
 
+    /** Roles the console itself assigns (folder editor 3, observer 100, folder view-only 200): never deleted. */
+    private static final java.util.Set<Integer> BUILT_IN_ROLES = new java.util.HashSet<>(java.util.Arrays.asList(1, 2, 3, 100, 200));
+
     /**
      * <p>A logger to be used for logging the events.</p>
      */
@@ -110,6 +113,33 @@ public class UserRoleResource {
             return Response.PERMISSION_DENIED();
         }
 
+        if (userRole == null || userRole.getName() == null || userRole.getName().trim().isEmpty()) {
+            return Response.ERROR("El rol necesita un nombre.");
+        }
+        userRole.setName(userRole.getName().trim());
+        if (userRole.getName().length() > 50) {
+            return Response.ERROR("El nombre del rol admite hasta 50 caracteres.");
+        }
+        // The administrator roles always keep full access: editing them could lock every administrator out.
+        if (userRole.getId() != null) {
+            UserRole current = this.userRoleDAO.findById(userRole.getId());
+            if (current == null) {
+                return Response.OBJECT_NOT_FOUND_ERROR();
+            }
+            if (current.isSuperAdmin() || userRoleDAO.isAdminRole(current.getId())) {
+                return Response.ERROR("El rol de administrador no se puede modificar.");
+            }
+        }
+        userRole.setSuperAdmin(false);
+        // Only permissions that can be handed out (never the super-administrator's own).
+        if (userRole.getPermissions() != null) {
+            java.util.Set<Integer> assignable = this.userRoleDAO.getPermissionsList().stream()
+                    .filter(p -> !p.isSuperAdmin()).map(p -> p.getId()).collect(Collectors.toSet());
+            userRole.setPermissions(userRole.getPermissions().stream()
+                    .filter(p -> p != null && assignable.contains(p.getId()))
+                    .collect(Collectors.toList()));
+        }
+
         UserRole dbUserRole = this.userRoleDAO.findByName(userRole.getName());
         if (dbUserRole != null && !dbUserRole.getId().equals(userRole.getId())) {
             return Response.DUPLICATE_ENTITY("error.duplicate.role");
@@ -119,8 +149,10 @@ public class UserRoleResource {
             } else {
                 this.userRoleDAO.update(userRole);
             }
-
-            return Response.OK();
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("id", userRole.getId());
+            out.put("name", userRole.getName());
+            return Response.OK(out);
         }
     }
 
@@ -137,6 +169,18 @@ public class UserRoleResource {
             log.error("Unauthorized attempt to remove a user role by user " +
                     SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
+        }
+        UserRole current = id == null ? null : this.userRoleDAO.findById(id);
+        if (current == null) {
+            return Response.OBJECT_NOT_FOUND_ERROR();
+        }
+        if (current.isSuperAdmin() || userRoleDAO.isAdminRole(id) || BUILT_IN_ROLES.contains(id)) {
+            return Response.ERROR("Este rol viene con el sistema y no se puede eliminar.");
+        }
+        int users = this.userRoleDAO.countUsers(id);
+        if (users > 0) {
+            return Response.ERROR("El rol está asignado a " + users + (users == 1 ? " usuario" : " usuarios")
+                    + ": cámbiales el rol antes de eliminarlo.");
         }
         this.userRoleDAO.delete(id);
         return Response.OK();

@@ -47,8 +47,50 @@ public class AgentCommand implements Serializable {
     /** Device-reported result detail (e.g. a command's JSON output). Mapped from SELECT * so the
      *  command-history endpoint exposes it; without this field MyBatis silently drops the column. */
     private String detail;
+    /** How many times it was handed to the device (a delivery whose answer never came is repeated). */
+    private Integer deliveries;
+    /** Who queued it: the console user's id and login, or {@link #SYSTEM_ISSUER} for an automatic one. */
+    private Integer issuerId;
+    private String issuerName;
+    /** The address the console request came from; null for automatic commands. */
+    private String issuerIp;
+
+    /** Issuer name of a command no person queued (reconciliation, enrollment, schedules). */
+    public static final String SYSTEM_ISSUER = "sistema";
 
     public AgentCommand() {
+    }
+
+    public Integer getDeliveries() {
+        return deliveries;
+    }
+
+    public void setDeliveries(Integer deliveries) {
+        this.deliveries = deliveries;
+    }
+
+    public Integer getIssuerId() {
+        return issuerId;
+    }
+
+    public void setIssuerId(Integer issuerId) {
+        this.issuerId = issuerId;
+    }
+
+    public String getIssuerName() {
+        return issuerName;
+    }
+
+    public void setIssuerName(String issuerName) {
+        this.issuerName = issuerName;
+    }
+
+    public String getIssuerIp() {
+        return issuerIp;
+    }
+
+    public void setIssuerIp(String issuerIp) {
+        this.issuerIp = issuerIp;
     }
 
     public Integer getId() {

@@ -153,14 +153,14 @@ export function targetLabel(t: Target): string {
 }
 
 /** Queue one command for the target. Destructive commands are refused for groups and all devices. */
-export async function queueForTarget(t: Target, req: QueueCommandRequest): Promise<{ queued: number; skipped: number }> {
+export async function queueForTarget(t: Target, req: QueueCommandRequest): Promise<{ queued: number; skipped: number; offline: number }> {
   if (t.kind === 'devices') {
     const r = await bulkQueueCommand(t.ids, req);
-    return { queued: r.queued, skipped: r.skipped?.length ?? 0 };
+    return { queued: r.queued, skipped: r.skipped?.length ?? 0, offline: r.offline ?? 0 };
   }
   const path = t.kind === 'group' ? `${BASE}/groups/${t.id}/commands` : `${BASE}/global/commands`;
-  const r = await apiClient.post<{ queued: number }>(path, { command: req });
-  return { queued: r.queued, skipped: 0 };
+  const r = await apiClient.post<{ queued: number; offline?: number }>(path, { command: req });
+  return { queued: r.queued, skipped: 0, offline: r.offline ?? 0 };
 }
 
 /** Kiosk branding (see common KioskBrand): logos, wallpaper, serial and a support line. */
@@ -259,3 +259,65 @@ export interface DeviceSummary {
 }
 
 export const listDeviceSummaries = () => apiClient.get<DeviceSummary[]>(`${BASE}/devices/summary`);
+
+// --- Fleet export (Excel / CSV) and "Actualizar ahora" ------------------------------------------------------------
+
+export type FleetExportFormat = 'xlsx' | 'csv';
+/** CSV field separator the server accepts. */
+export type CsvSeparator = ';' | ',' | 'tab' | '|';
+
+export interface FleetExportOptions {
+  format: FleetExportFormat;
+  separator?: CsvSeparator;
+  /** A folder and its sub-folders. */
+  groupId?: number;
+  /** Only these device numbers (what the table shows, or the selection); omit for every device. */
+  numbers?: string[];
+  days?: number;
+}
+
+/**
+ * Download the fleet inventory as Excel (Resumen, Dispositivos, Carpetas, Conexiones) or as CSV (the Dispositivos
+ * sheet, UTF-8 with BOM). The server narrows it to the folders the signed-in user may see.
+ */
+export async function downloadFleetExport(o: FleetExportOptions): Promise<void> {
+  const res = await fetch(`${API_BASE}${BASE}/export`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      format: o.format,
+      separator: o.separator ?? ';',
+      group: o.groupId ?? null,
+      numbers: o.numbers ?? null,
+      days: o.days ?? 30,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Bogota',
+    }),
+  });
+  if (!res.ok) throw new Error(`No se pudo generar el archivo (${res.status})`);
+  const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? `dispositivos.${o.format}`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export interface RefreshResult {
+  /** Devices that were asked to report. */
+  requested: number;
+  /** Of those, how many have their live channel open (they answer in seconds). */
+  live: number;
+  /** Numbers without a live channel: they report on their next periodic check-in. */
+  notLive: string[];
+  /** Server time of the request (ms): a device whose stateAt is later has refreshed. */
+  at: number;
+}
+
+/** "Actualizar ahora": ask these devices to check in at once (a wake signal; no command is queued). */
+export const refreshDevices = (sel: { deviceIds?: number[]; numbers?: string[] }) =>
+  apiClient.post<RefreshResult>(`${BASE}/devices/refresh`, sel);

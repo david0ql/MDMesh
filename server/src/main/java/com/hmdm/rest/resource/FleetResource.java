@@ -154,59 +154,146 @@ public class FleetResource {
 
     // --- export -------------------------------------------------------------------------------------------------
 
-    @ApiOperation(value = "Export devices (Excel)", notes = "Workbook with Resumen, Dispositivos, Carpetas and Conexiones "
-            + "(connection history). ?group=<id> limits it to a folder and its sub-folders; ?days=<n> (default 30) the history.")
+    /** Builds what the exports contain (shared with the inventory report and the scheduled e-mails). */
+    @Inject
+    private com.hmdm.rest.resource.support.FleetExportService exportService;
+
+    private static final String XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /** Body of POST /export: what the device list is showing (filters or selection) and the file wanted. */
+    public static class ExportBody {
+        /** xlsx (default) | csv */
+        public String format;
+        /** CSV field separator: ";" (default) "," "tab" "|". */
+        public String separator;
+        public Integer group;
+        public Integer days;
+        public String tz;
+        /** Only these device numbers; null/absent = every device of the scope. */
+        public List<String> numbers;
+    }
+
+    @ApiOperation(value = "Export devices (Excel)", notes = "Workbook with Resumen, Dispositivos (inventory: connection, "
+            + "battery, storage, Android, network, identifiers), Carpetas and Conexiones (connection history). "
+            + "?group=<id> limits it to a folder and its sub-folders; ?days=<n> (default 30) the history; "
+            + "?numbers=a,b limits it to those devices.")
     @GET
     @Path("/export.xlsx")
     @Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     public javax.ws.rs.core.Response exportDevices(@javax.ws.rs.QueryParam("group") Integer groupId,
                                                   @javax.ws.rs.QueryParam("days") Integer days,
-                                                  @javax.ws.rs.QueryParam("tz") String tz) {
+                                                  @javax.ws.rs.QueryParam("tz") String tz,
+                                                  @javax.ws.rs.QueryParam("numbers") String numbers) {
+        return export("xlsx", null, groupId, days, tz, splitNumbers(numbers));
+    }
+
+    @ApiOperation(value = "Export devices (CSV)", notes = "The Dispositivos sheet as CSV: UTF-8 with BOM, one row per "
+            + "device. ?sep=; (default) | , | tab | pipe. Same ?group, ?numbers and ?tz as the Excel export.")
+    @GET
+    @Path("/export.csv")
+    @Produces("text/csv")
+    public javax.ws.rs.core.Response exportDevicesCsv(@javax.ws.rs.QueryParam("group") Integer groupId,
+                                                     @javax.ws.rs.QueryParam("tz") String tz,
+                                                     @javax.ws.rs.QueryParam("sep") String sep,
+                                                     @javax.ws.rs.QueryParam("numbers") String numbers) {
+        return export("csv", sep, groupId, null, tz, splitNumbers(numbers));
+    }
+
+    @ApiOperation(value = "Export devices (filtered or selected)", notes = "Body: { format: xlsx|csv, separator?, group?, "
+            + "days?, tz?, numbers?: [device numbers] } — the same files as export.xlsx / export.csv, for a device list "
+            + "too long for a URL (what the console's table is showing, or its selection).")
+    @POST
+    @Path("/export")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces({"text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"})
+    public javax.ws.rs.core.Response exportDevicesPost(ExportBody body) {
+        ExportBody b = body == null ? new ExportBody() : body;
+        return export(b.format, b.separator, b.group, b.days, b.tz, b.numbers);
+    }
+
+    private static List<String> splitNumbers(String numbers) {
+        if (numbers == null || numbers.trim().isEmpty()) return null;
+        List<String> out = new ArrayList<>();
+        for (String n : numbers.split(",")) if (!n.trim().isEmpty()) out.add(n.trim());
+        return out;
+    }
+
+    private javax.ws.rs.core.Response export(String format, String separator, Integer groupId, Integer days, String tz,
+                                             List<String> numbers) {
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return javax.ws.rs.core.Response.status(403).build();
         }
-        int c = customerId.get();
-        com.hmdm.util.DeviceExport.Input in = new com.hmdm.util.DeviceExport.Input();
-        in.baseUrl = baseUrl;
-        try {
-            if (tz != null && !tz.trim().isEmpty()) in.zone = java.time.ZoneId.of(tz.trim());
-        } catch (Exception ignored) {
-            // keep America/Bogota
-        }
-        in.now = System.currentTimeMillis();
-        int d = days == null ? 30 : Math.max(1, Math.min(days, 366));
-        in.from = in.now - d * 86_400_000L;
-        in.to = in.now;
-        in.connectionGapMs = com.hmdm.rest.resource.AgentResource.CONNECTION_GAP_MS;
-        in.groups = commandDAO.listGroups(c);
-        in.devices = commandDAO.listDeviceExportRows(c);
-        in.connections = commandDAO.listConnections(c, in.from, in.to);
+        com.hmdm.rest.resource.support.FleetExportService.Request rq = new com.hmdm.rest.resource.support.FleetExportService.Request();
+        rq.groupId = groupId;
+        // The CSV has no connection-history sheet: it only needs the sessions still open.
+        rq.days = "csv".equalsIgnoreCase(format) ? Integer.valueOf(1) : days;
+        rq.tz = tz;
+        rq.numbers = numbers;
         // A folder administrator exports only their folders' devices.
-        Set<String> visible = scope.deviceNumbers();
-        Set<Integer> mine = scope.groups();
-        if (visible != null) {
-            in.devices.removeIf(r -> !visible.contains(String.valueOf(r.get("number"))));
-            in.connections.removeIf(r -> !visible.contains(String.valueOf(r.get("devicenumber") != null ? r.get("devicenumber") : r.get("deviceNumber"))));
-            in.groups.removeIf(g -> !mine.contains(g.getId()));
+        com.hmdm.rest.resource.support.FleetExportService.Built built =
+                exportService.build(customerId.get(), rq, scope.deviceNumbers(), scope.groups());
+        if (built == null) {
+            return javax.ws.rs.core.Response.status(404).build();
         }
-        String fileName = "dispositivos";
-        if (groupId != null) {
-            DeviceGroupView g = commandDAO.findGroup(c, groupId);
-            if (g == null) {
-                return javax.ws.rs.core.Response.status(404).build();
-            }
-            in.onlyGroups = com.hmdm.util.DeviceExport.branch(groupId, in.groups);
-            in.scopeLabel = "Carpeta " + g.getName() + " y sus subcarpetas";
-            fileName += "-" + g.getName().replaceAll("[^A-Za-z0-9._-]+", "_");
-        }
-        final com.hmdm.util.DeviceExport.Input input = in;
-        javax.ws.rs.core.StreamingOutput body = out -> com.hmdm.util.DeviceExport.write(input, out);
-        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmm").format(java.time.Instant.ofEpochMilli(in.now).atZone(in.zone));
-        return javax.ws.rs.core.Response.ok(body)
-                .header("Content-Disposition", "attachment; filename=\"" + fileName + "-" + stamp + ".xlsx\"")
+        final com.hmdm.util.DeviceExport.Input input = built.input;
+        final boolean csv = "csv".equalsIgnoreCase(format);
+        final char sep = com.hmdm.util.ReportExport.separator(separator);
+        javax.ws.rs.core.StreamingOutput out = csv
+                ? o -> com.hmdm.util.DeviceExport.writeCsv(input, sep, o)
+                : o -> com.hmdm.util.DeviceExport.write(input, o);
+        return javax.ws.rs.core.Response.ok(out)
+                .header("Content-Type", csv ? "text/csv; charset=utf-8" : XLSX)
+                .header("Content-Disposition", "attachment; filename=\"" + built.fileBase + (csv ? ".csv" : ".xlsx") + "\"")
                 .header("Cache-Control", "no-store")
                 .build();
+    }
+
+    // --- refresh ("Actualizar ahora") -------------------------------------------------------------------------
+
+    public static class RefreshBody {
+        public List<Integer> deviceIds;
+        public List<String> numbers;
+    }
+
+    @ApiOperation(value = "Ask devices to report now", notes = "Body: { deviceIds? , numbers? } — wakes each device over its "
+            + "live channel so it checks in at once (same signal as the per-device force sync; no command is queued). "
+            + "Returns how many were asked and how many have the channel open now; the others report on their next "
+            + "periodic check-in.")
+    @POST
+    @Path("/devices/refresh")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response refreshDevices(RefreshBody body) {
+        if (!SecurityContext.get().hasPermission("edit_devices")) {
+            return Response.PERMISSION_DENIED();
+        }
+        Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
+        if (!customerId.isPresent()) {
+            return Response.PERMISSION_DENIED();
+        }
+        Set<Integer> ids = body == null || body.deviceIds == null ? Set.of() : new HashSet<>(body.deviceIds);
+        Set<String> numbers = body == null || body.numbers == null ? Set.of() : new HashSet<>(body.numbers);
+        if (ids.isEmpty() && numbers.isEmpty()) {
+            return Response.ERROR("error.devices.empty");
+        }
+        Set<String> visible = scope.deviceNumbers(); // null = all
+        int requested = 0, live = 0;
+        List<String> offline = new ArrayList<>();
+        for (DeviceScopeRow r : commandDAO.listDeviceScopes(customerId.get())) {
+            if (!ids.contains(r.getId()) && !numbers.contains(r.getNumber())) continue;
+            if (visible != null && !visible.contains(r.getNumber())) continue;
+            requested++;
+            if (wakeHub.isOnline(r.getNumber())) live++;
+            else offline.add(r.getNumber());
+            wakeHub.wake(r.getNumber(), "commands");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("requested", requested);
+        out.put("live", live);
+        out.put("notLive", offline);
+        out.put("at", System.currentTimeMillis());
+        return Response.OK(out);
     }
 
     // --- groups ---------------------------------------------------------------------------------------------------
@@ -318,6 +405,7 @@ public class FleetResource {
         }
         commandDAO.updateGroup(c, id, name, body.configurationId, body.parentId);
         scope.refresh(c);
+        dropGeofenceCache();
         // The whole branch may inherit the change (or a new ancestor's configuration after a move).
         Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
         int changed = scopes.apply(c, r -> r.getGroupId() != null && branch.contains(r.getGroupId()));
@@ -471,6 +559,7 @@ public class FleetResource {
         }
         int changed = scopes.apply(c, r -> members.contains(r.getId()));
         scope.refresh(c);
+        dropGeofenceCache();
         logger.info("Group {} deleted (customer {}); {} device(s) reconfigured", id, c, changed);
         return Response.OK();
     }
@@ -570,6 +659,7 @@ public class FleetResource {
             moved.add(deviceId);
         }
         int changed = scopes.apply(c, r -> moved.contains(r.getId()));
+        dropGeofenceCache(); // a device in another folder inherits other zones
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("moved", moved.size());
         out.put("skipped", skipped);
@@ -783,6 +873,13 @@ public class FleetResource {
     // --- helpers --------------------------------------------------------------------------------------------------
 
     private Response fanOut(int customerId, CommandBody body, Predicate<DeviceScopeRow> which, String target) {
+        // A command is a device action wherever it is sent from: edit_devices, like the per-device and bulk calls
+        // (manage_fleet alone lets a role organise folders and policies, not operate the phones).
+        if (!SecurityContext.get().hasPermission("edit_devices")) {
+            logger.warn("Permission denied: fan-out to {} requires edit_devices (user {})", target,
+                    SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
+            return Response.PERMISSION_DENIED();
+        }
         AgentCommand cmd = body == null ? null : body.command;
         if (cmd == null || cmd.getType() == null || cmd.getType().trim().isEmpty()) {
             return Response.ERROR("error.agent.command.invalid");
@@ -799,9 +896,10 @@ public class FleetResource {
                 && !SecurityContext.get().hasPermission("disruptive_actions")) {
             logger.warn("Permission denied: fan-out {} requires disruptive_actions (user {})", type,
                     SecurityContext.get().getCurrentUser().map(u -> u.getLogin()).orElse("?"));
-            return Response.ERROR("error.agent.command.bulkForbidden");
+            return Response.PERMISSION_DENIED();
         }
         int queued = 0;
+        int offline = 0;
         long now = System.currentTimeMillis();
         for (DeviceScopeRow row : commandDAO.listDeviceScopes(customerId)) {
             if (!which.test(row)) {
@@ -815,12 +913,15 @@ public class FleetResource {
             c.setStatus("pending");
             c.setCreatedAt(now);
             commandDAO.insert(c);
+            if (!wakeHub.isOnline(row.getNumber())) offline++;
             wakeHub.wake(row.getNumber(), "commands");
             queued++;
         }
         logger.info("Command {} queued for {} device(s) of {} (customer {})", type, queued, target, customerId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("queued", queued);
+        // Of those, the devices not connected now: their command waits and runs when they come back.
+        out.put("offline", offline);
         return Response.OK(out);
     }
 
@@ -851,6 +952,12 @@ public class FleetResource {
         }
         String n = name.trim().replaceAll("\\s+", " ");
         return n.isEmpty() || n.length() > MAX_GROUP_NAME ? null : n;
+    }
+
+    /** Folders or their devices changed: the zones each device inherits may have changed too. */
+    private static void dropGeofenceCache() {
+        com.hmdm.rest.resource.support.GeofenceService geofences = com.hmdm.rest.resource.support.GeofenceService.INSTANCE;
+        if (geofences != null) geofences.invalidate();
     }
 
     /** The current customer, when the user may MODIFY the fleet (manage_fleet: change folders/policies),

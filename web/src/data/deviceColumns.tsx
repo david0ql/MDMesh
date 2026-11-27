@@ -41,6 +41,24 @@ export function SimMatchCell({ s }: { s?: DeviceSummary }) {
   );
 }
 
+/** How old the device's data is ("hace 2 min"): green while fresh (20 min), amber up to a day, grey beyond. */
+export function DataAge({ at, prefix }: { at?: number | null; prefix?: string }) {
+  if (!at) return <span className="muted">—</span>;
+  const age = Date.now() - at;
+  const tone = age <= 20 * 60_000 ? 'fresh' : age <= 86_400_000 ? 'aging' : 'stale';
+  return (
+    <span className={`data-age ${tone}`} title={`Último reporte del equipo: ${new Date(at).toLocaleString('es-CO')}`}>
+      {prefix ? `${prefix} ` : ''}{fmtRelative(at)}
+    </span>
+  );
+}
+
+const usedPct = (s?: DeviceSummary) => {
+  const free = s?.freeStorageBytes, total = s?.totalStorageBytes;
+  if (free == null || !total) return '—';
+  return `${Math.max(0, Math.min(100, Math.round(((total - free) * 100) / total)))} %`;
+};
+
 /** Signal bars (0-4) + label; the network type as an icon. */
 export function NetworkCell({ s }: { s?: DeviceSummary }) {
   if (!s?.networkType || s.networkType === 'none') return <span className="net net-none" title="Sin red">Sin red</span>;
@@ -100,9 +118,11 @@ export const DEVICE_COLUMNS: DeviceColumn[] = [
   { key: 'serial', label: 'Serie', width: '130px', render: (d) => orDash(d.serial) },
   { key: 'imei', label: 'IMEI', width: '150px', render: (d) => orDash(d.imei) },
   { key: 'lastSeen', label: 'Última conexión', width: '110px', render: (d) => fmtRelative(d.lastUpdate) },
+  { key: 'dataAge', label: 'Dato de', width: '104px', render: (d, s) => <DataAge at={s?.stateAt ?? d.lastUpdate} /> },
+  { key: 'storageUsed', label: '% usado', width: '80px', render: (_d, s) => usedPct(s) },
 ];
 
-export const DEFAULT_DEVICE_COLUMNS = ['status', 'network', 'model', 'android', 'battery', 'policy', 'group', 'lastSeen'];
+export const DEFAULT_DEVICE_COLUMNS = ['status', 'network', 'model', 'android', 'battery', 'dataAge', 'policy', 'group', 'lastSeen'];
 const KEY = 'dc.devices.columns';
 /** Per-user key so each operator keeps their own column choice on a shared browser; the old
  *  bare key stays as a fallback (and as the anonymous default). */

@@ -38,6 +38,9 @@ public class StartupTaskModule {
     private boolean customerAutoStatus;
     private boolean transmitPassword;
     private RsaKeyService rsaKeyService;
+    /** Scheduled report e-mails (DallyControl): one tick a minute. */
+    @Inject
+    private com.hmdm.task.ReportScheduleService reportScheduleService;
 
     private static final Logger logger = LoggerFactory.getLogger(EventService.class);
 
@@ -82,6 +85,10 @@ public class StartupTaskModule {
         taskRunner.submitRepeatableTask(fileCheckTask, 5, 60, TimeUnit.MINUTES);
         if (transmitPassword) {
             taskRunner.submitTask(new GenerateRsaKeysTask());
+        }
+        // Scheduled report e-mails: checks every minute which ones are due (the task never throws).
+        if (reportScheduleService != null) {
+            taskRunner.submitRepeatableTask(reportScheduleService, 1, 1, TimeUnit.MINUTES);
         }
     }
 

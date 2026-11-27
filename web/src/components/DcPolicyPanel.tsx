@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MobileDataPolicySection, cleanMobileData, type PolicyAppOption } from './MobileDataPolicySection';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -17,6 +18,8 @@ export interface DcPolicy {
   browser?: { mode: 'open' | 'allowlist' | 'blocklist'; allow?: string[]; block?: string[]; homeUrl?: string };
   apps?: { mode: 'open' | 'allowlist'; allowed?: string[]; roles?: string[]; hidePlayStore?: boolean };
   trackingMinutes?: number;
+  /** Seconds an accurate location fix may wait for a fresh position (5–60; empty = 25). */
+  locationFixSeconds?: number;
   kioskQuickSettings?: boolean;
   deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
   wifi?: { ssid: string; password?: string; security?: 'WPA' | 'WEP' | 'NONE'; hidden?: boolean }[];
@@ -41,6 +44,8 @@ export interface DcPolicy {
     installApps?: 'block';
     frpAccounts?: string[];
   };
+  /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
+  mobileData?: import('../api/mobileData').MobileDataPolicy;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -60,6 +65,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.browser) out.browser = p.browser;
   if (p.apps) out.apps = p.apps;
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
+  if (p.locationFixSeconds && p.locationFixSeconds >= 5) out.locationFixSeconds = p.locationFixSeconds;
   if (p.kioskQuickSettings === false) out.kioskQuickSettings = false; // on by default
   if (p.deviceName) out.deviceName = p.deviceName;
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
@@ -69,6 +75,8 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  const mobileData = cleanMobileData(p.mobileData);
+  if (mobileData) out.mobileData = mobileData;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -151,7 +159,11 @@ function RoleChecks({ value, disabled, onChange, name }: { value: string[]; disa
   );
 }
 
-export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; disabled?: boolean; onChange: (v: string | null) => void }) {
+export function DcPolicyPanel({ value, disabled, onChange, apps }: {
+  value: unknown; disabled?: boolean; onChange: (v: string | null) => void;
+  /** The policy's own apps, offered when picking apps for the mobile-data lists. */
+  apps?: PolicyAppOption[];
+}) {
   const p = parseDcPolicy(value);
   const update = (next: DcPolicy) => onChange(serializeDcPolicy(next));
   const browserMode = p.browser?.mode ?? 'unmanaged';
@@ -525,6 +537,35 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <span className="muted">minutos</span>
         </div>
       </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <strong>Espera de posición precisa</strong>
+          <span className="cfg-field-help">
+            Segundos que el teléfono espera una posición nueva (GPS o ubicación de Google) antes de usar la última conocida.
+            Vacío = 25 s. Más espera mejora la precisión bajo techo; menos, ahorra batería. Las zonas se configuran en Geocercas.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input
+            type="number"
+            className="input"
+            aria-label="Espera de posición precisa en segundos"
+            min={5}
+            max={60}
+            placeholder="25"
+            style={{ width: 100 }}
+            disabled={disabled}
+            value={p.locationFixSeconds ?? ''}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              update({ ...p, locationFixSeconds: Number.isFinite(n) && n > 0 ? Math.max(5, Math.min(n, 60)) : undefined });
+            }}
+          />{' '}
+          <span className="muted">segundos</span>
+        </div>
+      </div>
+
+      <MobileDataPolicySection value={p.mobileData} disabled={disabled} apps={apps} onChange={(v) => update({ ...p, mobileData: v })} />
     </section>
   );
 }

@@ -118,7 +118,7 @@ public interface ReportsMapper {
 
     /** Catalogue of every package the fleet reports as installed, with how many devices carry it. */
     @Select({"SELECT app->>'pkg' AS pkg, MAX(app->>'name') AS name, COUNT(DISTINCT d.id) AS devices " +
-            "FROM devices d, LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
+            "FROM devices d CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
             "WHERE d.customerId = #{customerId} AND app->>'pkg' IS NOT NULL AND app->>'pkg' <> '' " +
             "GROUP BY app->>'pkg' ORDER BY devices DESC, pkg"})
     List<Map<String, Object>> installedAppsCatalog(@Param("customerId") int customerId);
@@ -129,7 +129,7 @@ public interface ReportsMapper {
      * {@code AND d.number = ANY(...)} guard keeps the per-package device counts to the editor's folders.
      */
     @Select({"SELECT app->>'pkg' AS pkg, MAX(app->>'name') AS name, COUNT(DISTINCT d.id) AS devices " +
-            "FROM devices d, LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
+            "FROM devices d CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
             "WHERE d.customerId = #{customerId} AND app->>'pkg' IS NOT NULL AND app->>'pkg' <> '' " +
             "  AND d.number = ANY(string_to_array(#{devs}, ',')) " +
             "GROUP BY app->>'pkg' ORDER BY devices DESC, pkg"})
@@ -139,7 +139,7 @@ public interface ReportsMapper {
     /** One row per (device, matched package): the devices that have any of the requested packages. */
     @Select({"SELECT d.id, d.number, d.description, " + GROUP_ID_SUBQUERY + ", " +
             "app->>'pkg' AS pkg, app->>'version' AS version, app->>'name' AS name " +
-            "FROM devices d, LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
+            "FROM devices d CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
             "WHERE d.customerId = #{customerId} " +
             "  AND app->>'pkg' = ANY(string_to_array(#{pkgs}, ',')) " +
             "ORDER BY lower(coalesce(d.description, d.number)), pkg"})
@@ -175,7 +175,7 @@ public interface ReportsMapper {
 
     @Select({"SELECT d.id, d.number, d.description, " + GROUP_ID_SUBQUERY + ", " +
             "app->>'pkg' AS pkg, ap.name AS appname, app->>'version' AS installed, av.version AS latest " +
-            "FROM devices d, LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
+            "FROM devices d CROSS JOIN LATERAL jsonb_array_elements(COALESCE(d.infojson->'applications', '[]'::jsonb)) app " +
             "JOIN applications ap ON ap.pkg = app->>'pkg' AND ap.customerId = d.customerId " +
             "JOIN applicationVersions av ON av.id = ap.latestVersion " +
             "WHERE d.customerId = #{customerId} AND app->>'version' IS NOT NULL AND app->>'version' <> '' " +
@@ -217,6 +217,17 @@ public interface ReportsMapper {
             "WHERE d.customerId = #{customerId} AND d.configurationId IS NOT NULL " +
             "ORDER BY lower(coalesce(d.description, d.number))"})
     List<Map<String, Object>> complianceRows(@Param("customerId") int customerId);
+
+    // --- Command latency: the timestamps of every command created in a date range ---------------------------------
+
+    /** Newest first and capped, so a very long range on a large fleet cannot exhaust memory. */
+    @Select({"SELECT a.deviceNumber AS number, " + GROUP_ID_SUBQUERY + ", a.type, a.status, " +
+            "a.createdAt AS createdat, a.deliveredAt AS deliveredat, a.completedAt AS completedat " +
+            "FROM agentCommand a JOIN devices d ON d.number = a.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND a.createdAt BETWEEN #{from} AND #{to} " +
+            "ORDER BY a.createdAt DESC LIMIT #{limit}"})
+    List<Map<String, Object>> commandTimings(@Param("customerId") int customerId, @Param("from") long from,
+                                             @Param("to") long to, @Param("limit") int limit);
 
     // --- 9. Decommissioned devices in a date range (device_tombstone) --------------------------------------------
 

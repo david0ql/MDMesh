@@ -15,8 +15,9 @@ import {
 } from '../api/devices';
 import { listConfigurations, type ConfigurationSummary } from '../api/configurations';
 import { BulkActionModal } from '../components/BulkActionModal';
-import { downloadDevicesExcel, groupTree, listDeviceSummaries, listGroups, moveDevicesToGroup, setDevicesConfiguration, type DeviceSummary, type FleetGroup } from '../api/fleet';
+import { refreshDevices, groupTree, listDeviceSummaries, listGroups, moveDevicesToGroup, setDevicesConfiguration, type DeviceSummary, type FleetGroup } from '../api/fleet';
 import { useAuth } from '../auth/AuthContext';
+import { FleetExportMenu } from '../components/FleetExportMenu';
 import { DEFAULT_DEVICE_COLUMNS, DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, saveDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
 
 type View = 'grid' | 'list';
@@ -81,11 +82,14 @@ export function DevicesPage() {
   // view-only folder role does not get those bulk controls.
   const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
     || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
+  // Enrolling new devices is its own permission (enroll_devices); the server checks it on the codes and tokens.
+  const canEnroll = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'enroll_devices'));
   useLiveDevices(); // a device with its live channel open shows connected
   useConnectionStates(); // "En reposo" (silent for a known reason) instead of "Sin conexión"
   const navigate = useNavigate();
   const toast = useToast();
-  const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // Extra list columns: chosen here (button "Columnas") or in Ajustes, saved per user in this
   // browser, capped by what fits at this width.
   const uid = authUser?.id;
@@ -279,6 +283,41 @@ export function DevicesPage() {
     }
   }
 
+  // "Actualizar ahora": ask the selected devices to report at once, then watch their data arrive.
+  async function refreshNow() {
+    const ids = [...selected];
+    const numbers = new Set(devices.filter((d) => selected.has(d.id)).map((d) => d.number));
+    if (ids.length === 0) return;
+    setRefreshing(true);
+    try {
+      const r = await refreshDevices({ deviceIds: ids });
+      const t0 = Date.now();
+      let done = 0;
+      // Devices with their live channel open answer in seconds; the others report on their next check-in.
+      const tries = r.live > 0 ? 15 : 3;
+      for (let i = 0; i < tries && done < r.requested; i++) {
+        await new Promise((res) => setTimeout(res, 2000));
+        const l = await listDeviceSummaries().catch(() => null);
+        if (!l) continue;
+        setSummaries(Object.fromEntries(l.map((x) => [x.number, x])));
+        done = l.filter((x) => numbers.has(x.number) && (x.stateAt ?? 0) >= r.at).length;
+      }
+      setNow(Date.now());
+      void reload(q.trim());
+      const secs = Math.max(1, Math.round((Date.now() - t0) / 1000));
+      if (done >= r.requested && r.requested > 0) {
+        toast.push('ok', 'Datos actualizados', `${done} dispositivo(s) reportaron en ${secs} s.`);
+      } else {
+        toast.push('ok', 'Actualización solicitada',
+          `${done} de ${r.requested} ya reportaron. Los demás no tienen el canal en vivo abierto: reportan en su próxima conexión.`);
+      }
+    } catch (e) {
+      toast.push('err', 'No se pudo actualizar', e instanceof Error ? e.message : '');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   async function applyGroup() {
     if (!groupTarget) return;
     setBusy(true);
@@ -322,15 +361,13 @@ export function DevicesPage() {
           {total > devices.length ? `${devices.length} de ${total}` : devices.length} en total · {onlineCount} en línea
         </span>
         <div className="dv-spacer" />
-        <button className="btn" data-testid="export-excel" disabled={exporting} title="Resumen, dispositivos, carpetas y conexiones (30 días); respeta la carpeta filtrada"
-          onClick={() => {
-            setExporting(true);
-            const gid = group !== 'all' && group !== 'none' ? Number(group) : undefined;
-            downloadDevicesExcel(gid).catch((e) => toast.push('err', 'No se pudo descargar', e instanceof Error ? e.message : ''))
-              .finally(() => setExporting(false));
-          }}>
-          {exporting ? <span key="x">Generando…</span> : <span key="d">Descargar Excel</span>}
-        </button>
+        <FleetExportMenu
+          groupId={group !== 'all' && group !== 'none' ? Number(group) : undefined}
+          groupName={tree.find((n) => String(n.group.id) === group)?.group.name}
+          filteredNumbers={filtered.map((d) => d.number)}
+          selectedNumbers={devices.filter((d) => selected.has(d.id)).map((d) => d.number)}
+          filtersActive={status !== 'all' || config !== 'all' || android !== 'all' || dupOnly || group === 'none' || q.trim() !== ''}
+        />
         <div className="dv-search">
           <IconSearch />
           <input
@@ -357,9 +394,11 @@ export function DevicesPage() {
             onChange={setColumns}
           />
         )}
-        <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
-          Inscribir dispositivo
-        </button>
+        {canEnroll && (
+          <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
+            Inscribir dispositivo
+          </button>
+        )}
       </div>
 
       <div className="filters">
@@ -437,6 +476,10 @@ export function DevicesPage() {
           <span className="bulk-count">{selected.size} seleccionado(s)</span>
           <button className="btn btn-sm" onClick={() => setActionsOpen(true)}>
             Acciones
+          </button>
+          <button className="btn btn-sm" data-testid="refresh-now" disabled={refreshing} onClick={() => void refreshNow()}
+            title="Pide a los equipos seleccionados que reporten ahora (batería, almacenamiento, red…)">
+            {refreshing ? 'Actualizando…' : 'Actualizar ahora'}
           </button>
           {canManage && <button className="btn btn-sm" onClick={() => setGroupOpen(true)}>
             Mover a carpeta

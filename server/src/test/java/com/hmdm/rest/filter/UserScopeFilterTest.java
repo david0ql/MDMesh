@@ -31,6 +31,29 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("DELETE", "/rest/private/fleet/v1/groups/6", 1));
         assertFalse(f.allowed("POST", "/rest/private/fleet/v1/groups/6/commands", 1));
         assertTrue(f.allowed("GET", "/rest/private/fleet/v1/devices/7/scope", 1));
+        // Mobile data per app: a device's state and its override, only for devices of their folders.
+        assertTrue(f.allowed("GET", "/rest/private/agent/v1/devices/mine-1/mobileData", 1));
+        assertTrue(f.allowed("POST", "/rest/private/agent/v1/devices/mine-1/mobileData", 1));
+        assertFalse(f.allowed("GET", "/rest/private/agent/v1/devices/other-2/mobileData", 1));
+        assertFalse(f.allowed("POST", "/rest/private/agent/v1/devices/other-2/mobileData", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/data-limits", 1));
+    }
+
+    @Test
+    public void auditAndExportsOfTheirOwnFolders() {
+        // The audit trail (the resource limits it to their folders and users) and one device's activity.
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/log", 1));
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/devices/mine-1/activity", 1));
+        assertFalse(f.allowed("GET", "/rest/private/audit/v1/devices/other-2/activity", 1));
+        // Never the integrity check, the retention or the purge.
+        assertFalse(f.allowed("GET", "/rest/private/audit/v1/verify", 1));
+        assertFalse(f.allowed("PUT", "/rest/private/audit/v1/settings", 1));
+        assertFalse(f.allowed("POST", "/rest/private/audit/v1/purge", 1));
+        // The device export the console sends (POST) and its CSV form.
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.csv", 1));
+        assertTrue(f.allowed("GET", "/rest/private/dc/users/roles", 1));
     }
 
     @Test
@@ -69,5 +92,41 @@ public class UserScopeFilterTest {
         // Role management stays closed: it is administrators only (never whitelisted here).
         assertFalse(f.allowed("GET", "/rest/private/roles/all", 1));
         assertFalse(f.allowed("PUT", "/rest/private/roles", 1));
+    }
+
+    @Test
+    public void fleetInventoryRoutesAreOpenAndScopedByTheirResources() {
+        assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.csv", 1));
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/export", 1));
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/devices/refresh", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/inventory", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/inventory/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/schedules", 1));
+        assertTrue(f.allowed("POST", "/rest/private/reports/v1/schedules", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/reports/v1/schedules/4", 1));
+        assertTrue(f.allowed("DELETE", "/rest/private/reports/v1/schedules/4", 1));
+        assertTrue(f.allowed("POST", "/rest/private/reports/v1/schedules/4/send", 1));
+        assertFalse(f.allowed("POST", "/rest/private/reports/v1/inventory", 1));
+        assertFalse(f.allowed("DELETE", "/rest/private/reports/v1/schedules", 1));
+        assertFalse(f.allowed("POST", "/rest/private/reports/v1/schedules/4/other", 1));
+    }
+
+    /** Geofences: zones/recipients reach the resource (it scopes them); a device's track only for their devices. */
+    @Test
+    public void geofencesAreScoped() {
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/zones", 1));
+        assertTrue(f.allowed("POST", "/rest/private/geofences/v1/zones", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/geofences/v1/zones/4", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/states", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/mail", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/track", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/track/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/geofences/v1/devices/mine-1/zones", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/track", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/track/export", 1));
+        assertFalse(f.allowed("GET", "/rest/private/geofences/v1/devices/other-2/zones", 1));
+        // Thresholds/retention and the test e-mail are for full administrators.
+        assertFalse(f.allowed("PUT", "/rest/private/geofences/v1/settings", 1));
+        assertFalse(f.allowed("POST", "/rest/private/geofences/v1/mail/test", 1));
     }
 }

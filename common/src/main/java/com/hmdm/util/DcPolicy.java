@@ -45,6 +45,8 @@ public class DcPolicy {
     private Browser browser;
     private Apps apps;
     private Integer trackingMinutes;
+    /** Seconds an active ("precisa") location fix may wait for a fresh position (5–60); null = the agent's default (25). */
+    private Integer locationFixSeconds;
     /** Kiosk offers the agent's quick settings (brightness, volume, Wi-Fi, Bluetooth): on by default, false = off. */
     private Boolean kioskQuickSettings;
     /** Automatic device name: serial (default) / imei / model-serial / none. */
@@ -63,6 +65,39 @@ public class DcPolicy {
     private String powerPin;
     /** Device security rules: data sharing, Google accounts, factory reset. */
     private com.hmdm.rest.json.agent.DesiredDevice device;
+    /** Mobile data per app: which apps may use it, and the data limits of the period (see {@link MobileDataPolicy}). */
+    private MobileData mobileData;
+
+    /**
+     * {@code mode}: {@code open} | {@code blocklist} (the {@code apps} are Wi-Fi only) | {@code allowlist} (only the
+     * {@code apps} use mobile data). {@code mechanism}: absent = automatic, {@code dpm} or {@code vpn}. Limits in
+     * megabytes per {@code period} ({@code monthly} from {@code cutDay} 1..28, or {@code daily}); {@code warnPercent}
+     * raises the warning (80 by default); {@code essential} apps keep mobile data when the device limit is spent.
+     */
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class MobileData {
+        private String mode;
+        private List<String> apps;
+        private String mechanism;
+        private String period;
+        private Integer cutDay;
+        private Integer warnPercent;
+        private Long deviceLimitMb;
+        private List<AppLimit> appLimits;
+        private List<String> essential;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class AppLimit {
+        private String pkg;
+        private Long limitMb;
+    }
 
     @Getter
     @Setter
@@ -146,7 +181,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null;
+                && powerPin == null && device == null && locationFixSeconds == null && mobileData == null;
     }
 
     private DcPolicy cleaned() {
@@ -177,6 +212,7 @@ public class DcPolicy {
             }
         }
         if (trackingMinutes != null && trackingMinutes >= 1 && trackingMinutes <= 1440) c.trackingMinutes = trackingMinutes;
+        if (locationFixSeconds != null && locationFixSeconds >= 5 && locationFixSeconds <= 60) c.locationFixSeconds = locationFixSeconds;
         c.kioskQuickSettings = Boolean.FALSE.equals(kioskQuickSettings) ? Boolean.FALSE : null; // on unless turned off
         c.deviceName = DeviceNaming.normalizeRule(deviceName);
         if (wifi != null) {
@@ -243,6 +279,7 @@ public class DcPolicy {
             c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
                     && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
         }
+        c.mobileData = MobileDataPolicy.clean(mobileData);
         return c;
     }
 

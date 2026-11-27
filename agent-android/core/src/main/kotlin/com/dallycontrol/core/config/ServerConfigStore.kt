@@ -25,6 +25,9 @@ class ServerConfigStore @Inject constructor(@ApplicationContext context: Context
         return (stored ?: BuildConfig.MDM_BASE_URL).trimEnd('/')
     }
 
+    /** The server URL that was provisioned (QR, cable, typed), or null while only the baked default is known. */
+    fun provisioned(): String? = prefs.getString(KEY, null)?.takeIf { it.isNotBlank() }?.trimEnd('/')
+
     /** Persist the provisioned server URL. No-op for blank input. */
     fun save(url: String?) {
         val u = url?.trim()?.takeIf { it.isNotBlank() } ?: return

@@ -53,7 +53,49 @@ public class ConfigReconciler {
                 : new java.util.HashSet<String>(commandDAO.listDeviceKioskApps(device.getId()));
         // Per-device "share data" override: when set it wins over the policy's device.tethering.
         String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
-        return DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
+        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
+        return withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc));
+    }
+
+    /**
+     * A device with its own mobile-data setting (apps always allowed / blocked there, limits ignored, or no
+     * restriction at all) gets the policy's section with that setting on top; the revision is recomputed, so the
+     * phone re-applies. Without an override the document is untouched.
+     */
+    private DesiredConfig withMobileDataOverride(Device device, Configuration cfg, DesiredConfig doc) {
+        try {
+            MobileDataService mobileData = MobileDataService.INSTANCE;
+            com.hmdm.util.MobileDataPolicy.DeviceOverride override = mobileData == null ? null : mobileData.override(device.getId());
+            if (override == null) return doc;
+            doc.setMobileData(com.hmdm.util.MobileDataPolicy.desired(
+                    com.hmdm.util.DcPolicy.parse(cfg.getDcPolicy()).getMobileData(), override));
+            doc.setRevision(DesiredConfigBuilder.revision(doc));
+        } catch (Exception e) {
+            logger.warn("Mobile-data override of {} not applied: {}", device.getNumber(), e.getMessage());
+        }
+        return doc;
+    }
+
+    /**
+     * An active geofence that asks for a position interval raises the device's reporting frequency: the document's
+     * tracking interval becomes the shorter of the policy's and the zone's (the revision is recomputed, so the phone
+     * re-applies; when the zone is removed the document goes back to the policy's own value).
+     */
+    private DesiredConfig withGeofenceTracking(Device device, DesiredConfig doc) {
+        try {
+            GeofenceService geofences = GeofenceService.INSTANCE;
+            Integer wanted = geofences == null || device.getNumber() == null ? null : geofences.trackingMinutes(device.getNumber());
+            if (wanted == null) return doc;
+            Integer own = doc.getTracking() == null ? null : doc.getTracking().getIntervalMinutes();
+            if (own != null && own > 0 && own <= wanted) return doc;
+            com.hmdm.rest.json.agent.DesiredTracking t = new com.hmdm.rest.json.agent.DesiredTracking();
+            t.setIntervalMinutes(wanted);
+            doc.setTracking(t);
+            doc.setRevision(DesiredConfigBuilder.revision(doc));
+        } catch (Exception e) {
+            logger.warn("Geofence tracking interval of {} not applied: {}", device.getNumber(), e.getMessage());
+        }
+        return doc;
     }
 
     /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */

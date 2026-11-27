@@ -36,6 +36,10 @@ class ConfigApplier(
     private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     /** Apply (or clear, with null) the device security rules; returns a ConfigOutcome. Runs after the browser section. */
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
+    /** Seconds an active location fix may wait (null = the agent's default). */
+    private val setLocationFixTimeout: (Int?) -> Unit = {},
+    /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
+    private val mobileData: ((com.dallycontrol.proto.ConfigMobileData?) -> String)? = null,
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -54,7 +58,11 @@ class ConfigApplier(
         val previous = store.load()
         applyKiosk(doc)?.let { outcomes["kiosk"] = it }
         doc.location?.let { loc ->
-            outcomes["location"] = runCatching { setLocationMode(loc.mode); ConfigOutcome.APPLIED }
+            outcomes["location"] = runCatching {
+                setLocationMode(loc.mode)
+                setLocationFixTimeout(loc.fixTimeoutSec)
+                ConfigOutcome.APPLIED
+            }
                 .getOrElse { ConfigOutcome.failed(it.message ?: "location mode") }
         }
         // Browser and app policy: a section that disappears is undone (lists cleared, apps unsuspended), since
@@ -90,9 +98,22 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
+        applyMobileData(doc, previous)?.let { outcomes["mobileData"] = it }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
+    }
+
+    /**
+     * Mobile data per app: applied when the document carries the section, cleared when the previous document did and
+     * this one does not. @return the outcome to report, or null when the document does not assert the section.
+     */
+    private fun applyMobileData(doc: ConfigApplyPayload, previous: ConfigApplyPayload?): String? {
+        if (doc.mobileData == null && previous?.mobileData == null) return null
+        val outcome = mobileData?.let { set ->
+            runCatching { set(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") }
+        } ?: ConfigOutcome.UNSUPPORTED
+        return outcome.takeIf { doc.mobileData != null }
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */

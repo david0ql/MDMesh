@@ -67,10 +67,17 @@ export const reportOutdatedApps = () => apiClient.get<ReportResult>(`${BASE}/out
 export const reportDataUsage = (days: number, limit: number) =>
   apiClient.get<ReportResult>(`${BASE}/data-usage${qs({ days, limit })}`);
 
+/** Mobile data: consumption of the period against the policy's limits, per device and per app with a limit. */
+export const reportDataLimits = () => apiClient.get<ReportResult>(`${BASE}/data-limits`);
+
 export const reportNonCompliance = () => apiClient.get<ReportResult>(`${BASE}/non-compliance`);
 
 export const reportDecommissioned = (from: number, to: number) =>
   apiClient.get<ReportResult>(`${BASE}/decommissioned${qs({ from, to })}`);
+
+/** Per command type: sent, % executed and p50/p90/max latency, for a date range and (optionally) a folder. */
+export const reportCommandLatency = (from: number, to: number, groupId?: number | null) =>
+  apiClient.get<ReportResult>(`${BASE}/command-latency${qs({ from, to, groupId })}`);
 
 // --- export (CSV / Excel) ------------------------------------------------------------------------
 
@@ -98,3 +105,101 @@ export async function downloadReport(
   a.remove();
   setTimeout(() => URL.revokeObjectURL(href), 10_000);
 }
+
+// --- Fleet inventory ------------------------------------------------------------------------------
+
+export interface Breakdown { label: string; count: number }
+
+export interface InventorySummary {
+  total: number;
+  online: number;
+  offline: number;
+  onlineWindowMinutes: number;
+  lowBattery: number;
+  lowBatteryPct: number;
+  storageAlmostFull: number;
+  storageUsedPct: number;
+  offlineLong: number;
+  offlineDays: number;
+  neverReported: number;
+  outdatedAgent: number;
+  latestAgent?: string | null;
+  osUpdatePending: number;
+  byAndroid: Breakdown[];
+  byModel: Breakdown[];
+  byAgent: Breakdown[];
+}
+
+export interface InventoryParams {
+  group?: number | null;
+  lowBattery?: number;
+  storagePct?: number;
+  offlineDays?: number;
+}
+
+export type InventoryResult = ReportResult & { summary?: InventorySummary };
+
+export const reportInventory = (p: InventoryParams) =>
+  apiClient.get<InventoryResult>(`${BASE}/inventory${qs({ ...p })}`);
+
+/** Download the inventory: Excel (full workbook) or CSV with the chosen separator. */
+export async function downloadInventory(format: ExportFormat, p: InventoryParams, sep = ';'): Promise<void> {
+  const url = `${API_BASE}${BASE}/inventory/export${qs({ format, sep, tz: tz(), ...p })}`;
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error(`No se pudo generar el archivo (${res.status})`);
+  const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? `inventario.${format}`;
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}
+
+// --- Scheduled e-mails ----------------------------------------------------------------------------
+
+export interface ReportSchedule {
+  id?: number;
+  name: string;
+  report: string;
+  format: ExportFormat;
+  csvSeparator: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  runHour: number;
+  runMinute: number;
+  /** 1 = lunes … 7 = domingo. */
+  dayOfWeek?: number | null;
+  dayOfMonth?: number | null;
+  timezone: string;
+  /** Comma-separated addresses. */
+  recipients: string;
+  groupId?: number | null;
+  enabled: boolean;
+  lastRunAt?: number | null;
+  lastStatus?: 'ok' | 'error' | 'smtp' | null;
+  lastError?: string | null;
+  nextRunAt?: number | null;
+}
+
+export interface ScheduleList {
+  smtpConfigured: boolean;
+  reports: { id: string; label: string }[];
+  schedules: ReportSchedule[];
+}
+
+export interface SendNowResult {
+  sent: boolean;
+  status: string;
+  message: string;
+  smtpConfigured: boolean;
+  schedule: ReportSchedule;
+}
+
+export const listSchedules = () => apiClient.get<ScheduleList>(`${BASE}/schedules`);
+export const saveSchedule = (s: ReportSchedule) =>
+  s.id == null ? apiClient.post<ReportSchedule>(`${BASE}/schedules`, s) : apiClient.put<ReportSchedule>(`${BASE}/schedules/${s.id}`, s);
+export const deleteSchedule = (id: number) => apiClient.del<void>(`${BASE}/schedules/${id}`);
+export const sendScheduleNow = (id: number) => apiClient.post<SendNowResult>(`${BASE}/schedules/${id}/send`, {});
