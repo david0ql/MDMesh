@@ -31,7 +31,8 @@ class ResultAnnouncerTest {
     @Test
     fun `it retries a few times and then gives up`() = runTest {
         val api = FakeMdmApi().apply { checkInThrows = java.io.IOException("no route") }
-        val announcer = ResultAnnouncer(api, FakeIdentity("dev-1", "sek"), FakeCapabilitySource(), attempts = 3, pauseMs = 10)
+        val identity = FakeIdentity("dev-1", "sek")
+        val announcer = ResultAnnouncer(api, identity, FakeCapabilitySource(), attempts = 3, pauseMs = 10)
         val ok = announcer.announce(result)
         assertFalse(ok)
         assertEquals(3, api.checkInRequests.size)

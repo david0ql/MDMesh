@@ -24,7 +24,7 @@ function canRunDisruptive(user: ReturnType<typeof useAuth>['user']): boolean {
 const GROUPS: Array<{ id: 'safe' | 'disruptive' | 'destructive'; title: string }> = [
   { id: 'safe', title: 'Seguras' },
   { id: 'disruptive', title: 'Interrumpen' },
-  { id: 'destructive', title: 'Destructivas' },
+  // 'destructive' (el borrado remoto) vive en el panel «Protección contra restablecimiento y robo», con su diálogo propio.
 ];
 
 export function ActionConsole({ device }: { device: Device }) {

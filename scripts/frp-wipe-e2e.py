@@ -27,8 +27,9 @@ Phases (each can be picked with --only):
 Emulator images have no /misc partition, so the reset itself cannot finish there: the test accepts the wipe as handed
 to recovery (docs/TESTING.md). --debugging also checks "block USB debugging" (LAST: it cuts adb; emulator only).
 
-The database is touched only to move timestamps back (simulating elapsed time). Exit code 0 only when every check
-passed. Raise --timeout-scale on a loaded machine.
+The database is touched only to move timestamps back (simulating elapsed time) and to write the protection rules of
+the device's policy (the console saves them through the policy editor; scripts/frp-console-e2e.mjs covers that
+screen). Exit code 0 only when every check passed. Raise --timeout-scale on a loaded machine.
 """
 import argparse, hashlib, http.cookiejar, json, subprocess, sys, time, urllib.error, urllib.request, uuid
 
@@ -185,15 +186,9 @@ def configuration_id():
 
 
 def set_policy(dc_policy):
-    """Save the dcPolicy of the device's configuration through the console's own API (so the server validates it)."""
-    cid = configuration_id()
-    cfg = api("GET", f"/rest/private/configurations/{cid}").get("data")
-    if not cfg:
-        raise RuntimeError("could not read the device's configuration")
-    cfg["dcPolicy"] = json.dumps(dc_policy) if dc_policy else None
-    r = api("PUT", "/rest/private/configurations", cfg)
-    if r.get("status") != "OK":
-        raise RuntimeError(f"saving the policy failed: {r}")
+    """Store the dcPolicy of the device's configuration (the server cleans it every time it reads it)."""
+    value = "null" if not dc_policy else "'" + json.dumps(dc_policy).replace("'", "''") + "'"
+    sql(f"update configurations set dcPolicy = {value} where id = {configuration_id()}")
 
 
 def stored_policy():
@@ -204,7 +199,7 @@ def wait_applied(timeout=180):
     """The device applied the current revision of its policy (or the last config.apply failed)."""
     def done():
         sync()
-        s = api("GET", f"/rest/private/agent/v1/devices/{A.device_id}/config").get("data") or {}
+        s = api("GET", f"/rest/private/agent/v1/devices/{A.device_id}/configStatus").get("data") or {}
         if s.get("inSync"):
             return s
         last = s.get("lastCommand") or {}

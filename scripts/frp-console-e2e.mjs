@@ -54,8 +54,20 @@ try {
 
   // --- policy editor: reset protection ---------------------------------------------------------------------------
   await page.goto(`${api}/configs`);
-  const row = page.locator('tr, .cfg-row, li, .card').filter({ hasText: policyName }).filter({ has: page.getByRole('button', { name: /^(Editar|Ver)$/ }) }).last();
-  await row.getByRole('button', { name: /^(Editar|Ver)$/ }).click({ timeout: T });
+  const card = (name) => page.locator('.cfg-card').filter({ has: page.locator('.cfg-nm', { hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }) });
+  await card(policyName).first().waitFor({ timeout: T });
+  let editable = policyName;
+  if (await visible(card(policyName).getByRole('button', { name: 'Ver', exact: true }))) {
+    // A built-in policy is read-only: work on a copy of it (made once).
+    editable = `${policyName} FRP e2e`;
+    if (!(await visible(card(editable)))) {
+      await card(policyName).getByRole('button', { name: 'Usar como plantilla' }).click();
+      await page.getByRole('dialog').getByRole('textbox').fill(editable);
+      await page.getByRole('dialog').getByRole('button', { name: 'Copiar', exact: true }).click();
+      await card(editable).first().waitFor({ timeout: T });
+    }
+  }
+  await card(editable).getByRole('button', { name: 'Editar', exact: true }).click({ timeout: T });
   const frp = page.getByTestId('reset-protection');
   await frp.waitFor({ timeout: T });
   await frp.scrollIntoViewIfNeeded();

@@ -284,3 +284,33 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Factory-reset protection, lost mode and remote wipe
+
+`scripts/frp-wipe-e2e.py` checks, on a real enrolled agent, the two anti-theft criteria (MDM-03 and MDM-09; the user
+guide is [FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md)):
+
+```bash
+scripts/frp-wipe-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> --destructive
+scripts/frp-wipe-e2e.py --api http://localhost:8088 --only reenroll        # API only, no device
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/frp-console-e2e.mjs --api http://localhost:8088 \
+    --device-id <numeric id> --policy "Managed Launcher"                   # the console screens, headless Chromium
+```
+
+- `frp`: company default account, a policy that blocks reset from Settings / safe mode / OEM unlock and wipes after 10
+  wrong unlocks; `dumpsys device_policy` and the agent's own read-back must agree, and the console must say what the
+  device really holds. Android 10 and older go through Google Play services' `factoryResetProtectionAdmin`
+  restriction (read back from `/data/system/users/0/res_com.google.android.gms.xml`); Android 11+ through
+  `setFactoryResetProtectionPolicy`.
+- `lost`: lost mode end to end (lock, message + phone on the lock screen, a position every minute, wipe after N wrong
+  unlocks, back to the policy's values when it ends).
+- `reenroll`: a phone that enrolls again after a reset returns to its row / folder by serial or IMEI; a deleted one is
+  re-created from its tombstone; junk identifiers and rows that are still reporting are never taken over.
+- `wipe-online`, `wipe-offline` (`--destructive`): the agent announces the wipe before running it, flags per option,
+  who ordered it and with which options, and a wipe queued without link for 3 days that runs on reconnect.
+
+Emulator limits: no `/misc` partition (the reset is accepted as handed to recovery, as above) and no persistent data
+block, so on Android 11+ `setFactoryResetProtectionPolicy` answers "unsupported" there. The test then requires the
+console to say "FRP inactiva: este equipo no admite…" instead of a false "activa". The FRP challenge after a reset
+by hardware buttons can only be confirmed on a physical phone with Google services: the steps are in
+[FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md), section 8.
