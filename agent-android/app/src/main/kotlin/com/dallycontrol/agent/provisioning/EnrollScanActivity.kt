@@ -51,6 +51,7 @@ object QrFrameDecoder {
  * received the QR's payload (the setup wizard was abandoned or did not finish the provisioning): instead of another
  * factory reset, the technician opens DallyControl and points the phone at the same QR.
  */
+@Suppress("TooManyFunctions") // an Activity plus the two camera callback interfaces it has to implement
 class EnrollScanActivity : Activity(), SurfaceHolder.Callback, Camera.PreviewCallback {
 
     private var camera: Camera? = null
@@ -155,7 +156,8 @@ class EnrollScanActivity : Activity(), SurfaceHolder.Callback, Camera.PreviewCal
     /** One frame at a time goes to the decoder thread; frames that arrive meanwhile are dropped. */
     override fun onPreviewFrame(data: ByteArray?, cam: Camera?) {
         val size = runCatching { cam?.parameters?.previewSize }.getOrNull()
-        if (done || busy || data == null || size == null) return
+        val idle = !done && !busy
+        if (!idle || data == null || size == null) return
         busy = true
         val posted = decodeHandler?.post {
             val text = decode(data, size.width, size.height)
@@ -165,7 +167,8 @@ class EnrollScanActivity : Activity(), SurfaceHolder.Callback, Camera.PreviewCal
         if (posted != true) busy = false
     }
 
-    private fun decode(data: ByteArray, width: Int, height: Int): String? = QrFrameDecoder.decode(reader, data, width, height)
+    private fun decode(data: ByteArray, width: Int, height: Int): String? =
+        QrFrameDecoder.decode(reader, data, width, height)
 
     private fun onText(text: String) {
         if (done) return

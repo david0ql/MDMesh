@@ -260,7 +260,8 @@ class MainActivity : ComponentActivity() {
             text = getString(R.string.enroll_scan_button)
             contentDescription = "enroll-scan"
             setOnClickListener {
-                startActivity(Intent(this@MainActivity, com.dallycontrol.agent.provisioning.EnrollScanActivity::class.java))
+                val scanner = com.dallycontrol.agent.provisioning.EnrollScanActivity::class.java
+                startActivity(Intent(this@MainActivity, scanner))
             }
         }
         addView(scan); addView(server); addView(code); addView(submit); addView(retry); addView(enrollStatus)

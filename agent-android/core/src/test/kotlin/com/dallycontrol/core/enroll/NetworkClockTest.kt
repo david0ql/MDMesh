@@ -28,7 +28,8 @@ class NetworkClockTest {
     @Test
     fun `only a clock that is clearly off is repaired`() {
         val server = 1_795_800_005_000L
-        assertTrue(NetworkClock.needsRepair(deviceNow = 1_262_304_000_000L, serverNow = server)) // phone thinks it is 2010
+        val year2010 = 1_262_304_000_000L
+        assertTrue(NetworkClock.needsRepair(deviceNow = year2010, serverNow = server))
         assertFalse(NetworkClock.needsRepair(deviceNow = server - 60_000, serverNow = server))
         // A server whose own clock is nonsense must not drag the phone back.
         assertFalse(NetworkClock.needsRepair(deviceNow = server, serverNow = 1_000_000_000_000L))

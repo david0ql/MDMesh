@@ -55,6 +55,7 @@ object EnrollMessages {
  * provisioning ([ProvisioningSuccessActivity]). It never blocks the phone: "continue" is always there, and it leaves by
  * itself on success or after [MAX_WAIT_MS] (enrollment keeps retrying in the background either way).
  */
+@Suppress("TooManyFunctions") // small view helpers; splitting them out would only move them
 abstract class EnrollStatusActivity : Activity() {
 
     private val handler = Handler(Looper.getMainLooper())

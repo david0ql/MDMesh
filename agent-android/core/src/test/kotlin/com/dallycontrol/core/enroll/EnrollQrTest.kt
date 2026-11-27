@@ -20,7 +20,8 @@ class EnrollQrTest {
 
     @Test
     fun `reads the bare admin extras (the KME JSON)`() {
-        val kme = """{"com.dallycontrol.ENROLL_TOKEN":"ABCDEFGH","com.dallycontrol.SERVER_URL":"http://10.0.2.2:8088"}"""
+        val kme = """{"com.dallycontrol.ENROLL_TOKEN":"ABCDEFGH",""" +
+            """"com.dallycontrol.SERVER_URL":"http://10.0.2.2:8088"}"""
         assertEquals(EnrollQr("ABCDEFGH", "http://10.0.2.2:8088"), EnrollQr.parse(kme))
     }
 
@@ -43,7 +44,9 @@ class EnrollQrTest {
 
     @Test
     fun `a server that is not http is dropped, the token is kept`() {
-        val q = EnrollQr.parse("""{"com.dallycontrol.ENROLL_TOKEN":"t","com.dallycontrol.SERVER_URL":"javascript:alert(1)"}""")
+        val q = EnrollQr.parse(
+            """{"com.dallycontrol.ENROLL_TOKEN":"t","com.dallycontrol.SERVER_URL":"javascript:alert(1)"}""",
+        )
         assertEquals(EnrollQr("t", null), q)
     }
 }

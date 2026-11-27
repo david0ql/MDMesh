@@ -30,7 +30,8 @@ class EnrollFailureTest {
 
     @Test
     fun `any TLS failure with a factory clock is blamed on the clock`() {
-        assertEquals(EnrollFailure.CLOCK, code(SSLHandshakeException("Chain validation failed"), at = 1_500_000_000_000L))
+        val factoryClock = 1_500_000_000_000L
+        assertEquals(EnrollFailure.CLOCK, code(SSLHandshakeException("Chain validation failed"), at = factoryClock))
         assertEquals(EnrollFailure.TLS, code(SSLHandshakeException("Chain validation failed")))
     }
 
@@ -38,13 +39,15 @@ class EnrollFailureTest {
     fun `network failures are told apart`() {
         assertEquals(EnrollFailure.NO_NETWORK, code(UnknownHostException("mdm.example.com")))
         assertEquals(EnrollFailure.TIMEOUT, code(SocketTimeoutException("timeout")))
-        assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(SSLPeerUnverifiedException("Hostname mdm.example.com not verified")))
+        val otherName = SSLPeerUnverifiedException("Hostname mdm.example.com not verified")
+        assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(otherName))
     }
 
     @Test
     fun `a web page instead of the server answer is a captive portal`() {
         class SerializationException(message: String) : RuntimeException(message)
-        assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(SerializationException("Unexpected JSON token at offset 0: <html>")))
+        val page = SerializationException("Unexpected JSON token at offset 0: <html>")
+        assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(page))
         class HttpException(message: String) : RuntimeException(message)
         assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(HttpException("HTTP 302 Found")))
         assertEquals(EnrollFailure.CAPTIVE_PORTAL, code(HttpException("HTTP 511 Network Authentication Required")))

@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Buttons of the provisioning screens (English emulator images), most specific first.
 ADVANCE = re.compile(
     r"^(accept\s*&\s*continue|accept and continue|accept|agree|next|continue|done|ok|got it|skip|set up|"
-    r"allow|start|close|finish|i agree|continuar|aceptar|siguiente|listo)$", re.I)
+    r"allow|start|finish|i agree|wait|continuar|aceptar|siguiente|listo)$", re.I)  # "wait": an ANR dialog on a slow host
 FAILURE = re.compile(
     r"(can.t set up|couldn.t set up|cannot set up|something went wrong|"
     r"reset (this )?device|couldn.t (download|install|connect)|blocked by play protect|harmful app|"
@@ -126,6 +126,19 @@ def setup_state(serial):
             + sh(serial, "settings get global device_provisioned").strip())
 
 
+def wait_network(serial, timeout=180):
+    """After the framework restart the emulator's network takes a while to come back; a phone has its Wi-Fi up (from
+    the QR or the wizard) before Android starts the download, so wait for the same here."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if re.search(r"VALIDATED|state: CONNECTED/CONNECTED", sh(serial, "dumpsys connectivity | head -60", timeout=30)) \
+                and "1 received" in sh(serial, "ping -c 1 -W 3 10.0.2.2 2>&1", timeout=15):
+            return True
+        time.sleep(4)
+    print("  note: the emulator has no network after the restart", flush=True)
+    return False
+
+
 def unprovision(serial):
     """Put a booted emulator back to "setup wizard not finished", the state a phone is in when it scans the QR.
 
@@ -137,14 +150,31 @@ def unprovision(serial):
     for attempt in range(3):
         # AOSP's "Provision" and the emulator images' setup wizard finish "setup" by themselves on boot.
         sh(serial, "pm disable com.android.provision")
+        sh(serial, "pm disable com.google.android.sdksetup")  # the Google-APIs images' own "mark as set up" app
         sh(serial, "pm disable-user --user 0 com.google.android.setupwizard")
+        if attempt:
+            # Some images re-enable their wizard on boot: take it away from the user altogether.
+            sh(serial, "pm uninstall -k --user 0 com.google.android.setupwizard")
+            sh(serial, "pm uninstall -k --user 0 com.android.provision")
         sh(serial, "settings put secure user_setup_complete 0")
         sh(serial, "settings put global device_provisioned 0")
         sh(serial, "stop")
         time.sleep(3)
         sh(serial, "rm -f /data/system/device_policies.xml /data/system/device_policies.xml.bak "
                    "/data/system/device_policies.xml.reservecopy")
-        sh(serial, "setprop sys.boot_completed 0; start")
+        # A full reboot, not just `start`: on Android 12+ a restarted framework comes back without any network.
+        try:
+            adb(serial, "reboot", timeout=30)
+        except Exception:
+            pass
+        time.sleep(15)
+        try:
+            adb(serial, "wait-for-device", timeout=180)
+            adb(serial, "root", timeout=30)
+            time.sleep(4)
+            adb(serial, "wait-for-device", timeout=60)
+        except Exception:
+            pass
         end = time.time() + 300
         while time.time() < end:
             time.sleep(4)
@@ -214,6 +244,7 @@ def run(a):
         stamp = time.strftime("%m%d%H%M%Y.%S", past)
         print("clock set back:", sh(serial, f"date {stamp}").strip(), flush=True)
     unprovision(serial)
+    wait_network(serial)
     adb(serial, "push", dex, "/data/local/tmp/provision.dex")
     adb(serial, "push", a.payload, "/data/local/tmp/payload.json")
     adb(serial, "logcat", "-c")
@@ -256,7 +287,14 @@ def run(a):
 
     enrolled = ""
     if status == "DEVICE-OWNER" and a.wait_enrolled:
+        if a.pause_cmd:
+            # Server outage while the phone enrolls: down now, back after --resume-after seconds.
+            print("  server down: " + subprocess.run(a.pause_cmd, shell=True, capture_output=True, text=True).stdout.strip(), flush=True)
+            subprocess.Popen(f"sleep {a.resume_after}; {a.resume_cmd}", shell=True, start_new_session=True)
         status, enrolled = wait_enrolled(a, serial, payload)
+        if status == "ENROLLED" and a.replay_token:
+            status, more = replay_token(a, serial, payload, package)
+            enrolled += " " + more
         if status != "ENROLLED":
             # Device Owner without an enrollment: the agent must be saying so on screen, with a way out.
             texts, _ = screen(serial)
@@ -296,6 +334,34 @@ def finish_setup_wizard(serial):
     time.sleep(3)
     sh(serial, "settings put secure user_setup_complete 1")
     sh(serial, "settings put global device_provisioned 1")
+
+
+def replay_token(a, serial, payload, package):
+    """The answer to the enroll call never reached the phone: the server consumed the single-use token and created
+    the device, the agent kept nothing. Reproduced by deleting the agent's stored identity (debug build) and
+    restarting it: it enrolls again with the same token and must get the SAME device back."""
+    token = payload["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]["com.dallycontrol.ENROLL_TOKEN"]
+    before = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token).get("data") or {}
+    oks = len([x for x in before.get("attempts", []) if x.get("outcome") == "ok"]) \
+        + sum(x.get("count", 1) - 1 for x in before.get("attempts", []) if x.get("outcome") == "ok")
+    sh(serial, f"am force-stop {package}")
+    print("  identity removed: " + sh(serial, f"run-as {package} rm -f files/datastore/mdm_identity.preferences_pb; echo done").strip(), flush=True)
+    sh(serial, f"am start -n {package}/com.dallycontrol.agent.MainActivity")
+    end = time.time() + 120
+    while time.time() < end:
+        time.sleep(4)
+        st = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token).get("data") or {}
+        now = sum(x.get("count", 1) for x in st.get("attempts", []) if x.get("outcome") == "ok")
+        refused = [x["reason"] for x in st.get("attempts", []) if x.get("outcome") == "failed"]
+        if now > oks:
+            same = st.get("deviceNumber") == before.get("deviceNumber")
+            ident = sh(serial, f"run-as {package} ls files/datastore/").split()
+            back = "mdm_identity.preferences_pb" in ident
+            return ("ENROLLED" if same and back else "REPLAY-FAILED",
+                    f"token_replay=accepted same_device={'yes' if same else 'no'} credentials_stored={'yes' if back else 'no'}")
+        if refused:
+            return "REPLAY-FAILED", f"token_replay=refused({refused[0]})"
+    return "REPLAY-FAILED", "token_replay=no-second-enroll"
 
 
 def wait_enrolled(a, serial, payload):
@@ -431,6 +497,11 @@ def main():
     r.add_argument("--timeout", type=int, default=420); r.add_argument("--settle", type=int, default=25)
     r.add_argument("--wait-enrolled"); r.add_argument("--admin", default="admin:admin")
     r.add_argument("--enroll-timeout", type=int, default=170)
+    r.add_argument("--pause-cmd", help="shell command that takes the server down once the phone is Device Owner")
+    r.add_argument("--resume-cmd", help="shell command that brings it back")
+    r.add_argument("--resume-after", type=int, default=75)
+    r.add_argument("--replay-token", action="store_true",
+                   help="after enrolling, drop the agent's identity and make it enroll again with the same token")
     r.add_argument("--finalize-after", type=int, default=45,
                    help="seconds to wait for an enrollment without the setup wizard's finalization before doing it")
     m = sub.add_parser("matrix")

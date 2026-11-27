@@ -18,7 +18,8 @@ class EnrollQrDecodeTest {
 
     private val payload = """{"android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":""" +
         """"com.dallycontrol.agent/com.dallycontrol.agent.admin.AdminReceiver",""" +
-        """"android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":"byMlbbiklLB7k5mQLNPBci0AC_kI3YLBS5Lkw9cIzlo",""" +
+        """"android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":""" +
+        """"byMlbbiklLB7k5mQLNPBci0AC_kI3YLBS5Lkw9cIzlo",""" +
         """"android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":""" +
         """"https://mdm.example.com/rest/public/agent/v1/apk?t=0b6f6d0e-111&p=%2Ffiles%2Fdallycontrol-agent.apk",""" +
         """"android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE":{"com.dallycontrol.ENROLL_TOKEN":""" +
@@ -27,8 +28,10 @@ class EnrollQrDecodeTest {
         """"android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED":true,""" +
         """"android.app.extra.PROVISIONING_ALLOW_OFFLINE":true,""" +
         """"android.app.extra.PROVISIONING_LOCAL_TIME":1795800005123,""" +
-        """"android.app.extra.PROVISIONING_TIME_ZONE":"America/Bogota","android.app.extra.PROVISIONING_LOCALE":"es_CO",""" +
-        """"android.app.extra.PROVISIONING_WIFI_SSID":"Bodega-Principal","android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE":"WPA",""" +
+        """"android.app.extra.PROVISIONING_TIME_ZONE":"America/Bogota",""" +
+        """"android.app.extra.PROVISIONING_LOCALE":"es_CO",""" +
+        """"android.app.extra.PROVISIONING_WIFI_SSID":"Bodega-Principal",""" +
+        """"android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE":"WPA",""" +
         """"android.app.extra.PROVISIONING_WIFI_HIDDEN":true,""" +
         """"android.app.extra.PROVISIONING_WIFI_PASSWORD":"una-clave-bastante-larga-2026"}"""
 

@@ -48,7 +48,8 @@ object BatteryExemption {
         // During the setup wizard (QR / zero-touch provisioning starts this process before the device is set up) the
         // request would put a Settings dialog on top of Android's provisioning screens. Wait until setup is done;
         // this runs again on every start.
-        // 2. Otherwise fall back to the public request intent (dialog off-DO; usually auto-handled on a managed device).
+        // 2. Otherwise fall back to the public request intent (dialog off-DO; usually auto-handled on a managed
+        //    device).
         if (setupComplete(context)) requestIgnore(context, pkg)
     }
 

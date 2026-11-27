@@ -55,6 +55,7 @@ object EnrollPrompt {
     private const val PREFS = "mdm_enroll_prompt"
     private const val KEY_REPORTED_AT = "reportedAt"
     private const val REPORT_EVERY_MS = 6L * 60L * 60L * 1000L
+    private const val SECOND_MS = 1000L
 
     /** Seconds after start at which the state is checked: the provisioning callbacks get the first minute. */
     @Suppress("MagicNumber")
@@ -75,7 +76,7 @@ object EnrollPrompt {
         ProvisioningIntake.scope.launch {
             var last = 0L
             for (at in CHECKS_SEC) {
-                delay((at - last) * 1000L)
+                delay((at - last) * SECOND_MS)
                 last = at
                 if (!runCatching { needed(app) }.getOrDefault(false)) continue
                 runCatching { show(app) }.onFailure { Log.w(TAG, "could not prompt: ${it.message}") }
@@ -84,14 +85,16 @@ object EnrollPrompt {
         }
     }
 
-    /** The agent's screen when Android lets a background app open one (before Android 10), and always a notification. */
+    /** The agent's screen when Android lets a background app open one (before Android 10); always a notification. */
     fun show(app: Context) {
         EnrollStatusStore(app).failed(EnrollFailure(EnrollFailure.NO_TOKEN, "Device Owner without an enrollment token"))
         val open = Intent(app, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val manager = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && manager.getNotificationChannel(CHANNEL) == null) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL, app.getString(R.string.enroll_prompt_channel), NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(
+                    CHANNEL, app.getString(R.string.enroll_prompt_channel), NotificationManager.IMPORTANCE_HIGH,
+                ),
             )
         }
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
@@ -138,7 +141,10 @@ object EnrollPrompt {
                 hardwareId = runCatching { deps.hardwareId().get() }.getOrNull(),
                 serial = serial,
                 imei = imei,
-                diagnostics = EnrollDiagnostics(path = status.path ?: EnrollStatusStore.PATH_UNKNOWN, attempts = status.attempts),
+                diagnostics = EnrollDiagnostics(
+                    path = status.path ?: EnrollStatusStore.PATH_UNKNOWN,
+                    attempts = status.attempts,
+                ),
             ),
         )
         prefs.edit().putLong(KEY_REPORTED_AT, System.currentTimeMillis()).apply()

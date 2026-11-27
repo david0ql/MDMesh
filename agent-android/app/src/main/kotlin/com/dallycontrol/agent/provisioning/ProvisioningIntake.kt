@@ -119,7 +119,9 @@ object ProvisioningIntake {
         scope.launch {
             for (waitMs in ADOPT_WAITS_MS) {
                 delay(waitMs)
-                if (EnrollStatusStore(app).pending() == null || runCatching { adoptPending(app) }.getOrDefault(false)) break
+                val settled = EnrollStatusStore(app).pending() == null ||
+                    runCatching { adoptPending(app) }.getOrDefault(false)
+                if (settled) break
             }
         }
     }
