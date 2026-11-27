@@ -196,3 +196,11 @@ scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expec
 # with the device off for more than 20 minutes: it must export as "Sin conexión"
 scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expect-offline
 ```
+
+Several stacks on one machine: give each its own project name, ports **and image tags** (`COMPOSE_PROJECT_NAME`,
+`DEV_*_PORT`, `SERVER_VERSION`, `WEB_VERSION`, `SUPERVISOR_VERSION`), or one stack's `up --build` replaces the `:dev`
+image another stack will pick up on its next `up`.
+
+Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
+device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
+e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3.
