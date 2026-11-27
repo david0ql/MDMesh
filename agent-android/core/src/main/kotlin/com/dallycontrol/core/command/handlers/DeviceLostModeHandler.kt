@@ -16,14 +16,15 @@ class DeviceLostModeHandler(
 
     override val type: String = DeviceAction.LOST_MODE
 
-    override suspend fun handle(command: CommandEnvelope): CommandResult {
-        val payload = runCatching {
-            command.payload?.let { ProtocolJson.json.decodeFromJsonElement(LostModePayload.serializer(), it) }
-        }.getOrElse { return CommandResults.failed(command, "invalid payload: ${it.message}") } ?: LostModePayload()
-        val errors = runCatching { lostMode.apply(payload) }
-            .getOrElse { return CommandResults.failed(command, "lost mode: ${it.message ?: it.javaClass.simpleName}") }
+    override suspend fun handle(command: CommandEnvelope): CommandResult = runCatching {
+        val payload = command.payload
+            ?.let { ProtocolJson.json.decodeFromJsonElement(LostModePayload.serializer(), it) } ?: LostModePayload()
+        val errors = lostMode.apply(payload)
         val what = if (payload.enabled) "lost mode on" else "lost mode off"
-        return if (errors.isEmpty()) CommandResults.done(command, what)
-        else CommandResults.failed(command, "$what, with errors: ${errors.joinToString("; ")}")
-    }
+        if (errors.isEmpty()) {
+            CommandResults.done(command, what)
+        } else {
+            CommandResults.failed(command, "$what, with errors: ${errors.joinToString("; ")}")
+        }
+    }.getOrElse { CommandResults.failed(command, "lost mode: ${it.message ?: it.javaClass.simpleName}") }
 }

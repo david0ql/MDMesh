@@ -58,5 +58,6 @@ object TamperRestrictions {
     data class Plan(val restrictions: Set<String>, val unsupported: List<String>)
 
     /** All the restriction keys these rules may ever set (what is cleared when a rule goes away). */
-    val ALL: Set<String> = setOf(DISALLOW_FACTORY_RESET, DISALLOW_SAFE_BOOT, DISALLOW_DEBUGGING_FEATURES, DISALLOW_OEM_UNLOCK)
+    val ALL: Set<String> =
+        setOf(DISALLOW_FACTORY_RESET, DISALLOW_SAFE_BOOT, DISALLOW_DEBUGGING_FEATURES, DISALLOW_OEM_UNLOCK)
 }

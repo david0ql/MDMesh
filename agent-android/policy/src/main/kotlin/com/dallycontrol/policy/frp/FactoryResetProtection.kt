@@ -16,7 +16,7 @@ interface FrpPlatform {
      */
     fun policySupported(): Boolean
 
-    /** Android 11+: set the accounts that may unlock the device after a reset from recovery; null removes the policy. */
+    /** Android 11+: the accounts that may unlock the device after a reset from recovery; null removes the policy. */
     fun setPolicy(accounts: List<String>?)
 
     /** Android 11+: the policy the device holds, or null when it has none. */
@@ -59,27 +59,30 @@ class FactoryResetProtection(private val platform: FrpPlatform) {
         val ids = clean(wanted)
         val mechanism = mechanismFor(platform.sdkInt)
         if (mechanism == MECHANISM_NONE || (ids.isEmpty() && !hadBefore)) return status(ids)
-        val written = runCatching { write(mechanism, ids) }.getOrElse { return refused(mechanism, ids, it) }
-        if (written != null) return written
+        val notWritten = runCatching { write(mechanism, ids) }.getOrElse { refused(mechanism, ids, it) }
+        return notWritten ?: verified(ids)
+    }
+
+    /** Written without an error: read it back, and say so when the device does not hold it after all. */
+    private fun verified(ids: List<String>): FrpStatus {
         val now = status(ids)
-        // Written without an error but the device does not hold it: say so instead of reporting "applied".
-        if (ids.isNotEmpty() && !now.active && now.reason == REASON_NO_ACCOUNTS) {
-            return now.copy(reason = REASON_ERROR, error = "the device did not keep the accounts")
-        }
-        return now
+        val dropped = ids.isNotEmpty() && !now.active && now.reason == REASON_NO_ACCOUNTS
+        return if (dropped) now.copy(reason = REASON_ERROR, error = "the device did not keep the accounts") else now
     }
 
     /** @return a final status when nothing could be written (the device cannot), or null once written. */
-    private fun write(mechanism: String, ids: List<String>): FrpStatus? {
-        if (mechanism == MECHANISM_POLICY) {
-            if (!platform.policySupported()) return unavailable(mechanism, ids, REASON_UNSUPPORTED)
+    private fun write(mechanism: String, ids: List<String>): FrpStatus? = when {
+        mechanism == MECHANISM_POLICY && !platform.policySupported() -> unavailable(mechanism, ids, REASON_UNSUPPORTED)
+        mechanism == MECHANISM_POLICY -> {
             platform.setPolicy(ids.ifEmpty { null })
-            return null
+            null
         }
-        if (!platform.gmsInstalled()) return unavailable(mechanism, ids, REASON_GMS_MISSING)
-        platform.setGmsAccounts(ids.ifEmpty { null })
-        platform.notifyGms()
-        return null
+        !platform.gmsInstalled() -> unavailable(mechanism, ids, REASON_GMS_MISSING)
+        else -> {
+            platform.setGmsAccounts(ids.ifEmpty { null })
+            platform.notifyGms()
+            null
+        }
     }
 
     /**
@@ -90,31 +93,28 @@ class FactoryResetProtection(private val platform: FrpPlatform) {
         val ids = clean(wanted)
         val mechanism = mechanismFor(platform.sdkInt)
         if (mechanism == MECHANISM_NONE) return unavailable(mechanism, ids, REASON_ANDROID_TOO_OLD)
-        val held = runCatching { read(mechanism) }.getOrElse { return refused(mechanism, ids, it) }
-            ?: return unavailable(mechanism, ids, if (mechanism == MECHANISM_POLICY) REASON_UNSUPPORTED else REASON_GMS_MISSING)
-        val accounts = clean(held.accounts)
+        return runCatching { describe(mechanism, ids, read(mechanism)) }.getOrElse { refused(mechanism, ids, it) }
+    }
+
+    private fun describe(mechanism: String, ids: List<String>, held: FrpPolicyState?): FrpStatus {
+        val accounts = clean(held?.accounts.orEmpty())
+        val cannot = if (mechanism == MECHANISM_POLICY) REASON_UNSUPPORTED else REASON_GMS_MISSING
         return when {
+            held == null -> unavailable(mechanism, ids, cannot)
             accounts.isEmpty() -> FrpStatus(mechanism, active = false, reason = REASON_NO_ACCOUNTS)
-            !held.enabled -> FrpStatus(
-                mechanism, active = false, accounts = accounts, reason = REASON_ERROR, error = "the policy is held but not enabled",
-            )
-            ids.isNotEmpty() && accounts.toSet() != ids.toSet() -> FrpStatus(
-                mechanism, active = true, accounts = accounts, reason = REASON_ERROR,
-                error = "the device holds other accounts than the policy's",
-            )
+            !held.enabled -> FrpStatus(mechanism, false, accounts, REASON_ERROR, "the policy is held but not enabled")
+            ids.isNotEmpty() && accounts.toSet() != ids.toSet() ->
+                FrpStatus(mechanism, true, accounts, REASON_ERROR, "the device holds other accounts than the policy's")
             else -> FrpStatus(mechanism, active = true, accounts = accounts)
         }
     }
 
     /** @return what the device holds (no accounts = nothing), or null when this device has no FRP to read. */
-    private fun read(mechanism: String): FrpPolicyState? {
-        if (mechanism == MECHANISM_POLICY) {
-            if (!platform.policySupported()) return null
-            return platform.readPolicy() ?: FrpPolicyState(emptyList(), false)
-        }
-        if (!platform.gmsInstalled()) return null
-        val accounts = platform.readGmsAccounts()
-        return FrpPolicyState(accounts, accounts.isNotEmpty())
+    private fun read(mechanism: String): FrpPolicyState? = when {
+        mechanism == MECHANISM_POLICY ->
+            if (platform.policySupported()) platform.readPolicy() ?: FrpPolicyState(emptyList(), false) else null
+        !platform.gmsInstalled() -> null
+        else -> platform.readGmsAccounts().let { FrpPolicyState(it, it.isNotEmpty()) }
     }
 
     private fun unavailable(mechanism: String, ids: List<String>, reason: String): FrpStatus =
@@ -125,12 +125,12 @@ class FactoryResetProtection(private val platform: FrpPlatform) {
      * policy" (no persistent data block: some tablets, emulators, AOSP builds) — that is the device, not a failure.
      */
     private fun refused(mechanism: String, ids: List<String>, t: Throwable): FrpStatus =
-        if (t is UnsupportedOperationException) unavailable(mechanism, ids, REASON_UNSUPPORTED).copy(error = t.message)
-        else failed(mechanism, t)
-
-    private fun failed(mechanism: String, t: Throwable): FrpStatus = FrpStatus(
-        mechanism, active = false, reason = REASON_ERROR, error = "${t.javaClass.simpleName}: ${t.message ?: "no message"}",
-    )
+        if (t is UnsupportedOperationException) {
+            unavailable(mechanism, ids, REASON_UNSUPPORTED).copy(error = t.message)
+        } else {
+            val message = "${t.javaClass.simpleName}: ${t.message ?: "no message"}"
+            FrpStatus(mechanism, active = false, reason = REASON_ERROR, error = message)
+        }
 
     companion object {
         const val MECHANISM_POLICY = "policy"

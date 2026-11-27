@@ -328,6 +328,14 @@ public class AgentResource {
             if (hwId != null && !hwId.isEmpty()) {
                 commandDAO.updateHardwareId(deviceId, hwId);
             }
+            // Keep the serial / IMEI from the first moment: they are what brings the phone back after a factory reset.
+            try {
+                String serial = com.hmdm.util.ReenrollMatch.usableSerial(request.getSerial());
+                String imei = com.hmdm.util.ReenrollMatch.usableImei(request.getImei());
+                if (serial != null || imei != null) commandDAO.updateIdentity(deviceId, serial, imei);
+            } catch (Exception e) {
+                logger.warn("Could not store the serial/IMEI of {}: {}", deviceId, e.getMessage());
+            }
             commandDAO.touchLastUpdate(deviceId);
 
             String configurationName = null;

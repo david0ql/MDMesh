@@ -23,9 +23,13 @@ class DeviceWipeHandlerTest {
 
     private class FakeExecutor(var fail: Throwable? = null) : WipeExecutor {
         val calls = ArrayList<String>()
-        override fun wipeDevice(flags: Int) { calls.add("wipeDevice($flags)"); fail?.let { throw it } }
-        override fun wipeData(flags: Int) { calls.add("wipeData($flags)"); fail?.let { throw it } }
-        override fun wipeData(flags: Int, reason: String) { calls.add("wipeData($flags,$reason)"); fail?.let { throw it } }
+        private fun called(what: String) {
+            calls.add(what)
+            fail?.let { throw it }
+        }
+        override fun wipeDevice(flags: Int) = called("wipeDevice($flags)")
+        override fun wipeData(flags: Int) = called("wipeData($flags)")
+        override fun wipeData(flags: Int, reason: String) = called("wipeData($flags,$reason)")
     }
 
     private class Disk {
@@ -73,7 +77,8 @@ class DeviceWipeHandlerTest {
         assertEquals(1, WipePlanner.plan(34, WipePayload(externalStorage = true)).flags)
         assertEquals(4, WipePlanner.plan(34, WipePayload(euicc = true)).flags)
         assertEquals(8, WipePlanner.plan(34, WipePayload(silent = true)).flags)
-        assertEquals(15, WipePlanner.plan(36, WipePayload(intent = "reassign", externalStorage = true, euicc = true, silent = true)).flags)
+        val everything = WipePayload(intent = "reassign", externalStorage = true, euicc = true, silent = true)
+        assertEquals(15, WipePlanner.plan(36, everything).flags)
     }
 
     @Test
@@ -150,7 +155,8 @@ class DeviceWipeHandlerTest {
         assertEquals(CommandStatus.DONE, result.status)
         assertTrue(result.detail!!.contains("not announced"))
 
-        val throwing = DeviceWipeHandler(30, WipeRunner(executor, disk.journal()), disk.journal()) { error("network down") }
+        val runner = WipeRunner(executor, disk.journal())
+        val throwing = DeviceWipeHandler(30, runner, disk.journal()) { error("network down") }
         assertEquals(CommandStatus.DONE, throwing.handle(command()).status)
     }
 

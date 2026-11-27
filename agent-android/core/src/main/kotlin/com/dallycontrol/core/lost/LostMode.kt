@@ -70,8 +70,6 @@ class LostMode(
         load()?.let { ProtocolJson.json.decodeFromString(State.serializer(), it) }
     }.getOrNull()
 
-    fun isActive(): Boolean = state() != null
-
     /** @return the steps that failed (empty = everything applied). */
     @Synchronized
     fun apply(p: LostModePayload): List<String> = if (p.enabled) enable(p) else disable()
@@ -84,7 +82,8 @@ class LostMode(
         val state = State(
             since = current?.since ?: now(),
             payload = p,
-            previousTrackingMinutes = current?.previousTrackingMinutes ?: runCatching { device.trackingMinutes() }.getOrDefault(0),
+            previousTrackingMinutes = current?.previousTrackingMinutes
+                ?: runCatching { device.trackingMinutes() }.getOrDefault(0),
             previousLocationMode = current?.previousLocationMode
                 ?: runCatching { device.locationMode() }.getOrDefault(DeviceAction.LOCATION_PASSIVE),
             lastContactAt = current?.lastContactAt ?: now(),
@@ -95,9 +94,10 @@ class LostMode(
             device.setLocationMode(DeviceAction.LOCATION_ACTIVE)
             device.setTrackingMinutes(minutes)
         }
-        step(errors, "wipeAfterFailedUnlocks") { device.setMaxFailedUnlocksForWipe(p.wipeAfterFailedUnlocks?.coerceIn(0, MAX_UNLOCKS) ?: 0) }
+        val unlocks = p.wipeAfterFailedUnlocks?.coerceIn(0, MAX_UNLOCKS) ?: 0
+        step(errors, "wipeAfterFailedUnlocks") { device.setMaxFailedUnlocksForWipe(unlocks) }
         step(errors, "lock") { device.lockNow() }
-        val ringMs = (p.ringSeconds ?: 0).coerceIn(0, MAX_RING_SECONDS) * 1000L
+        val ringMs = (p.ringSeconds ?: 0).coerceIn(0, MAX_RING_SECONDS) * SECOND_MS
         if (ringMs > 0) step(errors, "ring") { device.ring(ringMs) }
         return errors
     }
@@ -140,8 +140,7 @@ class LostMode(
     /** A check-in reached the server. */
     @Synchronized
     fun contact() {
-        val s = state() ?: return
-        write(s.copy(lastContactAt = now()))
+        state()?.let { write(it.copy(lastContactAt = now())) }
     }
 
     /**
@@ -151,9 +150,9 @@ class LostMode(
      */
     @Synchronized
     fun wipeIfSilentTooLong(): Boolean {
-        val s = state() ?: return false
-        if (!silentTooLong(s.payload.wipeIfSilentDays, s.lastContactAt, now())) return false
-        return runCatching { device.wipeKeepingProtection(); true }.getOrDefault(false)
+        val s = state()
+        val due = s != null && silentTooLong(s.payload.wipeIfSilentDays, s.lastContactAt, now())
+        return due && runCatching { device.wipeKeepingProtection() }.isSuccess
     }
 
     fun status(): LostModeStatus? = state()?.let {
@@ -168,25 +167,31 @@ class LostMode(
 
     private fun write(s: State) = save(ProtocolJson.json.encodeToString(State.serializer(), s))
 
-    private inline fun step(errors: MutableList<String>, name: String, block: () -> Unit) {
-        runCatching(block).onFailure { errors.add("$name: ${it.javaClass.simpleName}: ${it.message ?: "no message"}") }
-    }
-
     companion object {
         const val DEFAULT_TRACK_MINUTES = 1
+        private const val SECOND_MS = 1000L
         private const val MAX_TRACK_MINUTES = 60
         private const val MAX_RING_SECONDS = 300
         private const val MAX_UNLOCKS = 100
         private const val MAX_TEXT = 300
         private const val DAY_MS = 24 * 3600_000L
 
-        fun trackMinutes(p: LostModePayload): Int = (p.trackMinutes ?: DEFAULT_TRACK_MINUTES).coerceIn(1, MAX_TRACK_MINUTES)
+        fun trackMinutes(p: LostModePayload): Int =
+            (p.trackMinutes ?: DEFAULT_TRACK_MINUTES).coerceIn(1, MAX_TRACK_MINUTES)
+
+        /** Run one step of lost mode; a failure is noted in [errors] and the next steps still run. */
+        private inline fun step(errors: MutableList<String>, name: String, block: () -> Unit) {
+            runCatching(block).onFailure {
+                errors.add("$name: ${it.javaClass.simpleName}: ${it.message ?: "no message"}")
+            }
+        }
 
         /** The lock-screen text: the message, then the contact phone on its own line; null when both are empty. */
         fun lockScreenText(p: LostModePayload): String? {
             val message = p.message?.trim().orEmpty()
             val phone = p.phone?.trim().orEmpty()
-            val text = listOfNotNull(message.ifEmpty { null }, phone.ifEmpty { null }?.let { "Tel: $it" }).joinToString("\n")
+            val lines = listOfNotNull(message.ifEmpty { null }, phone.ifEmpty { null }?.let { "Tel: $it" })
+            val text = lines.joinToString("\n")
             return text.take(MAX_TEXT).ifEmpty { null }
         }
 

@@ -111,7 +111,8 @@ class FactoryResetProtectionTest {
         assertEquals("SecurityException: not a device owner", s.error)
         assertTrue(FactoryResetProtection.isFailure(s))
 
-        val legacy = FactoryResetProtection(Fake(26, failSet = IllegalStateException("boom"))).apply(ids, hadBefore = false)
+        val old = Fake(26, failSet = IllegalStateException("boom"))
+        val legacy = FactoryResetProtection(old).apply(ids, hadBefore = false)
         assertEquals("error", legacy.reason)
         assertEquals("IllegalStateException: boom", legacy.error)
     }

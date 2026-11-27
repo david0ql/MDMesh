@@ -23,20 +23,24 @@ class ResultAnnouncer(
 ) {
     /** @return true when the server acknowledged the result. */
     suspend fun announce(result: CommandResult): Boolean {
-        val deviceId = identity.current()?.takeIf { it.isNotBlank() } ?: return false
-        val authorization = "Bearer ${identity.secret().orEmpty()}"
-        val request = AgentCheckInRequest(
-            deviceId = deviceId,
-            capabilities = capabilitySource.matrix(deviceId).capabilities,
-            results = listOf(result),
-        )
-        repeat(attempts) { i ->
-            val ok = withTimeoutOrNull(timeoutMs) {
-                runCatching { api.checkIn(authorization, request).isOk }.getOrDefault(false)
-            } ?: false
-            if (ok) return true
-            if (i < attempts - 1) delay(pauseMs)
+        val deviceId = identity.current()?.takeIf { it.isNotBlank() }
+        var told = false
+        if (deviceId != null) {
+            val authorization = "Bearer ${identity.secret().orEmpty()}"
+            val request = AgentCheckInRequest(
+                deviceId = deviceId,
+                capabilities = capabilitySource.matrix(deviceId).capabilities,
+                results = listOf(result),
+            )
+            var tries = 0
+            while (!told && tries < attempts) {
+                if (tries > 0) delay(pauseMs)
+                tries++
+                told = withTimeoutOrNull(timeoutMs) {
+                    runCatching { api.checkIn(authorization, request).isOk }.getOrDefault(false)
+                } ?: false
+            }
         }
-        return false
+        return told
     }
 }

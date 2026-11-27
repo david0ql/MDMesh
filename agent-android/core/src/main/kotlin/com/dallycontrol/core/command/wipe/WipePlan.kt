@@ -83,29 +83,30 @@ object WipePlanner {
     private const val API_WIPE_DEVICE = 34
     private const val MAX_REASON = 200
 
-    /** Whether the protection survives the wipe: what the payload says, else what its intent implies (kept by default). */
+    /** The protection survives the wipe: what the payload says, else what its intent implies (kept by default). */
     fun keepsFrp(p: WipePayload): Boolean = p.keepFrp ?: (p.intent != INTENT_REASSIGN)
 
     fun plan(sdkInt: Int, p: WipePayload): WipePlan {
-        val dropped = ArrayList<String>()
-        var flags = 0
-        if (p.externalStorage) flags = flags or WIPE_EXTERNAL_STORAGE
-        if (!keepsFrp(p)) flags = flags or WIPE_RESET_PROTECTION_DATA
-        if (p.euicc) {
-            if (sdkInt >= API_EUICC) flags = flags or WIPE_EUICC else dropped.add("euicc")
-        }
+        val euicc = p.euicc && sdkInt >= API_EUICC
         val silent = p.silent && sdkInt >= API_SILENT
-        if (p.silent && !silent) dropped.add("silent")
-        if (silent) flags = flags or WIPE_SILENTLY
         val reason = p.reason?.trim()?.take(MAX_REASON)?.takeIf { it.isNotEmpty() }
         val call = when {
             sdkInt >= API_WIPE_DEVICE -> WipeCall.WIPE_DEVICE
             reason != null && !silent && sdkInt >= API_REASON -> WipeCall.WIPE_DATA_WITH_REASON
             else -> WipeCall.WIPE_DATA
         }
-        if (reason != null && call != WipeCall.WIPE_DATA_WITH_REASON) dropped.add("reason")
-        return WipePlan(flags, call, if (call == WipeCall.WIPE_DATA_WITH_REASON) reason else null, dropped)
+        val shown = reason.takeIf { call == WipeCall.WIPE_DATA_WITH_REASON }
+        val flags = flag(p.externalStorage, WIPE_EXTERNAL_STORAGE) or flag(!keepsFrp(p), WIPE_RESET_PROTECTION_DATA) or
+            flag(euicc, WIPE_EUICC) or flag(silent, WIPE_SILENTLY)
+        val dropped = listOfNotNull(
+            "euicc".takeIf { p.euicc && !euicc },
+            "silent".takeIf { p.silent && !silent },
+            "reason".takeIf { reason != null && shown == null },
+        )
+        return WipePlan(flags, call, shown, dropped)
     }
+
+    private fun flag(on: Boolean, bit: Int): Int = if (on) bit else 0
 
     fun run(plan: WipePlan, executor: WipeExecutor) = when (plan.call) {
         WipeCall.WIPE_DEVICE -> executor.wipeDevice(plan.flags)
@@ -156,15 +157,18 @@ class WipeRunner(
      * Called when the agent starts. @return null when nothing was pending; otherwise what happened: `resumed`, or
      * `gaveUp: …` once the order was retried [WipeJournal.MAX_ATTEMPTS] times without the system wiping.
      */
-    fun resume(): String? {
-        val e = journal.attempt() ?: return null
+    fun resume(): String? = journal.attempt()?.let { e ->
         if (e.attempts > WipeJournal.MAX_ATTEMPTS) {
             journal.clear()
-            return "gaveUp: the system did not wipe after ${WipeJournal.MAX_ATTEMPTS} attempts (${e.plan.describe()})"
-        }
-        return runCatching { run(e.plan); "resumed" }.getOrElse {
-            journal.clear()
-            "gaveUp: ${it.javaClass.simpleName}: ${it.message}"
+            "gaveUp: the system did not wipe after ${WipeJournal.MAX_ATTEMPTS} attempts (${e.plan.describe()})"
+        } else {
+            runCatching {
+                run(e.plan)
+                "resumed"
+            }.getOrElse {
+                journal.clear()
+                "gaveUp: ${it.javaClass.simpleName}: ${it.message}"
+            }
         }
     }
 }

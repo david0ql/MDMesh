@@ -31,7 +31,8 @@ class ResultAnnouncerTest {
     @Test
     fun `it retries a few times and then gives up`() = runTest {
         val api = FakeMdmApi().apply { checkInThrows = java.io.IOException("no route") }
-        val ok = ResultAnnouncer(api, FakeIdentity("dev-1", "sek"), FakeCapabilitySource(), attempts = 3, pauseMs = 10).announce(result)
+        val announcer = ResultAnnouncer(api, FakeIdentity("dev-1", "sek"), FakeCapabilitySource(), attempts = 3, pauseMs = 10)
+        val ok = announcer.announce(result)
         assertFalse(ok)
         assertEquals(3, api.checkInRequests.size)
     }
@@ -40,7 +41,8 @@ class ResultAnnouncerTest {
     fun `a rejected first try followed by an accepted one counts`() = runTest {
         val api = FakeMdmApi()
         api.checkInResponses.addLast(ResponseEnvelope(status = "ERROR", message = "busy"))
-        val ok = ResultAnnouncer(api, FakeIdentity("dev-1", "sek"), FakeCapabilitySource(), pauseMs = 10).announce(result)
+        val announcer = ResultAnnouncer(api, FakeIdentity("dev-1", "sek"), FakeCapabilitySource(), pauseMs = 10)
+        val ok = announcer.announce(result)
         assertTrue(ok)
         assertEquals(2, api.checkInRequests.size)
     }

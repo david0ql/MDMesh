@@ -3,30 +3,23 @@ package com.dallycontrol.agent.di
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
-import com.dallycontrol.agent.policy.DeviceRules
-import com.dallycontrol.core.action.RingController
+import com.dallycontrol.agent.policy.AndroidLostModeDevice
+import com.dallycontrol.agent.policy.DeviceProtection
 import com.dallycontrol.core.capability.CapabilitySource
 import com.dallycontrol.core.command.CommandHandler
 import com.dallycontrol.core.command.handlers.DeviceLostModeHandler
 import com.dallycontrol.core.command.handlers.DeviceWipeHandler
 import com.dallycontrol.core.command.wipe.WipeExecutor
 import com.dallycontrol.core.command.wipe.WipeJournal
-import com.dallycontrol.core.command.wipe.WipePayload
-import com.dallycontrol.core.command.wipe.WipePlanner
 import com.dallycontrol.core.command.wipe.WipeRunner
-import com.dallycontrol.core.location.LocationModeStore
-import com.dallycontrol.core.location.TrailStore
 import com.dallycontrol.core.lost.LostMode
-import com.dallycontrol.core.lost.LostModeDevice
 import com.dallycontrol.core.net.MdmApi
 import com.dallycontrol.core.store.DeviceIdentity
 import com.dallycontrol.core.sync.CheckInHooks
 import com.dallycontrol.core.sync.EnrollIdentitySource
 import com.dallycontrol.core.sync.ResultAnnouncer
-import com.dallycontrol.core.telemetry.EventSink
 import com.dallycontrol.core.telemetry.IdentityCollector
 import com.dallycontrol.policy.wifi.DpmHandle
-import com.dallycontrol.proto.EventType
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -36,44 +29,57 @@ import dagger.multibindings.IntoSet
 import javax.inject.Singleton
 
 /**
- * Remote wipe and lost mode: the Android side of [WipeExecutor] and [LostModeDevice], their on-disk state, and the
- * hooks that tie lost mode to the check-in cycle.
+ * Factory-reset protection, remote wipe and lost mode: the Android side of [WipeExecutor], the on-disk state of the
+ * wipe journal and of lost mode, and the hooks that tie lost mode to the check-in cycle.
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object ProtectionModule {
 
-    /** Written with commit(): the wipe order has to be on disk before the device erases itself. */
-    @SuppressLint("ApplySharedPref")
-    private fun stored(context: Context, file: String): Pair<() -> String?, (String?) -> Unit> {
-        val prefs = { context.getSharedPreferences(file, Context.MODE_PRIVATE) }
-        return Pair(
-            { prefs().getString(KEY, null) },
-            { value -> prefs().edit().apply { if (value == null) remove(KEY) else putString(KEY, value) }.commit() },
-        )
+    /** One text kept in its own preferences file. Written with commit(): a wipe order must be on disk first. */
+    private class Stored(private val context: Context, private val file: String) {
+        private fun prefs() = context.getSharedPreferences(file, Context.MODE_PRIVATE)
+
+        fun load(): String? = prefs().getString(KEY, null)
+
+        @SuppressLint("ApplySharedPref")
+        fun save(value: String?) {
+            prefs().edit().apply { if (value == null) remove(KEY) else putString(KEY, value) }.commit()
+        }
     }
+
+    @Provides
+    @Singleton
+    fun provideDeviceProtection(@ApplicationContext context: Context, handle: DpmHandle): DeviceProtection =
+        DeviceProtection(context, handle)
 
     @Provides
     @Singleton
     fun provideWipeExecutor(handle: DpmHandle): WipeExecutor = object : WipeExecutor {
         override fun wipeDevice(flags: Int) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) handle.dpm.wipeDevice(flags)
-            else handle.dpm.wipeData(flags)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                handle.dpm.wipeDevice(flags)
+            } else {
+                handle.dpm.wipeData(flags)
+            }
         }
 
         override fun wipeData(flags: Int) = handle.dpm.wipeData(flags)
 
         override fun wipeData(flags: Int, reason: String) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) handle.dpm.wipeData(flags, reason)
-            else handle.dpm.wipeData(flags)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                handle.dpm.wipeData(flags, reason)
+            } else {
+                handle.dpm.wipeData(flags)
+            }
         }
     }
 
     @Provides
     @Singleton
     fun provideWipeJournal(@ApplicationContext context: Context): WipeJournal {
-        val (load, save) = stored(context, "mdm_wipe_journal")
-        return WipeJournal(load, save)
+        val stored = Stored(context, "mdm_wipe_journal")
+        return WipeJournal(stored::load, stored::save)
     }
 
     @Provides
@@ -97,38 +103,9 @@ object ProtectionModule {
 
     @Provides
     @Singleton
-    fun provideLostMode(
-        @ApplicationContext context: Context,
-        handle: DpmHandle,
-        ring: RingController,
-        trail: TrailStore,
-        location: LocationModeStore,
-        rules: DeviceRules,
-        runner: WipeRunner,
-        events: EventSink,
-    ): LostMode {
-        val (load, save) = stored(context, "mdm_lost_mode")
-        return LostMode(
-            device = object : LostModeDevice {
-                override fun setLockScreenInfo(text: String?) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) handle.dpm.setDeviceOwnerLockScreenInfo(handle.admin, text)
-                }
-                override fun lockNow() = handle.dpm.lockNow()
-                override fun ring(durationMs: Long) = ring.start(durationMs)
-                override fun stopRing() = ring.stop()
-                override fun trackingMinutes(): Int = trail.intervalMinutes()
-                override fun setTrackingMinutes(minutes: Int) = trail.setIntervalMinutes(minutes)
-                override fun locationMode(): String = location.get()
-                override fun setLocationMode(mode: String) = location.set(mode)
-                override fun setMaxFailedUnlocksForWipe(attempts: Int) = rules.setLostMaxFailed(attempts)
-                override fun wipeKeepingProtection() {
-                    events.record(EventType.LOST_WIPE, "silent too long")
-                    runner.run(WipePlanner.plan(Build.VERSION.SDK_INT, WipePayload(intent = WipePlanner.INTENT_LOST)))
-                }
-            },
-            load = load,
-            save = save,
-        )
+    fun provideLostMode(@ApplicationContext context: Context, device: AndroidLostModeDevice): LostMode {
+        val stored = Stored(context, "mdm_lost_mode")
+        return LostMode(device = device, load = stored::load, save = stored::save)
     }
 
     @Provides

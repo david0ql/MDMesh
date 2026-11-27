@@ -17,7 +17,10 @@ class LostModeTest {
         var wiped = 0
         var failLock = false
         override fun setLockScreenInfo(text: String?) { info = text }
-        override fun lockNow() { if (failLock) throw SecurityException("no admin"); calls.add("lock") }
+        override fun lockNow() {
+            if (failLock) throw SecurityException("no admin")
+            calls.add("lock")
+        }
         override fun ring(durationMs: Long) { calls.add("ring($durationMs)") }
         override fun stopRing() { calls.add("stopRing") }
         override fun trackingMinutes() = tracking
@@ -38,7 +41,12 @@ class LostModeTest {
     @Test
     fun `starting lost mode locks, shows who to call, rings and tracks every minute`() {
         val errors = lost().apply(
-            LostModePayload(message = "Equipo de ACME. Devuélvalo.", phone = "+57 300 1234567", ringSeconds = 60, wipeAfterFailedUnlocks = 10),
+            LostModePayload(
+                message = "Equipo de ACME. Devuélvalo.",
+                phone = "+57 300 1234567",
+                ringSeconds = 60,
+                wipeAfterFailedUnlocks = 10,
+            ),
         )
         assertTrue(errors.isEmpty())
         assertEquals("Equipo de ACME. Devuélvalo.\nTel: +57 300 1234567", device.info)
@@ -46,7 +54,7 @@ class LostModeTest {
         assertEquals(1, device.tracking)
         assertEquals("active", device.mode)
         assertEquals(10, device.maxFailed)
-        assertTrue(lost().isActive())
+        assertTrue(lost().status() != null)
         assertEquals(10, lost().status()!!.wipeAfterFailedUnlocks)
     }
 
@@ -59,7 +67,7 @@ class LostModeTest {
         assertEquals(15, device.tracking)
         assertEquals("passive", device.mode)
         assertEquals(0, device.maxFailed)
-        assertFalse(lost().isActive())
+        assertFalse(lost().status() != null)
         assertNull(lost().status())
     }
 

@@ -186,7 +186,7 @@ object AgentModule {
         appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
-        lostMode: com.dallycontrol.core.lost.LostMode,
+        protection: com.dallycontrol.agent.policy.ProtectionReport,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -201,11 +201,7 @@ object AgentModule {
             }
         },
         // Factory-reset protection, anti-tamper rules and lost mode as the device holds them now.
-        security = {
-            security.collect().copy(
-                protection = runCatching { deviceRules.status().copy(lostMode = lostMode.status()) }.getOrNull(),
-            )
-        },
+        security = { security.collect().copy(protection = protection.read()) },
         // The trail fixes a successful check-in carried are on the server now.
         onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
     )
@@ -614,8 +610,13 @@ object AgentModule {
 
     @Provides
     @Singleton
-    fun provideDeviceRules(@ApplicationContext context: Context, handle: DpmHandle, events: EventSink): com.dallycontrol.agent.policy.DeviceRules =
-        com.dallycontrol.agent.policy.DeviceRules(context, handle, events)
+    fun provideDeviceRules(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+        protection: com.dallycontrol.agent.policy.DeviceProtection,
+    ): com.dallycontrol.agent.policy.DeviceRules =
+        com.dallycontrol.agent.policy.DeviceRules(context, handle, events, protection)
 
     /** `device.clearCache`: Android's own "clear every app's cache" confirmation, opened on the phone. */
     @Provides

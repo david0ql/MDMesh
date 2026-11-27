@@ -46,7 +46,8 @@ class DeviceWipeHandler(
             CommandResults.done(command, "wipe requested: $summary${if (told) "" else " (not announced: no link)"}")
         }.getOrElse {
             runCatching { journal.clear() }
-            CommandResults.failed(command, "wipe failed: ${it.javaClass.simpleName}: ${it.message ?: "no message"} ($summary)")
+            val why = "${it.javaClass.simpleName}: ${it.message ?: "no message"}"
+            CommandResults.failed(command, "wipe failed: $why ($summary)")
         }
     }
 
