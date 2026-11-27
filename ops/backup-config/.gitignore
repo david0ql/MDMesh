@@ -1,0 +1,4 @@
+# Archivos opcionales del operador para el servicio `backup` (se montan en /config, solo lectura):
+# rclone.conf, id_ed25519, known_hosts. Contienen credenciales: nunca se versionan.
+*
+!.gitignore

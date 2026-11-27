@@ -21,6 +21,7 @@ public class RestSurfaceFilterTest {
         allowed("/rest/public/auth/options");
         allowed("/rest/public/passwordReset/reset");
         allowed("/rest/public/name");
+        allowed("/rest/public/health");
     }
 
     @Test

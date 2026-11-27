@@ -3570,6 +3570,76 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-alert-offline-minutes" author="dallycontrol">
+        <comment>The "disconnected" threshold the administrator sets in the Alerts page is saved per customer, so the
+                 alert e-mails use the same value (it was a fixed 20 minutes there).</comment>
+        <sql>
+            ALTER TABLE geofence_settings ADD COLUMN IF NOT EXISTS offlineMinutes INT NOT NULL DEFAULT 20;
+        </sql>
+        <rollback>
+            ALTER TABLE geofence_settings DROP COLUMN IF EXISTS offlineMinutes;
+        </rollback>
+    </changeSet>
+
+    <!-- More objects that only existed in the production database, found by scripts/schema-drift-check.sh (the
+         mappers use them, no changeSet created them, so a fresh install or a restore into a new server failed on
+         the policy history, saved scripts and the settings page). Same definitions as production.
+         Idempotent: a no-op where they already exist. -->
+    <changeSet id="26.11.27-backfill-drift-check" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS config_audit (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                configurationId INT,
+                configurationName VARCHAR(255),
+                userId INT,
+                userName VARCHAR(255),
+                action VARCHAR(16) NOT NULL,
+                changesJson TEXT,
+                revision VARCHAR(64),
+                createdAt BIGINT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS config_audit_cfg_idx ON config_audit (configurationId, id DESC);
+            CREATE INDEX IF NOT EXISTS config_audit_customer_idx ON config_audit (customerId);
+
+            CREATE TABLE IF NOT EXISTS savedScript (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name VARCHAR(100) NOT NULL,
+                description VARCHAR(500),
+                body TEXT NOT NULL,
+                paramsJson TEXT,
+                quickAction BOOLEAN NOT NULL DEFAULT FALSE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS idx_savedscript_customer ON savedScript (customerId);
+
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS dashboardRefreshSeconds INTEGER;
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS offlineThresholdDays INTEGER;
+        </sql>
+        <rollback/>
+    </changeSet>
+
+    <!-- Role permissions that only existed in the production database (granted by hand), found by
+         scripts/schema-drift-check.sh (role comparison): the manage_scripts permission itself (ScriptsResource checks
+         it; no changeSet created it, so on a fresh install nobody could author saved scripts) for roles 2 (Admin)
+         and 3 (User), and add_config for role 3. By role id; a no-op where they already exist. -->
+    <changeSet id="26.11.27-backfill-role-permissions" author="dallycontrol">
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y borrar scripts guardados', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ((ur.id IN (2, 3) AND p.name = 'manage_scripts') OR (ur.id = 3 AND p.name = 'add_config'))
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback/>
+    </changeSet>
+
     <changeSet id="26.11.27-mobile-data" author="dallycontrol">
         <comment>Mobile data per app: a device's own override of its policy's mobile-data section (apps always allowed
                  or blocked on that device, limits ignored, or no restriction at all). Removed with the device.</comment>
