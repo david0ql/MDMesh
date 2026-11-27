@@ -14,7 +14,7 @@ En **Políticas → (política) → Datos móviles**:
 
 | Campo | Qué hace |
 |-------|----------|
-| Datos móviles por aplicación | *Sin restricción por app*, *Estas apps solo con Wi‑Fi (lista negra)* o *Solo estas apps usan datos móviles (lista blanca)*. |
+| Datos móviles por aplicación | *Sin restricción por app*, *Lista negra: solo Wi‑Fi* (las apps de la lista no usan datos móviles) o *Lista blanca: solo estas apps* (solo las de la lista los usan). |
 | Lista de apps | Se eligen de las apps de la política (un toque) o se escribe el nombre del paquete. «Solo Wi‑Fi por app» es la lista negra. |
 | Límite de datos del equipo | Megabytes por periodo para todo el teléfono. Al superarlo, todas las apps menos las esenciales quedan sin datos móviles hasta el siguiente periodo. |
 | Límite de datos por app | Megabytes por periodo para una app. Al superarlo, esa app queda solo con Wi‑Fi hasta el siguiente periodo. |

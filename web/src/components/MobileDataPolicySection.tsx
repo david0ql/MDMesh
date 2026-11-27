@@ -115,8 +115,8 @@ export function MobileDataPolicySection({ value, disabled, apps = [], onChange }
           <select className="sel" aria-label="Datos móviles por aplicación" value={mode} disabled={disabled} data-testid="md-mode"
             onChange={(e) => set({ mode: e.target.value as MobileDataPolicy['mode'] })}>
             <option value="open">Sin restricción por app</option>
-            <option value="blocklist">Estas apps solo con Wi‑Fi (lista negra)</option>
-            <option value="allowlist">Solo estas apps usan datos móviles (lista blanca)</option>
+            <option value="blocklist">Lista negra: solo Wi‑Fi</option>
+            <option value="allowlist">Lista blanca: solo estas apps</option>
           </select>
         </div>
       </div>
@@ -161,12 +161,14 @@ export function MobileDataPolicySection({ value, disabled, apps = [], onChange }
           <label>Límite de datos por app</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            Megabytes de datos móviles por periodo para una app. Al superarlo, esa app queda solo con Wi‑Fi hasta el siguiente periodo.
+            Megabytes de datos móviles por periodo para una app (paquete y MB). Al superarlo, esa app queda solo con Wi‑Fi hasta el
+            siguiente periodo.
           </span>
         </div>
-        <div className="cfg-field-ctl" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="md-app-limits">
+        <div className="cfg-field-ctl" data-testid="md-app-limits">
+          <div className="dcp-sites" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {limits.map((l, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px auto', gap: 6 }}>
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 110px auto', gap: 6 }}>
               <input className="input mono" placeholder="com.empresa.app" list="md-policy-apps" value={l.pkg} disabled={disabled}
                 aria-label={`Límite ${i + 1} paquete`} onChange={(e) => setLimit(i, { pkg: e.target.value.trim() })} />
               <input className="input" type="number" min={1} placeholder="MB" value={l.limitMb || ''} disabled={disabled}
@@ -178,8 +180,9 @@ export function MobileDataPolicySection({ value, disabled, apps = [], onChange }
           <datalist id="md-policy-apps">
             {apps.map((o) => <option key={o.pkg} value={o.pkg}>{o.name}</option>)}
           </datalist>
-          <button className="btn btn-sm" disabled={disabled} style={{ alignSelf: 'flex-end' }}
+          <button className="btn btn-sm" disabled={disabled} style={{ alignSelf: 'flex-start' }}
             onClick={() => set({ appLimits: [...limits, { pkg: '', limitMb: 0 }] })}>+ Agregar límite</button>
+          </div>
         </div>
       </div>
 

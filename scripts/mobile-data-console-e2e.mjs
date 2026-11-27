@@ -114,9 +114,12 @@ try {
   await again.getByTestId('md-period').selectOption('daily');
   check('daily period hides the cut day', (await again.getByTestId('md-cut-day').count()) === 0);
   await again.getByTestId('md-period').selectOption('monthly');
+  check('back to monthly: the cut day starts empty (day 1)', (await again.getByTestId('md-cut-day').inputValue()) === '');
+  await again.getByTestId('md-cut-day').fill('15');
   await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
   await page.locator('.cfg-card', { hasText: policyName }).waitFor({ timeout: 20000 });
-  check('automatic mechanism is stored as «not set»', (await mobileData())?.mechanism === undefined);
+  const resaved = await mobileData();
+  check('automatic mechanism is stored as «not set», cut day kept', resaved?.mechanism === undefined && resaved?.cutDay === 15, JSON.stringify(resaved));
 
   // --- a device that reports like a phone ---------------------------------------------------------------------------
   const token = (await rest('POST', '/private/agent/v1/token', { configurationId: policyId })).data.token;
@@ -213,7 +216,7 @@ try {
   const row = page.locator('tr', { hasText: number }).first();
   await row.waitFor({ timeout: 20000 });
   const table = await page.locator('table').first().innerText();
-  check('report lists the device with consumption, limit and state', /Consumo del periodo/.test(table) && /Límite superado/.test(table) && /Cerca del límite/.test(table), table.slice(0, 300));
+  check('report lists the device with consumption, limit and state', /consumo del periodo/i.test(table) && /Límite superado/.test(table) && /Cerca del límite/.test(table) && /460 MB/.test(table), table.slice(0, 300));
   await page.screenshot({ path: `${shots}/06-report.png`, fullPage: true });
   const csv = await page.evaluate(async () => {
     const r = await fetch('/rest/private/reports/v1/export?report=data-limits&format=csv');

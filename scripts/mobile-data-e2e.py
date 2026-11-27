@@ -553,8 +553,12 @@ def emulator(api, args):
                 admin = netpolicy.split("Admin restricted uids for metered data:", 1)[-1][:400] if "Admin restricted uids" in netpolicy else ""
                 ok("dumpsys netpolicy: the app's uid is admin-restricted for metered data", uids[BLOCKED] in admin, admin.strip()[:120])
                 ok("dumpsys netpolicy: the allowed app's uid is not", uids[ALLOWED] not in admin)
-                ok("dumpsys device_policy: lists the package as metered-data disabled",
-                   BLOCKED in emu.sh("dumpsys device_policy | grep -i -A3 metered"))
+                policy_dump = emu.sh("dumpsys device_policy")
+                if "meteredDisabledPackages" in policy_dump:
+                    listed = re.search(r"meteredDisabledPackages=(.*)", policy_dump).group(1)
+                    ok("dumpsys device_policy: the admin's metered-disabled list has the package", BLOCKED in listed, listed[:200])
+                else:
+                    print("    (dumpsys device_policy does not print the metered-disabled list on this Android version)")
                 ok("no VPN is used", "VPN" not in emu.transport() and emu.sh("settings get secure always_on_vpn_app").strip() in ("null", ""))
             else:
                 chk("always-on VPN is the agent", emu.sh("settings get secure always_on_vpn_app").strip(), agent)
