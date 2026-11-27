@@ -51,6 +51,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
     @Inject lateinit var deviceWatch: DeviceWatch
+    @Inject lateinit var keeper: ConnectionKeeper
     @Inject lateinit var supportSessions: com.dallycontrol.agent.support.SupportSessionManager
 
     @Volatile private var started = false
@@ -68,6 +69,10 @@ class CheckInService : LifecycleService() {
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
+                Intent.ACTION_SHUTDOWN -> {
+                    keeper.onShutdown(this@CheckInService)
+                    return
+                }
                 android.net.ConnectivityManager.CONNECTIVITY_ACTION ->
                     runCatching { eventLog.record(EventType.CONNECTIVITY) }
                 Intent.ACTION_BATTERY_LOW ->
@@ -90,6 +95,7 @@ class CheckInService : LifecycleService() {
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
             addAction(Intent.ACTION_BATTERY_LOW)
+            addAction(Intent.ACTION_SHUTDOWN)
         }
         ContextCompat.registerReceiver(this, powerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
@@ -105,6 +111,8 @@ class CheckInService : LifecycleService() {
                 delay(REACHABILITY_GRACE_MS + 1_000L)
                 reevaluateSocket() // drop back to adaptive gating once the grace window lapses
             }
+            // Reconnect on network changes, watchdog, shutdown notice (see ConnectionKeeper).
+            keeper.start(applicationContext, lifecycleScope) { reevaluateSocket() }
             lifecycleScope.launch {
                 runCatching { coordinator.runOnce() } // initial sync
                     .onFailure { Log.w(TAG, "initial check-in failed", it) }
@@ -223,6 +231,7 @@ class CheckInService : LifecycleService() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(powerReceiver) }
+        keeper.stop(applicationContext)
         deviceWatch.stop()
         transport.stop()
         super.onDestroy()

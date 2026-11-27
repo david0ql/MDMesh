@@ -56,6 +56,9 @@ public class AgentCheckInRequest {
     /** Buffered lifecycle events flushed on this check-in. */
     private List<AgentTelemetryEvent> events;
 
+    /** Connection diagnostics since the agent's last delivered report (optional; agents before 0.9.9 omit it). */
+    private AgentConnectionReport connection;
+
     public AgentCheckInRequest() {
     }
 }

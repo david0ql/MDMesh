@@ -109,7 +109,7 @@ public interface GeofenceMapper {
     /** Inside/outside of every device with a state, for the customer's zones (the console's indicator). */
     @Select({"SELECT s.geofenceId AS zoneid, s.deviceNumber AS number, d.description, s.state, s.since, s.lastFixAt AS lastfixat " +
             "FROM geofence_state s JOIN geofence z ON z.id = s.geofenceId JOIN devices d ON d.number = s.deviceNumber " +
-            "WHERE z.customerId = #{customerId} AND d.customerId = #{customerId} ORDER BY s.geofenceId, lower(d.description), d.number"})
+            "WHERE z.customerId = #{customerId} AND d.customerId = #{customerId} AND s.state <> 'unknown' ORDER BY s.geofenceId, lower(d.description), d.number"})
     List<Map<String, Object>> listStates(@Param("customerId") int customerId);
 
     @Delete({"DELETE FROM geofence_state s WHERE NOT EXISTS (SELECT 1 FROM devices d WHERE d.number = s.deviceNumber)"})
@@ -139,16 +139,18 @@ public interface GeofenceMapper {
     // --- settings ------------------------------------------------------------------------------------------------
 
     @Select({"SELECT maxAccuracyM AS maxaccuracym, hysteresisM AS hysteresism, confirmFixes AS confirmfixes, " +
-            "retentionDays AS retentiondays, emailIntervalMin AS emailintervalmin FROM geofence_settings WHERE customerId = #{customerId}"})
+            "retentionDays AS retentiondays, emailIntervalMin AS emailintervalmin, offlineMinutes AS offlineminutes FROM geofence_settings WHERE customerId = #{customerId}"})
     Map<String, Object> getSettings(@Param("customerId") int customerId);
 
-    @Insert({"INSERT INTO geofence_settings (customerId, maxAccuracyM, hysteresisM, confirmFixes, retentionDays, emailIntervalMin) " +
-            "VALUES (#{customerId}, #{maxAccuracyM}, #{hysteresisM}, #{confirmFixes}, #{retentionDays}, #{emailIntervalMin}) " +
+    @Insert({"INSERT INTO geofence_settings (customerId, maxAccuracyM, hysteresisM, confirmFixes, retentionDays, emailIntervalMin, offlineMinutes) " +
+            "VALUES (#{customerId}, #{maxAccuracyM}, #{hysteresisM}, #{confirmFixes}, #{retentionDays}, #{emailIntervalMin}, #{offlineMinutes}) " +
             "ON CONFLICT (customerId) DO UPDATE SET maxAccuracyM = EXCLUDED.maxAccuracyM, hysteresisM = EXCLUDED.hysteresisM, " +
-            "confirmFixes = EXCLUDED.confirmFixes, retentionDays = EXCLUDED.retentionDays, emailIntervalMin = EXCLUDED.emailIntervalMin"})
+            "confirmFixes = EXCLUDED.confirmFixes, retentionDays = EXCLUDED.retentionDays, emailIntervalMin = EXCLUDED.emailIntervalMin, " +
+            "offlineMinutes = EXCLUDED.offlineMinutes"})
     void upsertSettings(@Param("customerId") int customerId, @Param("maxAccuracyM") int maxAccuracyM,
                         @Param("hysteresisM") int hysteresisM, @Param("confirmFixes") int confirmFixes,
-                        @Param("retentionDays") int retentionDays, @Param("emailIntervalMin") int emailIntervalMin);
+                        @Param("retentionDays") int retentionDays, @Param("emailIntervalMin") int emailIntervalMin,
+                        @Param("offlineMinutes") int offlineMinutes);
 
     @Select({"SELECT customerId AS customerid, retentionDays AS retentiondays FROM geofence_settings WHERE retentionDays > 0"})
     List<Map<String, Object>> listRetention();

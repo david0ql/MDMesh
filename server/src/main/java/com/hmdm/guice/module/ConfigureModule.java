@@ -100,6 +100,8 @@ public class ConfigureModule extends AbstractModule {
     private final String deviceAllowedAddress = "device.allowed.address";
     private final String uiAllowedAddress = "ui.allowed.address";
     private final String apkTrustedUrlParameter = "apk.trusted.url";
+    /** Backup server URLs handed to agents (comma separated, https only), e.g. the direct domain without the CDN. */
+    private final String agentBackupUrlsParameter = "agent.backup.urls";
     private final String jwtSecretKey = "jwt.secretkey";
     private final String jwtValidity = "jwt.validity";
     private final String jwtValidityForRememberMe = "jwt.validityrememberme";
@@ -284,5 +286,7 @@ public class ConfigureModule extends AbstractModule {
         this.bindConstant().annotatedWith(Names.named(jwtValidity)).to(opt != null ? opt : "");
         opt = this.context.getInitParameter(jwtValidityForRememberMe);
         this.bindConstant().annotatedWith(Names.named(jwtValidityForRememberMe)).to(opt != null ? opt : "");
+        opt = this.context.getInitParameter(agentBackupUrlsParameter);
+        this.bindConstant().annotatedWith(Names.named(agentBackupUrlsParameter)).to(opt != null ? opt : "");
     }
 }

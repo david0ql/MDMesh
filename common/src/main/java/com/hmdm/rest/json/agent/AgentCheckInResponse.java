@@ -42,6 +42,9 @@ public class AgentCheckInResponse {
 
     private List<AgentCommand> commands;
 
+    /** Backup server URLs (https) the agent may try when the primary keeps failing; null when none is configured. */
+    private List<String> backupUrls;
+
     public AgentCheckInResponse() {
     }
 

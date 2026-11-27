@@ -7,6 +7,9 @@ $Code = '__CODE__'
 $Folder = '__FOLDER__'
 $AgentPkg = 'com.dallycontrol.agent'
 if ($env:DC_AGENT_PKG) { $AgentPkg = $env:DC_AGENT_PKG }   # pruebas con la versión de desarrollo
+# Cuánto se reintenta el rechazo "hay cuentas" de un Android que aún está iniciando (segundos), y cada cuánto.
+$EsperaArranque = 120; if ($env:DC_BOOT_WAIT) { $EsperaArranque = [int]$env:DC_BOOT_WAIT }
+$PausaArranque = 5; if ($env:DC_BOOT_PAUSE) { $PausaArranque = [int]$env:DC_BOOT_PAUSE }
 $VncPkg = 'net.christianbeier.droidvnc_ng'
 
 $ErrorActionPreference = 'Continue'
@@ -206,6 +209,19 @@ $release = Adb shell getprop ro.build.version.release
 $sdk = [int](Adb shell getprop ro.build.version.sdk)
 Ok ('Conectado: ' + $brand + ' ' + $model + ' (Android ' + $release + ')')
 
+# Las cuentas que Android ve en el teléfono, listas para mostrar. Se consulta antes de inscribir y otra vez si Android
+# rechaza la inscripción por cuentas: entre una cosa y la otra pasan la descarga y la instalación, y en ese rato puede
+# aparecer una cuenta (un teléfono recién formateado termina de crear las suyas en segundo plano).
+function Get-Cuentas {
+  $acc = @()
+  foreach ($l in (Adb shell dumpsys account).Split("`n")) {
+    if ($l -match '^\s*Account \{name=(.+), type=(.+)\}\s*$') {
+      $acc += ('      - ' + $Matches[1] + '   (' + $Matches[2] + ')')
+    }
+  }
+  return @($acc | Select-Object -Unique)
+}
+
 Titulo 'Paso 3 de 5: revisar las cuentas del teléfono'
 # Android solo deja que DallyControl administre un teléfono SIN cuentas mientras se inscribe. Quitar una cuenta no borra
 # nada del teléfono; al final se vuelve a agregar.
@@ -214,13 +230,7 @@ if ($already) {
   Ok 'DallyControl ya administra este teléfono.'
 } else {
   while ($true) {
-    $acc = @()
-    foreach ($l in (Adb shell dumpsys account).Split("`n")) {
-      if ($l -match '^\s*Account \{name=(.+), type=(.+)\}\s*$') {
-        $acc += ('      - ' + $Matches[1] + '   (' + $Matches[2] + ')')
-      }
-    }
-    $acc = @($acc | Select-Object -Unique)
+    $acc = @(Get-Cuentas)
     if ($acc.Count -eq 0) { Ok 'El teléfono no tiene cuentas: se puede inscribir.'; break }
     Aviso 'El teléfono tiene estas cuentas, y Android no deja inscribirlo mientras estén:'
     $acc | ForEach-Object { Write-Host $_ }
@@ -250,13 +260,40 @@ if ($sdk -ge 24) {
 
 if (-not $already) {
   Paso 'Haciendo que DallyControl administre el teléfono...'
+  # Android 16 con servicios de Google rechaza esta orden con "ya hay cuentas en el dispositivo" durante unos 40
+  # segundos después de encender, aunque no haya ninguna cuenta, y luego la acepta sin que cambie nada. Por eso ese
+  # rechazo, cuando el teléfono no muestra cuentas, se reintenta hasta 2 minutos antes de pedirle nada al técnico.
   $ok = $false
-  for ($t = 0; $t -lt 3 -and -not $ok; $t++) {
+  $avisado = $false
+  $limite = (Get-Date).AddSeconds($EsperaArranque)
+  while (-not $ok) {
     $r = Adb shell dpm set-device-owner ($AgentPkg + '/com.dallycontrol.agent.admin.AdminReceiver')
-    if ($r -match 'Success') { $ok = $true } else { Start-Sleep -Seconds 4 }
+    if ($r -match 'Success') { $ok = $true; break }
+    if ($r -notmatch 'account') {
+      # Otro motivo: dos reintentos cortos (la orden a veces falla justo después de instalar) y se informa.
+      for ($t = 0; $t -lt 2 -and -not $ok; $t++) {
+        Start-Sleep -Seconds 4
+        $r = Adb shell dpm set-device-owner ($AgentPkg + '/com.dallycontrol.agent.admin.AdminReceiver')
+        if ($r -match 'Success') { $ok = $true }
+      }
+      break
+    }
+    $acc = @(Get-Cuentas)
+    if ($acc.Count -gt 0) {
+      # Sí hay cuentas (aparecieron después de la revisión del paso 3): se dice cuáles y se espera al técnico.
+      Aviso 'Android no dejó inscribir porque el teléfono tiene estas cuentas:'
+      $acc | ForEach-Object { Write-Host $_ }
+      Write-Host '  Quítalas en Ajustes -> "Cuentas" -> toca cada una -> "Quitar cuenta". No se borra nada.'
+      Espera 'Quita las cuentas'
+      $limite = (Get-Date).AddSeconds($EsperaArranque)
+      continue
+    }
+    if ((Get-Date) -ge $limite) { break }
+    if (-not $avisado) { Aviso 'Android aún está iniciando; reintentando (puede tardar hasta 2 minutos)...'; $avisado = $true }
+    Start-Sleep -Seconds $PausaArranque
   }
   if (-not $ok) {
-    if ($r -match 'account') { Falla 'Android dice que el teléfono todavía tiene cuentas. Quítalas todas (también las de Samsung, Xiaomi, WhatsApp Business, etc.) y vuelve a abrir este programa.' }
+    if ($r -match 'account') { Falla 'Android siguió diciendo durante 2 minutos que el teléfono tiene cuentas, y desde aquí no se ve ninguna. Revisa en Ajustes -> Cuentas que no quede ninguna (también las de Samsung, Xiaomi, WhatsApp Business, etc.; ni otro usuario o perfil de trabajo), reinicia el teléfono y vuelve a abrir este programa.' }
     if ($r -match 'several users|multiple users|user') { Falla 'El teléfono tiene otro usuario o un "perfil de trabajo". Quítalo en Ajustes -> Sistema -> Varios usuarios (o Cuentas -> Trabajo) y vuelve a abrir este programa.' }
     if ($r -match 'already') { Falla 'Otro programa ya administra este teléfono (otro MDM). Hay que quitarlo primero.' }
     Falla ('Android no aceptó a DallyControl como administrador: ' + $r)

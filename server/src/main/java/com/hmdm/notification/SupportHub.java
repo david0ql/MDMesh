@@ -291,7 +291,37 @@ public class SupportHub {
         } catch (Exception e) {
             log.debug("Remote support: could not expire the start command: {}", e.getMessage());
         }
+        auditEnd(live, reason);
         log.info("Remote support session {} on {} ended ({})", live.dbId, live.deviceNumber, reason);
+    }
+
+    /**
+     * The audit trail's row for the end of a session, however it ended (the operator, the phone, a timeout): who
+     * opened it, on which device, how long it lasted and what was used. The start is audited by the request that
+     * opened it.
+     */
+    private void auditEnd(Live live, String reason) {
+        com.hmdm.audit.AuditTrailService audit = com.hmdm.audit.AuditTrailService.INSTANCE;
+        if (audit == null) return;
+        try {
+            long seconds = (System.currentTimeMillis() - live.createdAt) / 1000L;
+            com.fasterxml.jackson.databind.node.ObjectNode d = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+            d.put("sessionId", live.dbId);
+            d.put("device", live.deviceNumber);
+            d.put("operator", live.operator);
+            d.put("viewOnly", live.viewOnly);
+            d.put("reason", reason);
+            d.put("deviceJoined", live.deviceEverJoined);
+            d.put("durationSec", seconds);
+            d.put("chat", live.chat);
+            d.put("files", live.files);
+            d.put("voiceSec", live.voiceMillis / 1000L);
+            d.put("input", live.input);
+            audit.recordSystem(live.customerId, com.hmdm.audit.AuditCatalog.REMOTE, "remote.session.end",
+                    "Fin de sesión de soporte remoto (" + live.operator + ", " + seconds + " s)", d);
+        } catch (Exception e) {
+            log.debug("Remote support: could not audit the end of session {}: {}", live.dbId, e.getMessage());
+        }
     }
 
     void reap() {

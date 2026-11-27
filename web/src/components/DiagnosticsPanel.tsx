@@ -20,6 +20,8 @@ interface Snapshot {
   foreground?: { at: number; app: string }[];
   display?: { fontScale: number; canChangeFont: boolean; densityDpi: number; widthDp: number };
   agentExits?: { at: number; reason: string; detail: string }[];
+  /** The last fresh-position request: providers tried (fused / gps / network), time each took, who answered. */
+  location?: { at: number; available: string[]; budgetSec: number; answeredBy: string | null; totalMs: number; summary: string } | null;
   battery?: number;
 }
 
@@ -98,6 +100,11 @@ export function DiagnosticsPanel({ device }: { device: Device }) {
               <tr><th>Sonando ahora</th><td>{s?.playingNow?.length ? s.playingNow.join(', ') : 'nada'}</td></tr>
               <tr><th>Llamada</th><td>{snap.call}</td></tr>
               <tr><th>Modo de sonido</th><td>{s?.ringerMode} · {Object.entries(s?.volumes ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}</td></tr>
+              {snap.location !== undefined && (
+                <tr><th>Ubicación</th><td>{snap.location
+                  ? `${time(snap.location.at)} · ${snap.location.summary} · respondió: ${snap.location.answeredBy ?? 'ninguno'} · espera ${snap.location.budgetSec} s · disponibles: ${snap.location.available.join(', ')}`
+                  : 'aún no se ha pedido una posición nueva'}</td></tr>
+              )}
               <tr><th>Próxima alarma</th><td>{snap.nextAlarm ? `${time(snap.nextAlarm.at)} (puesta por ${snap.nextAlarm.setBy ?? '?'})` : 'ninguna'}</td></tr>
               {snap.display && <tr><th>Pantalla</th><td>letra al {Math.round(snap.display.fontScale * 100)} % ({snap.display.canChangeFont ? 'se puede cambiar desde la consola' : 'falta el permiso «Modificar ajustes del sistema»'}) · {snap.display.densityDpi} dpi · {snap.display.widthDp} dp de ancho</td></tr>}
               <tr><th>Quiosco</th><td>{snap.kiosk?.locked} · {snap.kiosk?.allowedApps?.length ?? 0} apps permitidas</td></tr>

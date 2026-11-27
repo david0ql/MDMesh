@@ -101,6 +101,14 @@ public class UserScopeFilter implements Filter {
             // (already scoped), so the picker only offers folders they manage.
             new Rule("GET PUT", "/dc/users", null),
             new Rule("DELETE", "/dc/users/(\\d+)", null),
+            // Fleet inventory: CSV / filtered export and "Actualizar ahora" (the resource narrows both to the user's
+            // devices), and scheduled report e-mails (ReportScheduleResource: manage_fleet, own folders only).
+            new Rule("GET", "/fleet/v1/export.csv", null),
+            new Rule("POST", "/fleet/v1/export", null),
+            new Rule("POST", "/fleet/v1/devices/refresh", null),
+            new Rule("POST", "/reports/v1/schedules", null),
+            new Rule("PUT DELETE", "/reports/v1/schedules/(\\d+)", null),
+            new Rule("POST", "/reports/v1/schedules/(\\d+)/send", null),
             // Geofences: the resource shows a folder editor only the zones of their folders/devices and checks every
             // folder/device a zone is assigned to; the track history is checked here against the device's folder.
             new Rule("GET", "/geofences/v1/devices/([^/]+)/(track|track/export|zones)", "device"),
@@ -109,6 +117,17 @@ public class UserScopeFilter implements Filter {
             new Rule("GET", "/geofences/v1/(states|settings|mail)", null),
             new Rule("GET POST", "/geofences/v1/recipients", null),
             new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null),
+            // Audit trail: needs view_audit; the resource limits a folder administrator to the rows of their folders
+            // and of the users they manage. The activity of one device is checked here against the device's folder.
+            new Rule("GET", "/audit/v1/(log|facets|export|settings)", null),
+            new Rule("GET", "/audit/v1/devices/([^/]+)/activity", "device"),
+            new Rule("GET", "/audit/v1/users/(\\d+)/activity", null),
+            // Users module: the roles a folder manager may assign (DcUserResource: never more than they hold).
+            new Rule("GET", "/dc/users/roles", null),
+            // The device export the console uses (POST with the list's filters) and its CSV twin: the resource
+            // builds them from the user's own folders only, like export.xlsx above.
+            new Rule("POST", "/fleet/v1/export", null),
+            new Rule("GET", "/fleet/v1/export.csv", null),
             // Remote support: per-device calls are checked here against the device's folder; the session log is
             // filtered by the resource (and a session's events are checked against its device).
             new Rule(ANY, "/support/v1/devices/([^/]+)(/.*)?", "device"),

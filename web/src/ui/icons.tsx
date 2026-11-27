@@ -190,6 +190,14 @@ export const IconZone = (p: P) => (
   </Svg>
 );
 
+export const IconAudit = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 2.5h6l2.5 2.5v8.5H4z" />
+    <path d="M10 2.5V5h2.5" />
+    <path d="M6 8h4.5M6 10.5h3" />
+  </Svg>
+);
+
 export const IconSupport = (p: P) => (
   <Svg {...p}>
     <path d="M3 9V7.5a5 5 0 0 1 10 0V9" />

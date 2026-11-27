@@ -76,6 +76,37 @@
     <string name="qs_font_needs">To change the letter size, allow DallyControl to modify system settings (once).</string>
     <string name="qs_font_allow">Allow</string>
 
+    <!-- Enrollment status (EnrollStatusActivity, MainActivity). -->
+    <string name="enroll_status_pending">Enrolling…</string>
+    <string name="enroll_status_pending_error">Enrolling… (last error: %1$s)</string>
+    <string name="enroll_status_failed">Not enrolled yet. %1$s (%2$s, attempt %3$d)</string>
+    <string name="enroll_ui_working">Enrolling this device…</string>
+    <string name="enroll_ui_working_hint">Connecting to the server. This takes a few seconds.</string>
+    <string name="enroll_ui_retrying">Could not enroll yet. Retrying…</string>
+    <string name="enroll_ui_failed">This device could not be enrolled</string>
+    <string name="enroll_ui_done">Device enrolled</string>
+    <string name="enroll_ui_retry">Retry</string>
+    <string name="enroll_ui_continue">Continue without waiting</string>
+    <string name="enroll_ui_technical">Reason: %1$s · attempt %2$d · %3$s</string>
+    <string name="enroll_err_clock">The date and time of this phone are wrong, so it cannot connect securely. Set them (Settings > Date and time) or join a network with internet, then retry.</string>
+    <string name="enroll_err_no_network">No connection to the server. Check that Wi-Fi or mobile data has internet access.</string>
+    <string name="enroll_err_timeout">The server did not answer in time. It is retried automatically.</string>
+    <string name="enroll_err_captive_portal">This Wi-Fi asks you to sign in (captive portal) or blocks the server. Sign in to the network or use another one.</string>
+    <string name="enroll_err_tls">A secure connection to the server could not be established (certificate).</string>
+    <string name="enroll_err_server">The server answered with an error. It is retried automatically.</string>
+    <string name="enroll_err_no_token">This device did not receive its enrollment code. Scan the console\'s QR or type a folder code below.</string>
+    <string name="enroll_err_token_used">This QR code was already used by another device. Generate a new QR in the console or type a folder code.</string>
+    <string name="enroll_err_token_expired">This QR code expired. Generate a new one in the console or type a folder code.</string>
+    <string name="enroll_err_token_invalid">The enrollment code is not valid or was revoked.</string>
+    <string name="enroll_err_disabled">The server does not allow creating devices on enrollment. Ask the administrator.</string>
+    <string name="enroll_err_other">Could not enroll: %1$s</string>
+    <string name="enroll_scan_button">Scan the console\'s QR</string>
+    <string name="enroll_scan_hint">In the console: Enroll > Scan QR > “Phone already managed”. Point the camera at that small QR.</string>
+    <string name="enroll_scan_not_ours">That QR is not a DallyControl enrollment QR. Use the one from the console.</string>
+    <string name="enroll_scan_no_camera">The camera is not available. Go back and type a folder code instead.</string>
+    <string name="enroll_prompt_channel">Enrollment</string>
+    <string name="enroll_prompt_title">This device is not enrolled yet</string>
+    <string name="enroll_prompt_text">It is managed by DallyControl but did not receive its enrollment code. Tap to scan the console\'s QR or type a folder code.</string>
     <!-- Remote support through the agent (ADR 0012). -->
     <string name="support_service_label">DallyControl remote support</string>
     <string name="support_service_summary">Lets your organization\'s support see and control this screen during a support session.</string>

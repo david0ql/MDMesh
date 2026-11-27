@@ -22,6 +22,13 @@ rm -f /opt/dallycontrol/initialized.txt
 : "${SMTP_HOST:=}"
 : "${SMTP_PORT:=25}"
 : "${SMTP_FROM:=mdm@localhost}"
+# TLS for the outgoing mail server: SMTP_STARTTLS=true for port 587, SMTP_SSL=true for port 465 (implicit TLS).
+# SMTP_SSL_TRUST (optional) names hosts whose certificate is trusted without a public CA ("*" = any): test servers only.
+: "${SMTP_SSL:=false}"
+: "${SMTP_STARTTLS:=false}"
+: "${SMTP_SSL_TRUST:=}"
+case "$SMTP_SSL" in true|false|1|0) ;; *) echo "SMTP_SSL must be true or false" >&2; exit 1 ;; esac
+case "$SMTP_STARTTLS" in true|false|1|0) ;; *) echo "SMTP_STARTTLS must be true or false" >&2; exit 1 ;; esac
 : "${JWT_SECRET:=}"
 
 CONF_DIR=/usr/local/tomcat/conf/Catalina/localhost
@@ -102,6 +109,7 @@ cat > "$_root_xml_tmp" <<EOF
     <Parameter name="base.directory"  value="/opt/dallycontrol"/>
     <Parameter name="files.directory" value="/opt/dallycontrol/files"/>
     <Parameter name="base.url"        value="${BASE_URL}"/>
+    <Parameter name="agent.backup.urls" value="${AGENT_BACKUP_URLS:-}"/>
 
     <Parameter name="usage.scenario"    value="private"/>
     <Parameter name="secure.enrollment" value="${SECURE_ENROLLMENT}"/>
@@ -127,8 +135,9 @@ cat > "$_root_xml_tmp" <<EOF
 
     <Parameter name="smtp.host" value="${SMTP_HOST}"/>
     <Parameter name="smtp.port" value="${SMTP_PORT}"/>
-    <Parameter name="smtp.ssl" value="false"/>
-    <Parameter name="smtp.starttls" value="false"/>
+    <Parameter name="smtp.ssl" value="${SMTP_SSL}"/>
+    <Parameter name="smtp.starttls" value="${SMTP_STARTTLS}"/>
+    <Parameter name="smtp.ssl.trust" value="${SMTP_SSL_TRUST}"/>
     <Parameter name="smtp.username" value="${SMTP_USERNAME:-}"/>
     <Parameter name="smtp.password" value="${SMTP_PASSWORD:-}"/>
     <Parameter name="smtp.from" value="${SMTP_FROM}"/>

@@ -23,6 +23,13 @@ interface MdmApi {
     suspend fun enroll(@Body request: AgentEnrollRequest): ResponseEnvelope<AgentEnrollResponse>
 
     /**
+     * "This phone is Device Owner but has nothing to enroll with": no token is sent and nothing is enrolled; the
+     * server only notes it in its attempts log. Servers before this endpoint answer 404, which callers ignore.
+     */
+    @POST("rest/public/agent/v1/enroll/report")
+    suspend fun enrollReport(@Body request: AgentEnrollRequest): ResponseEnvelope<AgentEnrollResponse>
+
+    /**
      * Advertise capabilities + ack prior commands; receive the next gated batch.
      * [authorization] is `Bearer <deviceSecret>` (the per-device secret from enrollment).
      */

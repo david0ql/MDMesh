@@ -1,0 +1,30 @@
+# High availability, PRIMARY side (docs/ops/ALTA-DISPONIBILIDAD.md): lets a standby server keep a streaming replica of
+# this PostgreSQL. Use on the main server, added to the files it already runs with:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ha-primary.yml      (plus the domain overlay, if used)
+#   docker compose up -d postgres          # recreates postgres once: a restart of the database (~10 s, plan it)
+#   scripts/ha-primary-setup.sh            # replication user, slot and pg_hba rule (idempotent)
+#
+# The replication port is published ONLY on PG_REPL_BIND: the address of the private link to the standby (VPN /
+# WireGuard / private VLAN). Never a public address: PostgreSQL must not be reachable from the internet.
+
+services:
+  postgres:
+    # The image's defaults already allow replication (wal_level=replica, max_wal_senders=10); what is set here is
+    # how much WAL is kept for a standby that falls behind. With the replication slot the primary keeps WAL until
+    # the standby has it; max_slot_wal_keep_size caps that so a dead standby can never fill this disk.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - wal_keep_size=${PG_WAL_KEEP_SIZE:-512MB}
+      - -c
+      - max_slot_wal_keep_size=${PG_MAX_SLOT_WAL_KEEP_SIZE:-4GB}
+      - -c
+      - hot_standby=on
+    ports:
+      - "${PG_REPL_BIND:?set PG_REPL_BIND to the private address the standby connects to}:${PG_REPL_PORT:-5432}:5432"

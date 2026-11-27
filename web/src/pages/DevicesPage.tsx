@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
+import { connectionOf, useConnectionStates } from '../ui/connection';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -36,6 +37,11 @@ const groupOf = (d: DeviceView) => d.groups?.[0] ?? null;
 // Online = checked in recently. statusCode is config-compliance colour (green even for a device
 // that was factory-reset and stopped reporting), so it must NOT drive the online/offline dot.
 const isOnline = (d: DeviceView, now?: number) => isOnlineByRecency(d.lastUpdate, now, d.number);
+/** Why a silent device rests ("Pantalla apagada", "Equipo apagado"…); undefined when nothing explains its silence. */
+const restingLabel = (number?: string) => {
+  const c = connectionOf(number);
+  return c?.state === 'resting' ? c.label ?? 'En reposo' : undefined;
+};
 
 function IconSearch() {
   return (
@@ -76,7 +82,11 @@ export function DevicesPage() {
   // view-only folder role does not get those bulk controls.
   const canManage = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
     || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'manage_fleet'));
+  // Enrolling new devices is its own permission (enroll_devices); the server checks it on the codes and tokens.
+  const canEnroll = !!authUser && (authUser.superAdmin || authUser.userRole?.superAdmin
+    || (authUser.userRole?.permissions ?? []).some((p) => p.name === 'enroll_devices'));
   useLiveDevices(); // a device with its live channel open shows connected
+  useConnectionStates(); // "En reposo" (silent for a known reason) instead of "Sin conexión"
   const navigate = useNavigate();
   const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
@@ -381,9 +391,11 @@ export function DevicesPage() {
             onChange={setColumns}
           />
         )}
-        <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
-          Inscribir dispositivo
-        </button>
+        {canEnroll && (
+          <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
+            Inscribir dispositivo
+          </button>
+        )}
       </div>
 
       <div className="filters">
@@ -863,7 +875,7 @@ function DeviceRow({
       {columns.map((c) => (
         <div className="lc" key={c.key}>
           <span className="lk">{c.label}</span>
-          <span className="lv">{c.render(d, summary, { online, policy: config, group })}</span>
+          <span className="lv">{c.render(d, summary, { online, policy: config, group, resting: restingLabel(d.number) })}</span>
         </div>
       ))}
     </div>

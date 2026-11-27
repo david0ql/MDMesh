@@ -19,17 +19,18 @@ from the console". Three gaps were behind that rating:
 
 ### What a Device Owner can and cannot authorise by itself
 
-Checked on emulators (API 28, 30, 35, 36) with the probes the agent runs at start (`SupportEngine.probeDeviceOwnerRoutes`;
-the outcome travels in the session's `info.probe` and is printed by the end-to-end test):
+Checked on emulators (Android 11 / API 30 and Android 15 / API 35, agent installed without any adb grant, as after a
+QR provisioning) with the probes the agent runs (`SupportEngine.probeDeviceOwnerRoutes`; the outcome travels in the
+session's `info.probe` and is printed by the end-to-end test):
 
-| Route | Result |
+| Route | Result (API 30 and API 35) |
 |-------|--------|
-| `DevicePolicyManager.setPermissionGrantState(WRITE_SECURE_SETTINGS)` | Refused on every release: it only takes runtime permissions, and this one is `signature\|privileged\|development`. |
-| `DevicePolicyManager.setSecureSetting(ENABLED_ACCESSIBILITY_SERVICES)` | `SecurityException` on every release: a Device Owner may write two unrelated secure settings only. |
+| `DevicePolicyManager.setPermissionGrantState(WRITE_SECURE_SETTINGS)` | Returns `false`, not granted: it only takes runtime permissions, and this one is `signature\|privileged\|development`. |
+| `DevicePolicyManager.setSecureSetting(ENABLED_ACCESSIBILITY_SERVICES)` | `SecurityException`: a Device Owner may write a short list of unrelated secure settings only. |
 | `setPermissionGrantState` for screen capture | Does not exist: MediaProjection is a consent, not a permission. The `PROJECT_MEDIA` app-op needs the shell. |
-| `setPermissionGrantState(RECORD_AUDIO)` for the agent itself | **Works** on a fully managed device: the microphone for voice calls needs nobody. |
-| Starting a microphone foreground service and activities from the background | **Allowed** for a Device Owner (exempt from the while-in-use and background-start rules). |
-| `pm grant … WRITE_SECURE_SETTINGS` over adb | Works; with it the agent switches its own accessibility service on. `adb install -g` already grants it. |
+| `setPermissionGrantState(RECORD_AUDIO)` for the agent itself | **Works**: the microphone for voice calls needs nobody. |
+| Starting a microphone foreground service and activities from the background | **Allowed** for a Device Owner (the call's microphone opens and the support screen comes up with the agent in the background). |
+| WRITE_SECURE_SETTINGS over adb (`pm grant`, or `adb install -g`, which grants it too) | Works; with it the agent switches its own accessibility service on. |
 
 So Android leaves exactly one thing a QR-enrolled Device Owner cannot do alone: switch an accessibility service on.
 That switch is persistent (it survives reboots and updates of the agent), unlike the screen-capture consent, which
@@ -126,8 +127,12 @@ With droidVNC-NG as the screen, the session channel still carries voice, chat an
   foreground-service types. Play Protect scores those. The enrollment paths in use (adb, and QR on fleets where the
   DPC is allow-listed) are not affected by a warning at install, but this must be re-checked on every release of
   Play Protect; `engine: droidvnc` removes the accessibility surface at runtime (not from the manifest).
-- (−) Accessibility screenshots are limited by Android to about 3 per second; enough to guide a person and operate
-  the phone, not to watch video. (droidVNC-NG's accessibility capture has the same limit.)
+- (−) Accessibility screenshots are limited by Android to one every 333 ms (about 3 per second); enough to guide a
+  person and operate the phone, not to watch video. (droidVNC-NG's accessibility capture has the same limit.) A
+  touch is seen one or two captures later: about half a second on a phone, more on a loaded emulator (see
+  docs/TESTING.md for the measured values).
+- (−) The Android 7–10 capture path (screen capture with its consent pressed by the service) is implemented but was
+  not run on an emulator in this round: those releases stay on droidVNC-NG until it is.
 - (−) Windows that set FLAG_SECURE (banking apps, password fields of some keyboards) are black in the image.
 - (−) A secure lock screen is shown as is: the operator can type the PIN only if they know it.
 - (−) Both sockets of a session must end on the same server process (in-memory relay, like the wake hub).

@@ -40,6 +40,7 @@ public class RestSurfaceFilter implements Filter {
             "/rest/public/auth/logout",
             "/rest/public/auth/options",
             "/rest/public/name",            // health probe (/healthz)
+            "/rest/public/health",          // deep health probe (/healthz/deep): database + file store, no data
     };
 
     @Override

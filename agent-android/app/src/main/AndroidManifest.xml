@@ -13,8 +13,13 @@
     <!-- Minimal permission set. -->
     <!-- Letter size (font scale) from the console and the kiosk: "modify system settings", granted by the cable/Windows
          enrollment or once by the person. -->
-    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Only for the agent's own enrollment QR scanner (EnrollScanActivity); a Device Owner grants it to itself. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -193,6 +198,27 @@
             </intent-filter>
         </activity>
 
+        <!-- Scans the console's enrollment QR from inside the agent (Device Owner without a token). -->
+        <activity
+            android:name=".provisioning.EnrollScanActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:lockTaskMode="if_whitelisted"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <!-- Provisioning (Android 8-11): the older Device-Owner flow ends here; shows the enrollment status. -->
+        <activity
+            android:name=".provisioning.ProvisioningSuccessActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Device Owner / Device Admin receiver. -->
         <receiver
             android:name=".admin.AdminReceiver"
@@ -291,6 +317,18 @@
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Mobile data per app (data/MobileDataVpnService.kt): a local VPN with no server that only captures the apps
+             the policy keeps off mobile data. Used on Android 7-8 (no system restriction there) or when the policy
+             asks for it; the Device Owner sets it as the always-on VPN, so there is no consent dialog. -->
+        <service
+            android:name=".data.MobileDataVpnService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
 

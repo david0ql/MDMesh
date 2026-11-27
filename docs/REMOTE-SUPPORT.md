@@ -24,7 +24,8 @@ agente del teléfono lo hace todo: no hay que instalar otra app.
 
 ## Requisitos
 
-- **Agente** 0.9.9 o superior (los agentes anteriores siguen funcionando con droidVNC-NG, sin voz ni chat).
+- **Agente** con soporte remoto integrado (la versión siguiente a la 0.9.8). Los agentes anteriores siguen
+  funcionando con droidVNC-NG, sin voz ni chat.
 - **Android 7 o superior** para ver y controlar. Android 6 no tiene control remoto.
 - El teléfono debe ser **Device Owner** (cualquier forma de inscripción de DallyControl lo deja así).
 - **Servidor**: nada nuevo. La sesión viaja por el mismo dominio y puerto HTTPS (443) que el resto de la consola,
@@ -70,7 +71,7 @@ En la política, sección **Soporte remoto**:
 | Android | Ver | Controlar | Sin nadie en el teléfono | Notas |
 |---------|-----|-----------|--------------------------|-------|
 | 6 (API 23) | No | No | — | Android no tiene las funciones necesarias. |
-| 7 – 10 (API 24–29) | Sí | Sí | Sí, tras la autorización | La imagen usa la captura de pantalla de Android; el agente acepta él mismo el aviso «Iniciar ahora». **No funciona dentro del quiosco** en estas versiones (Android no deja mostrar ese aviso en modo quiosco): ahí, usar droidVNC-NG o sacar el teléfono del quiosco durante el soporte. |
+| 7 – 10 (API 24–29) | Sí | Sí | Sí, tras la autorización | La imagen usa la captura de pantalla de Android; el agente acepta él mismo el aviso «Iniciar ahora». **No funciona dentro del quiosco** en estas versiones (Android no deja mostrar ese aviso en modo quiosco): ahí, usar droidVNC-NG o sacar el teléfono del quiosco durante el soporte. **Este camino está implementado pero aún no se probó en emulador ni en teléfono**: mientras tanto, en Android 7–10 usar droidVNC-NG (motor «Solo droidVNC-NG»); chat, voz y archivos sí funcionan con el agente. |
 | 11 – 16 (API 30–36) | Sí | Sí | Sí, tras la autorización | Sin ningún aviso, también en quiosco y con el teléfono bloqueado. Android limita la captura a unas 3 imágenes por segundo: suficiente para guiar y operar, no para ver video. |
 
 Válido en todas las versiones:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MobileDataPolicySection, cleanMobileData, type PolicyAppOption } from './MobileDataPolicySection';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -43,6 +44,8 @@ export interface DcPolicy {
     installApps?: 'block';
     frpAccounts?: string[];
   };
+  /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
+  mobileData?: import('../api/mobileData').MobileDataPolicy;
   /** Remote support (ADR 0012). Only what differs from the defaults is stored: engine automatic, notice on,
    *  the person accepts calls, the authorisation is asked for at enrolment. */
   remoteSupport?: { engine?: 'builtin' | 'droidvnc'; notice?: false; callAccept?: 'auto'; setupPrompt?: false };
@@ -75,6 +78,8 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  const mobileData = cleanMobileData(p.mobileData);
+  if (mobileData) out.mobileData = mobileData;
   if (p.remoteSupport && Object.values(p.remoteSupport).some((v) => v !== undefined)) out.remoteSupport = p.remoteSupport;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
@@ -158,7 +163,11 @@ function RoleChecks({ value, disabled, onChange, name }: { value: string[]; disa
   );
 }
 
-export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; disabled?: boolean; onChange: (v: string | null) => void }) {
+export function DcPolicyPanel({ value, disabled, onChange, apps }: {
+  value: unknown; disabled?: boolean; onChange: (v: string | null) => void;
+  /** The policy's own apps, offered when picking apps for the mobile-data lists. */
+  apps?: PolicyAppOption[];
+}) {
   const p = parseDcPolicy(value);
   const update = (next: DcPolicy) => onChange(serializeDcPolicy(next));
   const browserMode = p.browser?.mode ?? 'unmanaged';
@@ -560,6 +569,7 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
         </div>
       </div>
 
+      <MobileDataPolicySection value={p.mobileData} disabled={disabled} apps={apps} onChange={(v) => update({ ...p, mobileData: v })} />
       <div className="cfg-sec-h" style={{ marginTop: 18 }}>Soporte remoto</div>
       <div className="cfg-field">
         <div className="cfg-field-label">
