@@ -54,6 +54,10 @@ class CheckInCoordinator @Inject constructor(
     @set:Inject
     var connection: ConnectionDiagnostics = ConnectionDiagnostics(MemoryKeyValueStore())
 
+    /** The wake channels (push token, backup schedule); injected like [connection]. None by default. */
+    @set:Inject
+    var wake: com.dallycontrol.core.wake.WakeBridge = com.dallycontrol.core.wake.WakeBridge.NONE
+
     private val mutex = Mutex()
 
     // Off the main thread whoever calls: the foreground service launches from lifecycleScope (Main), and
@@ -120,6 +124,7 @@ class CheckInCoordinator @Inject constructor(
                     events = bufferedEvents,
                     hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
                     connection = connectionReport,
+                    wake = runCatching { wake.report() }.getOrNull(),
                 ),
             )
         } catch (t: Throwable) {
@@ -137,6 +142,7 @@ class CheckInCoordinator @Inject constructor(
 
         telemetry?.let { runCatching { telemetrySource.delivered(it) } }
         runCatching { connection.delivered(connectionReport, goodbye, data.backupUrls) }
+        runCatching { wake.onConfig(data.wake) }
         // A command that must wait (no internet for its download) stays unanswered: the server re-queues it.
         val results = data.commands.mapNotNull {
             try {

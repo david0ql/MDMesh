@@ -18,6 +18,7 @@ const APP_VERSION = '0.1.0';
 
 type Conn = 'checking' | 'ok' | 'down';
 
+import { PushStatusPanel } from '../components/PushStatusPanel';
 export function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -335,6 +336,9 @@ export function SettingsPage() {
         <div id="rollout-anchor">
           <RolloutPanel />
         </div>
+
+        {/* Push wake channel (FCM): state only; the credential is loaded on the server */}
+        <PushStatusPanel />
 
         {/* Enrollment defaults */}
         <section className="panel">

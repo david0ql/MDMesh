@@ -19,6 +19,7 @@ class MdmApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var connection: com.dallycontrol.core.net.ConnectionDiagnostics
+    @Inject lateinit var wakeChannel: com.dallycontrol.agent.wake.WakeChannel
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -40,7 +41,9 @@ class MdmApplication : Application(), Configuration.Provider {
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat
         // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
-        // WebSocket are not Doze-throttled — there is no FCM in this build. Idempotent; see BatteryExemption.
+        // WebSocket are not Doze-throttled — the push channel only exists where the server has a project. Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
+        // Push wake channel: bring the stored registration back up (a no-op without a project or Google services).
+        wakeChannel.onStart()
     }
 }

@@ -11,8 +11,10 @@ import android.util.Log
 
 /**
  * Keeps the agent out of Doze / battery optimization so the AlarmManager heartbeat ([WakeKeepAlive]) and the
- * WebSocket keep delivering commands promptly. This build has NO FCM, so power-saver throttling of our background
- * work translates directly into late commands — hence we actively claim an exemption at startup.
+ * WebSocket keep delivering commands promptly. The push wake channel (see `wake/WakeChannel`) only exists where the
+ * server has a Firebase project and the phone has Google services, so power-saver throttling of our background work
+ * still translates into late commands everywhere else — hence we actively claim an exemption at startup. Whether it
+ * was obtained travels with each check-in (`WakeReport.batteryExempt`), so the console shows the phones without it.
  *
  * ## Which API, and its limits
  * There is **no public SDK Device-Owner API** to silently add an app to the battery allowlist. The only managed

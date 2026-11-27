@@ -112,6 +112,9 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
 
+    // Push wake channel (docs/DESPERTADOR-FCM.md). The library alone: no analytics, no google-services plugin.
+    implementation(libs.firebase.messaging)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
 }

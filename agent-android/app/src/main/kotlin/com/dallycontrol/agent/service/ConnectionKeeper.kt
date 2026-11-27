@@ -40,6 +40,7 @@ class ConnectionKeeper @Inject constructor(
     private val coordinator: CheckInCoordinator,
     private val transport: TransportManager,
     private val connection: ConnectionDiagnostics,
+    private val wake: com.dallycontrol.agent.wake.WakeChannel,
 ) {
     private val watchdog = ConnectionWatchdog()
     private val networkChanges = NetworkChangeTracker()
@@ -100,6 +101,9 @@ class ConnectionKeeper @Inject constructor(
 
     private fun onNetworkRecovered() {
         Log.i(TAG, "network changed or came back: reconnecting now")
+        // Back on a network: the backup alarm runs at its fast pace for a while, and this check-in says why it came.
+        wake.noteActivity()
+        wake.mark(com.dallycontrol.proto.WakeTrigger.NETWORK)
         transport.reconnectNow()
         scope?.launch {
             runCatching { coordinator.runOnce() }
