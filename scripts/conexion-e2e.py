@@ -8,7 +8,8 @@ console API (/rest/private/connection/v1): last failure, last silence, reconnect
   scripts/conexion-e2e.py --serial emulator-5600 --device-id <id> --api http://localhost:8088 \
       [--compose "docker compose --env-file docker/dev.env"] [--db-container <postgres container>] [--only a,b]
 
-Scenarios (--only): baseline, wifi, outage, airplane, doze, server, failover, resting, reboot
+Scenarios (--only): baseline, wifi, outage, airplane, doze, server, failover, tls, nows, resting, reboot
+tls / nows need scripts/red-simulada.py running, a debug agent (run-as) and a backup URL configured on the server.
 """
 import argparse
 import hashlib
@@ -29,6 +30,10 @@ P.add_argument("--admin-password", default="admin")
 P.add_argument("--adb", default="adb")
 P.add_argument("--compose", default="", help="compose command of the stack (server restart / failover scenarios)")
 P.add_argument("--db-container", default="", help="postgres container (resting scenario ages the last report)")
+P.add_argument("--pkg", default="com.dallycontrol.agent.debug")
+P.add_argument("--server-url", default="http://10.0.2.2:8088", help="the server as the device reaches it (restored after tls/nows)")
+P.add_argument("--tls-url", default="", help="scripts/red-simulada.py tls, as the device reaches it (e.g. https://10.0.2.2:8443)")
+P.add_argument("--nows-url", default="", help="scripts/red-simulada.py nows, as the device reaches it (e.g. http://10.0.2.2:8122)")
 P.add_argument("--only", default="")
 P.add_argument("--doze-minutes", type=float, default=7)
 A = P.parse_args()
@@ -360,8 +365,72 @@ def reboot():
           json.dumps(s, ensure_ascii=False))
 
 
+def point_agent_at(url, forget_backup_choice=False):
+    """Debug builds only: rewrite the provisioned server URL and restart the agent's process (keeps its enrollment)."""
+    xml = ("<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n<map>\n"
+           f"    <string name=\"base_url\">{url}</string>\n</map>\n")
+    subprocess.run([A.adb, "-s", A.serial, "shell", f"run-as {A.pkg} sh -c 'cat > shared_prefs/mdm_server.xml'"],
+                   input=xml, text=True, capture_output=True, timeout=30)
+    if forget_backup_choice:
+        sh(f"run-as {A.pkg} rm -f shared_prefs/mdm_endpoints.xml")
+    pid = sh(f"pidof {A.pkg}").strip()
+    if pid:
+        sh(f"run-as {A.pkg} kill -9 {pid}")
+    time.sleep(1)
+    sh(f"am start -n {A.pkg}/com.dallycontrol.agent.MainActivity")
+
+
+def restore_agent():
+    point_agent_at(A.server_url, forget_backup_choice=True)
+    check("de vuelta en la dirección principal: canal en vivo", wait_live(120) is not None)
+
+
+def tls():
+    if not A.tls_url:
+        print("== inspección TLS: omitido (falta --tls-url)")
+        return
+    print("== la red inspecciona TLS (certificado de un firewall, no confiable para el equipo)")
+    command_latency(30)  # a check-in, so the agent holds the backup list
+    time.sleep(2)
+    t0 = time.time()
+    point_agent_at(A.tls_url)
+    try:
+        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "tls", 300, 3)
+        measure("la consola recibe la falla TLS (llega por la dirección de respaldo)", got, 240)
+        c = connection()
+        f = c.get("lastFailure") or {}
+        check("motivo exacto: certificado TLS rechazado", "TLS" in (f.get("label") or ""), f.get("label") or "")
+        check("emisor del certificado = el firewall simulado", "FortiGate CA simulada" in (f.get("certIssuer") or ""),
+              f.get("certIssuer") or "")
+        check("red y servidor de la falla", bool(f.get("networkLabel")) and bool(f.get("host")),
+              f"{f.get('networkLabel')} · {f.get('host')} · canal {f.get('channel')} · {f.get('count')} intentos")
+        check("el equipo sigue administrado por la dirección de respaldo", c.get("usingBackup") is True)
+        measure("orden ejecutada por la dirección de respaldo", command_latency(90), 60)
+        print(f"          (total desde que la red empezó a inspeccionar: {time.time() - t0:.0f} s)")
+    finally:
+        restore_agent()
+
+
+def nows():
+    if not A.nows_url:
+        print("== WebSocket bloqueado: omitido (falta --nows-url)")
+        return
+    print("== la red bloquea el upgrade a WebSocket (HTTP sí pasa)")
+    point_agent_at(A.nows_url, forget_backup_choice=True)
+    try:
+        got = wait_until(lambda: (connection().get("lastFailure") or {}).get("kind") == "wsUpgrade", 300, 3)
+        measure("la consola recibe la falla del WebSocket", got, 240)
+        f = connection().get("lastFailure") or {}
+        check("motivo exacto: WebSocket rechazado con su código", f.get("httpCode") == 403 and "WebSocket" in (f.get("label") or ""),
+              f"{f.get('label')} · canal {f.get('channel')} · {f.get('networkLabel')}")
+        measure("orden ejecutada aunque el WebSocket esté bloqueado", command_latency(400), 330)
+    finally:
+        restore_agent()
+
+
 SCENARIOS = [("baseline", baseline), ("wifi", wifi), ("outage", outage), ("airplane", airplane), ("doze", doze),
-             ("server", server), ("failover", failover), ("resting", resting), ("reboot", reboot)]
+             ("server", server), ("failover", failover), ("tls", tls), ("nows", nows),
+             ("resting", resting), ("reboot", reboot)]
 
 
 def main():
