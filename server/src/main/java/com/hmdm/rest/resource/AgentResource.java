@@ -180,6 +180,8 @@ public class AgentResource {
                 // its secret/capabilities/hardware id below. No new row, so no duplicate in the console.
                 logger.info("Agent enroll: reusing existing device {} for the same hardware id (de-dup, token {})",
                         deviceId, token.getId());
+                // A wipe queued for (or delivered to) its previous life must never reach the freshly enrolled phone.
+                commandDAO.closeWipesOnReenroll(deviceId);
             } else {
                 // The device lands in the token's customer and group (company). Its configuration is the one the
                 // token pins, else its group's, else the global default (settings) — device > group > global.
@@ -466,24 +468,25 @@ public class AgentResource {
             }
         }
 
-        // Lazily expire commands nobody acted on before delivering more. Undelivered (pending)
-        // commands age out by creation (60 min — the doze-proof heartbeat ~10 min reaches a parked
-        // device well before that). DELIVERED commands age by delivery time with a much longer
-        // leash (6 h): the device HAS them — a slow install on metered network must not be
-        // expired out from under its own genuine result.
-        commandDAO.expireStale(deviceNumber, 60L * 60L * 1000L, 6L * 60L * 60L * 1000L);
-        try {
-            int requeued = commandDAO.requeueLostRepeatable(deviceNumber);
-            if (requeued > 0) logger.info("Device {}: {} unanswered policy/install command(s) sent again", deviceNumber, requeued);
-        } catch (Exception e) {
-            logger.warn("Could not re-queue lost commands of {}: {}", deviceNumber, e.getMessage());
-        }
-
         // Gate pending commands by capability-token set membership, reusing the matrix this very
         // request carried (fall back to the stored copy only when the agent omitted it).
         Set<String> deviceTokens = AgentCapabilityTokens.flatten(
                 capsJson != null ? capsJson : commandDAO.getDeviceCapabilities(deviceNumber));
         long now = System.currentTimeMillis();
+
+        // Before handing out more: close the commands whose wait is over and put back in the queue the delivered
+        // ones this phone never answered (their results, if any, were recorded just above). How long each type
+        // waits and which ones are sent again is CommandPolicy's table — a lock or a wipe waits for the phone.
+        try {
+            com.hmdm.util.CommandQueueSweep.Outcome swept = commandDAO.sweep(deviceNumber,
+                    deviceTokens.contains(com.hmdm.util.CommandPolicy.LEDGER_CAPABILITY));
+            if (swept.requeued > 0 || swept.superseded > 0) {
+                logger.info("Device {}: {} unanswered command(s) sent again, {} replaced by a newer one",
+                        deviceNumber, swept.requeued, swept.superseded);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not sweep the command queue of {}: {}", deviceNumber, e.getMessage());
+        }
         // Announcements the phone still misses go out with this check-in (commands expire; announcements must not).
         if (announcements != null && AgentCapabilityTokens.isAllowed(AnnouncementSender.TYPE, deviceTokens)) {
             announcements.resendPending(deviceNumber);

@@ -3410,4 +3410,29 @@
         </sql>
     </changeSet>
 
+    <changeSet id="26.11.27-command-issuer-deliveries" author="dallycontrol">
+        <comment>Remote commands that are never lost: who queued each command (console user id, login and address, or
+                 "sistema"), how many times it was handed to the device (a delivery without answer is repeated), and
+                 the "wiped" mark of a device that received a remote wipe and stopped reporting.</comment>
+        <sql>
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerId INT;
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerName VARCHAR(255);
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS issuerIp VARCHAR(64);
+            ALTER TABLE agentCommand ADD COLUMN IF NOT EXISTS deliveries INT NOT NULL DEFAULT 0;
+            UPDATE agentCommand SET deliveries = 1 WHERE deliveries = 0 AND deliveredAt IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS agentCommand_createdAt_idx ON agentCommand (createdAt);
+            ALTER TABLE devices ADD COLUMN IF NOT EXISTS wipedAt BIGINT;
+            ALTER TABLE devices ADD COLUMN IF NOT EXISTS wipedBy VARCHAR(255);
+        </sql>
+        <rollback>
+            ALTER TABLE devices DROP COLUMN IF EXISTS wipedBy;
+            ALTER TABLE devices DROP COLUMN IF EXISTS wipedAt;
+            DROP INDEX IF EXISTS agentCommand_createdAt_idx;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS deliveries;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerIp;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerName;
+            ALTER TABLE agentCommand DROP COLUMN IF EXISTS issuerId;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -218,6 +218,17 @@ public interface ReportsMapper {
             "ORDER BY lower(coalesce(d.description, d.number))"})
     List<Map<String, Object>> complianceRows(@Param("customerId") int customerId);
 
+    // --- Command latency: the timestamps of every command created in a date range ---------------------------------
+
+    /** Newest first and capped, so a very long range on a large fleet cannot exhaust memory. */
+    @Select({"SELECT a.deviceNumber AS number, " + GROUP_ID_SUBQUERY + ", a.type, a.status, " +
+            "a.createdAt AS createdat, a.deliveredAt AS deliveredat, a.completedAt AS completedat " +
+            "FROM agentCommand a JOIN devices d ON d.number = a.deviceNumber " +
+            "WHERE d.customerId = #{customerId} AND a.createdAt BETWEEN #{from} AND #{to} " +
+            "ORDER BY a.createdAt DESC LIMIT #{limit}"})
+    List<Map<String, Object>> commandTimings(@Param("customerId") int customerId, @Param("from") long from,
+                                             @Param("to") long to, @Param("limit") int limit);
+
     // --- 9. Decommissioned devices in a date range (device_tombstone) --------------------------------------------
 
     @Select({"SELECT t.number, t.description, t.groupId AS groupid, t.deletedAt AS deletedat, " +
