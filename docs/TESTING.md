@@ -253,3 +253,22 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## Corporate Wi-Fi (MDM-13)
+
+`scripts/wifi-policy-e2e.py` checks the policy's Wi-Fi against a real enrolled Device Owner (see [WIFI.md](WIFI.md)):
+it uploads a CA and a client PKCS#12 made on the spot, saves one network of each kind (hidden PSK, WPA3-SAE, WPA2/WPA3,
+OWE, PEAP, TTLS, EAP-TLS, and one with every option) and reads the phone over adb (`cmd wifi list-networks`,
+`dumpsys wifi`, `dumpsys device_policy`): parameters, installed certificates, the lock-down (`cmd wifi forget-network`
+refused), the Android 13 SSID allow list and minimum security, the forced radio, the safeguard that relaxes a
+lock-down which left the phone without any network, and the removal with its certificates. The console is covered by
+`scripts/wifi-console-e2e.mjs` (headless Chromium).
+
+```bash
+scripts/wifi-policy-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id>   # ~8 min; --skip-safeguard: ~4
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wifi-console-e2e.mjs --api http://localhost:8088 [--device <id>]
+```
+
+The emulator only has an open network (`AndroidWifi`), so association is real for that one and the rest is checked as
+saved configuration. Authentication against WPA2/WPA3/802.1X needs an access point: WIFI.md, "Con un punto de acceso
+real".
