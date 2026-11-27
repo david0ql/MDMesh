@@ -409,7 +409,7 @@ def t_reboot():
     lose_answer(cid)
     check("agent back online after reboot", until(live, timeout=300, step=3))
     sync()
-    c = wait_closed(cid, 120)
+    c = wait_closed(cid, 420)  # right after a boot the agent's first cycles are slow
     check("reboot handed out again and answered from the agent's ledger",
           c.get("status") == "done" and (c.get("deliveries") or 0) >= 2, str(c))
     time.sleep(15)
