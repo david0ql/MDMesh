@@ -453,3 +453,41 @@ needed the `dpm set-device-owner` retry of the first minutes after boot). Schedu
 `--smtp-require-starttls --smtp-auth-file` (it answers 530 without STARTTLS or without AUTH): "Enviar ahora" and the
 scheduler-fired run both delivered. 5,000 devices + 103,000 sessions, server heap capped at 512 MB: Excel 5.9–6.5 s,
 CSV 0.6–1.4 s, inventory report 1 s (measured before the machine saturated).
+
+## Auditoría y roles (MDM-15)
+
+What is checked, and with what:
+
+| Check | How |
+|-------|-----|
+| Every state-changing route is audited | `AuditCatalogCoverageTest` (server tests): reads the JAX-RS annotations of every resource and fails when a reachable POST / PUT / DELETE has no entry in `AuditCatalog` (or is recorded under another route's rule, or the catalog names a route that no longer exists) |
+| What a row contains, secrets never kept, before / after, result | `AuditTrailServiceTest`, `AuditPiecesTest`, `AuditTrailFilterTest`, `AuditHashTest` |
+| The trail end to end, as a limited technician | `scripts/audit-e2e.py` (needs an enrolled device; an emulator is enough) |
+| Each permission of the role matrix restricts the API | `scripts/roles-matrix-e2e.py` (no device needed) |
+| The Auditoría screen, the device / user activity, Roles | `scripts/audit-console-e2e.mjs` (headless Chromium) |
+
+```bash
+# the technician, the allowed and refused actions (a real command to the device, a wipe without permission…), the
+# rows, the scope of a folder user, the exports, immutability (also at SQL level) and the retention purge
+scripts/audit-e2e.py --api http://localhost:8080 --device <device number> --db-container dallycontrol-dev-postgres-1
+
+# for EACH permission: a role without it is refused on its endpoints, the same role with it passes; role life cycle,
+# no privilege escalation, the ready-made roles (--only perm1,perm2 runs a subset)
+scripts/roles-matrix-e2e.py --api http://localhost:8080 [--device <device number>]
+
+# the console (once: cd scripts/shots && npm install && npx playwright install chromium)
+node scripts/audit-console-e2e.mjs --web http://localhost:8088 --device <device number> --shots /tmp/audit-shots
+```
+
+A new mutating endpoint makes `AuditCatalogCoverageTest` fail until it gets a line in
+`server/src/main/java/com/hmdm/audit/AuditCatalog.java` (`audit(...)` with a Spanish label, or `skip(...)` with the
+reason). Until then the request is still recorded, with a generic label. A new permission belongs in
+`web/src/data/roleCapabilities.ts` and in the `MATRIX` of `scripts/roles-matrix-e2e.py`, with the endpoints it gates.
+
+Result (2026-11-27, own stack on an empty database + debug agent 0.9.7 on a clean API 35 emulator, through Caddy):
+`audit-e2e.py` 97/97 (the allowed command reached the device and was reported `delivered`; the wipe, lock and
+passcode attempts were refused and recorded as denied; SQL `UPDATE` / `DELETE` / `TRUNCATE` on `audit_trail` refused;
+the purge removed the planted 120-day-old row and recorded itself); `roles-matrix-e2e.py` 19 permissions, 274 calls,
+308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
+device does not support remote control" (recorded as an error row); the duration of a session that did open is
+covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.

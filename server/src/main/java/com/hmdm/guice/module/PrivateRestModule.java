@@ -72,5 +72,8 @@ public class PrivateRestModule extends ServletModule {
         // the first check-in asks for a device's override.
         this.bind(com.hmdm.rest.resource.MobileDataResource.class);
         this.bind(com.hmdm.rest.resource.support.MobileDataService.class).asEagerSingleton();
+        // Audit trail: the read-only API, and the retention purge eager so it schedules itself at boot.
+        this.bind(com.hmdm.rest.resource.AuditTrailResource.class);
+        this.bind(com.hmdm.audit.AuditPurgeTask.class).asEagerSingleton();
     }
 }

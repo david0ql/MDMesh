@@ -719,8 +719,10 @@ public class ReportsResource {
      * that carries a device number is dropped unless that device is in {@link UserScope#deviceNumbers()}).
      */
     private Optional<Integer> reader() {
-        return SecurityContext.get() == null ? Optional.empty()
-                : SecurityContext.get().getCurrentCustomerId();
+        // The Reportes module is what the role matrix calls "ver reportes" (manage_fleet): the console hides it
+        // without the permission, and the API refuses it too.
+        if (SecurityContext.get() == null || !SecurityContext.get().hasPermission("manage_fleet")) return Optional.empty();
+        return SecurityContext.get().getCurrentCustomerId();
     }
 
     /**

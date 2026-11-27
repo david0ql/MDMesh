@@ -40,6 +40,23 @@ public class UserScopeFilterTest {
     }
 
     @Test
+    public void auditAndExportsOfTheirOwnFolders() {
+        // The audit trail (the resource limits it to their folders and users) and one device's activity.
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/log", 1));
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/audit/v1/devices/mine-1/activity", 1));
+        assertFalse(f.allowed("GET", "/rest/private/audit/v1/devices/other-2/activity", 1));
+        // Never the integrity check, the retention or the purge.
+        assertFalse(f.allowed("GET", "/rest/private/audit/v1/verify", 1));
+        assertFalse(f.allowed("PUT", "/rest/private/audit/v1/settings", 1));
+        assertFalse(f.allowed("POST", "/rest/private/audit/v1/purge", 1));
+        // The device export the console sends (POST) and its CSV form.
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.csv", 1));
+        assertTrue(f.allowed("GET", "/rest/private/dc/users/roles", 1));
+    }
+
+    @Test
     public void everythingElseIsClosed() {
         assertFalse(f.allowed("GET", "/rest/private/users/all", 1));
         assertFalse(f.allowed("PUT", "/rest/private/fleet/v1/global", 1));

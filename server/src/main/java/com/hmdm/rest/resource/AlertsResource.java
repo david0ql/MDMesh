@@ -281,8 +281,9 @@ public class AlertsResource {
 
     /** Reader = any signed-in user of a customer (folder administrators are then narrowed by {@link #scoped}). */
     private Optional<Integer> reader() {
-        return SecurityContext.get() == null ? Optional.empty()
-                : SecurityContext.get().getCurrentCustomerId();
+        // Same gate as the console (Alertas sits with Reportes behind manage_fleet): the API refuses without it.
+        if (SecurityContext.get() == null || !SecurityContext.get().hasPermission("manage_fleet")) return Optional.empty();
+        return SecurityContext.get().getCurrentCustomerId();
     }
 
     /** Narrow the rows to the devices a folder administrator may reach (every alert carries a device number). */
