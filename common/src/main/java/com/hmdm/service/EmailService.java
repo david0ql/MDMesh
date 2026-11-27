@@ -93,7 +93,9 @@ public class EmailService {
         this.smtpPort = smtpPort;
         this.sslEnabled = sslEnabled;
         this.startTlsEnabled = startTlsEnabled;
-        this.sslProtocols = sslProtocols;
+        // The bundled JavaMail offers only TLSv1 unless told otherwise, and current mail servers (and Java 17) refuse
+        // it: STARTTLS/SSL then fail with "Could not convert socket to TLS". Default to the versions in use today.
+        this.sslProtocols = StringUtil.isEmpty(sslProtocols) ? "TLSv1.2 TLSv1.3" : sslProtocols;
         this.sslTrust = sslTrust;
         this.smtpUsername = smtpUsername;
         this.smtpPassword = smtpPassword;

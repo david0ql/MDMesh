@@ -675,6 +675,8 @@ function SettingsTab({ fullAdmin }: { fullAdmin: boolean }) {
         'Cuántas posiciones consecutivas deben coincidir para confirmar una entrada o salida. Con 2 o más, un punto saltón del GPS no alerta; con 1 la alerta es inmediata.', 1, 10)}
       {num('emailIntervalMin', 'Intervalo de correos', 'minutos',
         'Cada destinatario recibe como máximo un correo en este tiempo, con todo lo ocurrido.', 1, 1440)}
+      {num('offlineMinutes', 'Umbral de desconexión', 'minutos',
+        'Un equipo sin reportar por más de este tiempo genera la alerta de desconexión (página Alertas y correos). Es el mismo valor que se cambia en Alertas.', 1, 43200)}
       {num('retentionDays', 'Retención del historial de ubicación', 'días',
         '0 = conservar siempre. Las posiciones más antiguas se borran automáticamente (cada 6 horas).', 0, 3650)}
       {fullAdmin && <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>{busy ? 'Guardando…' : 'Guardar ajustes'}</button>}

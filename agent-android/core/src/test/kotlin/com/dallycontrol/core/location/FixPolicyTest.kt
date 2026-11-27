@@ -54,4 +54,31 @@ class FixPolicyTest {
         // a fix from the future (clock change) is not trusted
         assertFalse(FixPolicy.freshEnough(2_000_000L, 1_000_000L))
     }
+
+    @Test
+    fun `a silent fused provider cannot use up the wait`() {
+        // 25 s budget: fused gets a third, capped at 8 s; GPS then two thirds of what is left; network the rest.
+        assertEquals(8_000L, FixPolicy.waitMs("fused", false, 25_000L))
+        assertEquals(1_666L, FixPolicy.waitMs("fused", false, 5_000L))
+        assertEquals(11_333L, FixPolicy.waitMs("gps", false, 17_000L))
+        assertEquals(17_000L, FixPolicy.waitMs("gps", true, 17_000L))
+        assertEquals(25_000L, FixPolicy.waitMs("fused", true, 25_000L))
+    }
+
+    @Test
+    fun `the trace says what was tried and who answered`() {
+        val t = FixPolicy.Trace(
+            at = 1L, available = listOf("passive", "fused", "gps"), budgetSec = 25,
+            attempts = listOf(
+                FixPolicy.Attempt("fused", 8_000, 8_004, false),
+                FixPolicy.Attempt("gps", 11_000, 2_300, true),
+            ),
+        )
+        assertEquals("gps", t.answeredBy)
+        assertEquals(10_304L, t.totalMs)
+        assertEquals("fused 8004 ms: sin respuesta; gps 2300 ms: respondió", t.summary())
+        val none = FixPolicy.Trace(1L, listOf("passive"), 25, emptyList())
+        assertEquals(null, none.answeredBy)
+        assertEquals("sin proveedores activos", none.summary())
+    }
 }

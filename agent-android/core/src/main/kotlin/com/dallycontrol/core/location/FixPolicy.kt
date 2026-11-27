@@ -41,4 +41,47 @@ object FixPolicy {
 
     fun freshEnough(fixTime: Long?, now: Long): Boolean =
         fixTime != null && now - fixTime in 0 until FRESH_ENOUGH_MS
+
+    /** The fused provider answers within a few seconds or not at all: it never gets more than this. */
+    const val FUSED_MAX_WAIT_MS = 8_000L
+
+    /**
+     * How long one provider may take out of what is left of the wait. The last one gets everything; fused gets a
+     * third (at most [FUSED_MAX_WAIT_MS]) so a silent fused provider cannot use up the time GPS needs; GPS leaves a
+     * third for the network fallback.
+     */
+    fun waitMs(provider: String, isLast: Boolean, leftMs: Long): Long = when {
+        isLast -> leftMs
+        provider == FUSED -> minOf(leftMs / FUSED_SHARE, FUSED_MAX_WAIT_MS)
+        else -> leftMs * 2 / FUSED_SHARE
+    }
+
+    private const val FUSED_SHARE = 3
+
+    /** One provider asked during a fresh-fix request: how long it was given, how long it took, whether it answered. */
+    data class Attempt(val provider: String, val allowedMs: Long, val tookMs: Long, val answered: Boolean)
+
+    /** The last fresh-fix request, for diagnosis: what the device offers, what was tried and what answered. */
+    data class Trace(
+        val at: Long,
+        val available: List<String>,
+        val budgetSec: Int,
+        val attempts: List<Attempt>,
+    ) {
+        val answeredBy: String? get() = attempts.firstOrNull { it.answered }?.provider
+        val totalMs: Long get() = attempts.sumOf { it.tookMs }
+
+        /** e.g. "fused 812 ms: sin respuesta; gps 2301 ms: respondió". */
+        fun summary(): String = if (attempts.isEmpty()) {
+            "sin proveedores activos"
+        } else {
+            attempts.joinToString("; ") {
+                "${it.provider} ${it.tookMs} ms: ${if (it.answered) "respondió" else "sin respuesta"}"
+            }
+        }
+    }
+
+    /** Set by LocationCollector after every fresh-fix request; read by the diagnosis snapshot. */
+    @Volatile
+    var lastTrace: Trace? = null
 }

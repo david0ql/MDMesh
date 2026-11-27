@@ -277,8 +277,14 @@ chk "a group action reaches its devices" \
 chk "a destructive group action is refused" \
   "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d '{"command":{"type":"device.wipe"}}' "$F/groups/$GID/commands" | field "str(d.get('message'))")" "error.agent.command.bulkForbidden"
 GLOBAL_CFG=$(curl -s -b "$CJ" "$F/global" | field "d['data']['configurationId']")
-chk "deleting the group returns its device to the global configuration" \
-  "$(curl -s -b "$CJ" -X DELETE "$F/groups/$GID" >/dev/null; curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s:%s' % (d['data']['groupId'], d['data']['source'], d['data']['configurationId'])")" "None:global:$GLOBAL_CFG"
+# A folder that still holds devices is not deleted (they would silently lose their folder and policy): the
+# request is refused and the device stays put. Once it is moved out it follows the global configuration again,
+# and the now empty folder can be deleted.
+chk "deleting a group that still has devices is refused; the device keeps its group" \
+  "$(curl -s -b "$CJ" -X DELETE "$F/groups/$GID" | field "d['status']"):$(curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s' % (d['data']['source'], d['data']['configurationId'])")" "ERROR:group:$CFG_B"
+chk "moved out of the group, the device returns to the global configuration" \
+  "$(curl -s -b "$CJ" -X POST -H 'Content-Type: application/json' -d "{\"deviceIds\":[$DNUM_ID],\"groupId\":null}" "$F/devices/group" >/dev/null; curl -s -b "$CJ" "$F/devices/$DNUM_ID/scope" | field "'%s:%s:%s' % (d['data']['groupId'], d['data']['source'], d['data']['configurationId'])")" "None:global:$GLOBAL_CFG"
+chk "the empty group is deleted" "$(curl -s -b "$CJ" -X DELETE "$F/groups/$GID" | field "d['status']")" "OK"
 
 echo "== permissions: read-only Observer (role 100) cannot mutate =="
 # A temporary Observer user of the same customer: agent/rollout mutations need edit_devices,

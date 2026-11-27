@@ -3555,4 +3555,15 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-alert-offline-minutes" author="dallycontrol">
+        <comment>The "disconnected" threshold the administrator sets in the Alerts page is saved per customer, so the
+                 alert e-mails use the same value (it was a fixed 20 minutes there).</comment>
+        <sql>
+            ALTER TABLE geofence_settings ADD COLUMN IF NOT EXISTS offlineMinutes INT NOT NULL DEFAULT 20;
+        </sql>
+        <rollback>
+            ALTER TABLE geofence_settings DROP COLUMN IF EXISTS offlineMinutes;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

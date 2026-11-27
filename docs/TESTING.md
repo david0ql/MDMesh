@@ -139,8 +139,10 @@ DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api ht
   batch of buffered positions sent out of order, the tracking interval a zone pushes into `config.apply`, the paginated
   track and its CSV/Excel export, alert filter/review and, with `--mailpit`, the grouped e-mail.
 - Emulator: the agent takes a position every minute (the zone asks for it); the script moves the phone out and back,
-  then repeats the trip with Wi-Fi and data off so the positions arrive as one batch. Needs an API ≤ 29 AVD for the
-  whole trip (see the GNSS quirk above); `--first-fix-only` covers newer images.
+  then repeats the trip with Wi-Fi and data off so the positions arrive as one batch, creates a zone the phone is
+  already outside of, and reads the agent's own account of which location providers it tried. On API ≤ 29 it uses
+  `adb emu geo fix`; on API 30+ (see the GNSS quirk above) pass `--mock-provider`, which feeds the positions through
+  Android's test location provider (`cmd location providers add-test-provider`, Android 12+).
 - Console (headless Chromium): draws a circle and a polygon on the map (click, drag the radius/centre/vertex handles,
   remove and add vertices), saves, edits, deletes; recipients and thresholds tabs; the zone types in Alertas; the zones
   on the fleet map and on the device's Ubicación tab with its history, accuracy and CSV download.
