@@ -331,6 +331,7 @@ try {
     techNav.includes('Auditoría') && !['Inscribir', 'Roles', 'Ajustes', 'Reportes', 'Usuarios'].some((x) => techNav.includes(x)), techNav.join(' | '));
   await techPage.goto(`${web}/audit`);
   await techPage.getByTestId('audit-table').waitFor({ timeout: 20000 });
+  await techPage.locator('.report-hint', { hasText: 'tus carpetas' }).waitFor({ timeout: 20000 }).catch(() => undefined);
   const hint = (await techPage.locator('.report-hint').textContent()) ?? '';
   check('técnico limitado: la pantalla avisa que ve solo sus carpetas y usuarios', hint.includes('tus carpetas'), hint.slice(-120));
   const techRows = await techPage.getByTestId('audit-row').allTextContents();

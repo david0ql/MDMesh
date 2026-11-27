@@ -321,7 +321,7 @@ export function AuditPage() {
         </div>
       )}
 
-      {settings && !facets?.scoped && (
+      {settings && facets && !facets.scoped && (
         <section className="panel audit-admin" data-testid="audit-admin">
           <div className="panel-head keep"><h2 className="panel-title">Conservación e integridad</h2></div>
           <div className="audit-admin-body">
