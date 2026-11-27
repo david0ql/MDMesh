@@ -214,3 +214,16 @@ scripts/app-install-e2e.py --api http://localhost:8088 --apks /tmp/apks \
 
 Without `--serial` only the server part runs. `--pg` is only for the automatic-retry check (it moves a failure 11
 minutes into the past and waits for the server's 5-minute timer); `--skip-auto-retry` and `--skip-storage` shorten the run.
+
+Results of `scripts/command-reliability-e2e.py` (2026-11-27, debug agent, dev stack behind Caddy; the machine was
+running 13 agents' builds and emulators at the same time, 1-minute load 30–50, so the latencies are an upper bound):
+
+| Android | API | Result | Latency measured by the server, send → executed (10 each) |
+|---|---|---|---|
+| 16 | 36 | offline/cancel/lost-answer 30/30; report 8/8; wipe 7/7; reboot answered from the ledger, no second reboot | lock p50 3.5 s, p90 8.2 s · alarm p50 4.6 s, p90 12.0 s (load ≈ 38) |
+| 11 | 30 | 32 pass, 9 fail: every failure is a wait of the test that ran out under load; all the commands ended executed (see the database) | lock p50 2.1 s, p90 3.9 s · alarm p50 3.7 s, p90 9.6 s · message p50 11.6 s, p90 17.0 s (load 30 → 50) |
+| 15 | 35 | before the wake-channel fix: commands queued without link survived 2 h and ran on reconnect, cancel, fast expiry of remote sessions | no live channel: each command waited for the periodic check-in (up to ~10 min) — the worst case |
+
+`scripts/command-console-e2e.mjs` (Chromium, console of the same stack): 16/16 — history with the three steps, latency,
+issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
+Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
