@@ -312,6 +312,9 @@ class InstallManager @Inject constructor(
 
     private val downloadClient: OkHttpClient by lazy {
         httpClient.newBuilder()
+            // A debug build logs every response BODY, which reads it whole into memory: a 120 MB APK then ends in
+            // OutOfMemoryError. Downloads are never logged.
+            .apply { interceptors().removeAll { it is okhttp3.logging.HttpLoggingInterceptor } }
             .protocols(listOf(okhttp3.Protocol.HTTP_1_1))
             .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
             .build()

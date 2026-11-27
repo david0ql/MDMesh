@@ -38,42 +38,57 @@ internal class PartsInstaller(
         try {
             for (part in parts) {
                 val file = try {
-                    obtain(part)
-                } catch (e: CancellationException) {
-                    throw e // a cancelled check-in is not a failed install
-                } catch (e: Throwable) {
-                    if (isTransient(e)) throw RetryLaterException("apk fetch: ${e.message}")
-                    return InstallOutcome.Failure(null, "apk fetch failed: ${e.message}")
+                    fetch(part)
+                } catch (e: FetchFailed) {
+                    return InstallOutcome.Failure(null, e.reason)
                 }
                 fetched += Fetched(file, downloaded = part.url != null && part.localPath == null)
-                part.sha256?.takeIf { it.isNotBlank() }?.let { expected ->
-                    val actual = sha256Of(file)
-                    if (!actual.equals(expected, ignoreCase = true)) {
-                        return InstallOutcome.Failure(null, "checksum mismatch: expected $expected got $actual")
-                    }
-                }
+                checksumError(part, file)?.let { return InstallOutcome.Failure(null, it) }
             }
-            val files = fetched.map { it.file }
-            val sessionId = try {
-                commit(files)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                return InstallOutcome.Failure(null, "install session error: ${e.message}")
-            }
-            val limit = timeoutMs(files.sumOf { it.length() })
-            val event = resultBus.awaitOrNull(sessionId, limit)
-            if (event == null) {
-                runCatching { onTimeout(sessionId) }
-                // Android may have finished and only its answer got lost (the process was frozen, the broadcast dropped).
-                if (runCatching(alreadyInstalled).getOrDefault(false)) return InstallOutcome.Success
-                return InstallOutcome.Failure(null, timeoutReason(limit))
-            }
-            return mapResult(event)
+            return commitAndAwait(fetched.map { it.file })
         } finally {
             // Only clean up files we downloaded; never delete a caller-provided APK.
             fetched.forEach { if (it.downloaded) it.file.delete() }
         }
+    }
+
+    /** A part that could not be fetched, for good ([reason] is the failure to report). */
+    private class FetchFailed(val reason: String) : Exception(reason)
+
+    private suspend fun fetch(part: ApkPart): File = try {
+        obtain(part)
+    } catch (e: CancellationException) {
+        throw e // a cancelled check-in is not a failed install
+    } catch (e: Throwable) {
+        if (isTransient(e)) throw RetryLaterException("apk fetch: ${e.message}")
+        throw FetchFailed("apk fetch failed: ${e.message}")
+    }
+
+    /** Null when the part matches its SHA-256 (or declares none); else the failure text. */
+    private fun checksumError(part: ApkPart, file: File): String? {
+        val expected = part.sha256?.takeIf { it.isNotBlank() } ?: return null
+        val actual = sha256Of(file)
+        return if (actual.equals(expected, ignoreCase = true)) null else "checksum mismatch: expected $expected got $actual"
+    }
+
+    private suspend fun commitAndAwait(files: List<File>): InstallOutcome {
+        val sessionId = try {
+            commit(files)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            return InstallOutcome.Failure(null, "install session error: ${e.message}")
+        }
+        val limit = timeoutMs(files.sumOf { it.length() })
+        val event = resultBus.awaitOrNull(sessionId, limit) ?: return timedOut(sessionId, limit)
+        return mapResult(event)
+    }
+
+    private fun timedOut(sessionId: Int, limit: Long): InstallOutcome {
+        runCatching { onTimeout(sessionId) }
+        // Android may have finished and only its answer got lost (the process was frozen, the broadcast dropped).
+        return if (runCatching(alreadyInstalled).getOrDefault(false)) InstallOutcome.Success
+        else InstallOutcome.Failure(null, timeoutReason(limit))
     }
 
     companion object {
