@@ -69,6 +69,13 @@ export const IconUsers = (p: P) => (
   </Svg>
 );
 
+export const IconRoles = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 1.5l5 2v4c0 3-2.2 5.2-5 6.5-2.8-1.3-5-3.5-5-6.5v-4l5-2z" />
+    <path d="M6 7.8l1.4 1.4L10.2 6" />
+  </Svg>
+);
+
 export const IconSignOut = (p: P) => (
   <Svg {...p}>
     <path d="M6 2.5H3.5A1.5 1.5 0 0 0 2 4v8a1.5 1.5 0 0 0 1.5 1.5H6" />

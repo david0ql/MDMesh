@@ -35,16 +35,10 @@ public class UserScopeFilterTest {
 
     @Test
     public void everythingElseIsClosed() {
-        assertFalse(f.allowed("PUT", "/rest/private/configurations", 1));
-        assertFalse(f.allowed("DELETE", "/rest/private/configurations/3", 1));
         assertFalse(f.allowed("GET", "/rest/private/users/all", 1));
-        assertFalse(f.allowed("PUT", "/rest/private/dc/users", 1));
-        assertFalse(f.allowed("GET", "/rest/private/dc/users", 1));
         assertFalse(f.allowed("PUT", "/rest/private/fleet/v1/global", 1));
         assertFalse(f.allowed("POST", "/rest/private/fleet/v1/global/commands", 1));
-        assertFalse(f.allowed("POST", "/rest/private/announcements", 1));
         assertFalse(f.allowed("PUT", "/rest/private/applications/android", 1));
-        assertFalse(f.allowed("POST", "/rest/private/web-ui-files", 1));
         assertFalse(f.allowed("GET", "/rest/private/settings", 1));
         assertFalse(f.allowed("POST", "/rest/private/agent/v1/rollout", 1));
     }
@@ -58,5 +52,22 @@ public class UserScopeFilterTest {
         assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.xlsx", 1));
         assertTrue(f.allowed("GET", "/rest/private/configurations/search", 1));
         assertFalse(f.allowed("PUT", "/rest/private/configurations/search", 1));
+        // Create/edit/delete a policy pass the filter; ConfigurationResource then checks add_config/copy_config.
+        assertTrue(f.allowed("PUT", "/rest/private/configurations", 1));
+        assertTrue(f.allowed("DELETE", "/rest/private/configurations/3", 1));
+        // Announcements and their media pass the filter; the resources limit recipients/files to the user's folders.
+        assertTrue(f.allowed("POST", "/rest/private/announcements", 1));
+        assertTrue(f.allowed("POST", "/rest/private/web-ui-files", 1));
+    }
+
+    /** The Users module is open to folder editors through the filter; DcUserResource scopes it to their folders. */
+    @Test
+    public void usersModuleReachesTheResource() {
+        assertTrue(f.allowed("GET", "/rest/private/dc/users", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/dc/users", 1));
+        assertTrue(f.allowed("DELETE", "/rest/private/dc/users/7", 1));
+        // Role management stays closed: it is administrators only (never whitelisted here).
+        assertFalse(f.allowed("GET", "/rest/private/roles/all", 1));
+        assertFalse(f.allowed("PUT", "/rest/private/roles", 1));
     }
 }

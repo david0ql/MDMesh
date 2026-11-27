@@ -21,6 +21,7 @@ import {
   IconAnnounce,
   IconSettings,
   IconUsers,
+  IconRoles,
   IconSignOut,
   IconMenu,
   IconSun,
@@ -66,7 +67,8 @@ const NAV: NavEntry[] = [
   { to: '/alerts', label: 'Alertas', Icon: IconAlert, perm: 'manage_fleet' },
   { to: '/scripts', label: 'Scripts', Icon: IconScript, perm: 'manage_scripts' },
   { to: '/enroll', label: 'Inscribir', Icon: IconEnroll },
-  { to: '/users', label: 'Usuarios', Icon: IconUsers, adminOnly: true },
+  { to: '/users', label: 'Usuarios', Icon: IconUsers, perm: 'manage_users' },
+  { to: '/roles', label: 'Roles', Icon: IconRoles, adminOnly: true },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true },
 ];
 

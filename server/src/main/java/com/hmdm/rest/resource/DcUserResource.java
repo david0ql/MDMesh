@@ -29,11 +29,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * DallyControl's users: administrators (everything) and folder administrators (only the devices of the folders they
- * are given, with every folder below them — see {@link UserScope}). Only an administrator manages users.
+ * are given, with every folder below them — see {@link UserScope}). Managing users needs the {@code manage_users}
+ * permission. A full administrator manages every user; a folder editor who holds {@code manage_users} manages only
+ * users whose folders are a subset of their own and may assign only their own folders — never a full administrator
+ * and never a user or folder outside their reach. The folder isolation is enforced here on every call.
  */
 @Singleton
 @Path("/private/dc/users")
@@ -71,11 +75,31 @@ public class DcUserResource {
         public List<Integer> folders;
     }
 
-    private Optional<User> admin() {
+    /** A user who may manage console users: anyone holding the {@code manage_users} permission (super-admins too). */
+    private Optional<User> manager() {
         Optional<User> u = SecurityContext.get().getCurrentUser();
-        if (!u.isPresent() || UserScope.isRestricted(u.get())) return Optional.empty();
-        if (u.get().getUserRole() == null) return Optional.empty();
-        return u.get().getUserRole().isSuperAdmin() || userDAO.isOrgAdmin(u.get()) ? u : Optional.empty();
+        if (!u.isPresent() || u.get().getUserRole() == null) return Optional.empty();
+        return SecurityContext.get().hasPermission("manage_users") ? u : Optional.empty();
+    }
+
+    /** A full administrator (not limited to folders) manages every user; a folder editor is scoped. */
+    private static boolean isFullAdmin(User u) {
+        return !UserScope.isRestricted(u);
+    }
+
+    /**
+     * Whether a folder editor with these reachable folders may act on this target user. True only when the target is
+     * itself a folder user whose assigned folders (roots) all fall inside the editor's reach — so the target's whole
+     * subtree is a subset of the editor's. A full administrator target is never in a folder editor's scope.
+     * {@code myGroups == null} means the caller is a full administrator (everything allowed).
+     */
+    private boolean withinScope(Set<Integer> myGroups, User target) {
+        if (myGroups == null) return true;
+        if (!UserScope.isRestricted(target)) return false;
+        List<Integer> roots = scope.roots(target.getId());
+        if (roots == null || roots.isEmpty()) return false;
+        for (Integer r : roots) if (!myGroups.contains(r)) return false;
+        return true;
     }
 
     private Map<String, Object> view(User u, int me) {
@@ -96,10 +120,15 @@ public class DcUserResource {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public Response list() {
-        Optional<User> me = admin();
+        Optional<User> me = manager();
         if (!me.isPresent()) return Response.PERMISSION_DENIED();
+        Set<Integer> myGroups = isFullAdmin(me.get()) ? null : scope.groups();
         List<Map<String, Object>> out = new ArrayList<>();
-        for (User u : userDAO.findAllUsers()) out.add(view(u, me.get().getId()));
+        for (User u : userDAO.findAllUsers()) {
+            // Folder editors see only users inside their folders (their own account among them).
+            if (myGroups != null && !withinScope(myGroups, u)) continue;
+            out.add(view(u, me.get().getId()));
+        }
         return Response.OK(out);
     }
 
@@ -108,9 +137,11 @@ public class DcUserResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response save(UserBody body) {
-        Optional<User> me = admin();
+        Optional<User> me = manager();
         if (!me.isPresent()) return Response.PERMISSION_DENIED();
         int c = me.get().getCustomerId();
+        boolean fullAdmin = isFullAdmin(me.get());
+        Set<Integer> myGroups = fullAdmin ? null : scope.groups();
         if (body == null || body.login == null || !LOGIN.matcher(body.login.trim()).matches()) {
             return Response.ERROR("El usuario debe tener de 3 a 60 caracteres: letras, números, punto, guion o @.");
         }
@@ -120,11 +151,16 @@ public class DcUserResource {
         boolean viewOnly = "foldersView".equals(body.role);
         boolean folders = "folders".equals(body.role) || viewOnly;
         if (!folders && !"admin".equals(body.role)) return Response.ERROR("Elige el tipo de usuario.");
+        // A folder editor may only create/edit folder users (never full administrators).
+        if (!fullAdmin && !folders) return Response.ERROR("No puedes crear ni editar administradores.");
         List<Integer> roots = new ArrayList<>();
         if (folders) {
             if (body.folders == null || body.folders.isEmpty()) return Response.ERROR("Elige al menos una carpeta.");
             for (Integer g : body.folders) {
                 if (g == null || commandDAO.findGroup(c, g) == null) return Response.ERROR("Una de las carpetas ya no existe.");
+                // A folder editor may assign only folders inside their own reach.
+                if (!fullAdmin && (myGroups == null || !myGroups.contains(g)))
+                    return Response.ERROR("Solo puedes asignar carpetas que tú administras.");
                 if (!roots.contains(g)) roots.add(g);
             }
         }
@@ -149,6 +185,11 @@ public class DcUserResource {
         } else {
             u = userDAO.findAllUsers().stream().filter(x -> x.getId().equals(body.id)).findFirst().orElse(null);
             if (u == null) return Response.ERROR("El usuario no existe.");
+            // A folder editor may edit only users inside their folders, and not their own account here.
+            if (!fullAdmin) {
+                if (u.getId().equals(me.get().getId())) return Response.ERROR("No puedes editar tu propio usuario aquí.");
+                if (!withinScope(myGroups, u)) return Response.ERROR("Ese usuario no pertenece a tus carpetas.");
+            }
             if (u.getId().equals(me.get().getId()) && folders) return Response.ERROR("No puedes quitarte a ti mismo el rol de administrador.");
             if (!folders || !UserScope.isRestricted(u)) { /* fine */ }
             if (folders && !UserScope.isRestricted(u) && admins(c) <= 1) return Response.ERROR("Debe quedar al menos un administrador.");
@@ -191,12 +232,15 @@ public class DcUserResource {
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response delete(@PathParam("id") int id) {
-        Optional<User> me = admin();
+        Optional<User> me = manager();
         if (!me.isPresent()) return Response.PERMISSION_DENIED();
         if (id == me.get().getId()) return Response.ERROR("No puedes eliminar tu propio usuario.");
         int c = me.get().getCustomerId();
         User u = userDAO.findAllUsers().stream().filter(x -> x.getId() == id).findFirst().orElse(null);
         if (u == null) return Response.ERROR("El usuario no existe.");
+        // A folder editor may delete only users inside their folders.
+        if (!isFullAdmin(me.get()) && !withinScope(scope.groups(), u))
+            return Response.ERROR("Ese usuario no pertenece a tus carpetas.");
         if (!UserScope.isRestricted(u) && admins(c) <= 1) return Response.ERROR("Debe quedar al menos un administrador.");
         userDAO.deleteUser(id);
         log.info("User {} deleted by {}", u.getLogin(), me.get().getLogin());

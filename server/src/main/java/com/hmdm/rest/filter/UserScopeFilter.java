@@ -95,7 +95,12 @@ public class UserScopeFilter implements Filter {
             new Rule("GET", "/announcements/(\\d+)", null),
             new Rule("POST", "/announcements", null),                        // resource scopes recipients
             new Rule("POST", "/announcements/(\\d+)/withdraw", null),
-            new Rule("POST", "/web-ui-files", null)                          // upload announcement media (resource checks edit_files)
+            new Rule("POST", "/web-ui-files", null),                         // upload announcement media (resource checks edit_files)
+            // Users module for folder editors: the resource (DcUserResource) checks manage_users and limits every
+            // user they see/create/edit/delete to a subset of their own folders. Folders come from /fleet/v1/groups
+            // (already scoped), so the picker only offers folders they manage.
+            new Rule("GET PUT", "/dc/users", null),
+            new Rule("DELETE", "/dc/users/(\\d+)", null)
     );
 
     private final UserScope scope;

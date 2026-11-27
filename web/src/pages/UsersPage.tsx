@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
+import { useAuth } from '../auth/AuthContext';
+import { isFolderAdmin } from '../api/auth';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
 import { deleteUser, listUsers, saveUser, type ConsoleUser, type SaveUser } from '../api/users';
 
@@ -11,6 +13,9 @@ const EMPTY: SaveUser = { login: '', name: '', email: '', password: '', role: 'f
 
 export function UsersPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  // A folder editor managing users: they see/create only users inside their own folders, never administrators.
+  const folderManager = isFolderAdmin(user);
   const [users, setUsers] = useState<ConsoleUser[] | null>(null);
   const [groups, setGroups] = useState<FleetGroup[]>([]);
   const [edit, setEdit] = useState<SaveUser | null>(null);
@@ -73,11 +78,18 @@ export function UsersPage() {
         <div className="sp" />
         {!edit && <button className="btn btn-primary" onClick={() => { setEdit({ ...EMPTY }); setRepeat(''); }} data-testid="user-new">Nuevo usuario</button>}
       </div>
-      <p className="note" style={{ marginTop: 0 }}>
-        <b>Administrador</b>: ve y maneja todo. <b>Administrador de carpetas</b>: solo ve y maneja los dispositivos de las carpetas que le
-        asignes (por ejemplo una empresa o un país), con todas sus subcarpetas, también las que se creen después. No ve políticas,
-        aplicaciones, anuncios, ajustes ni usuarios.
-      </p>
+      {folderManager ? (
+        <p className="note" style={{ marginTop: 0 }}>
+          Puedes crear y gestionar usuarios <b>dentro de tus carpetas</b>: solo verás y asignarás las carpetas que
+          tú administras, y no puedes crear administradores.
+        </p>
+      ) : (
+        <p className="note" style={{ marginTop: 0 }}>
+          <b>Administrador</b>: ve y maneja todo. <b>Administrador de carpetas</b>: solo ve y maneja los dispositivos de las carpetas que le
+          asignes (por ejemplo una empresa o un país), con todas sus subcarpetas, también las que se creen después. No ve políticas,
+          aplicaciones, anuncios, ajustes ni usuarios.
+        </p>
+      )}
 
       {edit && (
         <section className="panel" data-testid="user-editor">
@@ -92,7 +104,7 @@ export function UsersPage() {
               <select className="sel" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value as SaveUser['role'] })} aria-label="Tipo de usuario">
                 <option value="foldersView">Carpetas — solo lectura (ver y acciones seguras)</option>
                 <option value="folders">Carpetas — con edición (modifica políticas y carpetas)</option>
-                <option value="admin">Administrador (todo)</option>
+                {!folderManager && <option value="admin">Administrador (todo)</option>}
               </select>
             </label>
           </div>
