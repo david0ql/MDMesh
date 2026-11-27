@@ -393,8 +393,10 @@ public class AgentAdminResource {
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
         }
-        // Attempts with a token nobody issued belong to no customer: only the installation's administrator sees them.
-        boolean includeUnknown = !scope.restricted() && SecurityContext.get().isSuperAdmin();
+        // Attempts with a code nobody issued (a mistyped code, a QR from another server) belong to no customer. They
+        // are shown to every user who is not limited to folders: on this single-organisation product that is the
+        // person who has to diagnose them. (A multi-tenant install would show them to each tenant's administrators.)
+        boolean includeUnknown = !scope.restricted();
         java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> rows =
                 tokenDAO.listAttempts(customerId.get(), includeUnknown, limit == null ? 100 : limit);
         java.util.Set<Integer> mine = scope.groups();

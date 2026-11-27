@@ -51,14 +51,18 @@ def sh(serial, cmd, timeout=60):
 
 def boot(avd, port, wipe=True, timeout=600):
     serial = f"emulator-{port}"
-    log = open(os.path.join(os.environ.get("QR_MATRIX_TMP", "/tmp"), f"{avd}.emu.log"), "w")
+    log_path = os.path.join(os.environ.get("QR_MATRIX_TMP", "/tmp"), f"{avd}.emu.log")
+    log = open(log_path, "w")
     args = [os.path.join(SDK, "emulator", "emulator"), "-avd", avd, "-port", str(port), "-no-window", "-no-audio",
             "-no-snapshot", "-no-boot-anim"]
     if wipe:
         args.append("-wipe-data")
-    subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    proc = subprocess.Popen(args, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     end = time.time() + timeout
     while time.time() < end:
+        if proc.poll() is not None:  # the AVD is in use by someone else, or there is no disk space for it
+            tail = open(log_path).read().strip().splitlines()[-1:]
+            raise SystemExit(f"RESULT BOOT-FAILED {avd}: {' '.join(tail)[:200]}")
         try:
             if sh(serial, "getprop sys.boot_completed", timeout=10).strip() == "1":
                 time.sleep(8)
@@ -154,27 +158,25 @@ def device_owner(serial):
     return m.group(1) if m else None
 
 
+_COOKIES = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
+
+
 def api(base, path, token=None, body=None, method=None):
+    """Console API call; the session cookie of login() rides along."""
     req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
                                  method=method or ("POST" if body is not None else "GET"))
     req.add_header("Content-Type", "application/json")
-    if token:
-        req.add_header("Authorization", "Bearer " + token)
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with _COOKIES.open(req, timeout=20) as r:
         return json.loads(r.read().decode() or "{}")
 
 
 def login(base, creds):
     user, password = creds.split(":", 1)
     md5 = hashlib.md5(password.encode()).hexdigest().upper()
-    for attempt in ({"login": user, "password": md5}, {"login": user, "password": password}):
-        try:
-            r = api(base, "/rest/public/jwt/login", body=attempt)
-            if r.get("id_token"):
-                return r["id_token"]
-        except Exception:
-            continue
-    raise RuntimeError("console login failed")
+    r = api(base, "/rest/public/auth/login", body={"login": user, "password": md5})
+    if r.get("status") != "OK":
+        raise RuntimeError("console login failed: " + str(r.get("message")))
+    return "session"
 
 
 def run(a):
@@ -325,7 +327,7 @@ def matrix(a):
             if a.mint:
                 jwt = login(a.mint, a.admin)
                 tok = api(a.mint, "/rest/private/agent/v1/token", token=jwt, body={})["data"]["token"]
-                payload = payload.replace("${TOKEN}", tok)
+                payload = payload.replace("${TOKEN12}", tok[:12]).replace("${TOKEN}", tok)
             if "${NOW}" in payload:
                 payload = payload.replace('"${NOW}"', str(int(time.time() * 1000)))
             pfile = os.path.join(out, "payload.json")
