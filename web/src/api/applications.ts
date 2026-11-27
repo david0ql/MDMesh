@@ -69,11 +69,13 @@ export async function saveAndroidApplication(app: Partial<Application>): Promise
   return apiClient.put<Application>('/private/applications/android', app);
 }
 
-export async function listApplications(value?: string): Promise<Application[]> {
+/** `all` returns the whole customer library regardless of folder scope — used by the policy editor's app picker so
+ *  a folder editor can add any library app to their own policy (the Apps-page library view stays folder-scoped). */
+export async function listApplications(value?: string, all?: boolean): Promise<Application[]> {
   const v = value?.trim();
   const path = v
     ? `/private/applications/search/${encodeURIComponent(v)}`
-    : '/private/applications/search';
+    : `/private/applications/search${all ? '?all=true' : ''}`;
   return apiClient.get<Application[]>(path);
 }
 

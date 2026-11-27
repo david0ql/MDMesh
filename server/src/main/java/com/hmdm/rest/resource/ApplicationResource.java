@@ -141,13 +141,16 @@ public class ApplicationResource {
     @GET
     @Path("/search")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getAllApplications() {
+    public Response getAllApplications(@QueryParam("all") Boolean all) {
         if (!SecurityContext.get().hasPermission("applications")) {
             logger.error("Unauthorized attempt to access application list by user " +
                     SecurityContext.get().getCurrentUserName());
             return Response.PERMISSION_DENIED();
         }
-        if (scope != null && scope.restricted()) {
+        // The folder-scoped library view (Apps page) shows only the apps used by the editor's folders. But adding
+        // apps to a policy needs the whole customer library, so the policy editor's picker passes ?all=true to get
+        // it — the pick is still safe: they can only link to configurations they have access to.
+        if (!Boolean.TRUE.equals(all) && scope != null && scope.restricted()) {
             return Response.OK(this.applicationDAO.getAllApplicationsScoped());
         }
         return Response.OK(this.applicationDAO.getAllApplications());

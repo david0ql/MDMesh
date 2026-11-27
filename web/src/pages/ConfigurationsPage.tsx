@@ -99,7 +99,7 @@ export function ConfigurationsPage() {
 
   useEffect(() => {
     void load();
-    listApplications().then((a) => setApps(a.filter((x) => (x.type ?? 'app') !== 'web'))).catch(() => undefined);
+    listApplications(undefined, true).then((a) => setApps(a.filter((x) => (x.type ?? 'app') !== 'web'))).catch(() => undefined);
   }, []);
 
   if (editing) {
