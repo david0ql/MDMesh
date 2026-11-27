@@ -3413,6 +3413,19 @@
         </sql>
     </changeSet>
 
+    <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
+         still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
+         where the grant already exists. -->
+    <changeSet id="26.11.27-manage-users-by-role-id" author="dallycontrol">
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (2, 3) AND p.name = 'manage_users'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
     <!-- More objects that only existed in the production database, found by scripts/schema-drift-check.sh (the
          mappers use them, no changeSet created them, so a fresh install or a restore into a new server failed on
          the policy history, saved scripts and the settings page). Same definitions as production.
