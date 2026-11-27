@@ -179,8 +179,16 @@ class CheckInService : LifecycleService() {
         }
     }
 
+    @Volatile private var reportedSupportState: String? = null
+
+    // Only a real change is reported (the service switched on or off, the policy changed): Android also unbinds and
+    // rebinds the service for passing reasons, and a check-in for each of those kept the agent busy for nothing.
     private val supportReport: () -> Unit = {
-        lifecycleScope.launch { runCatching { coordinator.runOnce() } }
+        val state = com.dallycontrol.agent.support.SupportEngine.screenState(this)
+        if (state != reportedSupportState) {
+            reportedSupportState = state
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { coordinator.runOnce() } }
+        }
     }
 
     private suspend fun onWake(signal: WakeSignal) {

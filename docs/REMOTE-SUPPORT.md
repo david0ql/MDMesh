@@ -105,9 +105,13 @@ Emuladores en la máquina de pruebas (red local, servidor en Docker). Ver los n�
 
 | Medida | Objetivo | Resultado |
 |--------|----------|-----------|
-| Tiempo hasta la primera imagen (desde «Ver y controlar») | < 10 s | ver TESTING.md |
-| Latencia de un toque (clic → imagen con el efecto) | < 1 s | ver TESTING.md |
-| El teléfono se une a la sesión | — | ver TESTING.md |
+| Tiempo hasta la primera imagen (desde «Ver y controlar») | < 10 s | 1,8 – 2,4 s (Android 11 y 15) |
+| Latencia de un toque (clic → imagen con el efecto) | < 1 s | 0,26 s con la máquina a carga 22; 0,7 s a carga 27; 1,2 – 2,3 s a carga 29 – 35 |
+| El teléfono se une a la sesión | — | 0,4 – 1,1 s |
+
+La máquina de pruebas estuvo sobrecargada (carga 20 – 35 con 15 núcleos) en todas las corridas: los tiempos son
+cotas superiores. La latencia de toque depende de cuánto tarda una captura (unos 200 ms en el emulador cuando no
+está ahogado) y del límite de Android de una captura cada 333 ms; **debe confirmarse en un teléfono físico**.
 
 La orden de inicio viaja por el canal en vivo del agente (el mismo socket por el que el servidor lo despierta): un
 teléfono conectado se une sin esperar a su siguiente reporte.

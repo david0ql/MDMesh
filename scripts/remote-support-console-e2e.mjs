@@ -252,10 +252,13 @@ try {
   check('phone -> console: audio frames arrive and are decoded', rx > 100, `${rx} frames`);
   check('phone -> console: it is the phone\'s tone, not silence', pageRxRms > 3000, `level in the page ${pageRxRms}`);
   await shot('05-llamada');
+  // Muted, the console sends nothing: the phone's count of received frames must stop growing.
   await page.getByTestId('support-mute').click();
-  let muted = 1e9;
-  for (let i = 0; i < 6; i++) { await sleep(1000); muted = Math.min(muted, (await hook('s.callStats && s.callStats.rxRms')) ?? 1e9); }
-  check('"Silenciar" in the console: the phone receives silence', muted < 100 && muted < phoneRxRms / 20, `level on the phone ${muted} (was ${phoneRxRms})`);
+  await sleep(1500);
+  const rxA = (await hook('s.callStats && s.callStats.rx')) || 0;
+  await sleep(3000);
+  const rxB = (await hook('s.callStats && s.callStats.rx')) || 0;
+  check('"Silenciar" in the console: the phone stops receiving the operator\'s audio', rxB - rxA < 10, `${rxB - rxA} frames in 3 s (150 when not muted)`);
   await page.getByTestId('support-hangup').click();
   await page.waitForFunction(() => ['ended', 'idle'].includes(window.__dcSupport?.callState), null, { timeout: 10000 }).catch(() => null);
   check('"Colgar" ends the call', ['ended', 'idle'].includes(await hook('s.callState')), `${await hook('s.callState')}`);
