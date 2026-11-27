@@ -2477,6 +2477,79 @@ a {
 }
 
 /* ============================================================================
+   Tablero (fleet board): KPI grid + breakdown mini-bars
+   ========================================================================= */
+.tablero-kpis {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 1100px) {
+  .tablero-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .tablero-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.tablero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.brk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 40%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 20px;
+  font-size: 13px;
+}
+.brk-k {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brk-track {
+  height: 8px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.brk-fill {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 5px;
+  background: var(--secondary);
+}
+.brk-fill.brk-ok {
+  background: var(--online);
+}
+.brk-fill.brk-warn {
+  background: var(--warn);
+}
+.brk-fill.brk-alert {
+  background: var(--alert);
+}
+.brk-fill.brk-idle {
+  background: var(--offline);
+}
+.brk-v {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+/* ============================================================================
    Toasts
    ========================================================================= */
 .toast-wrap {

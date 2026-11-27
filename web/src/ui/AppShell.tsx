@@ -8,6 +8,7 @@ import { UpdateBanner } from '../components/UpdateBanner';
 import { ReloadPrompt } from '../components/ReloadPrompt';
 import {
   IconDashboard,
+  IconBoard,
   IconDevices,
   IconMap,
   IconGroups,
@@ -53,6 +54,7 @@ interface NavEntry {
 
 const NAV: NavEntry[] = [
   { to: '/dashboard', label: 'Resumen', Icon: IconDashboard },
+  { to: '/tablero', label: 'Tablero', Icon: IconBoard },
   { to: '/groups', label: 'Carpetas', Icon: IconGroups },
   { to: '/devices', label: 'Dispositivos', Icon: IconDevices },
   { to: '/map', label: 'Mapa', Icon: IconMap },

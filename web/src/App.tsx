@@ -6,6 +6,7 @@ import { ToastProvider } from './ui/toast';
 import { LoginPage } from './pages/LoginPage';
 import { SetPasswordPage } from './pages/SetPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { TableroPage } from './pages/TableroPage';
 import { DevicesPage } from './pages/DevicesPage';
 import { DeviceDetailPage } from './pages/DeviceDetailPage';
 import { AppsPage } from './pages/AppsPage';
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/set-password" element={<SetPasswordPage />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/tablero" element={<TableroPage />} />
               <Route path="/devices" element={<DevicesPage />} />
               <Route path="/devices/:id" element={<DeviceDetailPage />} />
               <Route path="/map" element={<FleetMapPage />} />

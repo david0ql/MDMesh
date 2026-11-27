@@ -161,3 +161,10 @@ export const IconGroups = (p: P) => (
     <path d="M3.5 8.5h1.5M3.5 11h1.5M11 5h1.5M11 7.5h1.5M11 10h1.5" />
   </Svg>
 );
+
+export const IconBoard = (p: P) => (
+  <Svg {...p}>
+    <rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5" />
+    <path d="M1.8 6h12.4M6.5 6v7.5" />
+  </Svg>
+);
