@@ -187,6 +187,7 @@ object AgentModule {
         appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        permissions: com.dallycontrol.agent.policy.AndroidPermissionEnforcer,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -195,6 +196,7 @@ object AgentModule {
                 systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull(),
                 appUsage = runCatching { appUsage.collect() }.getOrNull(),
                 usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
+                permissions = runCatching { permissions.reportIfDue() }.getOrNull(),
             ).also {
                 runCatching { deviceRules.enforceAccounts() } // other-domain Google accounts go on every check-in
                 runCatching { appActivity.collect() } // record user "opened app / camera" activity events
@@ -202,7 +204,10 @@ object AgentModule {
         },
         security = { security.collect() },
         // The trail fixes a successful check-in carried are on the server now.
-        onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
+        onDelivered = { snap ->
+            snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack)
+            if (snap.dynamic.permissions != null) permissions.delivered()
+        },
     )
 
     /**
@@ -597,11 +602,13 @@ object AgentModule {
         @ApplicationContext context: Context,
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        permissions: com.dallycontrol.agent.policy.AndroidPermissionEnforcer,
     ): ConfigApplier = ConfigApplier(
         toggles, kiosk, location::set, store, browser, apps,
         wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
+        permissions = permissions,
         setTrackingMinutes = trail::setIntervalMinutes,
         setLocationFixTimeout = location::setFixTimeoutSec,
     )
@@ -638,4 +645,27 @@ object AgentModule {
     @Provides
     @IntoSet
     fun provideConfigApplyHandler(applier: ConfigApplier): CommandHandler = ConfigApplyHandler(applier)
+
+    // --- App permissions (default policy, per-app grants, special accesses) ---
+
+    @Provides
+    @Singleton
+    fun providePermissionEnforcer(@ApplicationContext context: Context, handle: DpmHandle): com.dallycontrol.agent.policy.AndroidPermissionEnforcer =
+        com.dallycontrol.agent.policy.AndroidPermissionEnforcer(context, handle)
+
+    /** An app the console just installed gets its permissions before anything opens it. */
+    @Provides
+    @Singleton
+    fun providePostInstall(permissions: dagger.Lazy<com.dallycontrol.agent.policy.AndroidPermissionEnforcer>): com.dallycontrol.core.config.PostInstall =
+        com.dallycontrol.core.config.PostInstall { pkg -> permissions.get().reenforce(pkg) }
+
+    @Provides
+    @IntoSet
+    fun providePermissionScreenHandler(permissions: com.dallycontrol.agent.policy.AndroidPermissionEnforcer): CommandHandler =
+        com.dallycontrol.agent.policy.PermissionScreenHandler(permissions)
+
+    @Provides
+    @IntoSet
+    fun providePermissionScanHandler(permissions: com.dallycontrol.agent.policy.AndroidPermissionEnforcer): CommandHandler =
+        com.dallycontrol.agent.policy.PermissionScanHandler(permissions)
 }

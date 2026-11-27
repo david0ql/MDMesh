@@ -166,6 +166,9 @@ public final class DesiredConfigBuilder {
                 if (allowed.size() > 1) d.getKiosk().setMode("launcher");
             }
         }
+        // App permissions: the default policy and the policy's per-app rules (a device's own rules are added by
+        // DesiredPermissionsBuilder.withDeviceOverrides).
+        d.setPermissions(DesiredPermissionsBuilder.build(cfg, dc, list, null));
         d.setRevision(revision(d));
         return d;
     }

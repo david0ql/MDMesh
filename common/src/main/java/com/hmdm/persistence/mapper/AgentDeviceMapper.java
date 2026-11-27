@@ -107,6 +107,27 @@ public interface AgentDeviceMapper {
     @org.apache.ibatis.annotations.Delete("DELETE FROM device_data_sharing WHERE deviceId = #{deviceId}")
     void clearDeviceDataSharing(@Param("deviceId") int deviceId);
 
+    // --- Per-device app-permission rules (JSON { package: rules }) and the agent's last permission report ---
+    @Select("SELECT rules FROM device_permission_override WHERE deviceId = #{deviceId}")
+    String getDevicePermissionOverride(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO device_permission_override (deviceId, rules, updatedAt) VALUES (#{deviceId}, #{rules}, #{now}) ",
+             "ON CONFLICT (deviceId) DO UPDATE SET rules = EXCLUDED.rules, updatedAt = EXCLUDED.updatedAt"})
+    void setDevicePermissionOverride(@Param("deviceId") int deviceId, @Param("rules") String rules, @Param("now") long now);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM device_permission_override WHERE deviceId = #{deviceId}")
+    void clearDevicePermissionOverride(@Param("deviceId") int deviceId);
+
+    @Select("SELECT report FROM device_permission_report WHERE deviceId = #{deviceId}")
+    String getDevicePermissionReport(@Param("deviceId") int deviceId);
+
+    @Select("SELECT updatedAt FROM device_permission_report WHERE deviceId = #{deviceId}")
+    Long getDevicePermissionReportAt(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO device_permission_report (deviceId, report, updatedAt) VALUES (#{deviceId}, #{report}, #{now}) ",
+             "ON CONFLICT (deviceId) DO UPDATE SET report = EXCLUDED.report, updatedAt = EXCLUDED.updatedAt"})
+    void setDevicePermissionReport(@Param("deviceId") int deviceId, @Param("report") String report, @Param("now") long now);
+
     /**
      * Store the Android version into infojson (the device list reads
      * {@code devices.infojson ->> 'androidVersion'}; our agent reports it via telemetry/state).

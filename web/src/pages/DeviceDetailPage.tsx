@@ -1,3 +1,4 @@
+import { DevicePermissionsPanel } from '../components/DevicePermissionsPanel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -31,7 +32,7 @@ import { fmtDateTime, fmtRelative, orDash } from '../ui/format';
 import { getDeviceInstallProblems, retryNote, type DeviceInstallProblem } from '../api/installStatus';
 import { DataFreshness } from '../components/DataFreshness';
 
-type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location';
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'permissions';
 
 interface Row {
   k: string;
@@ -488,6 +489,9 @@ export function DeviceDetailPage() {
             <button className={tab === 'location' ? 'on' : ''} onClick={() => setTab('location')}>
               Ubicación
             </button>
+            <button className={tab === 'permissions' ? 'on' : ''} onClick={() => setTab('permissions')}>
+              Permisos
+            </button>
           </div>
 
           <div className="tabbody">
@@ -509,6 +513,7 @@ export function DeviceDetailPage() {
             {tab === 'telemetry' && <TelemetryCard device={device} />}
             {tab === 'events' && <EventTimeline device={device} />}
             {tab === 'location' && <LocationPanel device={device} />}
+            {tab === 'permissions' && <DevicePermissionsPanel device={device} />}
           </div>
         </section>
       </div>

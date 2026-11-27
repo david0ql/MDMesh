@@ -43,6 +43,8 @@ export interface DcPolicy {
     installApps?: 'block';
     frpAccounts?: string[];
   };
+  /** Per-app permission rules by package (see PolicyPermissionsPanel). */
+  permissions?: import('../data/permissions').PermissionRulesByApp;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -72,6 +74,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  if (p.permissions && Object.keys(p.permissions).length) out.permissions = p.permissions;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 

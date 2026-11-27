@@ -1,3 +1,4 @@
+import { PolicyPermissionsPanel } from '../components/PolicyPermissionsPanel';
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
 import { listAppVersions, listPolicyDowngrades, listVersionLabels, setPolicyDowngrade, topCode, type LabeledVersion } from '../api/versions';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
@@ -706,6 +707,9 @@ function ConfigEditor({
       />
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
+
+      <PolicyPermissionsPanel value={draft.dcPolicy} apps={allowed} defaultOption={draft.appPermissions as string | undefined}
+        disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
 
       {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}
 

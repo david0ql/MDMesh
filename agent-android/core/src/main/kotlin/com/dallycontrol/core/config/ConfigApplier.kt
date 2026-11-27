@@ -36,6 +36,8 @@ class ConfigApplier(
     private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     /** Apply (or clear, with null) the device security rules; returns a ConfigOutcome. Runs after the browser section. */
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
+    /** App permissions: default policy and per-app grants. Always enforced (an absent section = the default: grant). */
+    private val permissions: PermissionEnforcer? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
     private val setTrackingMinutes: (Int) -> Unit = {},
@@ -93,6 +95,14 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.device != null) outcomes["device"] = o
         }
+        // Permissions are re-asserted on EVERY apply, section or not: without one the agent keeps its baseline
+        // (grant on request, no per-app rules), so a rule that was removed is released and the policy never drifts.
+        val permissionOutcome = permissions?.let { p ->
+            runCatching { p.apply(doc.permissions ?: com.dallycontrol.proto.ConfigPermissions()) }
+                .getOrElse { e -> ConfigOutcome.failed(e.message ?: "permissions") }
+        }
+        if (permissionOutcome != null) outcomes["permissions"] = permissionOutcome
+        else if (doc.permissions != null) outcomes["permissions"] = ConfigOutcome.UNSUPPORTED
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }

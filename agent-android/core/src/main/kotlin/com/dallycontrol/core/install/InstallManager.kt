@@ -101,6 +101,8 @@ class InstallManager @Inject constructor(
     private val resultBus: InstallResultBus,
     private val httpClient: OkHttpClient,
     private val kioskUnpin: KioskUnpin = KioskUnpin.NONE,
+    /** Runs the moment an install succeeds, before the app is launched (permission grants). */
+    private val postInstall: com.dallycontrol.core.config.PostInstall = com.dallycontrol.core.config.PostInstall.NONE,
 ) {
 
     private val packageInstaller: PackageInstaller
@@ -190,6 +192,9 @@ class InstallManager @Inject constructor(
                 .putString("$blockedKey:why", outcome.reason.substringBefore(':')).apply()
             return InstallOutcome.Skipped("el sistema del teléfono no deja instalar esta app desde el MDM (${outcome.reason.substringBefore(':')})")
         }
+
+        // Fix the app's permissions before anything opens it, so its first screen never shows a permission dialog.
+        if (outcome is InstallOutcome.Success) runCatching { postInstall.installed(req.packageName) }
 
         // 4. Optionally launch the app on success.
         if (outcome is InstallOutcome.Success && req.runAfterInstall) {

@@ -196,6 +196,30 @@ public class AgentCommandDAO {
         deviceMapper.clearDeviceDataSharing(deviceId);
     }
 
+    /** Per-device app-permission rules (JSON { package: rules }), or null when the device follows its policy. */
+    public String getDevicePermissionOverride(int deviceId) {
+        return deviceMapper.getDevicePermissionOverride(deviceId);
+    }
+
+    /** Stores (or, with null/blank, removes) the device's own app-permission rules. */
+    public void setDevicePermissionOverride(int deviceId, String rules) {
+        if (rules == null || rules.trim().isEmpty()) deviceMapper.clearDevicePermissionOverride(deviceId);
+        else deviceMapper.setDevicePermissionOverride(deviceId, rules, System.currentTimeMillis());
+    }
+
+    /** The agent's last permission report (JSON), or null. */
+    public String getDevicePermissionReport(int deviceId) {
+        return deviceMapper.getDevicePermissionReport(deviceId);
+    }
+
+    public Long getDevicePermissionReportAt(int deviceId) {
+        return deviceMapper.getDevicePermissionReportAt(deviceId);
+    }
+
+    public void setDevicePermissionReport(int deviceId, String report) {
+        deviceMapper.setDevicePermissionReport(deviceId, report, System.currentTimeMillis());
+    }
+
     public String getDeviceSecretHash(String deviceNumber) {
         return deviceMapper.getDeviceSecretHash(deviceNumber);
     }

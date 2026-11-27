@@ -43,6 +43,15 @@ public class ConfigReconciler {
 
     /** The desired-state document for the device's configuration, or null when it has none. */
     public DesiredConfig currentDocument(Device device) {
+        return document(device, true);
+    }
+
+    /** The same document WITHOUT the device's own permission rules: what its policy alone asks for (console view). */
+    public DesiredConfig policyDocument(Device device) {
+        return document(device, false);
+    }
+
+    private DesiredConfig document(Device device, boolean withDevicePermissions) {
         if (device == null || device.getConfigurationId() == null) return null;
         Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
         if (cfg == null) return null;
@@ -54,6 +63,11 @@ public class ConfigReconciler {
         // Per-device "share data" override: when set it wins over the policy's device.tethering.
         String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
         DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
+        // Per-device permission rules: on top of the policy's, for this phone only.
+        if (withDevicePermissions && device.getId() != null) {
+            doc = com.hmdm.util.DesiredPermissionsBuilder.withDeviceOverrides(doc, cfg, r.apps,
+                    com.hmdm.util.AppPermissionRules.parseMap(commandDAO.getDevicePermissionOverride(device.getId())));
+        }
         return withGeofenceTracking(device, doc);
     }
 

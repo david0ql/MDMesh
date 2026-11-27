@@ -159,4 +159,40 @@ class ConfigApplierTest {
         assertEquals(listOf("Amovil"), seen[0].map { it.ssid })
         assertEquals("removed section -> empty list (remove what was added)", emptyList<com.dallycontrol.proto.ConfigWifi>(), seen[1])
     }
+
+    private class FakePermissions(private val outcome: String = ConfigOutcome.APPLIED) : PermissionEnforcer {
+        val applied = mutableListOf<com.dallycontrol.proto.ConfigPermissions>()
+        override fun apply(policy: com.dallycontrol.proto.ConfigPermissions): String { applied += policy; return outcome }
+        override fun reenforce(packageName: String?): String = outcome
+    }
+
+    @Test fun `permissions are enforced and reported on every apply, with or without the section`() = runTest {
+        val perms = FakePermissions(); val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, permissions = perms)
+        val r1 = applier.apply(ConfigApplyPayload(revision = "p1", permissions = com.dallycontrol.proto.ConfigPermissions(
+            defaultPolicy = "prompt", apps = listOf(com.dallycontrol.proto.ConfigAppPermissions("com.acme.app", all = "grant")))))
+        assertEquals(ConfigOutcome.APPLIED, r1.outcomes["permissions"])
+        assertEquals("prompt", perms.applied.single().defaultPolicy)
+        // The section goes away (or an older server never sends it): back to the baseline, still enforced and reported.
+        val r2 = applier.apply(ConfigApplyPayload(revision = "p2"))
+        assertEquals(ConfigOutcome.APPLIED, r2.outcomes["permissions"])
+        assertEquals("grant", perms.applied.last().defaultPolicy)
+        assertTrue(perms.applied.last().apps.isEmpty())
+        assertEquals("p2", store.revision())
+    }
+
+    @Test fun `a failed permission policy keeps the revision unapplied so the server retries`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val r = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, permissions = FakePermissions(ConfigOutcome.failed("boom")))
+            .apply(ConfigApplyPayload(revision = "p3"))
+        assertTrue(ConfigOutcome.isFailed(r.outcomes.getValue("permissions")))
+        assertNull(store.revision())
+    }
+
+    @Test fun `no permission enforcer reports unsupported only when the section was sent`() = runTest {
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore())
+        assertFalse(applier.apply(ConfigApplyPayload(revision = "p4")).outcomes.containsKey("permissions"))
+        assertEquals(ConfigOutcome.UNSUPPORTED,
+            applier.apply(ConfigApplyPayload(revision = "p5", permissions = com.dallycontrol.proto.ConfigPermissions())).outcomes["permissions"])
+    }
 }

@@ -58,4 +58,6 @@ public class DesiredConfig {
     private DesiredSystemUpdate systemUpdate;
     /** Device security rules (data sharing, Google accounts, factory reset); null = none. */
     private DesiredDevice device;
+    /** App permissions: default policy and per-app grants; null = the agent's baseline (grant on request). */
+    private DesiredPermissions permissions;
 }

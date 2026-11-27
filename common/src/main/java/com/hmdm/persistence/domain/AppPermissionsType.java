@@ -30,7 +30,9 @@ public enum AppPermissionsType {
     GRANTALL(null),
     ASKLOCATION("asklocation"),
     DENYLOCATION("denylocation"),
-    ASKALL("askall");
+    ASKALL("askall"),
+    /** Deny every runtime-permission request (DallyControl agent; per-app rules still grant what is needed). */
+    DENYALL("denyall");
 
     /**
      * <p>A string value transmitted between the server and the device to represent this item.</p>

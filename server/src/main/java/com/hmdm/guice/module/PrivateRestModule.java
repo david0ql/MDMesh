@@ -68,5 +68,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.GeofenceResource.class);
         this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
         this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
+        // App permissions of a device (its own rules + the agent's report).
+        this.bind(com.hmdm.rest.resource.DevicePermissionsResource.class);
     }
 }

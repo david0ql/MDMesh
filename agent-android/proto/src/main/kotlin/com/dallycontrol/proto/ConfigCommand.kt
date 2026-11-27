@@ -31,6 +31,8 @@ data class ConfigApplyPayload(
     val systemUpdate: ConfigSystemUpdate? = null,
     /** Device security rules (absent = none): data sharing, Google accounts, factory reset. */
     val device: ConfigDevice? = null,
+    /** Runtime-permission policy and per-app grants (absent = the agent's default: grant on request, no per-app rules). */
+    val permissions: ConfigPermissions? = null,
 )
 
 /**

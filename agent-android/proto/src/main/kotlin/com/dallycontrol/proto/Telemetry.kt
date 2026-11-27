@@ -78,6 +78,8 @@ data class DynamicState(
     val appUsage: AppUsageReport? = null,
     /** Android's "usage access" is on for the agent (needed for per-app screen time and the battery estimate). */
     val usageAccess: Boolean? = null,
+    /** Real permission state of the managed apps (sent when it changed or every few hours); null = not this time. */
+    val permissions: PermissionReport? = null,
 )
 
 /**

@@ -168,8 +168,11 @@ class AdminReceiver : DeviceAdminReceiver() {
                 if (!dpm.isDeviceOwnerApp(context.packageName)) return
                 // The agent and its remote-support app: the person cannot force-stop them, and Android (and makers' battery
                 // managers that honour it) leaves them running in the background — remote support dies otherwise on Xiaomi.
-                dpm.setUserControlDisabledPackages(componentName(context),
-                    listOf(context.packageName, com.dallycontrol.agent.remote.DroidVncController.PACKAGE))
+                // Added to whatever is already protected (the permission policy protects apps too), never replacing it.
+                val admin = componentName(context)
+                val wanted = listOf(context.packageName, com.dallycontrol.agent.remote.DroidVncController.PACKAGE)
+                val current = runCatching { dpm.getUserControlDisabledPackages(admin) }.getOrDefault(emptyList())
+                if (!current.containsAll(wanted)) dpm.setUserControlDisabledPackages(admin, (current + wanted).distinct())
             }
         }
 
