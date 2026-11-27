@@ -51,7 +51,6 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.Executors
-import java.util.zip.CRC32
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -357,11 +356,10 @@ class SupportSessionManager @Inject constructor(
             return
         }
         val jpeg = ByteArrayOutputStream(JPEG_BUFFER)
-        val crc = CRC32()
+        var previous: Bitmap? = null
         var seq = 0
         var sentSeq = -1
         var sentAt = 0L
-        var lastCrc = -1L
         // Android refuses an accessibility screenshot asked less than a third of a second after the previous one;
         // screen capture (Android 7-10) has no such limit.
         var interval = if (projection) PROJECTION_INTERVAL_MS else A11Y_INTERVAL_MS
@@ -427,22 +425,24 @@ class SupportSessionManager @Inject constructor(
             captures++
             captureMs += captured - lastCapture
             val (w, h) = SupportProtocol.scaled(bitmap.width, bitmap.height, maxDim)
-            val fits = w == bitmap.width && h == bitmap.height
-            val scaled = if (fits) bitmap else Bitmap.createScaledBitmap(bitmap, w, h, true)
-            jpeg.reset()
-            scaled.compress(Bitmap.CompressFormat.JPEG, quality, jpeg)
-            if (scaled !== bitmap) scaled.recycle()
+            // Always a private copy at the size sent, so it can be compared with the next one.
+            val resized = Bitmap.createScaledBitmap(bitmap, w, h, true)
+            val scaled = if (resized === bitmap) resized.copy(Bitmap.Config.ARGB_8888, false) else resized
             if (!projection) bitmap.recycle()
-            val bytes = jpeg.toByteArray()
-            encodeMs += System.currentTimeMillis() - captured
-            crc.reset()
-            crc.update(bytes)
-            // An unchanged screen is not sent again (a still screen costs no data), except as a slow keep-alive.
-            if (crc.value == lastCrc && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) {
+            // An unchanged screen is not sent again (a still screen costs no data and no encoding), except as a slow
+            // keep-alive. Comparing pixels is far cheaper than encoding, so the loop is back at the screen sooner.
+            val still = previous?.let { it.width == w && it.height == h && it.sameAs(scaled) } == true
+            if (still && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) {
+                scaled.recycle()
                 delay(STILL_WAIT_MS)
                 continue
             }
-            lastCrc = crc.value
+            previous?.recycle()
+            previous = scaled
+            jpeg.reset()
+            scaled.compress(Bitmap.CompressFormat.JPEG, quality, jpeg)
+            val bytes = jpeg.toByteArray()
+            encodeMs += System.currentTimeMillis() - captured
             if (conn.send(SupportProtocol.frame(seq, w, h, bytes))) {
                 sentSeq = seq
                 sentAt = System.currentTimeMillis()
@@ -508,10 +508,10 @@ class SupportSessionManager @Inject constructor(
     private fun onChat(text: String) {
         chat += ChatLine(true, text.take(MAX_TEXT), System.currentTimeMillis())
         changed()
-        if (!screenVisible) {
-            SupportForegroundService.chatNotification(context, text)
-            SupportActivity.open(context)
-        }
+        // Always bring the support screen up (it is a no-op when it is already on top): relying on the screen's own
+        // "I am visible" flag left a message unseen when Android was late telling the screen it had been covered.
+        if (!screenVisible) SupportForegroundService.chatNotification(context, text)
+        SupportActivity.open(context)
     }
 
     /** A reply typed on the phone. */
@@ -740,7 +740,7 @@ class SupportSessionManager @Inject constructor(
         private const val MAX_BACKLOG = 256L * 1024
         private const val BACKLOG_WAIT_MS = 20L
         private const val EMPTY_WAIT_MS = 80L
-        private const val STILL_WAIT_MS = 40L
+        private const val STILL_WAIT_MS = 20L
         private const val STILL_REFRESH_MS = 5_000L
         private const val CAPTURE_TIMEOUT_MS = 3_000L
         private const val STATS_MS = 2_000L

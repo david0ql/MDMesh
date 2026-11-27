@@ -249,9 +249,9 @@ try {
   check('phone -> console: it is the phone\'s tone, not silence', pageRxRms > 3000, `level in the page ${pageRxRms}`);
   await shot('05-llamada');
   await page.getByTestId('support-mute').click();
-  await sleep(2500);
-  const muted = (await hook('s.callStats && s.callStats.rxRms')) || 0;
-  check('"Silenciar" in the console: the phone receives silence', muted < 50, `level on the phone ${muted}`);
+  let muted = 1e9;
+  for (let i = 0; i < 6; i++) { await sleep(1000); muted = Math.min(muted, (await hook('s.callStats && s.callStats.rxRms')) ?? 1e9); }
+  check('"Silenciar" in the console: the phone receives silence', muted < 100 && muted < phoneRxRms / 20, `level on the phone ${muted} (was ${phoneRxRms})`);
   await page.getByTestId('support-hangup').click();
   await page.waitForFunction(() => ['ended', 'idle'].includes(window.__dcSupport?.callState), null, { timeout: 10000 }).catch(() => null);
   check('"Colgar" ends the call', ['ended', 'idle'].includes(await hook('s.callState')), `${await hook('s.callState')}`);

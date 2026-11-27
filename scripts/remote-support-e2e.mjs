@@ -459,7 +459,8 @@ try {
       const from = Date.now();
       s.send({ t: 'text', s: answer }); // typed by the operator's keyboard
       await sleep(2500);
-      s.tapNode(screen.send, size); // Enviar, tapped through the session
+      // Enviar, tapped through the session: where it is NOW (the keyboard came up and moved it).
+      s.tapNode(supportScreen()?.send || screen.send, size);
       let reply = await s.until(() => s.msg('chat', from, (m) => m.s === answer), 15000);
       if (!reply) { s.tapNode(supportScreen()?.send || screen.send, size); reply = await s.until(() => s.msg('chat', from, (m) => m.s === answer), 15000); }
       check('operator types and sends on the phone through the session; the reply arrives', !!reply, reply ? reply.s : 'no reply');
@@ -621,8 +622,16 @@ if (want('policy')) {
     console.log(`===== RESULT: PASS=${pass} FAIL=${fail} =====`);
     process.exit(1);
   }
-  const original = cfg.dcPolicy ?? null;
-  const policy = { ...JSON.parse(original || '{}'), remoteSupport: { callAccept: 'auto', notice: false } };
+  const test = { callAccept: 'auto', notice: false };
+  let original = cfg.dcPolicy ?? null;
+  // A run that was killed half-way left this test's own section behind: that is not the policy to restore.
+  const left = JSON.parse(original || '{}');
+  if (JSON.stringify(left.remoteSupport) === JSON.stringify({ notice: false, callAccept: 'auto' })) {
+    delete left.remoteSupport;
+    original = Object.keys(left).length ? JSON.stringify(left) : null;
+    console.log('  (the policy still carried this test\'s section from an interrupted run: it will be removed)');
+  }
+  const policy = { ...JSON.parse(original || '{}'), remoteSupport: test };
   const saved = await rest('PUT', '/private/configurations', { ...cfg, dcPolicy: JSON.stringify(policy), applications: await apps() });
   check('the policy accepts the "Soporte remoto" section', saved.status === 'OK' && !!(await readCfg())?.dcPolicy?.includes('"callAccept":"auto"'),
     (await readCfg())?.dcPolicy || saved.message);

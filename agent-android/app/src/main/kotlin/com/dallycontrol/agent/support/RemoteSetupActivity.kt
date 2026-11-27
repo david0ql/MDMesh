@@ -64,6 +64,7 @@ class RemoteSetupActivity : Activity() {
         gravity = Gravity.CENTER_VERTICAL
         setBackgroundColor(Color.WHITE)
         setPadding(dp(24), dp(32), dp(24), dp(24))
+        SupportInsets.keepClear(this, dp(24), dp(24))
         addView(TextView(context).apply {
             text = getString(R.string.remote_setup_title)
             textSize = TITLE_SP

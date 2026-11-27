@@ -80,6 +80,7 @@ class SupportActivity : Activity() {
             setBackgroundColor(Color.WHITE)
             setPadding(dp(16), dp(28), dp(16), dp(12))
         }
+        SupportInsets.keepClear(root, dp(16), dp(12))
         root.addView(TextView(this).apply {
             text = getString(R.string.support_title)
             textSize = TITLE_SP
