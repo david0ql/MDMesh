@@ -32,7 +32,9 @@ class CheckInWakeTest {
         val identity = FakeIdentity(initialId = "dev-1", initialSecret = "sek-1")
         return CheckInCoordinator(
             api = api,
-            enrollment = EnrollmentManager(api, identity, FakeTokenProvider("t"), FakeCapabilitySource(), NoopEventSink),
+            enrollment = EnrollmentManager(
+                api, identity, FakeTokenProvider("t"), FakeCapabilitySource(), NoopEventSink,
+            ),
             identity = identity,
             capabilitySource = FakeCapabilitySource(),
             dispatcher = CommandDispatcher(emptyList()),
@@ -49,7 +51,9 @@ class CheckInWakeTest {
     @Test fun `the push token and what woke the agent ride the check-in`() = runTest {
         val api = FakeMdmApi()
         val bridge = RecordingBridge(
-            WakeReport(provider = PushState.PROVIDER_FCM, token = "tok-1", state = PushState.READY, wokenBy = WakeTrigger.PUSH),
+            WakeReport(
+                provider = PushState.PROVIDER_FCM, token = "tok-1", state = PushState.READY, wokenBy = WakeTrigger.PUSH,
+            ),
         )
         coordinator(api, bridge).runOnce()
         val sent = api.checkInRequests.last().wake!!
@@ -61,7 +65,9 @@ class CheckInWakeTest {
         val api = FakeMdmApi().apply {
             checkInResponse = ResponseEnvelope(
                 status = "OK",
-                data = AgentCheckInResponse(wake = WakeConfig(pollMinutes = 3, push = PushConfig(provider = "fcm", projectId = "p"))),
+                data = AgentCheckInResponse(
+                    wake = WakeConfig(pollMinutes = 3, push = PushConfig(provider = "fcm", projectId = "p")),
+                ),
             )
         }
         val bridge = RecordingBridge(null)

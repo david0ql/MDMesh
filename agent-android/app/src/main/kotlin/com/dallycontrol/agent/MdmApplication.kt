@@ -41,7 +41,8 @@ class MdmApplication : Application(), Configuration.Provider {
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat
         // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
-        // WebSocket are not Doze-throttled — the push channel only exists where the server has a project. Idempotent; see BatteryExemption.
+        // WebSocket are not Doze-throttled — the push channel only exists where the server has a project.
+        // Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
         // Push wake channel: bring the stored registration back up (a no-op without a project or Google).
         wakeChannel.onStart()
