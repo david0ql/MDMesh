@@ -710,13 +710,16 @@ public class AgentAdminResource {
     }
 
     // =================================================================================================================
-    @ApiOperation(value = "Device events", notes = "Agent lifecycle event timeline, newest first.")
+    @ApiOperation(value = "Device events", notes = "Agent lifecycle event timeline, newest first. "
+            + "Pass 'types' (comma-separated) to get just those event types — e.g. the on-device user-activity "
+            + "slice (appOpened,cameraOpened) for the device view's activity tab.")
     @GET
     @Path("/devices/{deviceId}/events")
     @Produces(MediaType.APPLICATION_JSON)
     public Response listEvents(@PathParam("deviceId") String deviceId,
                                @QueryParam("since") Long since,
-                               @QueryParam("limit") Integer limit) {
+                               @QueryParam("limit") Integer limit,
+                               @QueryParam("types") String types) {
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) {
             return Response.PERMISSION_DENIED();
@@ -730,6 +733,14 @@ public class AgentAdminResource {
         }
         long sinceMillis = since == null ? 0L : since;
         int cap = limit == null ? 200 : Math.min(limit, 500);
+        if (types != null && !types.trim().isEmpty()) {
+            java.util.List<String> wanted = new java.util.ArrayList<>();
+            for (String t : types.split(",")) {
+                String tt = t.trim();
+                if (!tt.isEmpty()) wanted.add(tt);
+            }
+            return Response.OK(commandDAO.listEventsByTypes(deviceId, sinceMillis, wanted, cap));
+        }
         return Response.OK(commandDAO.listEvents(deviceId, sinceMillis, cap));
     }
 

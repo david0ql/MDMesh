@@ -137,6 +137,14 @@ public class AgentCommandDAO {
         return eventMapper.list(deviceNumber, since, limit);
     }
 
+    /** Event timeline restricted to specific types (e.g. just the user-activity events), newest first. */
+    public List<DeviceEvent> listEventsByTypes(String deviceNumber, long since, List<String> types, int limit) {
+        if (types == null || types.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return eventMapper.listByTypes(deviceNumber, since, types, limit);
+    }
+
     public AgentCommand findByDeviceAndId(String deviceNumber, Integer commandId) {
         return mapper.findByDeviceAndId(deviceNumber, commandId);
     }

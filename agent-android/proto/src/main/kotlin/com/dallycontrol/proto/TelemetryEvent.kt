@@ -24,6 +24,21 @@ object EventType {
     const val SIM_CHANGED = "simChanged"
     const val APP_BLOCKED = "appBlocked"
     const val APP_UPDATED = "appUpdated"
+
+    /**
+     * User activity on the device: an app was brought to the foreground (the user opened/switched to it).
+     * `detail` is the app label, with the package in parentheses when they differ. Derived from
+     * UsageStats foreground transitions (needs usage access), so it reflects what a Device Owner can
+     * actually observe: which app is on screen and when — not taps, text, or in-app navigation.
+     */
+    const val APP_OPENED = "appOpened"
+
+    /**
+     * User activity: a camera app was brought to the foreground. Same source/limits as [APP_OPENED]
+     * (foreground package matched against the device's camera apps). It does NOT mean a photo was taken,
+     * nor does it catch the camera being used in-process by another app without its own camera UI.
+     */
+    const val CAMERA_OPENED = "cameraOpened"
     const val ACCOUNT_REMOVED = "accountRemoved"
     const val ANNOUNCEMENT_RECEIVED = "announcementReceived"
     const val ANNOUNCEMENT_SEEN = "announcementSeen"

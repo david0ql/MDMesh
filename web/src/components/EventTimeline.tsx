@@ -16,6 +16,8 @@ const LABELS: Record<string, string> = {
   simChanged: 'SIM cambiada',
   appBlocked: 'App bloqueada (no permitida)',
   appUpdated: 'App actualizada',
+  appOpened: 'Abrió una app',
+  cameraOpened: 'Abrió la cámara',
   announcementReceived: 'Anuncio recibido',
   announcementSeen: 'Anuncio visto',
   announcementAck: 'Anuncio confirmado',
