@@ -3413,6 +3413,174 @@
         </sql>
     </changeSet>
 
+    <!-- 26.11.26-manage-users-permission granted by role NAME ('Admin', 'User'); on an empty database the roles
+         still have their original names at that point, so a fresh install granted it to nobody. By id; a no-op
+         where the grant already exists. -->
+    <changeSet id="26.11.27-manage-users-by-role-id" author="dallycontrol">
+        <sql>
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (2, 3) AND p.name = 'manage_users'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+    </changeSet>
+
+    <changeSet id="26.11.27-report-schedule" author="dallycontrol">
+        <comment>Scheduled fleet reports sent by e-mail (daily / weekly / monthly). Additive: one new table.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS report_schedule (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name VARCHAR(120) NOT NULL,
+                report VARCHAR(40) NOT NULL DEFAULT 'inventory',
+                format VARCHAR(8) NOT NULL DEFAULT 'xlsx',
+                csvSeparator VARCHAR(8) NOT NULL DEFAULT ';',
+                frequency VARCHAR(12) NOT NULL DEFAULT 'daily',
+                runHour INT NOT NULL DEFAULT 7,
+                runMinute INT NOT NULL DEFAULT 0,
+                dayOfWeek INT,
+                dayOfMonth INT,
+                timezone VARCHAR(64) NOT NULL DEFAULT 'America/Bogota',
+                recipients TEXT NOT NULL,
+                groupId INT REFERENCES groups(id) ON DELETE CASCADE,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                createdBy INT,
+                createdAt BIGINT,
+                updatedAt BIGINT,
+                lastRunAt BIGINT,
+                lastStatus VARCHAR(16),
+                lastError TEXT,
+                nextRunAt BIGINT
+            );
+            CREATE INDEX IF NOT EXISTS report_schedule_due_idx ON report_schedule (nextRunAt) WHERE enabled;
+            CREATE INDEX IF NOT EXISTS report_schedule_customer_idx ON report_schedule (customerId);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS report_schedule;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-geofences" author="dallycontrol">
+        <comment>Geofences (zones with enter/exit alerts): zones, their folder/device assignments, the per-device state
+                 machine, per-customer thresholds + location retention, and e-mail notification of fleet alerts
+                 (recipients per folder, per-recipient cursor for grouping/debounce). device_alert gains the zone.</comment>
+        <sql>
+            ALTER TABLE device_alert ADD COLUMN IF NOT EXISTS zoneId INT;
+
+            CREATE TABLE geofence (
+                id              SERIAL PRIMARY KEY,
+                customerId      INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name            VARCHAR(100) NOT NULL,
+                color           VARCHAR(16) NOT NULL DEFAULT '#2563eb',
+                shape           VARCHAR(16) NOT NULL,
+                centerLat       DOUBLE PRECISION,
+                centerLon       DOUBLE PRECISION,
+                radiusM         DOUBLE PRECISION,
+                polygon         TEXT,
+                rule            VARCHAR(16) NOT NULL DEFAULT 'stayInside',
+                active          BOOLEAN NOT NULL DEFAULT TRUE,
+                alertOnReturn   BOOLEAN NOT NULL DEFAULT TRUE,
+                allDevices      BOOLEAN NOT NULL DEFAULT FALSE,
+                schedule        TEXT,
+                emails          TEXT,
+                trackingMinutes INT,
+                createdAt       BIGINT NOT NULL,
+                updatedAt       BIGINT NOT NULL
+            );
+            CREATE INDEX geofence_customer_idx ON geofence (customerId);
+
+            CREATE TABLE geofence_group (
+                geofenceId INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                groupId    INT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                PRIMARY KEY (geofenceId, groupId)
+            );
+            CREATE TABLE geofence_device (
+                geofenceId INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                deviceId   INT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+                PRIMARY KEY (geofenceId, deviceId)
+            );
+            CREATE INDEX geofence_device_dev_idx ON geofence_device (deviceId);
+
+            CREATE TABLE geofence_state (
+                geofenceId   INT NOT NULL REFERENCES geofence(id) ON DELETE CASCADE,
+                deviceNumber VARCHAR(255) NOT NULL,
+                state        VARCHAR(16) NOT NULL,
+                since        BIGINT NOT NULL DEFAULT 0,
+                pending      VARCHAR(16),
+                pendingCount INT NOT NULL DEFAULT 0,
+                pendingSince BIGINT NOT NULL DEFAULT 0,
+                alerted      BOOLEAN NOT NULL DEFAULT TRUE,
+                lastFixAt    BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (geofenceId, deviceNumber)
+            );
+            CREATE INDEX geofence_state_dev_idx ON geofence_state (deviceNumber);
+
+            CREATE TABLE geofence_settings (
+                customerId       INT PRIMARY KEY REFERENCES customers(id) ON DELETE CASCADE,
+                maxAccuracyM     INT NOT NULL DEFAULT 100,
+                hysteresisM      INT NOT NULL DEFAULT 15,
+                confirmFixes     INT NOT NULL DEFAULT 2,
+                retentionDays    INT NOT NULL DEFAULT 0,
+                emailIntervalMin INT NOT NULL DEFAULT 10
+            );
+
+            CREATE TABLE alert_recipient (
+                id         SERIAL PRIMARY KEY,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                groupId    INT REFERENCES groups(id) ON DELETE CASCADE,
+                emails     TEXT NOT NULL,
+                types      TEXT,
+                active     BOOLEAN NOT NULL DEFAULT TRUE
+            );
+            CREATE INDEX alert_recipient_customer_idx ON alert_recipient (customerId);
+
+            CREATE TABLE alert_email_state (
+                customerId  INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                email       VARCHAR(254) NOT NULL,
+                lastSentAt  BIGINT NOT NULL DEFAULT 0,
+                lastAlertId BIGINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (customerId, email)
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS alert_email_state;
+            DROP TABLE IF EXISTS alert_recipient;
+            DROP TABLE IF EXISTS geofence_settings;
+            DROP TABLE IF EXISTS geofence_state;
+            DROP TABLE IF EXISTS geofence_device;
+            DROP TABLE IF EXISTS geofence_group;
+            DROP TABLE IF EXISTS geofence;
+            ALTER TABLE device_alert DROP COLUMN IF EXISTS zoneId;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-app-install-origin" author="dallycontrol">
+        <comment>Which install orders were queued by a policy (app list / app group) rather than by a person: a failed
+                 policy install is only retried while the policy still assigns the app to the phone.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS agent_install_origin (
+                commandId INT PRIMARY KEY,
+                origin VARCHAR(16) NOT NULL,
+                createdAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS agent_install_origin;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-alert-offline-minutes" author="dallycontrol">
+        <comment>The "disconnected" threshold the administrator sets in the Alerts page is saved per customer, so the
+                 alert e-mails use the same value (it was a fixed 20 minutes there).</comment>
+        <sql>
+            ALTER TABLE geofence_settings ADD COLUMN IF NOT EXISTS offlineMinutes INT NOT NULL DEFAULT 20;
+        </sql>
+        <rollback>
+            ALTER TABLE geofence_settings DROP COLUMN IF EXISTS offlineMinutes;
+        </rollback>
+    </changeSet>
+
     <!-- Kiosk hardening: leaving a kiosk on the device always needs a password. Kiosk policies saved without one get
          a random 8-digit password (shown in the policy editor, "Contraseña de salida del quiosco"), so a technician
          can still leave the kiosk on the phone; until an agent re-applies, nothing changes on it. Idempotent. -->

@@ -30,6 +30,7 @@ import { SyncBar } from '../components/SyncBar';
 import { ConfigHistoryPanel } from '../components/ConfigHistoryPanel';
 import { ComplianceCard } from '../components/ComplianceCard';
 import { KioskChangeConfirm, kioskAffectingChanges } from '../components/KioskChangeConfirm';
+import { InstallFleetModal } from '../components/InstallFleetModal';
 
 // The seeded device-template defaults are locked: view-only, and used as bases
 // for new configs (start from scratch or from one of these).
@@ -409,6 +410,8 @@ function ConfigEditor({
   // own version of an app, and names tell builds apart.
   const [versions, setVersions] = useState<Record<number, LabeledVersion[]>>({});
   const [labels, setLabels] = useState<Record<string, string>>({});
+  // Which app's "Instalación en la flota" is open.
+  const [rollout, setRollout] = useState<{ pkg: string; label: string } | null>(null);
   const [uploadLabel, setUploadLabel] = useState('');
   /** Apps this policy may take back to an older version (phones with a newer one reinstall it), as saved and as edited. */
   const [downgradeSaved, setDowngradeSaved] = useState<Set<number>>(new Set());
@@ -670,11 +673,19 @@ function ConfigEditor({
                 En quiosco
               </label>
             )}
+            {(a.action ?? 1) === 1 && !!a.pkg && (
+              <button className="btn btn-sm btn-ghost" data-testid={`cfg-install-status-${a.pkg}`}
+                      title="Instalación en la flota: cuántos equipos la tienen, cuáles están pendientes y cuáles fallaron (con el motivo)"
+                      onClick={() => setRollout({ pkg: a.pkg as string, label: a.name ?? (a.pkg as string) })}>
+                Instalación
+              </button>
+            )}
             {!readOnly && (
               <button className="btn btn-sm btn-ghost" onClick={() => removeApp(a.id)} aria-label="Quitar app">✕</button>
             )}
           </div>
         ))}
+        {rollout && <InstallFleetModal packageName={rollout.pkg} label={rollout.label} onClose={() => setRollout(null)} />}
       </section>
 
       {!!draft.kioskMode && (

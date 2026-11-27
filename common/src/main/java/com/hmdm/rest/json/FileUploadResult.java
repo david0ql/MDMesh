@@ -65,6 +65,20 @@ public class FileUploadResult implements Serializable {
     private String name;
 
     /**
+     * <p>For an APK of a package already in the library: whether it is signed like the previous version
+     * (see com.hmdm.util.SignatureCheck.Result#toMap). Null when not an APK.</p>
+     */
+    private java.util.Map<String, Object> signature;
+
+    public java.util.Map<String, Object> getSignature() {
+        return signature;
+    }
+
+    public void setSignature(java.util.Map<String, Object> signature) {
+        this.signature = signature;
+    }
+
+    /**
      * <p>Constructs new <code>FileUploadResult</code> instance. This implementation does nothing.</p>
      */
     public FileUploadResult() {

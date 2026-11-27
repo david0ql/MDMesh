@@ -45,18 +45,24 @@ class SoundWatch @Inject constructor(
 
     @Synchronized
     fun start() {
-        if (callback != null || Build.VERSION.SDK_INT < 26) return
-        val cb = object : AudioManager.AudioPlaybackCallback() {
-            override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) = changed(configs.orEmpty())
-        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return // playback callbacks exist from Android 8
+        if (callback != null) return
+        val cb = newCallback()
         runCatching { audio.registerAudioPlaybackCallback(cb, main) }.onFailure { Log.w(TAG, "register", it) }
         callback = cb
         runCatching { NotificationWatch.ensureEnabled(context) }
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
+    private fun newCallback(): AudioManager.AudioPlaybackCallback = object : AudioManager.AudioPlaybackCallback() {
+        override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) = changed(configs.orEmpty())
+    }
+
     @Synchronized
     fun stop() {
-        callback?.let { runCatching { audio.unregisterAudioPlaybackCallback(it) } }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            callback?.let { runCatching { audio.unregisterAudioPlaybackCallback(it) } }
+        }
         callback = null
         main.removeCallbacksAndMessages(null)
     }
@@ -69,6 +75,7 @@ class SoundWatch @Inject constructor(
     fun playingNow(): List<String> = if (Build.VERSION.SDK_INT < 26) emptyList()
     else runCatching { audio.activePlaybackConfigurations.map { usageName(it.audioAttributes.usage) }.distinct() }.getOrDefault(emptyList())
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.O)
     private fun changed(configs: List<AudioPlaybackConfiguration>) {
         val loud = configs.map { it.audioAttributes.usage }.filter { it in LOUD_USAGES }
         synchronized(this) {

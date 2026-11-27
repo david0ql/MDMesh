@@ -27,6 +27,8 @@ const LABELS: Record<string, string> = {
   powerPinFailed: 'Clave de apagado incorrecta',
   kioskEscapeBlocked: 'Quiosco: se abrió Ajustes y se devolvió al quiosco (Android 16+)',
   kioskLockdownGap: 'Quiosco: Android no dejó bloquear algunas apps',
+  geofenceExit: 'Salió de una zona (geocerca)',
+  geofenceEnter: 'Entró a una zona (geocerca)',
   accountRemoved: 'Cuenta de Google quitada (no es del dominio permitido)',
   recovered: 'Recuperado: se había eliminado de la consola con el teléfono aún inscrito',
   systemUpdated: 'Android actualizado',

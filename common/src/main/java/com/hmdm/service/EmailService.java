@@ -93,7 +93,9 @@ public class EmailService {
         this.smtpPort = smtpPort;
         this.sslEnabled = sslEnabled;
         this.startTlsEnabled = startTlsEnabled;
-        this.sslProtocols = sslProtocols;
+        // The bundled JavaMail offers only TLSv1 unless told otherwise, and current mail servers (and Java 17) refuse
+        // it: STARTTLS/SSL then fail with "Could not convert socket to TLS". Default to the versions in use today.
+        this.sslProtocols = StringUtil.isEmpty(sslProtocols) ? "TLSv1.2 TLSv1.3" : sslProtocols;
         this.sslTrust = sslTrust;
         this.smtpUsername = smtpUsername;
         this.smtpPassword = smtpPassword;
@@ -118,6 +120,63 @@ public class EmailService {
 
     public boolean sendEmail(String to, String subj, String body) {
         return sendEmail(to, subj, body, null);
+    }
+
+    /**
+     * Send an HTML e-mail with one file attached (scheduled reports). {@code to} may hold several comma-separated
+     * addresses. Returns null when the message was handed to the SMTP server, else why it was not (never throws).
+     */
+    public String sendEmailWithAttachment(String to, String subj, String body, String fileName, byte[] data,
+                                          String contentType) {
+        if (!isConfigured()) {
+            return "SMTP no configurado";
+        }
+        try {
+            Properties properties = new Properties();
+            properties.put("mail.smtp.host", smtpHost);
+            properties.put("mail.smtp.port", smtpPort);
+            properties.put("mail.smtp.auth", !smtpUsername.equals(""));
+            properties.put("mail.smtp.ssl.enable", sslEnabled);
+            properties.put("mail.smtp.starttls.enable", startTlsEnabled);
+            properties.put("mail.smtp.connectiontimeout", "20000");
+            properties.put("mail.smtp.timeout", "60000");
+            properties.put("mail.smtp.writetimeout", "60000");
+            if (!StringUtil.isEmpty(sslProtocols)) {
+                properties.put("mail.smtp.ssl.protocols", sslProtocols);
+            }
+            if (!StringUtil.isEmpty(sslTrust)) {
+                properties.put("mail.smtp.ssl.trust", sslTrust);
+            }
+            Session session = Session.getInstance(properties, new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(smtpUsername, smtpPassword);
+                }
+            });
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(smtpFrom));
+            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to));
+            message.setSubject(subj, "UTF-8");
+
+            MimeBodyPart text = new MimeBodyPart();
+            text.setContent(body, "text/html; charset=utf-8");
+            MimeBodyPart file = new MimeBodyPart();
+            file.setDataHandler(new javax.activation.DataHandler(
+                    new javax.mail.util.ByteArrayDataSource(data, contentType)));
+            file.setFileName(fileName);
+            file.setDisposition(Part.ATTACHMENT);
+
+            Multipart multipart = new MimeMultipart();
+            multipart.addBodyPart(text);
+            multipart.addBodyPart(file);
+            message.setContent(multipart);
+            Transport.send(message);
+            return null;
+        } catch (Exception e) {
+            logger.warn("Could not send '{}' with attachment {}: {}", subj, fileName, e.toString());
+            String m = e.getMessage();
+            return m == null || m.trim().isEmpty() ? e.getClass().getSimpleName() : m.trim();
+        }
     }
 
     public boolean sendEmail(String to, String subj, String body, String replyTo) {

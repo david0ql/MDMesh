@@ -23,6 +23,7 @@ import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
+import { GeofencesPage } from './pages/GeofencesPage';
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
               <Route path="/users" element={<RequirePermission name="manage_users"><UsersPage /></RequirePermission>} />
               <Route path="/roles" element={<AdminOnly><RolesPage /></AdminOnly>} />
+              <Route path="/geofences" element={<RequirePermission name="manage_fleet"><GeofencesPage /></RequirePermission>} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

@@ -2,6 +2,7 @@ package com.dallycontrol.core.install
 
 import android.content.pm.PackageInstaller
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,9 +40,35 @@ class InstallResultBus @Inject constructor() {
     private fun slotFor(sessionId: Int): CompletableDeferred<InstallResultEvent> =
         synchronized(lock) { pending.getOrPut(sessionId) { CompletableDeferred() } }
 
+    /** Sessions whose awaiter gave up ([awaitOrNull] timed out): a late answer for them is dropped, not kept. */
+    private val givenUp = LinkedHashSet<Int>()
+
     /** Called by the result receiver for every committed session's outcome. */
     fun publish(sessionId: Int, status: Int, message: String?) {
-        slotFor(sessionId).complete(InstallResultEvent(sessionId, status, message))
+        val slot = synchronized(lock) {
+            if (givenUp.remove(sessionId)) return
+            pending.getOrPut(sessionId) { CompletableDeferred() }
+        }
+        slot.complete(InstallResultEvent(sessionId, status, message))
+    }
+
+    /**
+     * As [await], but gives up after [timeoutMs] and returns null: Android does not always answer (the session was
+     * dropped by the system, the process was frozen while the broadcast went out…), and an install must never hang
+     * the command queue forever.
+     */
+    suspend fun awaitOrNull(sessionId: Int, timeoutMs: Long): InstallResultEvent? {
+        val slot = slotFor(sessionId)
+        val event = withTimeoutOrNull(timeoutMs) { slot.await() }
+        synchronized(lock) {
+            pending.remove(sessionId)
+            // A result that raced the timeout is already in the slot: use it.
+            if (event == null && !slot.isCompleted) {
+                givenUp.add(sessionId)
+                while (givenUp.size > MAX_GIVEN_UP) givenUp.remove(givenUp.first())
+            }
+        }
+        return event ?: if (slot.isCompleted) slot.await() else null
     }
 
     /** Suspends until the result for [sessionId] is published, then returns it. */
@@ -55,6 +82,8 @@ class InstallResultBus @Inject constructor() {
     }
 
     companion object {
+        private const val MAX_GIVEN_UP = 64
+
         /**
          * Explicit broadcast action used for the install-result `PendingIntent`.
          * The `:app` manifest receiver is registered for this action (`exported="false"`).

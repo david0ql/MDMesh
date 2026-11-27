@@ -126,6 +126,43 @@ Android 6 has no remote view (droidVNC-NG needs Android 7).
 The native installer was verified separately on a root-only Debian 12 container (no sudo, no systemd):
 it installs, migrates, seeds, and the Agent v1 suite passes 56/56 against it.
 
+## Geofences, alert e-mails and location history ([GEOFENCES.md](GEOFENCES.md))
+
+```bash
+scripts/geofence-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]        # this script plays the device
+scripts/geofence-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <number> \
+                        [--mailpit http://localhost:8025]                                     # a real agent, moved with `adb emu geo fix`
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```
+
+- Simulated device: zones (circle, polygon, schedule), inside → outside → inside, a jumpy point, inaccurate points, a
+  batch of buffered positions sent out of order, the tracking interval a zone pushes into `config.apply`, the paginated
+  track and its CSV/Excel export, alert filter/review and, with `--mailpit`, the grouped e-mail.
+- Emulator: the agent takes a position every minute (the zone asks for it); the script moves the phone out and back,
+  then repeats the trip with Wi-Fi and data off so the positions arrive as one batch, creates a zone the phone is
+  already outside of, and reads the agent's own account of which location providers it tried. On API ≤ 29 it uses
+  `adb emu geo fix`; on API 30+ (see the GNSS quirk above) pass `--mock-provider`, which feeds the positions through
+  Android's test location provider (`cmd location providers add-test-provider`, Android 12+).
+- Console (headless Chromium): draws a circle and a polygon on the map (click, drag the radius/centre/vertex handles,
+  remove and add vertices), saves, edits, deletes; recipients and thresholds tabs; the zone types in Alertas; the zones
+  on the fleet map and on the device's Ubicación tab with its history, accuracy and CSV download.
+
+### Results (2026-11-27, isolated dev stack + Mailpit requiring STARTTLS and a password, debug agent of this branch)
+
+| Suite | Result |
+|---|---|
+| `geofence-e2e.py` (simulated device, e-mail over STARTTLS + auth) | 89/89 |
+| `geofence-e2e.py --serial` on Android 10 (API 29, `adb emu geo fix`), with e-mail (before the "already outside" checks were added) | 31/31 |
+| `geofence-e2e.py --serial --mock-provider` on Android 13 (API 33, Google APIs): whole trip, offline batch, zone created with the phone already outside, e-mail | 38/39 → the one miss was the diagnosis check when a recent position is reused; fixed and re-run with `--first-fix-only`: 8/8 |
+| `geofence-console-e2e.mjs` (`--device`: 35/35 earlier; without device after the latest changes) | 29/29 |
+| `agent-v1-e2e.sh` (regression) | 84/84 |
+| SMTP modes through *Enviar prueba*: STARTTLS + auth, implicit SSL + auth → delivered; wrong password, no TLS against a STARTTLS-only server → refused cleanly (`error.geofence.smtp.failed`) | as expected |
+| server/common unit tests · agent `lintDebug` + unit tests | all green |
+
+Location providers on the API 33 Google APIs emulator (agent log `fresh fix: …`): `fused` is present and enabled but
+gave nothing within its 8 s cap, then `gps` answered in 4.7–7.3 s; on the next request `fused` was skipped and `gps`
+answered in 4.0 s. Fed through the test provider, positions arrive as `provider=fused` ±6 m.
+
 ## Security regression checks
 
 `scripts/security-check.sh [BASE_URL] [SERVER_URL]` re-checks the pre-launch hardening (docs/SECURITY-HARDENING.md)
@@ -171,3 +208,57 @@ Findings fixed along the way: the enroll half of reusable codes was missing; loc
 crash-loop guard released the kiosk (4× Back was a way out) and, once fixed, missed bounces when Android recreated the
 kiosk home; after a re-enrollment the wake socket kept the old device id; the in-call screen could lose the race with
 the phone-state broadcast; the agent never declared WRITE_SECURE_SETTINGS; Cloudflare cached APKs and the console for hours.
+
+## App management: big uploads, silent install, failures (MDM-04 / MDM-05)
+
+`scripts/app-install-e2e.py` checks the whole path of a private APK. It puts a local proxy that refuses request bodies
+over 100 MB (what the Cloudflare tunnel does) in front of the stack and, through it: the big APK fails in one request
+(HTTP 413) and goes up in parts (damaged part refused, resume, whole file verified); the hosted file downloads by
+`Range`; a version signed with another key is warned about and blocked until confirmed; a corrupt APK and an `.aab` are
+refused with a clear message; an install on a device that is not Device Owner shows as held, with the reason. With a real
+enrolled agent (`--serial`, `--device-id`) it also installs and updates silently, and makes the installs fail (another
+signature, corrupt file, wrong SHA-256, no free space) to check the reason shown in "Instalación en la flota", the
+"Reintentar" button and the automatic retry.
+
+```bash
+scripts/build-install-testapps.sh /tmp/apks        # 120 MB v1, v2, v3 signed with another key, a corrupt one
+scripts/app-install-e2e.py --api http://localhost:8088 --apks /tmp/apks \
+    --serial emulator-5600 --device-id <id> \
+    --pg "docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol -d dallycontrol -At -c"
+```
+
+Without `--serial` only the server part runs. `--pg` is only for the automatic-retry check (it moves a failure 11
+minutes into the past and waits for the server's 5-minute timer); `--skip-auto-retry` and `--skip-storage` shorten the run.
+
+## Fleet inventory exports and scheduled reports
+
+`scripts/fleet-report-e2e.py` checks the fleet inventory against a real enrolled device (see
+[REPORTES.md](REPORTES.md)): it sets the battery level (`adb emu power`), writes a file to use storage, switches
+Wi-Fi off and on, asks the device to report with "Actualizar ahora" (and times it), downloads the real Excel and CSV
+and compares each column (battery, charging, free/total storage, % used, Android, model, connection state, network)
+with what the device itself says over adb. With `--mailpit` it also tests the scheduled e-mail against a local test
+SMTP: "Enviar ahora" in both formats, the attachment opened and checked, and one run fired by the server's
+once-a-minute scheduler.
+
+```bash
+# test SMTP next to the dev stack (remove it afterwards: docker rm -f dc-mailpit)
+docker run -d --name dc-mailpit --network dallycontrol-dev_default -p 127.0.0.1:8025:8025 axllent/mailpit
+SMTP_HOST=dc-mailpit SMTP_PORT=1025 docker compose --env-file docker/dev.env up -d server
+
+scripts/fleet-report-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> \
+    --mailpit http://localhost:8025
+
+# without SMTP_HOST: "Enviar ahora" must say so instead of failing
+scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expect-no-smtp
+
+# with the device off for more than 20 minutes: it must export as "Sin conexión"
+scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expect-offline
+```
+
+Several stacks on one machine: give each its own project name, ports **and image tags** (`COMPOSE_PROJECT_NAME`,
+`DEV_*_PORT`, `SERVER_VERSION`, `WEB_VERSION`, `SUPERVISOR_VERSION`), or one stack's `up --build` replaces the `:dev`
+image another stack will pick up on its next `up`.
+
+Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
+device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
+e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).

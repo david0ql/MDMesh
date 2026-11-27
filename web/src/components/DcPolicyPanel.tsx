@@ -17,6 +17,8 @@ export interface DcPolicy {
   browser?: { mode: 'open' | 'allowlist' | 'blocklist'; allow?: string[]; block?: string[]; homeUrl?: string };
   apps?: { mode: 'open' | 'allowlist'; allowed?: string[]; roles?: string[]; hidePlayStore?: boolean };
   trackingMinutes?: number;
+  /** Seconds an accurate location fix may wait for a fresh position (5–60; empty = 25). */
+  locationFixSeconds?: number;
   kioskQuickSettings?: boolean;
   deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
   wifi?: { ssid: string; password?: string; security?: 'WPA' | 'WEP' | 'NONE'; hidden?: boolean }[];
@@ -62,6 +64,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.browser) out.browser = p.browser;
   if (p.apps) out.apps = p.apps;
   if (p.trackingMinutes && p.trackingMinutes > 0) out.trackingMinutes = p.trackingMinutes;
+  if (p.locationFixSeconds && p.locationFixSeconds >= 5) out.locationFixSeconds = p.locationFixSeconds;
   if (p.kioskQuickSettings === false) out.kioskQuickSettings = false; // on by default
   if (p.deviceName) out.deviceName = p.deviceName;
   if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
@@ -546,6 +549,33 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
             }}
           />{' '}
           <span className="muted">minutos</span>
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <strong>Espera de posición precisa</strong>
+          <span className="cfg-field-help">
+            Segundos que el teléfono espera una posición nueva (GPS o ubicación de Google) antes de usar la última conocida.
+            Vacío = 25 s. Más espera mejora la precisión bajo techo; menos, ahorra batería. Las zonas se configuran en Geocercas.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input
+            type="number"
+            className="input"
+            aria-label="Espera de posición precisa en segundos"
+            min={5}
+            max={60}
+            placeholder="25"
+            style={{ width: 100 }}
+            disabled={disabled}
+            value={p.locationFixSeconds ?? ''}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              update({ ...p, locationFixSeconds: Number.isFinite(n) && n > 0 ? Math.max(5, Math.min(n, 60)) : undefined });
+            }}
+          />{' '}
+          <span className="muted">segundos</span>
         </div>
       </div>
     </section>
