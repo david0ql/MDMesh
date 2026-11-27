@@ -34,6 +34,10 @@ public class ReportsDAO {
         return mapper.simEvents(customerId, from, to);
     }
 
+    public List<Map<String, Object>> simMismatchDevices(int customerId) {
+        return mapper.simMismatchDevices(customerId);
+    }
+
     public List<Map<String, Object>> appInstallAggregate(int customerId) {
         return mapper.appInstallAggregate(customerId);
     }

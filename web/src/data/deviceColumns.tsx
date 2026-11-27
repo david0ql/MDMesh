@@ -14,6 +14,33 @@ export interface DeviceColumn {
 
 const gb = (n?: number | null) => (n == null ? '—' : `${(n / 1024 ** 3).toLocaleString('es-CO', { maximumFractionDigits: 1 })} GB`);
 
+/** Expected SIM number vs the number the SIM reports: a check / cross / "no disponible" badge with both numbers. */
+export function SimMatchCell({ s }: { s?: DeviceSummary }) {
+  const expected = s?.expectedPhone ?? undefined;
+  if (!expected) return <span className="muted">—</span>;
+  const sim = s?.simPhone ?? undefined;
+  if (s?.simMismatch === true) {
+    return (
+      <span className="sim-match bad" title={`No coincide · esperado ${expected}${sim ? ` · SIM ${sim}` : ''}`}>
+        ✕ No coincide
+      </span>
+    );
+  }
+  if (s?.simMismatch === false) {
+    return (
+      <span className="sim-match ok" title={`Coincide · ${sim ?? expected}`}>
+        ✓ Coincide
+      </span>
+    );
+  }
+  // Expected declared but not comparable yet: the SIM did not expose a number (common) or no check-in with a SIM yet.
+  return (
+    <span className="sim-match unknown" title={`Esperado ${expected} · número de la SIM no disponible`}>
+      No disponible
+    </span>
+  );
+}
+
 /** Signal bars (0-4) + label; the network type as an icon. */
 export function NetworkCell({ s }: { s?: DeviceSummary }) {
   if (!s?.networkType || s.networkType === 'none') return <span className="net net-none" title="Sin red">Sin red</span>;
@@ -57,6 +84,7 @@ export const DEVICE_COLUMNS: DeviceColumn[] = [
   { key: 'policy', label: 'Política', width: '140px', render: (_d, _s, c) => c.policy },
   { key: 'group', label: 'Carpeta', width: '130px', render: (_d, _s, c) => c.group },
   { key: 'kiosk', label: 'Quiosco', width: '76px', render: (d, s) => ((s?.kioskActive ?? d.kioskMode) ? 'Sí' : 'No') },
+  { key: 'simMatch', label: 'SIM esperada', width: '126px', render: (_d, s) => <SimMatchCell s={s} /> },
   { key: 'serial', label: 'Serie', width: '130px', render: (d) => orDash(d.serial) },
   { key: 'imei', label: 'IMEI', width: '150px', render: (d) => orDash(d.imei) },
   { key: 'lastSeen', label: 'Última conexión', width: '110px', render: (d) => fmtRelative(d.lastUpdate) },

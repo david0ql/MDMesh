@@ -15,10 +15,13 @@ export interface EnrollTokenResponse {
  * groupId puts the enrolled device in that group (company); it then runs the group's configuration, or the
  * global one. configurationId would pin a configuration on the device instead (device level wins over both).
  */
-export async function mintEnrollToken(opts: { groupId?: number; configurationId?: number } = {}): Promise<EnrollTokenResponse> {
+export async function mintEnrollToken(
+  opts: { groupId?: number; configurationId?: number; expectedPhone?: string } = {},
+): Promise<EnrollTokenResponse> {
   return apiClient.post<EnrollTokenResponse>('/private/agent/v1/token', {
     ...(opts.groupId ? { groupId: opts.groupId } : {}),
     ...(opts.configurationId ? { configurationId: opts.configurationId } : {}),
+    ...(opts.expectedPhone && opts.expectedPhone.trim() ? { expectedPhone: opts.expectedPhone.trim() } : {}),
   });
 }
 

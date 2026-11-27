@@ -3354,3 +3354,9 @@ a {
 @media (max-width: 720px) {
   .cb-editor { grid-template-columns: 1fr; }
 }
+
+/* SIM-vs-expected phone match badge (device list column + device page). */
+.sim-match { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sim-match.ok { color: var(--ok, #1aa766); }
+.sim-match.bad { color: var(--danger, #c2403f); }
+.sim-match.unknown { color: var(--faint, #9aa3b0); font-weight: 500; }

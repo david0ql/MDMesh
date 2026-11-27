@@ -52,6 +52,16 @@ public interface ReportsMapper {
     List<Map<String, Object>> simEvents(@Param("customerId") int customerId,
                                         @Param("from") long from, @Param("to") long to);
 
+    // --- 2b. Devices whose SIM number does not match the expected one -------------------------------------------
+
+    @Select({"SELECT d.id, d.number, d.description, " + GROUP_ID_SUBQUERY + ", " +
+            "d.expectedPhone AS expectedphone, d.simPhone AS simphone, d.simPhoneAt AS simphoneat, " +
+            LAST_SEEN + " AS lastseen " +
+            "FROM devices d LEFT JOIN device_state s ON s.deviceNumber = d.number " +
+            "WHERE d.customerId = #{customerId} AND d.simMismatch = TRUE " +
+            "ORDER BY lower(coalesce(d.description, d.number))"})
+    List<Map<String, Object>> simMismatchDevices(@Param("customerId") int customerId);
+
     // --- 3. Apps deployed via app.install, aggregated by package -------------------------------------------------
 
     @Select({"SELECT pkg, COUNT(DISTINCT deviceNumber) AS devices, COUNT(*) AS commands, " +

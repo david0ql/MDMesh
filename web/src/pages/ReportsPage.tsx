@@ -7,6 +7,7 @@ import {
   downloadReport,
   reportOffline,
   reportSim,
+  reportSimMismatch,
   reportAppInstalls,
   reportAppInstallDevices,
   reportAppsCatalog,
@@ -197,6 +198,7 @@ function ExportButtons({ disabled, onExport }: { disabled: boolean; onExport: (f
 type TabId =
   | 'offline'
   | 'sim'
+  | 'sim-mismatch'
   | 'app-installs'
   | 'by-app'
   | 'no-commands'
@@ -209,6 +211,7 @@ type TabId =
 const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'offline', label: 'Sin conexión', hint: 'Equipos cuya última conexión supera los días indicados.' },
   { id: 'sim', label: 'Retiro de SIM', hint: 'Eventos de SIM (retirada, cambiada, insertada) en el rango de fechas.' },
+  { id: 'sim-mismatch', label: 'SIM no coincide', hint: 'Equipos cuyo número real de la SIM difiere del número de celular esperado declarado en la inscripción.' },
   { id: 'app-installs', label: 'Apps desplegadas', hint: 'Despliegues app.install agrupados por paquete. Clic en una fila para ver los equipos.' },
   { id: 'by-app', label: 'Por app instalada', hint: 'Equipos que tienen alguno de los paquetes seleccionados.' },
   { id: 'no-commands', label: 'Sin recibir comandos', hint: 'Equipos con comandos pendientes creados hace más del umbral.' },
@@ -284,6 +287,9 @@ export function ReportsPage() {
           break;
         case 'sim':
           r = await reportSim(startOfDay(simFrom), endOfDay(simTo));
+          break;
+        case 'sim-mismatch':
+          r = await reportSimMismatch();
           break;
         case 'app-installs':
           r = await reportAppInstalls();

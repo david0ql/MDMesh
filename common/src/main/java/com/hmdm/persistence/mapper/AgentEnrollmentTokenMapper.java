@@ -34,8 +34,8 @@ import org.apache.ibatis.annotations.Update;
 public interface AgentEnrollmentTokenMapper {
 
     @Insert({"INSERT INTO agentEnrollmentToken (token, customerId, used, createdAt, expiresAt, configurationId, groupId, " +
-            "reusable, label, wifiSsid, wifiPassword, wifiSecurity) VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, " +
-            "#{expiresAt}, #{configurationId}, #{groupId}, #{reusable}, #{label}, #{wifiSsid}, #{wifiPassword}, #{wifiSecurity})"})
+            "reusable, label, wifiSsid, wifiPassword, wifiSecurity, expectedPhone) VALUES (#{token}, #{customerId}, #{used}, #{createdAt}, " +
+            "#{expiresAt}, #{configurationId}, #{groupId}, #{reusable}, #{label}, #{wifiSsid}, #{wifiPassword}, #{wifiSecurity}, #{expectedPhone})"})
     @SelectKey(statement = "SELECT currval('agentenrollmenttoken_id_seq')", keyColumn = "id", keyProperty = "id",
             before = false, resultType = int.class)
     void insert(AgentEnrollmentToken token);

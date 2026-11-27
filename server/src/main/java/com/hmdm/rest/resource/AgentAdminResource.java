@@ -179,6 +179,18 @@ public class AgentAdminResource {
         token.setUsed(false);
         token.setCreatedAt(now);
         token.setExpiresAt(now + DEFAULT_TOKEN_TTL_MILLIS);
+        // Optional declared phone number of the device's SIM: kept as typed (trimmed, capped) so the enroller can
+        // write it with or without country code; the check-in comparison normalises both sides before matching.
+        String expectedPhone = body == null ? null : body.getExpectedPhone();
+        if (expectedPhone != null) {
+            expectedPhone = expectedPhone.trim();
+            if (expectedPhone.isEmpty()) {
+                expectedPhone = null;
+            } else if (expectedPhone.length() > 32) {
+                expectedPhone = expectedPhone.substring(0, 32);
+            }
+        }
+        token.setExpectedPhone(expectedPhone);
         tokenDAO.insert(token);
 
         logger.info("Agent enrollment token {} minted for customer {} (configuration {}, group {})",

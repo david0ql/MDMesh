@@ -229,6 +229,12 @@ export interface DeviceSummary {
   operator?: string | null;
   freeStorageBytes?: number | null;
   totalStorageBytes?: number | null;
+  /** Phone number the operator declared the SIM should carry (at enrollment); null = none declared. */
+  expectedPhone?: string | null;
+  /** The number the SIM actually reported; null when the SIM did not expose one. */
+  simPhone?: string | null;
+  /** true = SIM number differs from the expected one, false = matches, null = not comparable. */
+  simMismatch?: boolean | null;
   stateAt?: number | null;
 }
 

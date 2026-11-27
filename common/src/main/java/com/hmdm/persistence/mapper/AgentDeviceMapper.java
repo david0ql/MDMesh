@@ -96,6 +96,29 @@ public interface AgentDeviceMapper {
             "WHERE number = #{deviceNumber}"})
     void updateIdentity(@Param("deviceNumber") String deviceNumber, @Param("serial") String serial, @Param("imei") String imei);
 
+    // --- Expected SIM phone number (declared at enrollment) vs the number the SIM actually reports ---
+
+    /** The phone number the operator declared the device's SIM should carry (set at enrollment); null = none declared. */
+    @Select({"SELECT expectedPhone FROM devices WHERE number = #{deviceNumber}"})
+    String getExpectedPhone(@Param("deviceNumber") String deviceNumber);
+
+    /** The last SIM-match verdict: TRUE = the SIM number differs from the expected one, FALSE = matches, NULL = not comparable. */
+    @Select({"SELECT simMismatch FROM devices WHERE number = #{deviceNumber}"})
+    Boolean getSimMismatch(@Param("deviceNumber") String deviceNumber);
+
+    /** Store the declared expected phone (enrollment). */
+    @Update({"UPDATE devices SET expectedPhone = #{expectedPhone} WHERE number = #{deviceNumber}"})
+    void updateExpectedPhone(@Param("deviceNumber") String deviceNumber, @Param("expectedPhone") String expectedPhone);
+
+    /**
+     * Record the result of comparing the SIM's reported number against the expected one on a check-in:
+     * {@code simPhone} is the number the SIM reported (null when unavailable), {@code simMismatch} is TRUE when it
+     * differs from the expected number, FALSE when it matches, NULL when the comparison could not be made.
+     */
+    @Update({"UPDATE devices SET simPhone = #{simPhone}, simMismatch = #{simMismatch}, simPhoneAt = #{ts} WHERE number = #{deviceNumber}"})
+    void updateSimObservation(@Param("deviceNumber") String deviceNumber, @Param("simPhone") String simPhone,
+                              @Param("simMismatch") Boolean simMismatch, @Param("ts") long ts);
+
     // --- Location breadcrumb trail (device_location) ---
 
     /**
@@ -170,6 +193,7 @@ public interface AgentDeviceMapper {
     /** Everything the device export needs, one row per device (telemetry is the agent's last census JSON). */
     @Select({"SELECT d.id, d.number, d.description, d.enrollTime, d.lastUpdate, d.configurationId, c.name AS configurationName, " +
             "m.groupId, s.battery, s.charging, s.kioskActive, s.agentVersion, s.powerMode, s.androidRelease, s.telemetry, " +
+            "d.expectedPhone AS expectedphone, d.simPhone AS simphone, d.simMismatch AS simmismatch, " +
             "s.updatedAt AS stateAt " +
             "FROM devices d LEFT JOIN configurations c ON c.id = d.configurationId " +
             "LEFT JOIN LATERAL (SELECT dg.groupId FROM deviceGroups dg WHERE dg.deviceId = d.id ORDER BY dg.id LIMIT 1) m ON true " +
