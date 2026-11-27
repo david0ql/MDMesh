@@ -451,7 +451,8 @@ def simulated(api, args, clean):
 # ------------------------------------------------------------------------------------------------- real emulator
 
 def adb(serial, *cmd, timeout=60):
-    return subprocess.run(["adb", "-s", serial, *cmd], capture_output=True, text=True, timeout=timeout).stdout.strip()
+    r = subprocess.run(["adb", "-s", serial, *cmd], capture_output=True, text=True, timeout=timeout)
+    return (r.stdout + (r.stderr if "Exception" in r.stderr else "")).strip()
 
 
 class Mover:
@@ -468,10 +469,14 @@ class Mover:
         self.stop = threading.Event()
         self.thread = None
         self.providers = ["gps"]
+        self.warned = False
         if mock:
             # A device with Google Play services serves "fused" from the same satellites: mock both so they agree.
             if "fused" in adb(serial, "shell", "dumpsys", "location"):
                 self.providers.append("fused")
+            # The shell may only mock locations once its uid holds the mock_location app-op.
+            adb(serial, "shell", "appops", "set", "2000", "android:mock_location", "allow")
+            adb(serial, "shell", "appops", "set", "com.android.shell", "android:mock_location", "allow")
             for p in self.providers:
                 adb(serial, "shell", "cmd", "location", "providers", "add-test-provider", p,
                     "--supportsAltitude", "--supportsSpeed", "--powerRequirement", "1", "--accuracy", "1")
@@ -482,8 +487,11 @@ class Mover:
     def _push(self):
         lat, lon = self.target
         for p in self.providers:
-            adb(self.serial, "shell", "cmd", "location", "providers", "set-test-provider-location", p,
-                "--location", f"{lat:.6f},{lon:.6f}", "--accuracy", "6")
+            out = adb(self.serial, "shell", "cmd", "location", "providers", "set-test-provider-location", p,
+                      "--location", f"{lat:.6f},{lon:.6f}", "--accuracy", "6")
+            if "Exception" in out and not self.warned:
+                self.warned = True
+                print(f"    WARN: the test provider «{p}» refused the position: {out.splitlines()[1] if len(out.splitlines()) > 1 else out}")
 
     def _loop(self):
         while not self.stop.wait(3):
@@ -565,7 +573,7 @@ def emulator(api, args, clean):
         ok("it is not tagged low accuracy", f["lowAccuracy"] is False)
     st = wait_for(240, lambda: zone_state(api, zone["id"], number), every=5)
     chk("state: inside (confirmed by two positions)", (st or {}).get("state"), "inside")
-    traces = fix_trace(serial)
+    traces = wait_for(150, lambda: fix_trace(serial), every=5)   # the next once-a-minute fresh request
     ok("the agent logs which providers it tried and which answered", len(traces) >= 1)
     for t in traces[-3:]:
         print(f"    agente: {t}")
@@ -648,7 +656,8 @@ def emulator(api, args, clean):
     ok("the diagnosis snapshot reports the last position request", bool(loc), str(d.get("message")))
     if loc:
         print(f"    diagnóstico: {loc.get('summary')} · respondió {loc.get('answeredBy')} · disponibles {loc.get('available')}")
-        ok("…with the providers tried and who answered", bool(loc.get("attempts")) and "available" in loc)
+        ok("…with the providers tried (or the recent position reused) and who answered",
+           bool(loc.get("attempts") or loc.get("answeredBy")) and "available" in loc)
 
     print("== history ==")
     now = int(time.time() * 1000)

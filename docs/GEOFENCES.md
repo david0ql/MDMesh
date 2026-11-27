@@ -108,7 +108,8 @@ solo para un servidor de pruebas con certificado autofirmado, `SMTP_SSL_TRUST=<h
   2 minutos para no frenar los reportes.
 - **Proveedor**: el agente prefiere el proveedor *fused* (Google Play services: mezcla GPS, Wi-Fi y celdas) cuando el
   equipo lo tiene **y está habilitado**; si no existe (equipos sin GMS) pasa directo a GPS, sin esperar. A *fused* se le
-  da como máximo un tercio de la espera (tope 8 s); si no responde sigue GPS y luego red.
+  da como máximo un tercio de la espera (tope 8 s); si no responde sigue GPS y luego red, y si GPS sí respondió no se
+  vuelve a preguntar a *fused* durante 10 minutos.
 - **Diagnóstico**: cada petición de posición nueva queda en el log del agente (`LocationCollector: fresh fix: fused
   812 ms: respondió …`) y en el *Diagnóstico* del dispositivo (fila **Ubicación**): proveedores disponibles, cuáles se
   intentaron, cuánto tardó cada uno y cuál respondió. El proveedor que respondió también va en cada posición del

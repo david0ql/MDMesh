@@ -58,6 +58,13 @@ object FixPolicy {
 
     private const val FUSED_SHARE = 3
 
+    /** After fused stayed silent while another provider answered, it is not asked again for this long. */
+    const val FUSED_RETRY_MS = 10 * 60_000L
+
+    /** Whether fused should be left out of this request because it just proved silent on this device. */
+    fun skipFused(now: Long, fusedSilentAt: Long): Boolean =
+        fusedSilentAt > 0 && now - fusedSilentAt in 0 until FUSED_RETRY_MS
+
     /** One provider asked during a fresh-fix request: how long it was given, how long it took, whether it answered. */
     data class Attempt(val provider: String, val allowedMs: Long, val tookMs: Long, val answered: Boolean)
 
@@ -67,12 +74,16 @@ object FixPolicy {
         val available: List<String>,
         val budgetSec: Int,
         val attempts: List<Attempt>,
+        /** Set when no provider was asked because this one had given a position seconds before. */
+        val reusedFrom: String? = null,
     ) {
-        val answeredBy: String? get() = attempts.firstOrNull { it.answered }?.provider
+        val answeredBy: String? get() = reusedFrom ?: attempts.firstOrNull { it.answered }?.provider
         val totalMs: Long get() = attempts.sumOf { it.tookMs }
 
         /** e.g. "fused 812 ms: sin respuesta; gps 2301 ms: respondió". */
-        fun summary(): String = if (attempts.isEmpty()) {
+        fun summary(): String = if (reusedFrom != null) {
+            "posición reciente de $reusedFrom, no se pidió otra"
+        } else if (attempts.isEmpty()) {
             "sin proveedores activos"
         } else {
             attempts.joinToString("; ") {
