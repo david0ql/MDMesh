@@ -192,3 +192,36 @@ scripts/app-install-e2e.py --api http://localhost:8088 --apks /tmp/apks \
 
 Without `--serial` only the server part runs. `--pg` is only for the automatic-retry check (it moves a failure 11
 minutes into the past and waits for the server's 5-minute timer); `--skip-auto-retry` and `--skip-storage` shorten the run.
+
+## Fleet inventory exports and scheduled reports
+
+`scripts/fleet-report-e2e.py` checks the fleet inventory against a real enrolled device (see
+[REPORTES.md](REPORTES.md)): it sets the battery level (`adb emu power`), writes a file to use storage, switches
+Wi-Fi off and on, asks the device to report with "Actualizar ahora" (and times it), downloads the real Excel and CSV
+and compares each column (battery, charging, free/total storage, % used, Android, model, connection state, network)
+with what the device itself says over adb. With `--mailpit` it also tests the scheduled e-mail against a local test
+SMTP: "Enviar ahora" in both formats, the attachment opened and checked, and one run fired by the server's
+once-a-minute scheduler.
+
+```bash
+# test SMTP next to the dev stack (remove it afterwards: docker rm -f dc-mailpit)
+docker run -d --name dc-mailpit --network dallycontrol-dev_default -p 127.0.0.1:8025:8025 axllent/mailpit
+SMTP_HOST=dc-mailpit SMTP_PORT=1025 docker compose --env-file docker/dev.env up -d server
+
+scripts/fleet-report-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> \
+    --mailpit http://localhost:8025
+
+# without SMTP_HOST: "Enviar ahora" must say so instead of failing
+scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expect-no-smtp
+
+# with the device off for more than 20 minutes: it must export as "Sin conexión"
+scripts/fleet-report-e2e.py --api http://localhost:8088 --device-id <id> --expect-offline
+```
+
+Several stacks on one machine: give each its own project name, ports **and image tags** (`COMPOSE_PROJECT_NAME`,
+`DEV_*_PORT`, `SERVER_VERSION`, `WEB_VERSION`, `SUPERVISOR_VERSION`), or one stack's `up --build` replaces the `:dev`
+image another stack will pick up on its next `up`.
+
+Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
+device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
+e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).

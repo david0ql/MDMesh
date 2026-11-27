@@ -3464,3 +3464,36 @@ a {
 .sim-match.ok { color: var(--ok, #1aa766); }
 .sim-match.bad { color: var(--danger, #c2403f); }
 .sim-match.unknown { color: var(--faint, #9aa3b0); font-weight: 500; }
+
+/* Fleet inventory: data age, export menu, inventory summary, scheduled reports */
+.data-age { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.data-age.fresh { color: var(--ok); }
+.data-age.aging { color: var(--warn); }
+.data-age.stale { color: var(--muted); }
+.export-pop { width: 340px; }
+.export-group { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; font-size: 13px; }
+.export-group label { display: flex; align-items: baseline; gap: 6px; cursor: pointer; }
+.export-group .sel { width: 100%; }
+.export-k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.refresh-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 0; font-size: 12px; }
+.inv-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; }
+.inv-tile { border: 1px solid var(--line-soft); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface);
+  text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.inv-tile:hover, .inv-tile.on { border-color: var(--text-2); }
+.inv-tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.inv-tile span { font-size: 12px; color: var(--muted); }
+.inv-tile.warn b { color: var(--warn); }
+.inv-tile.ok b { color: var(--ok); }
+.inv-breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 0 0 16px; }
+.inv-breakdown h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.inv-bar-row { display: grid; grid-template-columns: minmax(70px, 40%) 1fr auto; gap: 8px; align-items: center; font-size: 12px; padding: 2px 0; }
+.inv-bar-row .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.inv-bar i { display: block; height: 100%; background: var(--text-2); border-radius: 4px; }
+.inv-bar-row .n { font-variant-numeric: tabular-nums; color: var(--muted); }
+.sched-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 14px; }
+.sched-form .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.sched-form .field.wide { grid-column: 1 / -1; }
+.sched-form .field input, .sched-form .field select { width: 100%; }
+.sched-status.ok { color: var(--ok); }
+.sched-status.error, .sched-status.smtp { color: var(--warn); }

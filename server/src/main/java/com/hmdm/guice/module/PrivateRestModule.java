@@ -61,6 +61,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.AppInstallResource.class);
         // Eager: its timer (automatic retry of failed installs) must run from boot, not from the first request.
         this.bind(com.hmdm.rest.resource.support.InstallRetrier.class).asEagerSingleton();
+        this.bind(com.hmdm.rest.resource.ReportScheduleResource.class);
         // Eager so AgentWakeHub.INSTANCE is set at boot, before any device WebSocket connects.
         this.bind(com.hmdm.notification.AgentWakeHub.class).asEagerSingleton();
     }

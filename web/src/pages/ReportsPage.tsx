@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
+import { InventoryReport } from '../components/InventoryReport';
+import { ReportSchedulesPanel } from '../components/ReportSchedulesPanel';
 import { fmtDateTime, DASH } from '../ui/format';
 import {
   downloadReport,
@@ -206,7 +208,9 @@ type TabId =
   | 'outdated-apps'
   | 'data-usage'
   | 'non-compliance'
-  | 'decommissioned';
+  | 'decommissioned'
+  | 'inventory'
+  | 'schedules';
 
 const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'offline', label: 'Sin conexión', hint: 'Equipos cuya última conexión supera los días indicados.' },
@@ -220,6 +224,8 @@ const TABS: { id: TabId; label: string; hint: string }[] = [
   { id: 'data-usage', label: 'Datos móviles', hint: 'Mayores consumidores de datos móviles en los últimos días.' },
   { id: 'non-compliance', label: 'Incumplimiento', hint: 'Equipos cuya revisión aplicada no coincide con la actual de su política.' },
   { id: 'decommissioned', label: 'Dados de baja', hint: 'Equipos eliminados en el rango de fechas.' },
+  { id: 'inventory', label: 'Inventario de la flota', hint: 'Estado de toda la flota con su último reporte: conexión, batería, almacenamiento, Android y red de cada equipo, con resumen y exportación a Excel o CSV.' },
+  { id: 'schedules', label: 'Envíos programados', hint: 'Reportes que se envían solos por correo (diario, semanal o mensual) a los destinatarios que elijas.' },
 ];
 
 // ---------------------------------------------------------------------------------------------
@@ -331,6 +337,7 @@ export function ReportsPage() {
   useEffect(() => {
     setResult(null);
     // by-app needs an explicit selection first; everything else loads immediately.
+    if (tab === 'inventory' || tab === 'schedules') return; // these tabs load their own data
     if (tab === 'by-app') {
       setResult(null);
       if (!catalog) {
@@ -410,7 +417,10 @@ export function ReportsPage() {
 
       <p className="muted report-hint">{tabMeta.hint}</p>
 
-      <div className="report-toolbar">
+      {tab === 'inventory' && <InventoryReport />}
+      {tab === 'schedules' && <ReportSchedulesPanel />}
+
+      <div className="report-toolbar" style={tab === 'inventory' || tab === 'schedules' ? { display: 'none' } : undefined}>
         {tab === 'offline' && (
           <NumberField label="Días sin conexión" value={days} onChange={setDays} min={1} max={3660} suffix="días" />
         )}
