@@ -112,8 +112,8 @@ object AgentModule {
 
     @Provides
     @Singleton
-    fun provideCapabilityRegistry(handle: DpmHandle): CapabilityRegistry =
-        CapabilityRegistry(handle)
+    fun provideCapabilityRegistry(handle: DpmHandle, managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi): CapabilityRegistry =
+        CapabilityRegistry(handle, managedWifi)
 
     @Provides
     @Singleton
@@ -187,6 +187,7 @@ object AgentModule {
         appUsage: com.dallycontrol.agent.usage.AppUsageCollector,
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -195,6 +196,7 @@ object AgentModule {
                 systemUpdatePendingSince = runCatching { systemUpdates.pendingSince() }.getOrNull(),
                 appUsage = runCatching { appUsage.collect() }.getOrNull(),
                 usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
+                managedWifi = runCatching { managedWifi.report() }.getOrNull(),
             ).also {
                 runCatching { deviceRules.enforceAccounts() } // other-domain Google accounts go on every check-in
                 runCatching { appActivity.collect() } // record user "opened app / camera" activity events
@@ -597,9 +599,10 @@ object AgentModule {
         @ApplicationContext context: Context,
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
+        managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi,
     ): ConfigApplier = ConfigApplier(
         toggles, kiosk, location::set, store, browser, apps,
-        wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
+        wifi = managedWifi,
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
@@ -638,4 +641,19 @@ object AgentModule {
     @Provides
     @IntoSet
     fun provideConfigApplyHandler(applier: ConfigApplier): CommandHandler = ConfigApplyHandler(applier)
+
+    /** The policy's Wi-Fi (networks, certificates, lock-down, radio): one instance for the applier, the `wifi` toggle and telemetry. */
+    @Provides
+    @Singleton
+    fun provideManagedWifi(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.agent.policy.AndroidManagedWifi = com.dallycontrol.agent.policy.AndroidManagedWifi(
+        context,
+        com.dallycontrol.agent.policy.WifiNetworks(context),
+        handle,
+        com.dallycontrol.agent.policy.WifiCertificates(context, handle),
+        events,
+    )
 }

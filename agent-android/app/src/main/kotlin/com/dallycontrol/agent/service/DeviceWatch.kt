@@ -49,7 +49,9 @@ class DeviceWatch @Inject constructor(
     private val deviceRules: com.dallycontrol.agent.policy.DeviceRules,
     private val sounds: com.dallycontrol.agent.diag.SoundWatch,
     private val kioskApplier: com.dallycontrol.core.kiosk.KioskApplier,
+    private val managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi,
 ) {
+    private val wifiWatch by lazy { com.dallycontrol.agent.policy.AndroidManagedWifi.Watch(managedWifi) }
     private var trailJob: Job? = null
     private var registered: Context? = null
 
@@ -171,6 +173,8 @@ class DeviceWatch @Inject constructor(
             }
         }
         if (trailJob?.isActive != true) trailJob = scope.launch { trailLoop(context) }
+        // The policy's Wi-Fi between applies: safeguard, forced radio, authentication errors.
+        wifiWatch.start(context, scope)
     }
 
     @Synchronized
@@ -185,6 +189,7 @@ class DeviceWatch @Inject constructor(
         sounds.stop()
         registered = null
         trailJob?.cancel()
+        wifiWatch.stop()
     }
 
     private suspend fun trailLoop(context: Context) {

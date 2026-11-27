@@ -77,11 +77,15 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.apps != null) outcomes["apps"] = o
         }
-        val desiredWifi = doc.wifi ?: previous?.wifi?.let { emptyList() }
-        desiredWifi?.let { nets ->
-            val o = wifi?.let { runCatching { it.apply(nets) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
+        // Wi-Fi: the plain networks, the ones with a newer security, the lock-down rules and the radio travel together;
+        // a section that disappears is undone (networks removed, rules lifted).
+        val radio = doc.policies["wifi"]
+        if (wifiManaged(doc) || previous?.let(::wifiManaged) == true) {
+            val nets = doc.wifi.orEmpty() + doc.wifiAdvanced.orEmpty()
+            val o = wifi?.let { runCatching { it.apply(nets, doc.wifiRules, radio) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
                 ?: ConfigOutcome.UNSUPPORTED
-            if (doc.wifi != null) outcomes["wifi"] = o
+            if (doc.wifi != null || doc.wifiAdvanced != null) outcomes["wifi"] = o
+            if (doc.wifiRules != null) outcomes["wifiRules"] = o
         }
         if (doc.systemUpdate != null || previous?.systemUpdate != null) {
             val o = systemUpdates?.let { runCatching { it(doc.systemUpdate) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "system update") } }
@@ -122,6 +126,9 @@ class ConfigApplier(
 
     /** Re-run the last fully-applied document (after boot / self-update). Null when nothing is persisted. */
     suspend fun reapplyPersisted(): ConfigApplyResult? = mutex.withLock { store.load()?.let { applyLocked(it) } }
+
+    private fun wifiManaged(d: ConfigApplyPayload): Boolean =
+        d.wifi != null || d.wifiAdvanced != null || d.wifiRules != null || d.policies.containsKey("wifi")
 
     companion object {
         fun succeeded(r: ConfigApplyResult): Boolean = r.outcomes.values.none(ConfigOutcome::isFailed)
