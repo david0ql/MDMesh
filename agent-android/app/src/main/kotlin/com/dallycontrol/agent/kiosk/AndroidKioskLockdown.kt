@@ -277,8 +277,8 @@ internal object KioskForegroundGuard {
                 if (thread !== t) return
                 runCatching {
                     if (!power.isInteractive) return@runCatching
-                    // What was seen last is remembered: a closed screen that stays in front (the return home was slow, or
-                    // refused) keeps being sent back, also after its "came to the front" event is no longer recent.
+                    // What was seen last is remembered: a closed screen that stays in front (the return home was
+                    // slow, or refused) keeps being sent back, also once its "came to the front" event is old.
                     val seen = foreground(usage)
                     if (seen.first != null) last = seen
                     val (front, before) = last
