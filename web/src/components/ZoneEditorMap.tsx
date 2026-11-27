@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Zone } from '../api/geofences';
-import { drawZones, zoneShape } from '../ui/zoneLayer';
+import { drawZones, zoneBounds, zoneShape } from '../ui/zoneLayer';
 
 export type DrawMode = 'idle' | 'circle' | 'polygon';
 
@@ -151,9 +151,13 @@ export function ZoneEditorMap({
   useEffect(() => {
     const m = map.current;
     if (!m) return;
-    const target = draft ? zoneShape(draft) : null;
-    let bounds: L.LatLngBounds | null = target ? target.getBounds() : null;
-    if (!bounds && !draft) bounds = drawZones(L.layerGroup(), zones, { interactive: false });
+    let bounds: L.LatLngBounds | null = draft ? zoneBounds(draft) : null;
+    if (!bounds && !draft) {
+      for (const z of zones) {
+        const b = zoneBounds(z);
+        if (b) bounds = bounds ? bounds.extend(b) : b;
+      }
+    }
     if (bounds?.isValid()) m.fitBounds(bounds, { padding: [48, 48], maxZoom: 17 });
     setTimeout(() => m.invalidateSize(), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps

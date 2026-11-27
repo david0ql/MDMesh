@@ -3476,6 +3476,7 @@ a {
 .gz-new { display: flex; gap: 8px; margin-bottom: 10px; }
 .gz-meta { padding-left: 18px !important; }
 .gz-form { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
+.gz-form label.report-field { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; font-size: 12px; }
 .gz-form .input { width: 100%; }
 .gz-form .report-field-input .input { width: auto; }
 .gz-title { margin: 0; font-size: 15px; }

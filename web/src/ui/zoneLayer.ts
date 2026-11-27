@@ -27,6 +27,15 @@ export function zoneShape(z: Zone, opts: L.PathOptions = {}): L.Circle | L.Polyg
   return L.circle([z.centerLat, z.centerLon], { ...style, radius: z.radiusM });
 }
 
+/** The zone's bounding box, computed from its geometry (a Leaflet circle only knows its bounds once on a map). */
+export function zoneBounds(z: Zone): L.LatLngBounds | null {
+  if (z.shape === 'polygon') {
+    return z.points && z.points.length >= 3 ? L.latLngBounds(z.points) : null;
+  }
+  if (z.centerLat == null || z.centerLon == null || !z.radiusM) return null;
+  return L.latLng(z.centerLat, z.centerLon).toBounds(z.radiusM * 2);
+}
+
 /** Draw the zones into a layer (cleared first). Returns their combined bounds, or null when none was drawn. */
 export function drawZones(layer: L.LayerGroup, zones: Zone[], opts: { interactive?: boolean } = {}): L.LatLngBounds | null {
   layer.clearLayers();
@@ -42,8 +51,8 @@ export function drawZones(layer: L.LayerGroup, zones: Zone[], opts: { interactiv
         { sticky: true },
       );
     }
-    const b = shape.getBounds();
-    bounds = bounds ? bounds.extend(b) : L.latLngBounds(b.getSouthWest(), b.getNorthEast());
+    const b = zoneBounds(z);
+    if (b) bounds = bounds ? bounds.extend(b) : L.latLngBounds(b.getSouthWest(), b.getNorthEast());
   }
   return bounds;
 }
