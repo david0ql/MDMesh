@@ -326,6 +326,7 @@ try {
           && (!folderUser || a.numbers.length === total), `${a.numbers.length} rows`);
       }
     }
+    await row(name2).locator('.sched-status.ok').waitFor({ timeout: 15000 }).catch(() => undefined);
     check('Envíos: the row records the send', await row(name2).locator('.sched-status.ok').count() === 1);
   }
   await row(name2).getByRole('button', { name: 'Eliminar' }).click();
