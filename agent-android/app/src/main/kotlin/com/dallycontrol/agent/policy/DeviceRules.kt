@@ -21,7 +21,7 @@ import com.dallycontrol.proto.EventType
  *    reset done from recovery.
  * Only what these rules set is undone when a rule goes away.
  */
-class DeviceRules(private val context: Context, private val handle: DpmHandle, private val events: EventSink) {
+class DeviceRules(private val context: Context, internal val handle: DpmHandle, private val events: EventSink) {
     private val prefs = context.getSharedPreferences("mdm_device_rules", Context.MODE_PRIVATE)
 
     fun apply(rules: ConfigDevice?): String {

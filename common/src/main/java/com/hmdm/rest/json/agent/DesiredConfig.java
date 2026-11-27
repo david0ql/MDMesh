@@ -58,4 +58,6 @@ public class DesiredConfig {
     private DesiredSystemUpdate systemUpdate;
     /** Device security rules (data sharing, Google accounts, factory reset); null = none. */
     private DesiredDevice device;
+    /** Hardware and ports rules (absent = not managed). */
+    private DesiredHardware hardware;
 }

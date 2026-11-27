@@ -38,6 +38,13 @@ class ConfigApplier(
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
+    /**
+     * Apply the hardware and ports rules (null = clear what an earlier document set). Receives the restrictions other
+     * sections of the document keep on; returns one outcome per rule (`hardware.<key>` / `restrictions.<key>`).
+     * Runs last, so a rule it blocks wins over a toggle that allows the same restriction.
+     */
+    private val hardware: ((com.dallycontrol.proto.ConfigHardware?, Set<String>) -> Map<String, String>)? = null,
+    // Keep last: tests pass it as a trailing lambda.
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -96,6 +103,15 @@ class ConfigApplier(
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
+        if (doc.hardware != null || previous?.hardware != null) {
+            val held = com.dallycontrol.policy.hardware.HardwareCatalog.heldByOtherSections(
+                doc.policies, doc.device?.tethering, doc.device?.factoryReset, doc.device?.installApps,
+            )
+            val asked = doc.hardware?.let { h -> h.rules.keys.map { "hardware.$it" } + h.restrictions.map { "restrictions.$it" } }.orEmpty()
+            val o = hardware?.let { runCatching { it(doc.hardware, held) }.getOrElse { e -> asked.associateWith { ConfigOutcome.failed(e.message ?: "hardware") } } }
+                ?: asked.associateWith { ConfigOutcome.UNSUPPORTED }
+            outcomes.putAll(o)
+        }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result

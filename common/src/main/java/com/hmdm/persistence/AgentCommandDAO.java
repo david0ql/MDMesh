@@ -196,6 +196,17 @@ public class AgentCommandDAO {
         deviceMapper.clearDeviceDataSharing(deviceId);
     }
 
+    /** The device's hardware and ports override (JSON), or null when it follows its policy. */
+    public String getDeviceHardwareOverride(int deviceId) {
+        return deviceMapper.getDeviceHardwareOverride(deviceId);
+    }
+
+    /** @param rules JSON object; null clears the override. */
+    public void setDeviceHardwareOverride(int deviceId, String rules) {
+        if (rules == null) deviceMapper.clearDeviceHardwareOverride(deviceId);
+        else deviceMapper.setDeviceHardwareOverride(deviceId, rules);
+    }
+
     public String getDeviceSecretHash(String deviceNumber) {
         return deviceMapper.getDeviceSecretHash(deviceNumber);
     }

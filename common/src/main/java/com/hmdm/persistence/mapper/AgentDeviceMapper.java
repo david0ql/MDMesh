@@ -107,6 +107,17 @@ public interface AgentDeviceMapper {
     @org.apache.ibatis.annotations.Delete("DELETE FROM device_data_sharing WHERE deviceId = #{deviceId}")
     void clearDeviceDataSharing(@Param("deviceId") int deviceId);
 
+    // --- Per-device hardware and ports override (JSON object: rule key -> allow / block) ---
+    @Select("SELECT rules FROM device_hardware_override WHERE deviceId = #{deviceId}")
+    String getDeviceHardwareOverride(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO device_hardware_override (deviceId, rules) VALUES (#{deviceId}, #{rules}) ",
+             "ON CONFLICT (deviceId) DO UPDATE SET rules = EXCLUDED.rules"})
+    void setDeviceHardwareOverride(@Param("deviceId") int deviceId, @Param("rules") String rules);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM device_hardware_override WHERE deviceId = #{deviceId}")
+    void clearDeviceHardwareOverride(@Param("deviceId") int deviceId);
+
     /**
      * Store the Android version into infojson (the device list reads
      * {@code devices.infojson ->> 'androidVersion'}; our agent reports it via telemetry/state).

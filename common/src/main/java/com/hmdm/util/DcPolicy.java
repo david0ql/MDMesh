@@ -65,6 +65,8 @@ public class DcPolicy {
     private String powerPin;
     /** Device security rules: data sharing, Google accounts, factory reset. */
     private com.hmdm.rest.json.agent.DesiredDevice device;
+    /** Hardware and ports: rule key → allow / block (see {@link HardwarePolicy}); a missing key is not managed. */
+    private java.util.Map<String, String> hardware;
 
     @Getter
     @Setter
@@ -148,7 +150,7 @@ public class DcPolicy {
     public boolean isEmpty() {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
-                && powerPin == null && device == null && locationFixSeconds == null;
+                && powerPin == null && device == null && locationFixSeconds == null && hardware == null;
     }
 
     private DcPolicy cleaned() {
@@ -246,6 +248,7 @@ public class DcPolicy {
             c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
                     && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
         }
+        c.hardware = HardwarePolicy.clean(hardware, true);
         return c;
     }
 

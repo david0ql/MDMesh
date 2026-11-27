@@ -604,6 +604,7 @@ object AgentModule {
         deviceRules = deviceRules::apply,
         setTrackingMinutes = trail::setIntervalMinutes,
         setLocationFixTimeout = location::setFixTimeoutSec,
+        hardware = com.dallycontrol.agent.policy.HardwareRules(context, deviceRules.handle)::apply,
     )
 
     @Provides

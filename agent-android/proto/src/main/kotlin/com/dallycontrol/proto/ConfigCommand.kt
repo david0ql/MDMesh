@@ -31,6 +31,8 @@ data class ConfigApplyPayload(
     val systemUpdate: ConfigSystemUpdate? = null,
     /** Device security rules (absent = none): data sharing, Google accounts, factory reset. */
     val device: ConfigDevice? = null,
+    /** Hardware and ports rules (absent = not managed; what an earlier document set is then undone). */
+    val hardware: ConfigHardware? = null,
 )
 
 /**
@@ -117,4 +119,17 @@ object ConfigOutcome {
     const val UNSUPPORTED = "unsupported"
     fun failed(reason: String): String = "failed: $reason"
     fun isFailed(outcome: String): Boolean = outcome.startsWith("failed")
+    fun isUnsupported(outcome: String): Boolean = outcome.startsWith(UNSUPPORTED)
 }
+
+/**
+ * Hardware and ports. [rules]: rule key (camera, usbDebug, usbData, nfc, …) → `allow` | `block`. [restrictions]: extra
+ * `UserManager.DISALLOW_*` values (`no_sms`, …) from the server's validated list. Reported per item in
+ * [ConfigApplyResult.outcomes] as `hardware.<rule>` / `restrictions.<key>`: `applied`, `unsupported: <why>` or
+ * `failed: <why>`.
+ */
+@Serializable
+data class ConfigHardware(
+    val rules: Map<String, String> = emptyMap(),
+    val restrictions: List<String> = emptyList(),
+)
