@@ -52,6 +52,8 @@ class WifiNetworks(private val context: Context) {
         val error: String? = null,
         val certificateProblem: Boolean = false,
         val unsupportedOptions: List<String> = emptyList(),
+        /** false = saved, but Android did not accept "may auto-join" yet (the radio was still starting): ask again. */
+        val enabled: Boolean = true,
     )
 
     /** @param security `WPA` (WPA/WPA2-PSK), `WEP` or `NONE`. @return null when saved (and joined when [connect]). */
@@ -74,7 +76,7 @@ class WifiNetworks(private val context: Context) {
     @Suppress("ReturnCount")
     fun save(net: ConfigWifi, certs: WifiCertificates?, connect: Boolean, mayEnableRadio: Boolean = true): Saved {
         if (net.ssid.isBlank()) return Saved(-1, "empty SSID")
-        if (mayEnableRadio && !wifi.isWifiEnabled) runCatching { wifi.isWifiEnabled = true }
+        if (mayEnableRadio && !wifi.isWifiEnabled) awaitRadio()
         val quoted = quote(net.ssid)
         val existing = configured().filter { it.SSID == quoted }
         // Full options first; when Android refuses the network, the options it may be refusing are dropped one step
@@ -99,13 +101,24 @@ class WifiNetworks(private val context: Context) {
         }
         if (id < 0) return Saved(-1, "Android refused the network")
         unsupported = (unsupported + skipped.filter { wanted(net, it) }).distinct()
-        if (net.autoConnect == false) {
+        val enabled = if (net.autoConnect == false) {
             runCatching { wifi.disableNetwork(id) }
+            true
         } else {
-            runCatching { wifi.enableNetwork(id, connect) }
+            runCatching { wifi.enableNetwork(id, connect) }.getOrDefault(false)
         }
         runCatching { wifi.saveConfiguration() }
-        return Saved(id, unsupportedOptions = unsupported)
+        return Saved(id, unsupportedOptions = unsupported, enabled = enabled)
+    }
+
+    /** Switch Wi-Fi on and give it a moment: Android refuses to save a network while the radio is still starting. */
+    private fun awaitRadio() {
+        runCatching { wifi.isWifiEnabled = true }
+        var waited = 0L
+        while (waited < RADIO_WAIT_MS && runCatching { wifi.wifiState }.getOrNull() != WifiManager.WIFI_STATE_ENABLED) {
+            runCatching { Thread.sleep(RADIO_POLL_MS) }
+            waited += RADIO_POLL_MS
+        }
     }
 
     private fun wanted(net: ConfigWifi, option: String) = when (option) {
@@ -403,10 +416,17 @@ class WifiNetworks(private val context: Context) {
         runCatching { wifi.saveConfiguration() }
     }
 
+    /** Is the saved network barred from auto-join (WifiConfiguration.Status.DISABLED)? */
+    fun isDisabled(ssid: String): Boolean =
+        configured().firstOrNull { it.SSID == quote(ssid) }?.status == WifiConfiguration.Status.DISABLED
+
     /** Join a saved network now. */
-    fun connect(ssid: String): Boolean {
-        val id = configured().firstOrNull { it.SSID == quote(ssid) }?.networkId ?: return false
-        return runCatching { wifi.enableNetwork(id, true) }.getOrDefault(false)
+    fun connect(ssid: String): Boolean = enable(ssid, connect = true)
+
+    /** Let a saved network auto-join (a network the owner saves starts out disabled until this succeeds). */
+    fun enable(ssid: String, connect: Boolean = false, netId: Int? = null): Boolean {
+        val id = configured().firstOrNull { it.SSID == quote(ssid) }?.networkId ?: netId ?: return false
+        return runCatching { wifi.enableNetwork(id, connect) }.getOrDefault(false)
     }
 
     /** Networks in range, strongest first (needs location, which the agent holds). */
@@ -461,6 +481,8 @@ class WifiNetworks(private val context: Context) {
         const val MAX_PRIORITY = 999_999
         const val MAX_PREFIX = 32
         const val DEFAULT_PROXY_PORT = 8080
+        const val RADIO_WAIT_MS = 6_000L
+        const val RADIO_POLL_MS = 250L
 
         /** What is left out on each attempt when Android refuses the network. */
         val FALLBACKS = listOf(

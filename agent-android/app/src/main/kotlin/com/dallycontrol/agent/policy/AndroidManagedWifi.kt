@@ -86,6 +86,8 @@ class AndroidManagedWifi(
         val unsupported: Boolean = false,
         val unsupportedOptions: List<String> = emptyList(),
         val via: String = VIA_CONFIGURATION,
+        /** false = Android has not accepted "may auto-join" yet; [heal] asks again. */
+        val enabled: Boolean = true,
     )
 
     @Serializable
@@ -171,6 +173,7 @@ class AndroidManagedWifi(
                     Net(
                         saved.netId, fp, saved.error, saved.certificateProblem,
                         unsupportedOptions = (saved.unsupportedOptions + byVersion).distinct(),
+                        enabled = saved.enabled,
                     )
                 }
             }
@@ -284,12 +287,15 @@ class AndroidManagedWifi(
             WifiSafeguard.Action.NONE -> Unit
         }
         enforceRadio()
-        if (now - lastHeal >= HEAL_EVERY_MS) {
+        // A network Android refused to save is tried again on the next tick; the rest of the upkeep every few minutes.
+        val pending = s.nets.values.any { (it.netId < 0 && !it.unsupported && !it.certificateProblem) || !it.enabled }
+        if (pending || now - lastHeal >= HEAL_EVERY_MS) {
             lastHeal = now
             if (s.networks.isNotEmpty() && wifi.isEnabled()) wifi.startScan()
             heal()
             prefer()
         }
+        enablePending()
     }
 
     /** A managed network that is no longer saved (first save failed, or something removed it) is saved again. */
@@ -307,10 +313,28 @@ class AndroidManagedWifi(
             val saved = wifi.save(n, certs, connect = false, mayEnableRadio = s.radio != false)
             nets[n.ssid] = Net(
                 saved.netId, fingerprint(n), saved.error, saved.certificateProblem,
-                unsupportedOptions = saved.unsupportedOptions,
+                unsupportedOptions = saved.unsupportedOptions, enabled = saved.enabled,
             )
         }
         store(load().copy(nets = nets))
+    }
+
+    /**
+     * A network the owner saves stays disabled for auto-join until Android accepts `enableNetwork`, which it refuses
+     * while the radio is still starting: every managed network that should auto-join and is disabled is enabled here.
+     */
+    private fun enablePending() {
+        val s = load()
+        if (!owner() || !wifi.isEnabled()) return
+        val idle = wifi.connectedSsid() == null
+        val nets = s.nets.toMutableMap()
+        s.networks.filter { it.autoConnect != false }.forEach { n ->
+            val net = nets[n.ssid] ?: return@forEach
+            if (net.netId < 0 || net.via != VIA_CONFIGURATION) return@forEach
+            if (net.enabled && !wifi.isDisabled(n.ssid)) return@forEach
+            nets[n.ssid] = net.copy(enabled = wifi.enable(n.ssid, connect = idle, netId = net.netId))
+        }
+        if (nets != s.nets) store(load().copy(nets = nets))
     }
 
     /** Android ignores a saved network's priority since Android 8, so the agent moves to the preferred one itself. */

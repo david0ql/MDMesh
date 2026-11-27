@@ -444,9 +444,12 @@ def t_networks(state):
           has("opt", r"(DISABLED_BY_WIFI_MANAGER|NETWORK_SELECTION_PERMANENTLY_DISABLED|allowAutojoin=false|autoJoin.*false)"), blocks.get(NETS["opt"], "")[:900])
     if listed:
         types = {k: listed.get(NETS[k], (None, ""))[1] for k in NETS}
+        # the labels changed between versions: "wpa2"/"wpa3"/"eap" on Android 11, "wpa2-psk"/"wpa3-sae"/"wpa2-enterprise" later
+        def kind(key, *names):
+            return any(n in types[key] for n in names)
         check("`cmd wifi list-networks` lists them with their security",
-              "psk" in types["psk"] and "sae" in types["sae"] and "owe" in types["owe"] and "enterprise" in types["peap"].replace("eap", "enterprise")
-              and "enterprise" in types["tls"].replace("eap", "enterprise"), types)
+              kind("psk", "psk", "wpa2") and kind("sae", "sae", "wpa3") and kind("owe", "owe") and kind("peap", "eap", "enterprise")
+              and kind("tls", "eap", "enterprise"), types)
         if SDK >= 31:
             check("WPA2/WPA3 mixed carries both types on Android 12+", "psk" in types["mix"] and "sae" in types["mix"], types["mix"])
     store = sh("su 0 ls /data/misc/user/0/cacerts-added/ 2>&1 || su root ls /data/misc/user/0/cacerts-added/ 2>&1")
