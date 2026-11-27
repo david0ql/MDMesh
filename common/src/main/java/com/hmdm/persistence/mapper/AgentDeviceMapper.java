@@ -81,6 +81,17 @@ public interface AgentDeviceMapper {
             "DELETE FROM device_kiosk_app WHERE deviceId = #{deviceId} AND packageName = #{packageName}")
     void removeDeviceKioskApp(@Param("deviceId") int deviceId, @Param("packageName") String packageName);
 
+    // --- Per-device "share data" (tethering) override: wins over the policy's device.tethering ---
+    @Select("SELECT state FROM device_data_sharing WHERE deviceId = #{deviceId}")
+    String getDeviceDataSharing(@Param("deviceId") int deviceId);
+
+    @Insert({"INSERT INTO device_data_sharing (deviceId, state) VALUES (#{deviceId}, #{state}) ",
+             "ON CONFLICT (deviceId) DO UPDATE SET state = EXCLUDED.state"})
+    void setDeviceDataSharing(@Param("deviceId") int deviceId, @Param("state") String state);
+
+    @org.apache.ibatis.annotations.Delete("DELETE FROM device_data_sharing WHERE deviceId = #{deviceId}")
+    void clearDeviceDataSharing(@Param("deviceId") int deviceId);
+
     /**
      * Store the Android version into infojson (the device list reads
      * {@code devices.infojson ->> 'androidVersion'}; our agent reports it via telemetry/state).

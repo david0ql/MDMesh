@@ -58,5 +58,6 @@ origin (encrypted); the server then sends `transport: "wss"` in `remote.vnc.star
 | `remote.stopSession` | — | reserved |
 | `device.reboot` | — | none (DO) |
 | `device.lock` | — | none |
+| `device.dataSharing` | `device.dataSharing` | `{ enabled: true \| false }` — per-device "share data" (tethering) override: `true` lifts `DISALLOW_CONFIG_TETHERING`, `false` blocks it; idempotent, wins over the policy |
 
 Per-type payload JSON Schemas go in `proto/payloads/` as the registry grows.

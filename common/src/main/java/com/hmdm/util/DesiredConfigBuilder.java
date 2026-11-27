@@ -69,6 +69,18 @@ public final class DesiredConfigBuilder {
      */
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
                                       List<KioskBrand> folderBrands, Set<String> extraKioskPackages) {
+        return build(cfg, apps, notInKiosk, folderBrands, extraKioskPackages, null);
+    }
+
+    /**
+     * @param dataSharingOverride per-device "share data" (tethering) override, {@code "allow"} / {@code "block"} /
+     *   {@code null} (follow the policy). When set it wins over {@link DcPolicy}'s {@code device.tethering}, so the
+     *   config.apply the device applies — and the kiosk's "share data" icon — match the per-device toggle. This is the
+     *   durable half of the override; an immediate {@code device.dataSharing} command handles the "now".
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
+                                      String dataSharingOverride) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
@@ -117,6 +129,14 @@ public final class DesiredConfigBuilder {
             }
             r.setFactoryReset("block");
             rules = r;
+        }
+        // Per-device "share data" override wins over the policy's tethering (and so over the kiosk's "share data" icon).
+        if (dataSharingOverride != null) {
+            String t = dataSharingOverride.trim().toLowerCase(java.util.Locale.ROOT);
+            if ("allow".equals(t) || "block".equals(t)) {
+                if (rules == null) rules = new com.hmdm.rest.json.agent.DesiredDevice();
+                rules.setTethering(t);
+            }
         }
         d.setDevice(rules);
         if (dc.getWifi() != null) {
