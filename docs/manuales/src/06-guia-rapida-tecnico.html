@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Guía rápida del técnico</title>
+<meta name="doc-titulo" content="Guía rápida del técnico de campo">
+<meta name="doc-subtitulo" content="Enrolar un equipo y verificar que quedó bien, en dos páginas.">
+<meta name="doc-publico" content="Técnicos de campo">
+<meta name="doc-etiqueta" content="Guía rápida">
+<!--ESTILOS-->
+<style>
+  /* Guía de dos páginas: sin portada, primera página con pie. */
+  @page :first { @bottom-left { content: "{{EMPRESA}} · Guía rápida del técnico de campo"; } @bottom-right { content: "Página " counter(page) " de " counter(pages); } }
+  h1{margin-bottom:2mm} h2{margin-top:3mm}
+  .steps{font-size:8.8pt;line-height:12.2pt;margin-bottom:2mm} .steps li{padding-top:1.1mm;padding-bottom:1.1mm} .steps li:before{top:1.1mm}
+  .chk{font-size:8.8pt;line-height:12.2pt;margin-bottom:2mm} .chk li{padding-top:1mm;padding-bottom:1mm} .chk li:before{top:1.5mm}
+  .callout{margin:2.5mm 0}
+</style>
+</head><body>
+
+<section class="sec" id="enrolar" data-temas="guía rápida, enrolar, QR, técnico de campo">
+  <p class="k">{{PRODUCTO}} · Guía rápida del técnico de campo · {{EDICION}}</p>
+  <h1>Enrolar un equipo por QR</h1>
+  <div class="cols">
+    <div>
+      <h2>Antes de salir</h2>
+      <ul class="chk">
+        <li>Usuario y contraseña de la consola, con el menú <span class="ui">Inscribir</span> visible.</li>
+        <li>Nombre de la carpeta donde va cada equipo.</li>
+        <li>Un computador o tableta para mostrar la consola.</li>
+        <li>Internet en el sitio: Wi-Fi sin página de inicio de sesión, o una SIM con datos en el equipo.</li>
+        <li>Equipos con más del 50 % de batería.</li>
+      </ul>
+      <h2>En la consola</h2>
+      <ol class="steps">
+        <li>Abra <span class="ui">Inscribir</span>.</li>
+        <li>En <span class="ui">Carpeta</span> elija la carpeta del equipo.</li>
+        <li>Deje a la vista la pestaña <span class="ui">Escanear QR</span>. Cada QR sirve para un solo equipo; la consola genera el siguiente sola.</li>
+        <li>Si el sitio usa un Wi-Fi con contraseña, cárguelo en <span class="ui">Conectar a Wi‑Fi durante la puesta en marcha (opcional)</span>.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>En el teléfono</h2>
+      <ol class="steps">
+        <li>Restablézcalo de fábrica. Si es usado, quite antes todas las cuentas desde Ajustes.</li>
+        <li>En la pantalla de bienvenida <b>no</b> inicie sesión ni agregue cuentas.</li>
+        <li>Toque la pantalla de bienvenida <b>6 veces</b>. Se abre el lector de QR. En Android 7 y 8 pide antes un Wi-Fi.</li>
+        <li>Escanee el QR <b>desde la pantalla de la consola</b>, no desde una foto ni una impresión vieja.</li>
+        <li>Espere sin tocar: el teléfono descarga el agente y muestra <span class="ui">Inscribiendo este equipo…</span>.</li>
+        <li>Termina con <span class="ui">Equipo inscrito</span>. La consola muestra el aviso <span class="ui">Equipo inscrito</span>.</li>
+      </ol>
+      <div class="callout"><b>Varios equipos para la misma carpeta.</b> Pida al administrador un código de carpeta: su QR sirve para todos.</div>
+    </div>
+  </div>
+
+  <h2>Si no termina</h2>
+  <table class="compact">
+    <thead><tr><th style="width:62mm">Lo que pasa</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>No abre el lector con los 6 toques</td><td>El equipo no está recién formateado. Formatee. Android 6 no tiene lector: se inscribe por cable.</td></tr>
+      <tr><td>«No se puede configurar el dispositivo»</td><td>El Wi-Fi no tiene internet o pide iniciar sesión, o el equipo tiene la fecha de fábrica. Cambie de red y escanee el QR de la pantalla.</td></tr>
+      <tr><td>Pide la cuenta de Google anterior</td><td>Tiene protección contra restablecimiento. Entre con esa cuenta, quítela en Ajustes y formatee de nuevo.</td></tr>
+      <tr><td>«Este código QR ya fue usado por otro equipo» o «venció»</td><td>Pulse <span class="ui">Nuevo código</span> en la consola y escanee de nuevo.</td></tr>
+      <tr><td>«Se produjo un error» al instalar (Android 15 y 16)</td><td>Inscriba ese equipo por cable: pestaña <span class="ui">Por cable (USB)</span>.</td></tr>
+      <tr><td>El teléfono quedó administrado pero no sale en la consola</td><td>Abra la app <span class="ui">DallyControl</span> en el teléfono, pulse <span class="ui">Escanear el QR de la consola</span> y apunte al QR pequeño del desplegable <span class="ui">Equipo ya administrado que no se inscribió</span>. No hay que formatear.</td></tr>
+      <tr><td>No sabe qué pasó</td><td>Mire <span class="ui">Intentos de inscripción</span>, al pie de la pantalla <span class="ui">Inscribir</span>: dice el motivo de cada teléfono.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="verificar" data-temas="verificar, comprobar equipo, lista de comprobación, entrega">
+  <p class="k">{{PRODUCTO}} · Guía rápida del técnico de campo · {{EDICION}}</p>
+  <h1>Verificar que el equipo quedó bien</h1>
+  <p>Abra <span class="ui">Dispositivos</span>, busque el equipo por serie o IMEI y entre a su ficha. Revise en este orden; toma unos tres minutos.</p>
+  <table>
+    <thead><tr><th style="width:8mm">#</th><th style="width:50mm">Qué revisar</th><th style="width:56mm">Dónde</th><th>Debe decir</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1</td><td>El equipo se comunica</td><td>Encabezado de la ficha</td><td><span class="ui">En línea</span></td></tr>
+      <tr><td class="n">2</td><td>Carpeta correcta</td><td>Tarjeta <span class="ui">Carpeta y política</span></td><td>La carpeta acordada</td></tr>
+      <tr><td class="n">3</td><td>Política aplicada</td><td>Tarjeta <span class="ui">Estado de la política</span></td><td><span class="ui">Sincronizado</span></td></tr>
+      <tr><td class="n">4</td><td>Es equipo administrado</td><td>Grupo <span class="ui">Gestión</span>, fila <span class="ui">Modo MDM</span></td><td><span class="ui">Sí</span></td></tr>
+      <tr><td class="n">5</td><td>Aplicaciones instaladas</td><td>Pestaña <span class="ui">Aplicaciones</span>, botón <span class="ui">Escanear ahora</span></td><td>Las aplicaciones de la política</td></tr>
+      <tr><td class="n">6</td><td>Recibe órdenes</td><td>Pestaña <span class="ui">Control</span>, <span class="ui">Hacer sonar</span></td><td>El equipo suena; la orden pasa a <span class="ui">Ejecutado</span></td></tr>
+      <tr><td class="n">7</td><td>Reporta ubicación, si la política la pide</td><td>Grupo <span class="ui">Ubicación</span> de la ficha</td><td>Coordenadas y antigüedad</td></tr>
+      <tr><td class="n">8</td><td>Quiosco, si la política lo usa</td><td>Pestaña <span class="ui">Control</span></td><td><span class="ui">Quiosco activo</span>, y en el teléfono solo las aplicaciones permitidas</td></tr>
+      <tr><td class="n">9</td><td>SIM correcta, si se declaró el número</td><td>Grupo <span class="ui">Red</span>, fila <span class="ui">SIM</span></td><td>El operador, no <span class="ui">Sin SIM</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="cols">
+    <div>
+      <h2>Si algo no coincide</h2>
+      <ul class="b">
+        <li><b>Sin conexión:</b> revise que el equipo tenga internet. En la ficha, la tarjeta <span class="ui">Última falla de conexión</span> dice la causa.</li>
+        <li><b>Aplicando… por más de 5 minutos:</b> pulse <span class="ui">Sincronizar ahora</span>.</li>
+        <li><b>Falta una aplicación:</b> pulse <span class="ui">Instalar apps de la política</span>. Si la ficha muestra «No se pudo instalar», lea el motivo y repórtelo.</li>
+        <li><b>Carpeta equivocada:</b> cámbiela en la tarjeta <span class="ui">Carpeta y política</span>, si tiene permiso, o avise al administrador.</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Antes de entregar</h2>
+      <ul class="chk">
+        <li>Ponga el nombre del equipo o del usuario: clic en <span class="ui">Añade un nombre</span>.</li>
+        <li>Si usó depuración USB, apáguela en el teléfono.</li>
+        <li>Si quitó cuentas para inscribir sin formatear, vuelva a agregarlas.</li>
+        <li>Deje el equipo cargado y con la SIM puesta.</li>
+        <li>Anote serie y carpeta en el acta de entrega.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout"><b>Qué reportar a soporte.</b> Número o serie del equipo, modelo y versión de Android, hora del intento y el texto exacto del mensaje. Con esos datos el administrador ubica el intento en <span class="ui">Intentos de inscripción</span>.</div>
+  <p class="nota">Más detalle: «Guía de enrolamiento» y «Solución de problemas», en el menú <span class="ui">Ayuda</span> de la consola.</p>
+</section>
+</body></html>

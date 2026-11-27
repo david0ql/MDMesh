@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Guía de enrolamiento</title>
+<meta name="doc-titulo" content="Guía de enrolamiento">
+<meta name="doc-subtitulo" content="Todos los métodos para inscribir un equipo Android, qué exige cada versión y qué hacer cuando la inscripción no termina.">
+<meta name="doc-publico" content="Administradores de la consola y técnicos que preparan los equipos">
+<meta name="doc-etiqueta" content="Guía">
+<!--ESTILOS-->
+</head><body>
+<!--PORTADA-->
+
+<section class="sec pb" id="contenido">
+  <p class="k">Contenido</p>
+  <h1>Qué contiene esta guía</h1>
+  <p class="lead">Inscribir (enrolar) un equipo es dejarlo administrado por {{PRODUCTO}} y asignado a una carpeta. Esta guía explica cada método paso a paso, con los nombres exactos de la consola y del teléfono.</p>
+  <!--INDICE-->
+  <div class="callout"><b>Alcance de las pruebas.</b> Los métodos de esta guía se probaron en emuladores de Android. El capítulo 10 dice qué versiones se probaron y qué falta confirmar en teléfonos físicos de cada fabricante.</div>
+</section>
+
+<section class="sec pb" id="antes" data-temas="requisitos, antes de empezar, device owner, cuentas, formatear, permiso inscribir">
+  <p class="k">1 · Antes de empezar</p>
+  <h1>Todo método deja el equipo en el mismo modo: totalmente administrado</h1>
+  <p>{{PRODUCTO}} administra el equipo completo. Android llama a este modo «propietario del dispositivo». Es el que permite instalar aplicaciones sin intervención, aplicar el modo quiosco y ejecutar órdenes remotas. No se usa perfil de trabajo.</p>
+  <p>Android solo concede ese modo a un equipo <b>sin cuentas</b>. Por eso los métodos se dividen en dos grupos: los que parten de un equipo restablecido de fábrica y los que conservan los datos, que exigen quitar las cuentas y conectar un computador.</p>
+  <h2>Requisitos comunes</h2>
+  <ul class="chk">
+    <li>Un usuario de la consola con el permiso <span class="ui">Inscribir dispositivos (códigos y tokens)</span>. Sin él no aparece el menú <span class="ui">Inscribir</span>.</li>
+    <li>La carpeta donde quedará el equipo ya creada en <span class="ui">Carpetas</span>, con su política asignada.</li>
+    <li>Internet en el lugar de la inscripción, por Wi-Fi sin página de inicio de sesión o por datos móviles.</li>
+    <li>El equipo con batería suficiente y sin protección de restablecimiento pendiente (capítulo 9).</li>
+  </ul>
+  <h2>Qué método usar</h2>
+  <table>
+    <thead><tr><th style="width:42mm">Situación</th><th style="width:44mm">Método</th><th>Qué necesita</th><th style="width:16mm">Capítulo</th></tr></thead>
+    <tbody>
+      <tr><td>Equipo nuevo o que se puede formatear, Android 7 o superior</td><td>QR desde la pantalla de bienvenida</td><td>La consola abierta en una pantalla</td><td>2</td></tr>
+      <tr><td>Muchos equipos para la misma carpeta</td><td>Código de carpeta, con su QR</td><td>Un código reutilizable</td><td>3</td></tr>
+      <tr><td>El equipo tiene datos que no se pueden perder</td><td>Sin formatear</td><td>Computador con Windows y cable o Wi-Fi</td><td>4</td></tr>
+      <tr><td>Android 6, o el QR falla en ese modelo</td><td>Por cable (USB)</td><td>Computador con Windows y cable de datos</td><td>5</td></tr>
+      <tr><td>Compras por volumen a un revendedor autorizado</td><td>Zero-Touch o Samsung KME</td><td>Equipos registrados por el revendedor</td><td>6</td></tr>
+      <tr><td>El equipo ya está administrado pero no aparece en la consola</td><td>Código o QR desde el agente</td><td>El teléfono en la mano</td><td>8</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Todos los métodos dejan el equipo en la carpeta elegida y con la política de esa carpeta.</p>
+</section>
+
+<section class="sec pb" id="qr" data-temas="QR, escanear QR, equipo formateado, 6 toques, nuevo código, Wi-Fi en el QR, token">
+  <p class="k">2 · QR desde un equipo formateado</p>
+  <h1>El QR de la consola instala el agente y deja el equipo inscrito</h1>
+  <p>Es el método habitual. El teléfono lee el QR en su pantalla de bienvenida, descarga el agente, lo deja como administrador y se inscribe solo. Cada QR sirve para un teléfono y vence a las 24 horas.</p>
+  <div class="fig">
+    <img src="img/e01-inscribir-qr.jpg" alt="Pantalla Inscribir, pestaña Escanear QR">
+    <p class="cap">Figura 1. Menú Inscribir, pestaña «Escanear QR». Arriba se elige la carpeta; a la derecha, los pasos para el teléfono.</p>
+  </div>
+  <h2>Pasos</h2>
+  <ol class="steps">
+    <li>En la consola abra <span class="ui">Inscribir</span>. En <span class="ui">Carpeta</span> elija la carpeta del equipo. La pestaña <span class="ui">Escanear QR</span> muestra el código bajo el título <span class="ui">Escanea para inscribir</span>.</li>
+    <li>Opcional: en <span class="ui">Celular esperado</span> escriba el número de la SIM que debería tener el equipo. Si el número real difiere, la consola lo informa en el reporte <span class="ui">SIM no coincide</span>.</li>
+    <li>Restablezca el teléfono de fábrica. En la primera pantalla de bienvenida no inicie sesión ni agregue cuentas.</li>
+    <li>Toque la pantalla de bienvenida 6 veces seguidas. Se abre el lector de QR. En Android 7 y 8 el teléfono pide antes un Wi-Fi con internet para descargar el lector.</li>
+    <li>Apunte la cámara al QR de la consola. Android descarga el agente de {{PRODUCTO}} y lo configura como propietario del dispositivo.</li>
+    <li>Espere. El teléfono muestra <span class="ui">Inscribiendo este equipo…</span> y después <span class="ui">Equipo inscrito</span>.</li>
+    <li>Confirme en la consola: aparece el aviso <span class="ui">Equipo inscrito</span> y la línea <span class="ui">Último equipo inscrito</span>. La consola genera sola el QR para el siguiente teléfono.</li>
+  </ol>
+  <div class="callout"><b>Escanee desde la pantalla, no desde una foto.</b> El QR en pantalla lleva la hora actual y pone en fecha un teléfono recién sacado de la caja. Con la fecha de fábrica, el teléfono rechaza la conexión segura.</div>
+
+  <h2>Conectar el teléfono a un Wi-Fi desde el mismo QR</h2>
+  <p>Despliegue <span class="ui">Conectar a Wi‑Fi durante la puesta en marcha (opcional)</span> y complete <span class="ui">Nombre de la red (SSID)</span>, <span class="ui">Seguridad</span> y <span class="ui">Contraseña</span>. Puede cargar los datos de una política con <span class="ui">Cargar Wi‑Fi desde una política</span>. El teléfono se conecta a esa red antes de descargar el agente.</p>
+  <ul class="b">
+    <li>La red debe dar internet sin página de inicio de sesión.</li>
+    <li>La contraseña viaja dentro del QR: muéstrelo solo a quien va a inscribir.</li>
+    <li>La opción <span class="ui">Empresarial 802.1X (EAP)</span> funciona desde Android 10. Un certificado propio no cabe en un QR: use una red con contraseña para la puesta en marcha y entregue la red empresarial desde la política.</li>
+    <li>Si la consola avisa que el QR «lleva muchos datos», suba el brillo, amplíe la página y acerque el teléfono, o quite el proxy y los datos 802.1X del QR.</li>
+  </ul>
+
+  <h2>Mientras espera</h2>
+  <p>Debajo del QR la consola informa lo que ve del teléfono: <span class="ui">Esperando a que un teléfono escanee este QR…</span> o <span class="ui">Último movimiento con este QR</span>, con el motivo, el modelo y la versión de Android. Si la inscripción falla, el motivo aparece en el teléfono y en el panel <span class="ui">Intentos de inscripción</span> (capítulo 7).</p>
+  <p>El botón <span class="ui">Nuevo código</span> genera otro QR. <span class="ui">Descargar QR</span> guarda una imagen para proyectarla; úsela el mismo día, porque lleva la hora en que se generó.</p>
+  <p class="nota">La pestaña <span class="ui">Token</span> entrega el mismo código de un solo uso en texto, para aprovisionamiento por guion. Lo habitual es usar el QR.</p>
+</section>
+
+<section class="sec pb" id="codigos" data-temas="códigos de carpeta, código reutilizable, crear código, revocar código, QR impreso">
+  <p class="k">3 · Códigos de carpeta</p>
+  <h1>Un código de carpeta inscribe cualquier cantidad de equipos</h1>
+  <p>Un código de carpeta es reutilizable y no vence: cada teléfono inscrito con él queda en esa carpeta y toma su política. Tiene la forma ABCD-EFGH. Sirve para inscribir lotes, para el QR impreso de una bodega y para los métodos con computador.</p>
+  <div class="fig">
+    <img src="img/e02-codigos-carpeta.jpg" alt="Pestaña Códigos de carpeta">
+    <p class="cap">Figura 2. Pestaña «Códigos de carpeta». La columna «Teléfonos» cuenta los equipos inscritos con cada código.</p>
+  </div>
+  <h2>Crear un código</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Inscribir</span>, abra la pestaña <span class="ui">Códigos de carpeta</span>.</li>
+    <li>Elija la carpeta en <span class="ui">Carpeta…</span> y, si quiere, escriba una <span class="ui">Etiqueta (opcional)</span> que diga para qué es.</li>
+    <li>Opcional: complete la fila de Wi-Fi (nombre de la red, contraseña y seguridad) para que el QR del código conecte el teléfono a esa red.</li>
+    <li>Pulse <span class="ui">Crear código</span>. El código aparece en la tabla.</li>
+  </ol>
+  <h2>Usar el código</h2>
+  <table>
+    <thead><tr><th style="width:44mm">Forma</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>QR en un equipo formateado</td><td>En la fila del código pulse <span class="ui">QR</span>. Siga los pasos del capítulo 2 con ese QR. Sirve para todos los teléfonos de la carpeta.</td></tr>
+      <tr><td>QR impreso</td><td>En la vista del QR pulse <span class="ui">Descargar QR</span> e imprímalo. El impreso no lleva la hora: un teléfono con la fecha de fábrica debe escanear el de la pantalla, o hay que corregirle la fecha.</td></tr>
+      <tr><td>Escrito en el teléfono</td><td>En un equipo ya administrado y sin inscribir: app <span class="ui">DallyControl</span>, bloque <span class="ui">CÓDIGO DE INSCRIPCIÓN</span> (capítulo 8).</td></tr>
+      <tr><td>Con un computador</td><td>El inscriptor para Windows y la herramienta por cable piden o incluyen un código de carpeta (capítulos 4 y 5).</td></tr>
+      <tr><td>Zero-Touch y Samsung KME</td><td>Botón <span class="ui">Zero‑Touch / KME</span> de la fila (capítulo 6).</td></tr>
+    </tbody>
+  </table>
+  <h2>Revocar un código</h2>
+  <p>Pulse <span class="ui">Revocar</span> en la fila y confirme. Los teléfonos ya inscritos se quedan; el código deja de funcionar para equipos nuevos. Un código revocado se puede quitar de la lista con <span class="ui">Eliminar</span>.</p>
+  <div class="callout"><b>Trate el código como una llave.</b> Quien lo tenga puede inscribir equipos en esa carpeta. Revóquelo cuando termine una jornada de inscripción con personal externo y cree otro para la siguiente.</div>
+</section>
+
+<section class="sec pb" id="sin-formatear" data-temas="sin formatear, inscriptor Windows, conservar datos, quitar cuentas, depuración USB, depuración inalámbrica">
+  <p class="k">4 · Sin formatear</p>
+  <h1>Un equipo en uso se inscribe sin borrar sus datos, con un computador</h1>
+  <p>El teléfono conserva fotos, archivos y aplicaciones. Android solo permite administrarlo si no tiene cuentas mientras se inscribe, y exige un computador conectado: por cable o, en Android 11 o superior, por Wi-Fi. No existe otra vía sin formatear.</p>
+  <div class="fig m">
+    <img src="img/e04-sin-formatear.jpg" alt="Pestaña Sin formatear">
+    <p class="cap">Figura 3. Pestaña «Sin formatear». El inscriptor se descarga ya preparado para la carpeta elegida.</p>
+  </div>
+  <h2>Qué se necesita</h2>
+  <ul class="chk">
+    <li>El teléfono con batería y su clave de desbloqueo.</li>
+    <li>Un computador con Windows 10 u 11 y conexión a internet.</li>
+    <li>Un cable USB que transmita datos, o la misma red Wi-Fi para teléfono y computador (Android 11 o superior).</li>
+    <li>Unos 10 minutos por teléfono.</li>
+  </ul>
+  <h2>Pasos</h2>
+  <ol class="steps">
+    <li>En la consola: <span class="ui">Inscribir</span>, pestaña <span class="ui">Sin formatear</span>. Elija la carpeta en <span class="ui">Carpeta donde quedan los teléfonos…</span> y pulse <span class="ui">Descargar inscriptor para Windows</span>. El mismo archivo sirve para todos los teléfonos de esa carpeta. <span class="ui">Descargar guía (PDF)</span> entrega la guía con imágenes para quien opera el computador.</li>
+    <li>En el teléfono, quite las cuentas: Ajustes, Cuentas, cada cuenta, «Quitar cuenta». No borra datos del teléfono.</li>
+    <li>Active las opciones de desarrollador: Ajustes, Acerca del teléfono, 7 toques en «Número de compilación».</li>
+    <li>Con cable: active «Depuración por USB», conecte el cable y acepte «¿Permitir depuración USB?». Sin cable: active «Depuración inalámbrica» y elija «Vincular dispositivo con código de sincronización».</li>
+    <li>En el computador, abra el archivo descargado con doble clic. Si Windows avisa «protegió su PC», elija «Más información» y «Ejecutar de todas formas».</li>
+    <li>Siga la ventana: escriba 1 para cable o 2 para Wi-Fi. El inscriptor recorre cinco pasos y termina con «Inscrito. En unos segundos aparece en la consola.».</li>
+    <li>Vuelva a agregar las cuentas al teléfono. El inscriptor ofrece apagar la depuración al final.</li>
+  </ol>
+  <h2>Si el inscriptor se detiene</h2>
+  <table>
+    <thead><tr><th style="width:70mm">Mensaje de la ventana</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>«El teléfono tiene estas cuentas…»</td><td>Quítelas en el teléfono y presione Enter.</td></tr>
+      <tr><td>«Todavía no veo el teléfono»</td><td>Use un cable de datos, pruebe otro puerto, confirme la depuración, o use Wi-Fi.</td></tr>
+      <tr><td>«No se pudo vincular»</td><td>El código de vinculación cambia cada vez. Teléfono y computador deben estar en la misma red, no en la de invitados.</td></tr>
+      <tr><td>«Android dice que el teléfono todavía tiene cuentas»</td><td>Revise cuentas de aplicaciones y del fabricante.</td></tr>
+      <tr><td>«otro usuario o un perfil de trabajo»</td><td>Elimine el usuario secundario o el perfil de trabajo.</td></tr>
+      <tr><td>«Otro programa ya administra este teléfono»</td><td>Hay otro sistema de administración. Contacte a soporte.</td></tr>
+      <tr><td>«No se pudieron descargar…»</td><td>El computador no tiene internet.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Para técnicos con Mac o Linux, la misma pestaña arma la orden del guion <code>scripts/adb-enroll.sh</code> en el desplegable <span class="ui">Para técnicos: con el repositorio (Mac o Linux)</span>.</p>
+</section>
+
+<section class="sec pb" id="usb" data-temas="USB, cable, herramienta Windows, Android 6, Android 15, Android 16, Play Protect">
+  <p class="k">5 · Por cable (USB)</p>
+  <h1>El cable inscribe los equipos donde el QR no está disponible</h1>
+  <p>Este método parte de un equipo formateado y usa un computador con Windows. Es la vía para Android 6, que no tiene lector de QR en la bienvenida, y para los modelos en que el QR falla.</p>
+  <div class="callout"><b>Android 15 y 16.</b> La consola advierte que en estas versiones la protección de Google Play puede bloquear la instalación del agente por QR con el mensaje «Se produjo un error». Si ocurre, inscriba ese equipo por cable. El QR en Android 11 a 17 no quedó probado de punta a punta en emulador (capítulo 10).</div>
+  <div class="fig m">
+    <img src="img/e05-usb.jpg" alt="Pestaña Por cable (USB)">
+    <p class="cap">Figura 4. Pestaña «Por cable (USB)» con el botón de descarga de la herramienta.</p>
+  </div>
+  <h2>Pasos</h2>
+  <ol class="steps">
+    <li>Restablezca el teléfono de fábrica. En el asistente de bienvenida no agregue ninguna cuenta: con una cuenta, la inscripción falla.</li>
+    <li>Active las opciones de desarrollador: Ajustes, Acerca del teléfono, Información de software, 7 toques en «Número de compilación».</li>
+    <li>Active «Depuración USB» en Opciones de desarrollador, conecte el cable y acepte «Permitir depuración USB» en el teléfono.</li>
+    <li>En la consola: <span class="ui">Inscribir</span>, pestaña <span class="ui">Por cable (USB)</span>, botón <span class="ui">Descargar herramienta (Windows)</span>.</li>
+    <li>Descomprima el archivo y ábralo con doble clic. Cuando lo pida, escriba el código de la carpeta del equipo (pestaña <span class="ui">Códigos de carpeta</span>).</li>
+    <li>Verifique: en 1 o 2 minutos el equipo aparece en <span class="ui">Dispositivos</span>, en línea.</li>
+  </ol>
+  <h2>Si algo falla</h2>
+  <table>
+    <thead><tr><th style="width:62mm">Mensaje</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>«no autorizado / unauthorized»</td><td>Acepte el permiso de depuración USB en el teléfono y ejecute de nuevo.</td></tr>
+      <tr><td>«No se pudo poner como Device Owner»</td><td>El equipo tiene una cuenta o no estaba recién formateado. Formatee de nuevo sin agregar cuentas.</td></tr>
+      <tr><td>No detecta el teléfono</td><td>Pruebe otro cable o puerto y confirme que la depuración USB está activa.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">La herramienta de esta pestaña la publica el operador del servidor junto con el agente. Si la descarga no responde, pida a TI que la publique o use el inscriptor del capítulo 4, que funciona también con un equipo formateado y sin cuentas.</p>
+</section>
+
+<section class="sec pb" id="zero-touch" data-temas="Zero-Touch, KME, Knox Mobile Enrollment, Samsung, revendedor, DPC extras, exportar JSON">
+  <p class="k">6 · Zero-Touch y Samsung KME</p>
+  <h1>La consola exporta la configuración que piden los portales de inscripción automática</h1>
+  <p>Con Android Zero-Touch y con Samsung Knox Mobile Enrollment, un equipo comprado a un revendedor autorizado se inscribe solo al encenderse por primera vez. La consola entrega el texto de configuración que cada portal pide; el registro de los equipos lo hace el revendedor.</p>
+  <div class="fig m">
+    <img src="img/e03-zero-touch.jpg" alt="Ventana Configuración Zero-Touch / KME">
+    <p class="cap">Figura 5. Ventana «Configuración Zero‑Touch / KME» de un código de carpeta.</p>
+  </div>
+  <h2>Android Zero-Touch</h2>
+  <ol class="steps">
+    <li>Cree un código de carpeta para los equipos (capítulo 3) y pulse <span class="ui">Zero‑Touch / KME</span> en su fila.</li>
+    <li>En la pestaña <span class="ui">Android Zero‑Touch</span> pulse <span class="ui">Copiar JSON</span> o <span class="ui">Descargar .json</span>.</li>
+    <li>El revendedor autorizado registra los equipos, por IMEI o serie, en la cuenta Zero-Touch de la empresa.</li>
+    <li>En el portal Zero-Touch, en Configuraciones, agregue una configuración, elija el administrador que indique el revendedor y pegue el texto en «DPC extras». El texto ya lleva el paquete del agente, su firma y la dirección de descarga.</li>
+    <li>Aplique la configuración a los equipos. Al encenderlos formateados y conectarlos a internet, se inscriben solos en la carpeta.</li>
+  </ol>
+  <h2>Samsung Knox Mobile Enrollment</h2>
+  <ol class="steps">
+    <li>En la misma ventana abra la pestaña <span class="ui">Samsung KME</span>.</li>
+    <li>En el portal Knox Mobile Enrollment cree un perfil Android Enterprise de tipo Device Owner.</li>
+    <li>En «Pick your MDM» elija «Other» y en «MDM Agent APK» pegue la dirección del agente que muestra la tabla de la consola (botón <span class="ui">Copiar</span>).</li>
+    <li>Pegue el JSON de la consola en «Custom JSON Data (as defined by MDM)» y marque «Leave all system apps enabled».</li>
+    <li>Asigne el perfil a los equipos que subió el revendedor Samsung. Al encenderlos formateados se inscriben en la carpeta.</li>
+  </ol>
+  <div class="callout"><b>No revoque el código exportado.</b> El portal guarda ese texto para todos los equipos. Si el código se revoca, los equipos nuevos dejan de inscribirse y el motivo aparece en <span class="ui">Intentos de inscripción</span> como «Código desconocido o revocado». Si cambia la firma o la dirección del agente, exporte de nuevo y actualice el portal.</div>
+  <p class="nota">Pendiente: la asignación real en los portales Zero-Touch y KME no se pudo verificar sin equipos registrados por un revendedor. El contenido exportado se comprobó contra el mismo formato que usa el QR.</p>
+</section>
+
+<section class="sec pb" id="si-falla" data-temas="QR no funciona, intentos de inscripción, motivos, no se puede configurar el dispositivo, fecha y hora, portal cautivo">
+  <p class="k">7 · Si el QR no funciona</p>
+  <h1>El panel «Intentos de inscripción» dice hasta dónde llegó cada teléfono</h1>
+  <p>Al pie de la pantalla <span class="ui">Inscribir</span>, el panel <span class="ui">Intentos de inscripción</span> muestra lo que el servidor vio de cada teléfono: la descarga del agente que dispara el QR y cada inscripción aceptada o rechazada, con su motivo. Se actualiza solo cada 10 segundos. La casilla <span class="ui">Solo con problemas</span> deja a la vista los que no terminaron.</p>
+  <div class="fig">
+    <img src="img/e06-intentos.jpg" alt="Panel Intentos de inscripción">
+    <p class="cap">Figura 6. Panel «Intentos de inscripción»: resultado, equipo, versión de Android, vía y carpeta de cada intento.</p>
+  </div>
+  <div class="callout"><b>Regla práctica.</b> Si un teléfono escaneó el QR y en el panel no aparece ni la descarga, el problema está antes del servidor: Wi-Fi sin internet o con página de inicio de sesión, o fecha del teléfono incorrecta.</div>
+
+  <h2>Lo que se ve en el teléfono</h2>
+  <table>
+    <thead><tr><th style="width:56mm">Síntoma</th><th style="width:52mm">Causa probable</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>No abre el lector al tocar 6 veces</td><td>El equipo no está recién formateado, o es Android 6 o anterior</td><td>Formatee. En Android 6 use cable. En Android 7 y 8 conecte Wi-Fi cuando lo pida.</td></tr>
+      <tr><td>«No se puede configurar el dispositivo» antes de descargar</td><td>Wi-Fi sin internet o con página de inicio de sesión, o fecha de fábrica</td><td>Escanee el QR desde la pantalla de la consola y use una red sin portal.</td></tr>
+      <tr><td>Pide la cuenta de Google anterior</td><td>Protección contra restablecimiento activa</td><td>Capítulo 9.</td></tr>
+      <tr><td>Samsung: se inscribe en otro sistema</td><td>Tiene un perfil de Knox Mobile Enrollment de otro sistema</td><td>Pida al revendedor que lo libere, o use el capítulo 6.</td></tr>
+      <tr><td>Xiaomi y otros: no aparece el lector</td><td>El fabricante no trae el lector integrado</td><td>Conecte Wi-Fi cuando lo pida. Si no aparece, use cable.</td></tr>
+      <tr><td>«Se produjo un error» al instalar (Android 15 y 16)</td><td>La protección de Google Play bloqueó el agente</td><td>Use cable (capítulo 5).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Motivos del panel y su solución</h2>
+  <table class="compact">
+    <thead><tr><th style="width:58mm">Resultado en la consola</th><th>Qué significa y qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Inscrito</td><td>La inscripción se aceptó. El equipo ya está en <span class="ui">Dispositivos</span>.</td></tr>
+      <tr><td>Descargó el agente</td><td>El teléfono bajó el agente. Si pasan 5 minutos sin más movimiento, Android no lo instaló o no lo dejó como propietario: confirme que el equipo estaba recién formateado y sin cuenta previa, y que la protección de Google Play no lo bloqueó.</td></tr>
+      <tr><td>El QR ya lo usó otro equipo</td><td>El código de un solo uso ya se consumió. Genere un QR nuevo o use un código de carpeta.</td></tr>
+      <tr><td>El código venció</td><td>El QR de un solo uso vale 24 horas. Genere uno nuevo.</td></tr>
+      <tr><td>Código desconocido o revocado</td><td>El equipo trae un código que no existe o fue revocado: QR viejo o configuración Zero-Touch o KME desactualizada.</td></tr>
+      <tr><td>Fecha y hora del teléfono incorrectas</td><td>El equipo arrancó con la fecha de fábrica. Escanee el QR de la pantalla o corrija la fecha.</td></tr>
+      <tr><td>El teléfono no tenía conexión con el servidor</td><td>Sin internet o sin resolución de nombres en esa red. Cambie de red.</td></tr>
+      <tr><td>El servidor no respondió a tiempo al teléfono</td><td>Red lenta o servicio saturado. El teléfono reintenta solo.</td></tr>
+      <tr><td>Wi‑Fi con portal cautivo o que bloquea el servidor</td><td>Use una red sin página de inicio de sesión.</td></tr>
+      <tr><td>Fallo de conexión segura (certificado)</td><td>La red inspecciona el tráfico cifrado. Vea «Arquitectura y requisitos técnicos», requisitos de red.</td></tr>
+      <tr><td>Administrado (Device Owner) pero sin código de inscripción</td><td>El asistente no entregó el QR al agente. No hace falta formatear: capítulo 8.</td></tr>
+      <tr><td>El servidor no permite crear dispositivos</td><td>La creación de dispositivos al inscribir está desactivada en el servidor. Avise al operador.</td></tr>
+      <tr><td>El servidor respondió con error, Error interno del servidor, El servidor rechazó la inscripción</td><td>Anote la hora y el equipo y repórtelo a soporte.</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Un intento repetido en menos de 10 minutos solo sube el contador «N veces». Los registros se conservan 60 días.</p>
+</section>
+
+<section class="sec pb" id="agente" data-temas="agente, escanear el QR de la consola, código de inscripción, equipo ya administrado, pantalla del agente">
+  <p class="k">8 · Inscribir desde el agente</p>
+  <h1>Un equipo administrado que no se inscribió se recupera sin formatear</h1>
+  <p>A veces el asistente del teléfono deja a {{PRODUCTO}} como administrador pero no le entrega el código: se abandonó a mitad o el fabricante no lo finaliza. El equipo no aparece en <span class="ui">Dispositivos</span> y en <span class="ui">Intentos de inscripción</span> figura como «Administrado (Device Owner) pero sin código de inscripción».</p>
+  <p>El teléfono lo avisa con la notificación <span class="ui">Este equipo aún no está inscrito</span>. Al tocarla, o al abrir la app <span class="ui">DallyControl</span>, aparece el bloque <span class="ui">CÓDIGO DE INSCRIPCIÓN</span> con dos caminos.</p>
+  <div class="cols">
+    <div>
+      <h2>Escanear el QR de la consola</h2>
+      <ol class="steps">
+        <li>En la consola: <span class="ui">Inscribir</span>, pestaña <span class="ui">Escanear QR</span>, desplegable <span class="ui">Equipo ya administrado que no se inscribió (sin formatear de nuevo)</span>. Muestra un QR pequeño.</li>
+        <li>En el teléfono: <span class="ui">Escanear el QR de la consola</span>.</li>
+        <li>Apunte la cámara a ese QR pequeño.</li>
+      </ol>
+    </div>
+    <div>
+      <h2>Escribir un código de carpeta</h2>
+      <ol class="steps">
+        <li>En el campo <span class="ui">Servidor (https://…)</span> escriba la dirección de la consola.</li>
+        <li>En el campo <span class="ui">Código, p. ej. ABCD-EFGH</span> escriba el código de carpeta.</li>
+        <li>Pulse <span class="ui">Inscribir</span>.</li>
+      </ol>
+    </div>
+  </div>
+  <p>El teléfono muestra «Inscribiendo… tarda unos segundos.». Si falla, el motivo aparece en la misma pantalla y el botón <span class="ui">Reintentar</span> repite el intento.</p>
+  <h2>Mensajes del teléfono durante la inscripción</h2>
+  <table class="compact">
+    <thead><tr><th>Mensaje en el teléfono</th><th style="width:62mm">Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>«La fecha y la hora del teléfono son incorrectas y por eso no puede conectarse de forma segura.»</td><td>Corrija fecha y hora en Ajustes, o conecte internet y reintente.</td></tr>
+      <tr><td>«Sin conexión con el servidor. Revisa que el Wi‑Fi o los datos móviles tengan internet.»</td><td>Cambie de red.</td></tr>
+      <tr><td>«Esta red Wi‑Fi pide iniciar sesión (portal cautivo) o bloquea el servidor.»</td><td>Inicie sesión en la red o use otra.</td></tr>
+      <tr><td>«No se pudo establecer una conexión segura con el servidor (certificado).»</td><td>La red inspecciona el tráfico cifrado. Use datos móviles u otra red.</td></tr>
+      <tr><td>«Este equipo no recibió su código de inscripción.»</td><td>Escanee el QR pequeño o escriba un código de carpeta.</td></tr>
+      <tr><td>«Este código QR ya fue usado por otro equipo.» o «Este código QR venció.»</td><td>Genere un QR nuevo o use un código de carpeta.</td></tr>
+      <tr><td>«El código de inscripción no es válido o fue revocado.»</td><td>Revise el código en <span class="ui">Códigos de carpeta</span>.</td></tr>
+      <tr><td>«El servidor no respondió a tiempo. Se reintenta solo.»</td><td>Espere; el agente reintenta con esperas crecientes.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">La pantalla principal de la app del agente muestra sus rótulos fijos en inglés (por ejemplo «MANAGEMENT» y «DEVICE ID»); el bloque de inscripción y los mensajes de error están en español.</p>
+</section>
+
+<section class="sec pb" id="frp" data-temas="FRP, protección contra restablecimiento, cuenta de Google, reinscripción, reset, restablecer de fábrica, re-enrolamiento">
+  <p class="k">9 · Restablecimiento y reinscripción</p>
+  <h1>Tras un restablecimiento, el equipo vuelve a su ficha y a su carpeta</h1>
+  <h2>Qué es la protección contra restablecimiento</h2>
+  <p>Android protege un equipo restablecido con los botones físicos: al encender pide la cuenta de Google que tenía antes. Se conoce como FRP. Si esa cuenta no se conoce, el equipo no se puede usar ni inscribir. Ningún sistema de administración puede saltar esa pantalla.</p>
+  <table>
+    <thead><tr><th style="width:60mm">Situación</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Equipo usado que se va a inscribir</td><td>Quite todas las cuentas desde Ajustes antes de restablecerlo. Restablezca desde Ajustes, no con los botones.</td></tr>
+      <tr><td>El equipo pide «la cuenta anterior» tras formatear</td><td>Ingrese con esa cuenta, quítela desde Ajustes y restablezca de nuevo.</td></tr>
+      <tr><td>Equipo ya inscrito que se va a reasignar</td><td>Use el restablecimiento remoto desde la consola (pestaña <span class="ui">Control</span>, <span class="ui">Restablecer de fábrica (borrar todo)</span>).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Cómo proteger los equipos de la empresa</h2>
+  <p>En la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, sección <span class="ui">Restablecimiento de fábrica</span>:</p>
+  <ul class="b">
+    <li><span class="ui">Bloquear desde Ajustes</span> impide que el usuario restablezca el equipo desde el menú de Ajustes.</li>
+    <li><span class="ui">ID de cuentas que pueden reactivar (opcional)</span> indica qué cuentas de Google pueden volver a activar el equipo después de un restablecimiento con botones. Se escriben los identificadores numéricos de la cuenta, no el correo, separados por coma. Aplica desde Android 11.</li>
+  </ul>
+  <p>Con esas cuentas definidas, un equipo robado y restablecido con los botones queda inservible para quien no tenga una de ellas, y la empresa lo recupera ingresando con la cuenta corporativa.</p>
+  <p class="pend">Llega con la integración de protección y borrado remoto</p>
+  <p>La versión que se integra a continuación agrega cuentas de reactivación por empresa y por carpeta, el estado de la protección en la ficha de cada equipo, el modo perdido y opciones de borrado remoto. Este capítulo se ampliará entonces; ver el archivo de pendientes de los manuales.</p>
+
+  <h2>Reinscribir un equipo que ya estuvo inscrito</h2>
+  <p>Inscriba el equipo con cualquiera de los métodos de esta guía. El servidor lo reconoce por su identificador de hardware, su serie o su IMEI, y reutiliza su ficha: conserva nombre, carpeta e historial. No aparece duplicado.</p>
+  <ul class="b">
+    <li>Si la ficha se había eliminado de la consola con el teléfono aún inscrito, el equipo reaparece solo en su carpeta en su siguiente conexión.</li>
+    <li>Las órdenes de borrado que quedaron pendientes de su vida anterior se cierran al reinscribirse; el equipo no se borra de nuevo.</li>
+    <li>Si el chip <span class="ui">⚠ Duplicados</span> aparece en <span class="ui">Dispositivos</span>, hay dos filas con el mismo identificador de hardware: elimine la fila antigua.</li>
+  </ul>
+  <div class="callout"><b>Pendiente.</b> El comportamiento de la protección contra restablecimiento solo se puede confirmar en teléfonos físicos con servicios de Google. No se pudo reproducir en emulador.</div>
+</section>
+
+<section class="sec pb" id="versiones" data-temas="versiones de Android, requisitos por versión, qué se probó, emulador, teléfono físico, fabricantes">
+  <p class="k">10 · Requisitos por versión de Android</p>
+  <h1>El agente funciona desde Android 6; el QR, desde Android 7</h1>
+  <table>
+    <thead><tr><th style="width:24mm">Android</th><th>Qué cambia en la inscripción</th></tr></thead>
+    <tbody>
+      <tr><td>6</td><td>Sin lector de QR en la bienvenida. Se inscribe por cable.</td></tr>
+      <tr><td>7 y 8</td><td>QR disponible. El teléfono descarga antes el lector y necesita un Wi-Fi con internet. El código llega al agente cuando el asistente finaliza; si se abandona, use el capítulo 8.</td></tr>
+      <tr><td>9</td><td>Igual que 7 y 8, sin la descarga previa del lector. El agente puede corregir el reloj del equipo con la hora del servidor.</td></tr>
+      <tr><td>10 y 11</td><td>El agente guarda una copia temprana del código y se inscribe aunque el asistente no finalice. El QR admite Wi-Fi empresarial. Desde Android 11 se puede inscribir sin cable con la depuración inalámbrica.</td></tr>
+      <tr><td>12</td><td>El código llega dentro del asistente y la pantalla de estado se ve ahí mismo.</td></tr>
+      <tr><td>13 y 14</td><td>El QR indica al asistente que continúe aunque no pueda actualizar componentes de Google en ese momento.</td></tr>
+      <tr><td>15 y 16</td><td>La protección de Google Play puede bloquear la instalación por QR. Alternativa: cable.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Qué se probó</h2>
+  <table>
+    <thead><tr><th style="width:52mm">Prueba (27 de noviembre de 2026)</th><th style="width:38mm">Dónde</th><th>Resultado</th></tr></thead>
+    <tbody>
+      <tr><td>QR, Android 7.0 a 9</td><td>Emulador</td><td>Inscritos al primer intento, de 52 a 56 segundos después de quedar administrados.</td></tr>
+      <tr><td>QR, Android 10</td><td>Emulador</td><td>Inscrito al primer intento con la copia temprana del código.</td></tr>
+      <tr><td>QR, Android 11 a 17</td><td>Emulador</td><td>No obtenido: la máquina de pruebas estaba sobrecargada. Pendiente de repetir.</td></tr>
+      <tr><td>Reglas del servidor: código usado, vencido, revocado, repetición del mismo teléfono</td><td>Pruebas automáticas, 24 comprobaciones</td><td>Correctas.</td></tr>
+      <tr><td>Inscripción por cable y funciones del agente</td><td>Emuladores Android 6 a 17 (28 de septiembre de 2026)</td><td>Prueba funcional completa en todas las versiones.</td></tr>
+      <tr><td>Inscriptor para Windows</td><td>Simulación en otro sistema</td><td>Correcto en la simulación. Pendiente en un computador con Windows real.</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">La prueba del QR en emulador empieza después de la lectura de la cámara: no ejercita la cámara ni el lector del fabricante.</p>
+  <h2>Qué falta confirmar en teléfono físico</h2>
+  <ul class="chk">
+    <li>La cámara y el lector de QR de cada fabricante, y la descarga del lector en Android 7 y 8.</li>
+    <li>Los asistentes de bienvenida de Samsung, Xiaomi y Motorola.</li>
+    <li>El veredicto de la protección de Google Play sobre el agente, en especial en Android 15 y 16.</li>
+    <li>La protección contra restablecimiento y los portales Zero-Touch y KME.</li>
+    <li>Redes con página de inicio de sesión.</li>
+  </ul>
+  <div class="callout"><b>Próximo paso.</b> Inscriba un equipo físico de cada modelo de la flota por QR y anote el resultado. Con ese dato, esta tabla se actualiza por modelo.</div>
+</section>
+</body></html>

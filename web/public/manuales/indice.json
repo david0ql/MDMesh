@@ -1,0 +1,102 @@
+{
+ "producto": "DallyControl",
+ "empresa": "IAMOVIL",
+ "edicion": "Noviembre de 2026",
+ "version": "1.0",
+ "manuales": [
+  {
+   "id": "05-operacion-soporte-sla",
+   "archivo": "05-operacion-soporte-sla.pdf",
+   "titulo": "Operación, soporte y nivel de servicio",
+   "descripcion": "Cómo se instala, se vigila, se respalda y se actualiza el servicio, qué hacer ante un incidente y qué se compromete con el cliente.",
+   "publico": "Equipo de TI que opera el servidor, personal de guardia y gerencia de servicio",
+   "paginas": 21,
+   "kb": 646,
+   "secciones": [
+    {
+     "id": "resumen",
+     "titulo": "El servicio se vigila solo, se respalda a diario y se actualiza sin corte",
+     "pagina": 3,
+     "temas": "resumen, operación, cifras, mediciones"
+    },
+    {
+     "id": "instalacion",
+     "titulo": "La instalación genera sus secretos y obliga a cambiar la clave inicial",
+     "pagina": 4,
+     "temas": "instalación, instalar, despliegue inicial, docker, .env, secretos, correo, SMTP"
+    },
+    {
+     "id": "actualizacion",
+     "titulo": "Una actualización normal no interrumpe la consola ni a los equipos",
+     "pagina": 6,
+     "temas": "actualización, actualizar, despliegue sin corte, deploy, relevo, volver atrás, rollback"
+    },
+    {
+     "id": "monitoreo",
+     "titulo": "El monitor comprueba el servicio cada minuto y avisa tras dos fallas seguidas",
+     "pagina": 8,
+     "temas": "monitoreo, alertas, página de estado, healthz, salud, disponibilidad, telegram, webhook"
+    },
+    {
+     "id": "respaldos",
+     "titulo": "Cada respaldo se verifica al hacerse y se restaura de prueba cada semana",
+     "pagina": 10,
+     "temas": "respaldos, backup, restauración, restaurar, cifrado, retención, copia externa"
+    },
+    {
+     "id": "alta-disponibilidad",
+     "titulo": "Un servidor en espera reduce la pérdida de datos de horas a segundos",
+     "pagina": 12,
+     "temas": "alta disponibilidad, servidor en espera, réplica, conmutación, HA, RPO, RTO"
+    },
+    {
+     "id": "acceso",
+     "titulo": "Dos conectores del túnel evitan que un reinicio corte el acceso",
+     "pagina": 14,
+     "temas": "túnel, cloudflare, conector, ruta directa, acceso, DNS"
+    },
+    {
+     "id": "incidentes",
+     "titulo": "Los primeros cinco minutos deciden qué capa falla y quién debe saberlo",
+     "pagina": 15,
+     "temas": "incidentes, caída, runbook, guardia, disco lleno, base de datos, túnel, equipos no reportan, informe posterior"
+    },
+    {
+     "id": "datos-guardia",
+     "titulo": "Estos datos se completan una vez y se revisan con cada cambio de personal",
+     "pagina": 17,
+     "temas": "guardia, contactos, datos por completar, pendientes de operación"
+    },
+    {
+     "id": "sla",
+     "titulo": "Propuesta de acuerdo: qué se compromete y cómo se mide",
+     "pagina": 18,
+     "temas": "SLA, acuerdo de nivel de servicio, disponibilidad, severidad, tiempos de respuesta, soporte, compensación, mantenimiento"
+    }
+   ]
+  },
+  {
+   "id": "06-guia-rapida-tecnico",
+   "archivo": "06-guia-rapida-tecnico.pdf",
+   "titulo": "Guía rápida del técnico de campo",
+   "descripcion": "Enrolar un equipo y verificar que quedó bien, en dos páginas.",
+   "publico": "Técnicos de campo",
+   "paginas": 2,
+   "kb": 209,
+   "secciones": [
+    {
+     "id": "enrolar",
+     "titulo": "Enrolar un equipo por QR",
+     "pagina": 1,
+     "temas": "guía rápida, enrolar, QR, técnico de campo"
+    },
+    {
+     "id": "verificar",
+     "titulo": "Verificar que el equipo quedó bien",
+     "pagina": 2,
+     "temas": "verificar, comprobar equipo, lista de comprobación, entrega"
+    }
+   ]
+  }
+ ]
+}
