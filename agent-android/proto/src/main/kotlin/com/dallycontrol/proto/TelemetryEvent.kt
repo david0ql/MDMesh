@@ -65,6 +65,16 @@ object EventType {
      */
     const val APP_NO_VERSION = "appNoVersion"
 
+    /**
+     * Mobile data: a limit of the policy reached its warning threshold. `detail` is a readable line per limit,
+     * e.g. `Equipo: 410 MB de 500 MB (82 %)` or `YouTube (com.google.android.youtube): 85 MB de 100 MB (85 %)`.
+     * Recorded once per limit and period.
+     */
+    const val DATA_WARNING = "dataWarning"
+
+    /** Mobile data: a limit was spent; the app (or every non-essential app) lost mobile data until the next period. */
+    const val DATA_LIMIT = "dataLimit"
+
     /** A device security rule (reset protection, safe mode, debugging…) could not be applied. `detail`: what failed. */
     const val PROTECTION_FAILED = "protectionFailed"
 

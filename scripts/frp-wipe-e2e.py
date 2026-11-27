@@ -17,8 +17,7 @@ Phases (each can be picked with --only):
   lost          lost mode end to end: locked, message + phone on the lock screen, position every minute, wipe after
                 N wrong unlocks; who ordered it stays in the history; ending it puts everything back.
   reenroll      (API only, no device) a phone that enrolls again after a reset comes back to its row by serial /
-                IMEI; a deleted one is re-created in its folder from its tombstone; junk serials and a row that is
-                still reporting are never taken over.
+                IMEI; a deleted one is re-created in its folder from its tombstone; junk serials never match.
   wipe-online   (--destructive) remote wipe "prepare to reassign" with the device online: announced by the agent
                 BEFORE wiping (the console marks it at once, with who ordered it and the options), flags per option.
   wipe-offline  (--destructive, LAST) airplane mode, queue "lost or stolen", make it 3 days old in the database: it
@@ -390,20 +389,11 @@ def t_reenroll():
     number = (first.get("data") or {}).get("deviceId")
     check("first enrollment lands in the folder", first.get("status") == "OK" and device_group(number) == str(group_id), str(first))
 
-    # Still reporting (just enrolled): another phone claiming the same serial must NOT take the row over.
-    other = enroll(mint(), f"hw-b-{tag}", serial, None)
-    other_number = (other.get("data") or {}).get("deviceId")
-    check("a row that is still reporting is not taken over", other.get("status") == "OK" and other_number != number, str(other))
-    sql(f"delete from devices where number = '{other_number}'")
-    sql(f"delete from device_tombstone where number = '{other_number}'")
-
-    # The phone is reset by buttons: silent for 5 minutes, then enrolls again with a new hardware id and no folder.
-    sql(f"update devices set lastUpdate = lastUpdate - {5 * 60_000} where number = '{number}'")
+    # The phone is reset by buttons, then enrolls again with a new hardware id and a code without folder.
     again = enroll(mint(), f"hw-c-{tag}", serial, None)
     check("after a reset the same serial returns to its own row", (again.get("data") or {}).get("deviceId") == number, str(again))
     check("...and keeps its folder", device_group(number) == str(group_id))
     check("...and the history says so", "restablecimiento" in events("reenrolled", number))
-    sql(f"update devices set lastUpdate = lastUpdate - {5 * 60_000} where number = '{number}'")
     by_imei = enroll(mint(), f"hw-d-{tag}", None, imei)
     check("the IMEI alone is enough", (by_imei.get("data") or {}).get("deviceId") == number, str(by_imei))
 

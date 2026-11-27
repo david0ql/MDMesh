@@ -84,6 +84,15 @@ public interface AgentDeviceMapper {
     String findDeviceNumberByHardwareId(@Param("customerId") int customerId,
                                         @Param("hardwareId") String hardwareId);
 
+    /** Enroll de-dup below Android 12, where the hardware id (ANDROID_ID) does not survive a factory reset. */
+    @Select({"SELECT number FROM devices WHERE customerId = #{customerId} AND upper(infojson ->> 'serial') = upper(#{serial}) ",
+             "ORDER BY lastUpdate DESC LIMIT 1"})
+    String findDeviceNumberBySerial(@Param("customerId") int customerId, @Param("serial") String serial);
+
+    @Select({"SELECT number FROM devices WHERE customerId = #{customerId} AND imei = #{imei} ",
+             "ORDER BY lastUpdate DESC LIMIT 1"})
+    String findDeviceNumberByImei(@Param("customerId") int customerId, @Param("imei") String imei);
+
     // --- Per-device kiosk apps: packages shown in a single device's kiosk (no per-device policy needed) ---
     @Select("SELECT packageName FROM device_kiosk_app WHERE deviceId = #{deviceId}")
     java.util.List<String> listDeviceKioskApps(@Param("deviceId") int deviceId);

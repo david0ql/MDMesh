@@ -316,4 +316,58 @@ public class DeviceExportTest {
         assertTrue(FleetInventory.compareVersions("0.9.8", "0.9.8") == 0);
         assertTrue(FleetInventory.compareVersions("1.0", "0.9.8") > 0);
     }
+
+    /** A discarding stream that counts, so the test measures the export and not a byte array of its output. */
+    private static final class Count extends java.io.OutputStream {
+        long n;
+        @Override public void write(int b) { n++; }
+        @Override public void write(byte[] b, int off, int len) { n += len; }
+    }
+
+    @Test
+    public void five_thousand_devices_with_a_month_of_sessions_export_in_seconds() throws Exception {
+        DeviceExport.Input in = new DeviceExport.Input();
+        in.baseUrl = "https://mdm.example.com";
+        in.now = NOW;
+        in.from = NOW - 30 * 86_400_000L;
+        in.to = NOW;
+        for (int g = 1; g <= 50; g++) in.groups.add(group(g, g > 10 ? (g % 10) + 1 : null, "Carpeta " + g, null));
+        for (int i = 0; i < 5000; i++) {
+            in.devices.add(device("dev-" + i, "Equipo " + i, (i % 50) + 1, NOW - (i % 400) * 60_000L));
+            for (int k = 0; k < 20; k++) {
+                Map<String, Object> c = new HashMap<>();
+                c.put("devicenumber", "dev-" + i);
+                c.put("connectedat", NOW - (k + 1) * 86_400_000L);
+                c.put("lastseenat", NOW - (k + 1) * 86_400_000L + 3_600_000L);
+                in.connections.add(c);
+            }
+        }
+        Count xlsx = new Count();
+        long t0 = System.nanoTime();
+        DeviceExport.write(in, xlsx);
+        long xlsxMs = (System.nanoTime() - t0) / 1_000_000;
+        Count csv = new Count();
+        t0 = System.nanoTime();
+        DeviceExport.writeCsv(in, ';', csv);
+        long csvMs = (System.nanoTime() - t0) / 1_000_000;
+        System.out.println("5000 devices, 100000 sessions: xlsx " + xlsxMs + " ms (" + xlsx.n / 1024 + " KB), csv "
+                + csvMs + " ms (" + csv.n / 1024 + " KB)");
+        assertTrue("xlsx took " + xlsxMs + " ms", xlsxMs < 30_000);
+        assertTrue("csv took " + csvMs + " ms", csvMs < 10_000);
+        assertTrue(xlsx.n > 100_000 && csv.n > 100_000);
+    }
+
+    @Test
+    public void a_long_sheet_keeps_every_row_and_its_column_widths() throws Exception {
+        DeviceExport.Input in = input();
+        for (int i = 0; i < 600; i++) in.devices.add(device("n-" + i, "Equipo con un nombre largo " + i, 3, NOW - 60_000));
+        try (XSSFWorkbook wb = workbook(in)) {
+            Sheet d = wb.getSheet("Dispositivos");
+            assertEquals(602, d.getLastRowNum());
+            assertEquals("Equipo con un nombre largo 599", cell(d, 602, "Nombre").getStringCellValue());
+            assertEquals("80.0", String.valueOf(cell(d, 602, "Batería %").getNumericCellValue()));
+            assertTrue("width from the first rows", d.getColumnWidth(0) > 20 * 256);
+            assertEquals("602", resumen(wb).get("Dispositivos"));
+        }
+    }
 }

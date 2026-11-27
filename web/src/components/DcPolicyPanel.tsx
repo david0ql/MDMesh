@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MobileDataPolicySection, cleanMobileData, type PolicyAppOption } from './MobileDataPolicySection';
 import { DcResetProtection } from './DcResetProtection';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
@@ -51,6 +52,8 @@ export interface DcPolicy {
     /** Wipe after this many wrong unlock attempts (3-100). */
     maxFailedPasswordsForWipe?: number;
   };
+  /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
+  mobileData?: import('../api/mobileData').MobileDataPolicy;
   /** E-mails of the policy's own reset-protection accounts (account id -> e-mail). */
   frpLabels?: Record<string, string>;
 }
@@ -82,6 +85,8 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
+  const mobileData = cleanMobileData(p.mobileData);
+  if (mobileData) out.mobileData = mobileData;
   if (p.frpLabels && out.device?.frpAccounts?.length && Object.keys(p.frpLabels).length) out.frpLabels = p.frpLabels;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
@@ -165,7 +170,11 @@ function RoleChecks({ value, disabled, onChange, name }: { value: string[]; disa
   );
 }
 
-export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; disabled?: boolean; onChange: (v: string | null) => void }) {
+export function DcPolicyPanel({ value, disabled, onChange, apps }: {
+  value: unknown; disabled?: boolean; onChange: (v: string | null) => void;
+  /** The policy's own apps, offered when picking apps for the mobile-data lists. */
+  apps?: PolicyAppOption[];
+}) {
   const p = parseDcPolicy(value);
   const update = (next: DcPolicy) => onChange(serializeDcPolicy(next));
   const browserMode = p.browser?.mode ?? 'unmanaged';
@@ -561,6 +570,8 @@ export function DcPolicyPanel({ value, disabled, onChange }: { value: unknown; d
           <span className="muted">segundos</span>
         </div>
       </div>
+
+      <MobileDataPolicySection value={p.mobileData} disabled={disabled} apps={apps} onChange={(v) => update({ ...p, mobileData: v })} />
     </section>
   );
 }

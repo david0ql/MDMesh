@@ -24,6 +24,7 @@ import javax.inject.Singleton
  * mints and returns the opaque device id, which becomes the agent's permanent identity.
  */
 @Singleton
+@Suppress("LongParameterList") // one collaborator per concern; the defaults keep older call sites and tests short
 class EnrollmentManager @Inject constructor(
     private val api: MdmApi,
     private val identity: DeviceIdentity,
@@ -31,11 +32,10 @@ class EnrollmentManager @Inject constructor(
     private val capabilitySource: CapabilitySource,
     private val eventSink: EventSink,
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
+    private val journal: com.dallycontrol.core.enroll.EnrollJournal = com.dallycontrol.core.enroll.EnrollJournal.None,
+    private val identitySource: com.dallycontrol.core.enroll.EnrollIdentitySource =
+        com.dallycontrol.core.enroll.EnrollIdentitySource { null to null },
 ) {
-
-    /** Serial and IMEI sent with the enrollment (injected; nothing by default). */
-    @set:Inject
-    var enrollIdentity: EnrollIdentitySource = EnrollIdentitySource { Pair(null, null) }
 
     private val mutex = Mutex()
 
@@ -48,13 +48,24 @@ class EnrollmentManager @Inject constructor(
         }
     }
 
-    private suspend fun enroll(): String {
+    /** One enroll call, with its outcome written to the journal (status screen + the server's attempts log). */
+    private suspend fun enroll(): String = try {
+        requestEnrollment()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+        runCatching { journal.failed(com.dallycontrol.core.enroll.EnrollFailure.classify(t)) }
+        throw t
+    }
+
+    private suspend fun requestEnrollment(): String {
         val token = tokenProvider.token()?.takeIf { it.isNotBlank() }
             ?: throw EnrollmentException("no enrollment token available")
 
         // deviceId is unknown pre-enrollment; the server ignores it and issues one.
         val matrix = capabilitySource.matrix(deviceId = "")
-        val ids = runCatching { enrollIdentity.get() }.getOrDefault(Pair(null, null))
+        val diagnostics = runCatching { journal.beginAttempt() }.getOrNull()
+        val (serial, imei) = runCatching { identitySource.get() }.getOrDefault(null to null)
         val response = api.enroll(
             AgentEnrollRequest(
                 enrollToken = token,
@@ -62,8 +73,9 @@ class EnrollmentManager @Inject constructor(
                 device = matrix.device,
                 capabilities = matrix.capabilities,
                 hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
-                serial = ids.first?.takeIf { it.isNotBlank() },
-                imei = ids.second?.takeIf { it.isNotBlank() },
+                serial = serial,
+                imei = imei,
+                diagnostics = diagnostics,
             ),
         )
 
@@ -77,14 +89,10 @@ class EnrollmentManager @Inject constructor(
             // Persist id + per-device secret together; the secret authenticates every check-in.
             identity.saveCredentials(data.deviceId, data.deviceSecret)
             runCatching { eventSink.record(EventType.ENROLLED) }
+            runCatching { journal.succeeded() }
         }
         return data.deviceId
     }
-}
-
-/** The device's serial number and IMEI, when the agent may read them (Device Owner). */
-fun interface EnrollIdentitySource {
-    fun get(): Pair<String?, String?>
 }
 
 /** Enrollment could not complete (no token, or server rejected). Lets the worker retry. */

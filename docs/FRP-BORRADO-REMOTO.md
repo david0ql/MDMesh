@@ -95,9 +95,8 @@ editor de la política muestra un aviso: tras un reset por botones el equipo que
    se recrea en la carpeta que tenía (o en «Recuperados» si esa carpeta ya no existe). En el historial del equipo queda
    el evento «Se inscribió de nuevo después de un restablecimiento».
 
-Protecciones del emparejamiento: no se usan números de serie genéricos (`unknown`, `0123456789ABCDEF`, emuladores) ni
-IMEI inválidos, y una fila solo se reutiliza si lleva al menos 2 minutos sin reportar o está marcada como borrada —
-un teléfono que sigue reportando es otro teléfono.
+Protección del emparejamiento: no se usan números de serie genéricos (`unknown`, `0123456789ABCDEF`, emuladores) ni
+IMEI inválidos, para no confundir dos teléfonos distintos.
 
 ### Con Zero-Touch
 

@@ -22,9 +22,25 @@ data class AgentEnrollRequest(
     /** Stable, permission-free device id (enrollment-specific id / ANDROID_ID) so the server
      *  can recognise a re-enrolling physical device and flag duplicate rows. */
     val hardwareId: String? = null,
-    /** Serial number and IMEI, when readable: after a factory reset they bring the device back to its row and folder. */
+    /** Serial and first IMEI when the agent may read them (Device Owner): the server recognises the phone after a
+     *  factory reset below Android 12, where [hardwareId] is ANDROID_ID and changes. */
     val serial: String? = null,
     val imei: String? = null,
+    /** How this agent was provisioned and what failed before this call. */
+    val diagnostics: EnrollDiagnostics? = null,
+)
+
+/** Sent with each enroll call; the server keeps it in its log of enrollment attempts. */
+@Serializable
+data class EnrollDiagnostics(
+    /** qr-modern (Android 12+), qr-legacy, adb, code or unknown. */
+    val path: String? = null,
+    /** Enroll calls made so far, this one included. */
+    val attempts: Int? = null,
+    /** Reason code of the failure before this call (it could not be reported while the server was unreachable). */
+    val lastError: String? = null,
+    val lastErrorDetail: String? = null,
+    val lastErrorAt: Long? = null,
 )
 
 /**

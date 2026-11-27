@@ -28,6 +28,8 @@ const TYPE_OPTIONS: { id: AlertType | ''; label: string }[] = [
   { id: 'simChange', label: 'Cambio de SIM' },
   { id: 'geofenceExit', label: 'Salida de zona' },
   { id: 'geofenceEnter', label: 'Entrada a zona' },
+  { id: 'dataWarning', label: 'Datos móviles: cerca del límite' },
+  { id: 'dataLimit', label: 'Datos móviles: límite superado' },
 ];
 
 const STATUS_OPTIONS: { id: AlertStatus | ''; label: string }[] = [

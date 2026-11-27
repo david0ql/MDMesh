@@ -49,19 +49,10 @@ public interface ProtectionMapper {
 
     // --- A phone that enrolls again after a factory reset --------------------------------------------------------
 
-    /** The customer's device that carries this IMEI or serial (IMEI first); either may be null. */
-    @Select({"SELECT number, lastUpdate AS lastupdate, wipedAt AS wipedat FROM devices WHERE customerId = #{customerId} " +
-            "AND ((#{imei}::text IS NOT NULL AND imei = #{imei}::text) " +
-            "OR (#{serial}::text IS NOT NULL AND infojson->>'serial' = #{serial}::text)) " +
-            "ORDER BY (CASE WHEN #{imei}::text IS NOT NULL AND imei = #{imei}::text THEN 0 ELSE 1 END), " +
-            "lastUpdate DESC NULLS LAST LIMIT 1"})
-    Map<String, Object> findDeviceByIdentity(@Param("customerId") int customerId, @Param("serial") String serial,
-                                             @Param("imei") String imei);
-
     /** The deleted device (kept in device_tombstone) that carried this IMEI or serial. */
     @Select({"SELECT number, customerId AS customerid, description, groupId AS groupid, configurationId AS configurationid, " +
             "pinned, hardwareId AS hardwareid FROM device_tombstone WHERE customerId = #{customerId} AND deletedAt >= #{since} " +
-            "AND ((#{imei}::text IS NOT NULL AND imei = #{imei}::text) OR (#{serial}::text IS NOT NULL AND serial = #{serial}::text)) " +
+            "AND ((#{imei}::text IS NOT NULL AND imei = #{imei}::text) OR (#{serial}::text IS NOT NULL AND upper(serial) = upper(#{serial}::text))) " +
             "ORDER BY deletedAt DESC LIMIT 1"})
     Map<String, Object> findTombstoneByIdentity(@Param("customerId") int customerId, @Param("serial") String serial,
                                                 @Param("imei") String imei, @Param("since") long since);

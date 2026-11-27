@@ -16,9 +16,7 @@ import com.dallycontrol.core.lost.LostMode
 import com.dallycontrol.core.net.MdmApi
 import com.dallycontrol.core.store.DeviceIdentity
 import com.dallycontrol.core.sync.CheckInHooks
-import com.dallycontrol.core.sync.EnrollIdentitySource
 import com.dallycontrol.core.sync.ResultAnnouncer
-import com.dallycontrol.core.telemetry.IdentityCollector
 import com.dallycontrol.policy.wifi.DpmHandle
 import dagger.Module
 import dagger.Provides
@@ -120,14 +118,6 @@ object ProtectionModule {
         }
 
         override fun afterSuccess() = lostMode.contact()
-    }
-
-    /** Serial and first IMEI for enrollment: after a factory reset they bring the device back to its row and folder. */
-    @Provides
-    @Singleton
-    fun provideEnrollIdentitySource(identity: IdentityCollector): EnrollIdentitySource = EnrollIdentitySource {
-        val info = identity.collect()
-        Pair(info.serial, info.imei.firstOrNull())
     }
 
     private const val KEY = "state"

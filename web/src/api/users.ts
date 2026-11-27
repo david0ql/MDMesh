@@ -7,9 +7,20 @@ export interface ConsoleUser {
   login: string;
   name?: string | null;
   email?: string | null;
-  role: 'admin' | 'folders' | 'foldersView';
+  /** 'custom' = any other role (roleId / roleName), over some folders or the whole fleet (allFleet). */
+  role: 'admin' | 'folders' | 'foldersView' | 'custom';
+  roleId?: number | null;
+  roleName?: string | null;
+  allFleet?: boolean;
   folders: number[];
   me?: boolean;
+}
+
+/** A role the signed-in user may assign (never one with more permissions than their own). */
+export interface AssignableRole {
+  id: number;
+  name: string;
+  permissions: string[];
 }
 
 export interface SaveUser {
@@ -19,11 +30,16 @@ export interface SaveUser {
   email?: string;
   /** Plain; sent as MD5 like the login does. Empty keeps the current one. */
   password?: string;
-  role: 'admin' | 'folders' | 'foldersView';
+  role: 'admin' | 'folders' | 'foldersView' | 'custom';
+  /** With role 'custom': the role to assign. */
+  roleId?: number | null;
+  /** Empty with role 'custom' = the whole fleet (only an administrator may do that). */
   folders: number[];
 }
 
 export const listUsers = () => apiClient.get<ConsoleUser[]>('/private/dc/users');
+
+export const listAssignableRoles = () => apiClient.get<AssignableRole[]>('/private/dc/users/roles');
 
 export const saveUser = (u: SaveUser) =>
   apiClient.put<ConsoleUser>('/private/dc/users', {

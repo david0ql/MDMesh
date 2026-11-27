@@ -76,11 +76,6 @@ public class ProtectionDAO {
 
     // --- re-enrollment after a reset -----------------------------------------------------------------------------
 
-    public Map<String, Object> findDeviceByIdentity(int customerId, String serial, String imei) {
-        if (serial == null && imei == null) return null;
-        return mapper.findDeviceByIdentity(customerId, serial, imei);
-    }
-
     public Map<String, Object> findTombstoneByIdentity(int customerId, String serial, String imei) {
         if (serial == null && imei == null) return null;
         return mapper.findTombstoneByIdentity(customerId, serial, imei,

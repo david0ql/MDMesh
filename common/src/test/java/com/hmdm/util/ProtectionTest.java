@@ -199,32 +199,6 @@ public class ProtectionTest {
         assertEquals("block", d.getDevice().getSafeBoot());
     }
 
-    // --- re-enrollment after a reset --------------------------------------------------------------------------------
-
-    @Test
-    public void junk_serials_and_imeis_never_match() {
-        assertEquals("R58M123ABCD", ReenrollMatch.usableSerial(" R58M123ABCD "));
-        assertNull(ReenrollMatch.usableSerial("unknown"));
-        assertNull(ReenrollMatch.usableSerial("0123456789ABCDEF"));
-        assertNull(ReenrollMatch.usableSerial("EMULATOR36X1X9X0"));
-        assertNull(ReenrollMatch.usableSerial("000000000000"));
-        assertNull(ReenrollMatch.usableSerial("abc"));
-        assertNull(ReenrollMatch.usableSerial(null));
-        assertEquals("356938035643809", ReenrollMatch.usableImei("356938035643809"));
-        assertNull(ReenrollMatch.usableImei("000000000000000"));
-        assertNull(ReenrollMatch.usableImei("358240051111110")); // the emulator's
-        assertNull(ReenrollMatch.usableImei("35693803564380X"));
-    }
-
-    @Test
-    public void a_row_is_taken_over_only_when_it_is_silent_or_marked_as_wiped() {
-        long now = 10_000_000L;
-        assertFalse("a phone reporting right now is another phone", ReenrollMatch.mayTakeOver(now - 30_000L, null, now));
-        assertTrue(ReenrollMatch.mayTakeOver(now - ReenrollMatch.SILENCE_MS, null, now));
-        assertTrue(ReenrollMatch.mayTakeOver(null, null, now));
-        assertTrue("wiped: it can only be the same phone coming back", ReenrollMatch.mayTakeOver(now - 1000L, now - 500L, now));
-    }
-
     // --- wipe and lost mode -----------------------------------------------------------------------------------------
 
     @Test

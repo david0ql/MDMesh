@@ -68,7 +68,7 @@ public interface AgentEnrollmentTokenMapper {
     void releaseReusable(@Param("id") Integer id);
 
     @Select({"SELECT t.id, t.token AS code, t.label, t.groupId, g.name AS groupName, t.uses, t.revoked, t.createdAt, " +
-            "t.expiresAt, t.wifiSsid, t.wifiPassword, t.wifiSecurity, t.account_email AS accountEmail FROM agentEnrollmentToken t LEFT JOIN groups g ON g.id = t.groupId " +
+            "t.expiresAt, t.wifiSsid, t.wifiPassword, t.wifiSecurity, t.wifiHidden, t.account_email AS accountEmail FROM agentEnrollmentToken t LEFT JOIN groups g ON g.id = t.groupId " +
             "WHERE t.customerId = #{customerId} AND t.reusable = true ORDER BY t.revoked, t.createdAt DESC"})
     java.util.List<com.hmdm.persistence.domain.EnrollmentCodeView> listCodes(@Param("customerId") int customerId);
 
@@ -79,4 +79,91 @@ public interface AgentEnrollmentTokenMapper {
     @org.apache.ibatis.annotations.Delete({"DELETE FROM agentEnrollmentToken WHERE id = #{id} AND customerId = #{customerId} " +
             "AND reusable = true AND revoked = true"})
     int deleteRevoked(@Param("customerId") int customerId, @Param("id") int id);
+
+    // --- Enrollment reliability (26.11.27-enroll-reliability): retries by the same device, and the attempts log ---
+
+    /** The code's Wi-Fi is hidden (kept out of the shared INSERT so that statement stays as it was). */
+    @Update({"UPDATE agentEnrollmentToken SET wifiHidden = #{hidden} WHERE id = #{id}"})
+    void updateWifiHidden(@Param("id") Integer id, @Param("hidden") boolean hidden);
+
+    /** Remember which device consumed a single-use token: that device may ask again if the answer never reached it. */
+    @Update({"UPDATE agentEnrollmentToken SET usedAt = #{now}, claimedHardwareId = #{hardwareId}, claimedSerial = #{serial}, " +
+            "claimedImei = #{imei} WHERE id = #{id} AND reusable = false"})
+    void recordClaim(@Param("id") Integer id, @Param("now") long now, @Param("hardwareId") String hardwareId,
+                     @Param("serial") String serial, @Param("imei") String imei);
+
+    @Update({"UPDATE agentEnrollmentToken SET deviceNumber = #{deviceNumber} WHERE id = #{id} AND reusable = false"})
+    void recordDevice(@Param("id") Integer id, @Param("deviceNumber") String deviceNumber);
+
+    /** Tokens starting with [prefix] (the short reference the tracked agent download carries); at most two. */
+    @Select({"SELECT *, account_email AS accountEmail FROM agentEnrollmentToken WHERE token LIKE #{prefix} || '%' LIMIT 2"})
+    java.util.List<AgentEnrollmentToken> findByPrefix(@Param("prefix") String prefix);
+
+    @Insert({"INSERT INTO agent_enroll_attempt (customerId, tokenId, groupId, at, lastAt, count, outcome, reason, detail, path, " +
+            "manufacturer, model, androidRelease, sdkInt, agentVersion, hardwareId, serial, ip, deviceNumber, tries) VALUES (" +
+            "#{customerId}, #{tokenId}, #{groupId}, #{at}, #{lastAt}, 1, #{outcome}, #{reason}, #{detail}, #{path}, " +
+            "#{manufacturer}, #{model}, #{androidRelease}, #{sdkInt}, #{agentVersion}, #{hardwareId}, #{serial}, #{ip}, " +
+            "#{deviceNumber}, #{tries})"})
+    void insertAttempt(com.hmdm.persistence.domain.AgentEnrollAttempt attempt);
+
+    /**
+     * A phone that keeps failing the same way repeats its request every few seconds: count it on the row it already
+     * has instead of flooding the log. Returns 0 when there is no such recent row.
+     */
+    @Update({"UPDATE agent_enroll_attempt SET count = count + 1, lastAt = #{lastAt}, " +
+            "detail = COALESCE(#{detail,jdbcType=VARCHAR}, detail), tries = COALESCE(#{tries,jdbcType=INTEGER}, tries) " +
+            "WHERE id = (SELECT id FROM agent_enroll_attempt WHERE outcome = #{outcome} AND reason = #{reason} " +
+            "AND lastAt > #{at} - 600000 " +
+            "AND tokenId IS NOT DISTINCT FROM #{tokenId,jdbcType=INTEGER} " +
+            "AND ip IS NOT DISTINCT FROM #{ip,jdbcType=VARCHAR} " +
+            "AND hardwareId IS NOT DISTINCT FROM #{hardwareId,jdbcType=VARCHAR} ORDER BY lastAt DESC LIMIT 1)"})
+    int bumpAttempt(com.hmdm.persistence.domain.AgentEnrollAttempt attempt);
+
+    @Select({"SELECT a.*, g.name AS groupName, t.label AS tokenLabel, COALESCE(t.reusable, false) AS reusable " +
+            "FROM agent_enroll_attempt a LEFT JOIN agentEnrollmentToken t ON t.id = a.tokenId " +
+            "LEFT JOIN groups g ON g.id = a.groupId " +
+            "WHERE (a.customerId = #{customerId} OR (#{includeUnknown} AND a.customerId IS NULL)) " +
+            "ORDER BY a.lastAt DESC LIMIT #{limit}"})
+    java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttempts(@Param("customerId") int customerId,
+            @Param("includeUnknown") boolean includeUnknown, @Param("limit") int limit);
+
+    @Select({"SELECT a.*, false AS reusable FROM agent_enroll_attempt a WHERE a.tokenId = #{tokenId} ORDER BY a.lastAt DESC LIMIT 20"})
+    java.util.List<com.hmdm.persistence.domain.AgentEnrollAttempt> listAttemptsOfToken(@Param("tokenId") int tokenId);
+
+    /**
+     * Phones (by hardware id) whose latest attempt since [since] failed and that have not enrolled after it: the ones
+     * somebody still has to look at.
+     */
+    @Select({"SELECT COUNT(*) FROM (SELECT hardwareId, MAX(lastAt) FILTER (WHERE outcome = 'ok') AS okAt, " +
+            "MAX(lastAt) FILTER (WHERE outcome IN ('failed', 'note')) AS badAt FROM agent_enroll_attempt " +
+            "WHERE (customerId = #{customerId} OR (#{includeUnknown} AND customerId IS NULL)) " +
+            "AND hardwareId IS NOT NULL AND lastAt > #{since} GROUP BY hardwareId) x " +
+            "WHERE badAt IS NOT NULL AND (okAt IS NULL OR okAt < badAt)"})
+    int countUnresolvedDevices(@Param("customerId") int customerId, @Param("includeUnknown") boolean includeUnknown,
+                               @Param("since") long since);
+
+    /** Of those, the ones that are Device Owner with nothing to enroll with (they reported it themselves). */
+    @Select({"SELECT COUNT(DISTINCT a.hardwareId) FROM agent_enroll_attempt a WHERE a.reason = 'device.no-token' " +
+            "AND a.hardwareId IS NOT NULL AND a.lastAt > #{since} " +
+            "AND (a.customerId = #{customerId} OR (#{includeUnknown} AND a.customerId IS NULL)) " +
+            "AND NOT EXISTS (SELECT 1 FROM agent_enroll_attempt b WHERE b.hardwareId = a.hardwareId " +
+            "AND b.outcome = 'ok' AND b.lastAt > a.lastAt)"})
+    int countOwnerWithoutToken(@Param("customerId") int customerId, @Param("includeUnknown") boolean includeUnknown,
+                               @Param("since") long since);
+
+    /** How many customers the installation has (an attempt without a code can only be shown when it is one). */
+    @Select({"SELECT COUNT(*) FROM customers"})
+    int countCustomers();
+
+    /**
+     * The customers that own a device with this hardware id or serial: when it is exactly one, an attempt without a
+     * recognised code made by that phone is that customer's.
+     */
+    @Select({"SELECT DISTINCT customerId FROM devices WHERE (#{hardwareId,jdbcType=VARCHAR}::text IS NOT NULL " +
+            "AND hardwareid = #{hardwareId,jdbcType=VARCHAR}) OR (#{serial,jdbcType=VARCHAR}::text IS NOT NULL " +
+            "AND upper(infojson ->> 'serial') = upper(#{serial,jdbcType=VARCHAR})) LIMIT 2"})
+    java.util.List<Integer> customersOfPhone(@Param("hardwareId") String hardwareId, @Param("serial") String serial);
+
+    @org.apache.ibatis.annotations.Delete({"DELETE FROM agent_enroll_attempt WHERE lastAt < #{before}"})
+    int purgeAttempts(@Param("before") long before);
 }
