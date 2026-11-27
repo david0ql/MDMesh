@@ -3539,7 +3539,10 @@ a {
 @media (max-width: 900px) { .gz-cols { grid-template-columns: minmax(0, 1fr); } }
 
 /* Wi-Fi of a policy (WifiPolicyEditor) and its state on a device (ManagedWifiCard) */
-.wf { display: flex; flex-direction: column; gap: 8px; }
+.cfg-field:has(.wf) { display: block; }
+.cfg-field:has(.wf) .cfg-field-ctl { margin-top: 8px; }
+.wf { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.wf .input, .wf .sel { min-width: 0; }
 .wf-net { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
 .wf-net-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
 .wf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }

@@ -628,6 +628,9 @@ def main():
     original = cfg.get("dcPolicy")
     original_radio = cfg.get("wifi")
     base = json.loads(original) if original else {}
+    if base.get("wifi"):
+        sys.exit("the device's policy already has Wi-Fi networks; their passwords cannot be read back to restore them. "
+                 "Run this on a device whose policy has none.")
     base.pop("wifi", None)
     base.pop("wifiRules", None)
     state = {}
@@ -635,8 +638,6 @@ def main():
         t_certificates(state)
         if not (state.get("ca") and state.get("client")):
             sys.exit("certificates could not be uploaded; nothing else can run")
-        if want("validation"):
-            t_validation_pre = True  # runs after the policy exists (it needs a certificate in use)
         if not t_secrets(state, cfg, base):
             sys.exit("the policy could not be saved")
         if want("validation"):
