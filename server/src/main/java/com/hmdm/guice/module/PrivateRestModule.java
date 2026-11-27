@@ -68,5 +68,8 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.GeofenceResource.class);
         this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
         this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
+        // Audit trail: the read-only API, and the retention purge eager so it schedules itself at boot.
+        this.bind(com.hmdm.rest.resource.AuditTrailResource.class);
+        this.bind(com.hmdm.audit.AuditPurgeTask.class).asEagerSingleton();
     }
 }

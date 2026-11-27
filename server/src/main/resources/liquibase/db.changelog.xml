@@ -3570,4 +3570,92 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-audit-trail" author="dallycontrol">
+        <comment>Audit trail of what every console user does (who, when, from where, what, on what, result, change).
+                 Append-only: UPDATE is always refused and DELETE only passes inside the retention purge, which sets
+                 dallycontrol.audit_purge for its own transaction. Rows are chained by hash (prevHash / hash).
+                 audit_settings holds each customer's retention (default 365 days).</comment>
+        <sql splitStatements="false">
+            CREATE TABLE IF NOT EXISTS audit_trail (
+                id BIGSERIAL PRIMARY KEY,
+                createdAt BIGINT NOT NULL,
+                customerId INT,
+                userId INT,
+                login TEXT,
+                userName TEXT,
+                roleId INT,
+                roleName TEXT,
+                ip TEXT,
+                userAgent TEXT,
+                category VARCHAR(32) NOT NULL,
+                action VARCHAR(96) NOT NULL,
+                label TEXT NOT NULL,
+                method VARCHAR(8),
+                path TEXT,
+                targetType VARCHAR(24),
+                targetId TEXT,
+                targetName TEXT,
+                deviceNumbers TEXT[],
+                groupIds INT[],
+                result VARCHAR(8) NOT NULL,
+                httpStatus INT,
+                message TEXT,
+                detail TEXT,
+                durationMs INT,
+                prevHash VARCHAR(64),
+                hash VARCHAR(64) NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS audit_trail_customer_idx ON audit_trail (customerId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_user_idx ON audit_trail (userId, createdAt DESC);
+            CREATE INDEX IF NOT EXISTS audit_trail_devices_idx ON audit_trail USING GIN (deviceNumbers);
+            CREATE INDEX IF NOT EXISTS audit_trail_groups_idx ON audit_trail USING GIN (groupIds);
+
+            CREATE TABLE IF NOT EXISTS audit_settings (
+                customerId INT PRIMARY KEY,
+                retentionDays INT NOT NULL DEFAULT 365
+            );
+
+            CREATE OR REPLACE FUNCTION dallycontrol_audit_trail_guard() RETURNS trigger AS $fn$
+            BEGIN
+                IF TG_OP = 'DELETE' AND current_setting('dallycontrol.audit_purge', true) = 'on' THEN
+                    RETURN OLD;
+                END IF;
+                RAISE EXCEPTION 'audit_trail is append-only (% refused)', TG_OP;
+            END
+            $fn$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS audit_trail_no_change ON audit_trail;
+            CREATE TRIGGER audit_trail_no_change BEFORE UPDATE OR DELETE ON audit_trail
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+            DROP TRIGGER IF EXISTS audit_trail_no_truncate ON audit_trail;
+            CREATE TRIGGER audit_trail_no_truncate BEFORE TRUNCATE ON audit_trail
+                FOR EACH STATEMENT EXECUTE PROCEDURE dallycontrol_audit_trail_guard();
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS audit_settings;
+            DROP TABLE IF EXISTS audit_trail;
+            DROP FUNCTION IF EXISTS dallycontrol_audit_trail_guard();
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-audit-permission" author="dallycontrol">
+        <comment>Permission,new: view_audit — opens the Auditoría screen (and the activity of a device or a user).
+                 Granted by id to the super-administrator (1) and the administrator (2); a folder role that receives
+                 it only sees the rows of its own folders and users.</comment>
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'view_audit', 'Ver la auditoria de acciones (el usuario de carpetas solo la de sus carpetas)', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'view_audit');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ur.id IN (1, 2) AND p.name = 'view_audit'
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback>
+            DELETE FROM userRolePermissions WHERE permissionId = (SELECT id FROM permissions WHERE name = 'view_audit');
+            DELETE FROM permissions WHERE name = 'view_audit';
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

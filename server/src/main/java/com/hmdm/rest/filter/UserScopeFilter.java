@@ -108,7 +108,12 @@ public class UserScopeFilter implements Filter {
             new Rule("PUT DELETE", "/geofences/v1/zones/(\\d+)", null),
             new Rule("GET", "/geofences/v1/(states|settings|mail)", null),
             new Rule("GET POST", "/geofences/v1/recipients", null),
-            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null)
+            new Rule("PUT DELETE", "/geofences/v1/recipients/(\\d+)", null),
+            // Audit trail: needs view_audit; the resource limits a folder administrator to the rows of their folders
+            // and of the users they manage. The activity of one device is checked here against the device's folder.
+            new Rule("GET", "/audit/v1/(log|facets|export|settings)", null),
+            new Rule("GET", "/audit/v1/devices/([^/]+)/activity", "device"),
+            new Rule("GET", "/audit/v1/users/(\\d+)/activity", null)
     );
 
     private final UserScope scope;

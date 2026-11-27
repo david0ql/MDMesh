@@ -25,6 +25,9 @@ public class MainRestModule extends ServletModule {
         this.filter("/rest/*").through(ApiOriginFilter.class);
         // Deprecated and shouldn't be used
         this.filter("/api/*").through(ApiOriginFilter.class);
+        // Audit trail: outside the authentication and folder-scope filters (PrivateRestModule), so the requests they
+        // refuse are recorded too. It only observes; see com.hmdm.audit.AuditTrailFilter.
+        this.filter("/rest/*").through(com.hmdm.audit.AuditTrailFilter.class);
     }
 
 }
