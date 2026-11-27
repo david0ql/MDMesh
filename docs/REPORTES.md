@@ -131,7 +131,11 @@ SMTP_PORT=587
 SMTP_FROM=mdm@ejemplo.com
 SMTP_USERNAME=usuario      # opcional
 SMTP_PASSWORD=secreto      # opcional
+SMTP_STARTTLS=true         # con el puerto 587 (o SMTP_SSL=true con el 465)
 ```
+
+Probado con STARTTLS y usuario/contraseña. `SMTP_SSL_TRUST` solo sirve para servidores de prueba con certificado
+propio.
 
 Instalación nativa: los parámetros `smtp.host`, `smtp.port`, `smtp.ssl`, `smtp.starttls`, `smtp.username`,
 `smtp.password` y `smtp.from` del contexto de Tomcat (los escribe `install/install-native.sh`).
@@ -155,6 +159,12 @@ Cada uno se ve en Reportes y se exporta a Excel o CSV con estas columnas:
 | Incumplimiento | Equipo, Número, Carpeta, Política, Estado, Revisión aplicada, Revisión actual, Aplicada |
 | Dados de baja | Equipo, Número, Carpeta, Dado de baja, Reclamado |
 | Inventario de la flota | Las de la sección 2 |
+
+### Flotas grandes
+
+El Excel se genera en modo *streaming* (las filas van a un archivo temporal y no se acumulan en memoria) y el CSV se
+escribe fila por fila. Con 5.000 equipos y 103.000 periodos de conexión, en un servidor con 512 MB de memoria: Excel
+≈ 6 s, CSV ≈ 1 s. En la hoja `Conexiones` solo la primera fila de cada equipo lleva el enlace a su página.
 
 ## 6. API
 

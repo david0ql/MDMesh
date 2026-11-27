@@ -109,25 +109,27 @@ const ctx = await browser.newContext({ viewport: { width: 1680, height: 1000 }, 
 // The pages are driven without outside network: web fonts are not needed and would hold the load event.
 await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 const page = await ctx.newPage();
-page.setDefaultTimeout(20000);
+// --slow N multiplies every wait (a loaded machine is not a product failure).
+const slow = Number(arg('--slow', '1')) || 1;
+page.setDefaultTimeout(20000 * slow);
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('dialog', (d) => d.accept());
 
-const toast = async (text, timeout = 45000) => {
+const toast = async (text, timeout = 45000 * slow) => {
   const t = page.locator('.toast', { hasText: text }).first();
   try { await t.waitFor({ timeout }); return (await t.innerText()).replace(/\s+/g, ' ').trim(); } catch { return null; }
 };
-const anyToast = async (timeout = 45000) => {
+const anyToast = async (timeout = 45000 * slow) => {
   try { const t = page.locator('.toast').last(); await t.waitFor({ timeout }); return (await t.innerText()).replace(/\s+/g, ' ').trim(); } catch { return null; }
 };
 const download = async (name, click) => {
-  const [d] = await Promise.all([page.waitForEvent('download', { timeout: 120000 }), click()]);
+  const [d] = await Promise.all([page.waitForEvent('download', { timeout: 120000 * slow }), click()]);
   const file = path.join(out, `${name}-${d.suggestedFilename()}`);
   await d.saveAs(file);
   return { file, suggested: d.suggestedFilename() };
 };
-const getJson = async (p) => (await (await ctx.request.get(api + p)).json()).data;
+const getJson = async (p) => (await (await ctx.request.get(api + p, { timeout: 30000 * slow })).json()).data;
 
 try {
   // --- sign in -------------------------------------------------------------------------------------------------
@@ -135,7 +137,7 @@ try {
   await page.locator('input[autocomplete="username"]').fill(user);
   await page.locator('input[type="password"]').fill(password);
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20000 });
+  await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20000 * slow });
   check(`signed in as ${user}`, true);
 
   const summaries = await getJson('/rest/private/fleet/v1/devices/summary');
@@ -167,7 +169,7 @@ try {
 
   // what the table shows (search)
   await page.locator('.dv-search input').fill(device);
-  await page.waitForFunction((n) => { const r = document.querySelectorAll('.dev-row'); return r.length === 1 && r[0].textContent.includes(n); }, device, { timeout: 20000 });
+  await page.waitForFunction((n) => { const r = document.querySelectorAll('.dev-row'); return r.length === 1 && r[0].textContent.includes(n); }, device, { timeout: 20000 * slow });
   const rowText = await page.locator('.dev-row').first().innerText();
   check('lista: the "Dato de" column shows the age of the data', /Dato de\s*(hace \d+ (min|h|d|mes|meses|año|años)|justo ahora)/i.test(rowText.replace(/\n/g, ' ')), rowText.replace(/\s+/g, ' ').slice(0, 160));
   await exportBtn.click();
@@ -208,7 +210,7 @@ try {
   }
   if (foreignDevice) {
     await page.locator('.dv-search input').fill(foreignDevice);
-    await page.locator('.empty', { hasText: 'Ningún dispositivo coincide' }).waitFor({ timeout: 20000 }).catch(() => undefined);
+    await page.locator('.empty', { hasText: 'Ningún dispositivo coincide' }).waitFor({ timeout: 20000 * slow }).catch(() => undefined);
     check('lista: searching the foreign device finds nothing', await page.locator('.dev-row').count() === 0);
   }
 
@@ -227,14 +229,14 @@ try {
   await page.goto(api + '/reports', { waitUntil: 'domcontentloaded' });
   await page.locator('.tabs button', { hasText: 'Inventario de la flota' }).click();
   const inv = page.locator('[data-testid="inventory-report"]');
-  await inv.locator('.inv-tile').first().waitFor({ timeout: 60000 });
+  await inv.locator('.inv-tile').first().waitFor({ timeout: 60000 * slow });
   const tile = async (label) => Number((await inv.locator('.inv-tile', { hasText: label }).locator('b').innerText()).replace(/\D/g, ''));
   check(`Inventario: the "Dispositivos" tile counts what the user can see (${total})`, await tile('Dispositivos') === total, String(await tile('Dispositivos')));
   check('Inventario: breakdowns by Android, model and agent are shown', await inv.locator('.inv-breakdown').count() === 3 && await inv.locator('.inv-bar-row').count() >= 3);
   const full90 = await tile('Almacenamiento ≥ 90 % usado');
   await inv.locator('label', { hasText: 'Almacenamiento casi lleno' }).locator('input').fill('1');
   await inv.getByRole('button', { name: 'Actualizar' }).click();
-  await inv.locator('.inv-tile', { hasText: 'Almacenamiento ≥ 1 % usado' }).waitFor({ timeout: 60000 });
+  await inv.locator('.inv-tile', { hasText: 'Almacenamiento ≥ 1 % usado' }).waitFor({ timeout: 60000 * slow });
   const full1 = await tile('Almacenamiento ≥ 1 % usado');
   check('Inventario: changing the storage threshold recounts the alert', full1 > full90 && full1 > 0, `≥90 %: ${full90}, ≥1 %: ${full1}`);
   await inv.locator('.inv-tile', { hasText: 'Almacenamiento ≥ 1 % usado' }).click();
@@ -304,7 +306,7 @@ try {
   if (noSmtp) {
     t = await toast('El servidor no tiene correo configurado', 60000);
     check('Envíos: "Enviar ahora" without SMTP says so (no error page)', !!t, t ?? (await anyToast(1000)) ?? '');
-    await row(name2).locator('.sched-status', { hasText: 'Sin SMTP' }).waitFor({ timeout: 10000 }).catch(() => undefined);
+    await row(name2).locator('.sched-status', { hasText: 'Sin SMTP' }).waitFor({ timeout: 10000 * slow }).catch(() => undefined);
     check('Envíos: the row records "Sin SMTP"', await row(name2).locator('.sched-status', { hasText: 'Sin SMTP' }).count() === 1);
   } else {
     t = await toast('Reporte enviado', 90000);
@@ -326,7 +328,7 @@ try {
           && (!folderUser || a.numbers.length === total), `${a.numbers.length} rows`);
       }
     }
-    await row(name2).locator('.sched-status.ok').waitFor({ timeout: 15000 }).catch(() => undefined);
+    await row(name2).locator('.sched-status.ok').waitFor({ timeout: 15000 * slow }).catch(() => undefined);
     check('Envíos: the row records the send', await row(name2).locator('.sched-status.ok').count() === 1);
   }
   await row(name2).getByRole('button', { name: 'Eliminar' }).click();
