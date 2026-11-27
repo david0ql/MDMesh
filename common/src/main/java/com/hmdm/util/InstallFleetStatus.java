@@ -169,6 +169,34 @@ public final class InstallFleetStatus {
         return r;
     }
 
+    public static final String ASSIGNED_NOT_SENT = "La política asigna la app a este equipo, pero aún no se le ha enviado la "
+            + "orden de esta versión (se envía al guardar la política, o con Reintentar).";
+
+    /**
+     * Where a phone stands for an app its POLICY assigns at [policyVersionCode] — the fleet view lists every such
+     * phone, also the ones that never got an order: those are "pending" (or "held" when the phone could not run the
+     * order anyway because it is not Device Owner).
+     *
+     * @param commands   the phone's install commands for the package, oldest first (may be empty)
+     * @param capability the capability an install needs ({@code app.silentInstall})
+     */
+    public static Result forAssignment(long policyVersionCode, List<Cmd> commands, Set<String> deviceTokens, String capability) {
+        Result r = classify(policyVersionCode, commands, deviceTokens);
+        if (r.state != State.NOT_QUEUED) return r;
+        if (!AgentCapabilityTokens.isAllowed(capability, deviceTokens)) {
+            boolean none = deviceTokens == null || deviceTokens.isEmpty();
+            r.state = State.HELD;
+            r.reasonCode = none ? "noCapabilities" : "notOwner";
+            r.reason = none ? HELD_NO_CAPABILITIES : HELD_NOT_OWNER;
+            r.retryable = false;
+        } else {
+            r.state = State.PENDING;
+            r.reasonCode = "notSent";
+            r.reason = ASSIGNED_NOT_SENT;
+        }
+        return r;
+    }
+
     private static void fail(Result r, InstallFailureReasons.Reason reason) {
         r.state = State.FAILED;
         r.reasonCode = reason.code;

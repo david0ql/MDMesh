@@ -39,7 +39,7 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
 
   useEffect(() => {
     void load();
-    const t = window.setInterval(() => void load(), 10_000);
+    const t = window.setInterval(() => void load(), 15_000);
     return () => window.clearInterval(t);
   }, [load]);
 
@@ -54,7 +54,7 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
       const n = await retryInstall(packageName, numbers);
       toast.push(n > 0 ? 'ok' : 'err', n > 0 ? 'Instalación reenviada' : 'Nada que reintentar',
         n > 0 ? `Se envió de nuevo a ${n} equipo${n === 1 ? '' : 's'}; se instala en su próxima conexión.`
-          : 'No hay instalaciones fallidas, o ya hay una orden en camino.');
+          : 'No hay nada que reenviar: ya hay una orden en camino, o la app ya no está asignada a ese equipo.');
       await load();
     } catch (e) {
       toast.push('err', 'No se pudo reintentar', e instanceof Error ? e.message : '');
@@ -65,6 +65,9 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
 
   const c = status?.counts;
   const failed = c?.failed ?? 0;
+  // Assigned by the policy but the order never went out: "Reintentar" sends it.
+  const notSent = (status?.devices ?? []).filter((d) => d.reasonCode === 'notSent').length;
+  const retryable = failed + notSent;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
@@ -73,7 +76,9 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
         <h3>Instalación en la flota: {label}</h3>
         <p className="muted" style={{ marginTop: 2 }}>
           <span className="mono">{packageName}</span>
-          {status && status.targetVersionCode > 0 ? ` · versión objetivo: versionCode ${status.targetVersionCode}` : ''}
+          {status && status.targetVersionCode > 0
+            ? ` · versión objetivo${status.assigned > 0 ? ' (la que asigna la política)' : ''}: ${status.targetVersion ? `${status.targetVersion} · ` : ''}versionCode ${status.targetVersionCode}`
+            : ''}
         </p>
 
         {err && <div className="banner banner-alert">{err}</div>}
@@ -82,9 +87,9 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
           <div className="empty" style={{ padding: 20 }}><span className="spin" /> Cargando…</div>
         ) : status && status.total === 0 ? (
           <div className="empty" style={{ padding: 20 }}>
-            <span className="label">Sin órdenes de instalación</span>
-            Ningún equipo ha recibido la orden de instalar esta app. Agrégala a una política (o usa Desplegar) y aquí verás
-            cómo avanza en cada equipo.
+            <span className="label">Sin equipos asignados</span>
+            Ninguna política asigna esta app a un equipo, ni se ha ordenado instalarla. Agrégala a una política (o usa
+            Desplegar) y aquí verás cómo avanza en cada equipo.
           </div>
         ) : status && c && (
           <>
@@ -112,7 +117,9 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
                   </span>
                   <span style={{ flex: 1, minWidth: 220 }}>
                     <Link to={`/devices/${d.deviceId}`} className="dd-nm">{d.description || d.number}</Link>
-                    <span className="dd-sub"> {d.group ?? ''}{d.installedVersion ? ` · reporta v${d.installedVersion}` : ''}</span>
+                    <span className="dd-sub"> {d.group ?? ''}{d.installedVersion ? ` · reporta v${d.installedVersion}` : ''}
+                      {d.assigned ? '' : ' · orden manual (no asignada por política)'}</span>
+                    {d.reasonCode === 'notSent' && <span className="muted small" style={{ display: 'block', marginTop: 4 }}>{d.reason}</span>}
                     {(d.state === 'failed' || d.state === 'held') && (
                       <span style={{ display: 'block', marginTop: 4 }}>
                         <b>{d.reason}</b>
@@ -125,10 +132,10 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
                       </span>
                     )}
                   </span>
-                  {canRetry && d.state === 'failed' && (
+                  {canRetry && (d.state === 'failed' || d.reasonCode === 'notSent') && (
                     <button className="btn btn-sm" disabled={busy != null} onClick={() => void retry([d.number])}
                       data-testid={`install-retry-${d.number}`}>
-                      {busy === d.number ? 'Enviando…' : 'Reintentar'}
+                      {busy === d.number ? 'Enviando…' : d.state === 'failed' ? 'Reintentar' : 'Enviar ahora'}
                     </button>
                   )}
                 </div>
@@ -144,9 +151,9 @@ export function InstallFleetModal({ packageName, label, onClose }: { packageName
               Exportar CSV
             </button>
           )}
-          {canRetry && failed > 0 && (
+          {canRetry && retryable > 0 && (
             <button className="btn btn-primary" disabled={busy != null} onClick={() => void retry()} data-testid="install-retry-all">
-              {busy === 'all' ? 'Enviando…' : `Reintentar las ${failed} fallidas`}
+              {busy === 'all' ? 'Enviando…' : failed > 0 ? `Reintentar las ${failed} fallidas${notSent ? ` y enviar ${notSent} pendientes` : ''}` : `Enviar a los ${notSent} pendientes`}
             </button>
           )}
         </div>

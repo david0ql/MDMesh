@@ -22,12 +22,15 @@ internal class PartsInstaller(
     private val resultBus: InstallResultBus,
     /** Called with the session id when Android did not answer in time (abandon the session). */
     private val onTimeout: (Int) -> Unit = {},
-    /** True when the package is already at the wanted version (asked after a timeout: the answer may just have been lost). */
+    /** True when the package is already at the wanted version (asked after a timeout: the answer may be lost). */
     private val alreadyInstalled: () -> Boolean = { false },
     private val timeoutMs: (totalBytes: Long) -> Long = ::installTimeoutMs,
 ) {
     /** A fetched part plus whether we downloaded it (and therefore own its cleanup). */
     private data class Fetched(val file: File, val downloaded: Boolean)
+
+    /** A step that failed for good; [reason] is the failure to report. */
+    private class StepFailed(val reason: String, cause: Throwable? = null) : Exception(reason, cause)
 
     /**
      * @throws RetryLaterException when a part could not be fetched for a reason that is not this install's fault (no
@@ -35,82 +38,94 @@ internal class PartsInstaller(
      */
     suspend fun install(parts: List<ApkPart>): InstallOutcome {
         val fetched = ArrayList<Fetched>(parts.size)
-        try {
+        return try {
             for (part in parts) {
-                val file = try {
-                    fetch(part)
-                } catch (e: FetchFailed) {
-                    return InstallOutcome.Failure(null, e.reason)
-                }
+                val file = fetch(part)
                 fetched += Fetched(file, downloaded = part.url != null && part.localPath == null)
-                checksumError(part, file)?.let { return InstallOutcome.Failure(null, it) }
+                verifyChecksum(part, file)
             }
-            return commitAndAwait(fetched.map { it.file })
+            val files = fetched.map { it.file }
+            awaitResult(commitSession(files), files)
+        } catch (e: StepFailed) {
+            InstallOutcome.Failure(null, e.reason)
         } finally {
             // Only clean up files we downloaded; never delete a caller-provided APK.
             fetched.forEach { if (it.downloaded) it.file.delete() }
         }
     }
 
-    /** A part that could not be fetched, for good ([reason] is the failure to report). */
-    private class FetchFailed(val reason: String) : Exception(reason)
-
+    // Anything can go wrong while downloading (a debug build once ran out of memory on a big APK): whatever it is,
+    // it becomes a result the console can show instead of a crashed check-in. (RetryLaterException takes only a
+    // message, which carries the cause's.)
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
     private suspend fun fetch(part: ApkPart): File = try {
         obtain(part)
     } catch (e: CancellationException) {
         throw e // a cancelled check-in is not a failed install
     } catch (e: Throwable) {
         if (isTransient(e)) throw RetryLaterException("apk fetch: ${e.message}")
-        throw FetchFailed("apk fetch failed: ${e.message}")
+        throw StepFailed("apk fetch failed: ${e.message}", e)
     }
 
-    /** Null when the part matches its SHA-256 (or declares none); else the failure text. */
-    private fun checksumError(part: ApkPart, file: File): String? {
-        val expected = part.sha256?.takeIf { it.isNotBlank() } ?: return null
+    private fun verifyChecksum(part: ApkPart, file: File) {
+        val expected = part.sha256?.takeIf { it.isNotBlank() } ?: return
         val actual = sha256Of(file)
-        return if (actual.equals(expected, ignoreCase = true)) null else "checksum mismatch: expected $expected got $actual"
+        if (!actual.equals(expected, ignoreCase = true)) {
+            throw StepFailed("checksum mismatch: expected $expected got $actual")
+        }
     }
 
-    private suspend fun commitAndAwait(files: List<File>): InstallOutcome {
-        val sessionId = try {
-            commit(files)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            return InstallOutcome.Failure(null, "install session error: ${e.message}")
-        }
+    // The platform throws several unrelated types here (IOException, SecurityException, IllegalStateException…).
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun commitSession(files: List<File>): Int = try {
+        commit(files)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        throw StepFailed("install session error: ${e.message}", e)
+    }
+
+    private suspend fun awaitResult(sessionId: Int, files: List<File>): InstallOutcome {
         val limit = timeoutMs(files.sumOf { it.length() })
-        val event = resultBus.awaitOrNull(sessionId, limit) ?: return timedOut(sessionId, limit)
-        return mapResult(event)
+        val event = resultBus.awaitOrNull(sessionId, limit)
+        return if (event != null) mapResult(event) else timedOut(sessionId, limit)
     }
 
     private fun timedOut(sessionId: Int, limit: Long): InstallOutcome {
         runCatching { onTimeout(sessionId) }
         // Android may have finished and only its answer got lost (the process was frozen, the broadcast dropped).
-        return if (runCatching(alreadyInstalled).getOrDefault(false)) InstallOutcome.Success
-        else InstallOutcome.Failure(null, timeoutReason(limit))
+        val installed = runCatching(alreadyInstalled).getOrDefault(false)
+        return if (installed) InstallOutcome.Success else InstallOutcome.Failure(null, timeoutReason(limit))
     }
 
     companion object {
         /** Marker the server reads to explain the failure and to retry it later. */
         const val TIMEOUT_MARKER = "INSTALL_TIMEOUT"
 
-        private const val BASE_TIMEOUT_MS = 10 * 60_000L
-        private const val EXTRA_MS_PER_50MB = 60_000L
-        private const val MAX_TIMEOUT_MS = 45 * 60_000L
+        private const val MINUTE_MS = 60_000L
+        private const val BASE_TIMEOUT_MS = 10 * MINUTE_MS
+        private const val EXTRA_MS_PER_STEP = MINUTE_MS
+        private const val MAX_TIMEOUT_MS = 45 * MINUTE_MS
+        private const val SIZE_STEP_BYTES = 50L * 1024 * 1024
+        private const val BUFFER_BYTES = 64 * 1024
+        private const val CAUSE_DEPTH = 4
 
         /** How long Android gets to answer: 10 minutes, plus one more per 50 MB to verify and optimise, at most 45. */
         fun installTimeoutMs(totalBytes: Long): Long {
-            val extra = (totalBytes.coerceAtLeast(0) / (50L * 1024 * 1024)) * EXTRA_MS_PER_50MB
+            val extra = (totalBytes.coerceAtLeast(0) / SIZE_STEP_BYTES) * EXTRA_MS_PER_STEP
             return (BASE_TIMEOUT_MS + extra).coerceAtMost(MAX_TIMEOUT_MS)
         }
 
-        fun timeoutReason(limitMs: Long): String =
-            "$TIMEOUT_MARKER: Android no respondió a la instalación en ${limitMs / 60_000} min; se reintentará más tarde"
+        fun timeoutReason(limitMs: Long): String {
+            val minutes = limitMs / MINUTE_MS
+            return "$TIMEOUT_MARKER: Android no respondió a la instalación en $minutes min; se reintentará más tarde"
+        }
 
         /** A network failure (no connection, DNS, timeout, TLS) or a server error (5xx) — worth trying again later. */
-        fun isTransient(t: Throwable): Boolean =
-            !isOutOfSpace(t) && (t is IOException || (t is IllegalStateException && t.message?.startsWith("HTTP 5") == true))
+        fun isTransient(t: Throwable): Boolean {
+            val serverError = t is IllegalStateException && t.message?.startsWith("HTTP 5") == true
+            return !isOutOfSpace(t) && (t is IOException || serverError)
+        }
 
         /**
          * The phone ran out of room while saving the download. Trying again later by itself would fail the same way —
@@ -118,18 +133,19 @@ internal class PartsInstaller(
          */
         fun isOutOfSpace(t: Throwable): Boolean {
             var e: Throwable? = t
-            repeat(4) {
+            var found = false
+            repeat(CAUSE_DEPTH) {
                 val m = e?.message.orEmpty()
-                if (m.contains("ENOSPC") || m.contains("No space left", ignoreCase = true)) return true
+                found = found || m.contains("ENOSPC") || m.contains("No space left", ignoreCase = true)
                 e = e?.cause
             }
-            return false
+            return found
         }
 
         fun sha256Of(file: File): String {
             val digest = MessageDigest.getInstance("SHA-256")
             FileInputStream(file).use { stream ->
-                val buffer = ByteArray(64 * 1024)
+                val buffer = ByteArray(BUFFER_BYTES)
                 while (true) {
                     val read = stream.read(buffer)
                     if (read < 0) break
