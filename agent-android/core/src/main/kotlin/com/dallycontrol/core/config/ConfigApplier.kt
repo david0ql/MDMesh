@@ -40,6 +40,13 @@ class ConfigApplier(
     private val setLocationFixTimeout: (Int?) -> Unit = {},
     /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
     private val mobileData: ((com.dallycontrol.proto.ConfigMobileData?) -> String)? = null,
+    /**
+     * Apply the hardware and ports rules (null = clear what an earlier document set). Receives the restrictions other
+     * sections of the document keep on; returns one outcome per rule (`hardware.<key>` / `restrictions.<key>`).
+     * Runs last, so a rule it blocks wins over a toggle that allows the same restriction.
+     */
+    private val hardware: ((com.dallycontrol.proto.ConfigHardware?, Set<String>) -> Map<String, String>)? = null,
+    // Keep last: tests pass it as a trailing lambda.
     private val setTrackingMinutes: (Int) -> Unit = {},
 ) {
     private val mutex = Mutex()
@@ -99,6 +106,7 @@ class ConfigApplier(
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         applyMobileData(doc, previous)?.let { outcomes["mobileData"] = it }
+        outcomes.putAll(applyHardware(doc, previous))
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
@@ -114,6 +122,20 @@ class ConfigApplier(
             runCatching { set(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") }
         } ?: ConfigOutcome.UNSUPPORTED
         return outcome.takeIf { doc.mobileData != null }
+    }
+
+    /** Hardware and ports: applied when the document has the section, undone when only the previous one had it. */
+    private fun applyHardware(doc: ConfigApplyPayload, previous: ConfigApplyPayload?): Map<String, String> {
+        if (doc.hardware == null && previous?.hardware == null) return emptyMap()
+        val held = com.dallycontrol.policy.hardware.HardwareCatalog.heldByOtherSections(
+            doc.policies, doc.device?.tethering, doc.device?.factoryReset, doc.device?.installApps,
+        )
+        val asked = doc.hardware?.rules?.keys.orEmpty().map { "hardware.$it" } +
+            doc.hardware?.restrictions.orEmpty().map { "restrictions.$it" }
+        return hardware?.let { apply ->
+            runCatching { apply(doc.hardware, held) }
+                .getOrElse { e -> asked.associateWith { ConfigOutcome.failed(e.message ?: "hardware") } }
+        } ?: asked.associateWith { ConfigOutcome.UNSUPPORTED }
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */

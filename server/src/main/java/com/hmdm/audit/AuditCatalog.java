@@ -460,7 +460,7 @@ public final class AuditCatalog {
         audit("POST", "/private/agent/v1/devices/{deviceId}/commands/{commandId}/cancel", COMMANDS, "device.command.cancel",
                 "Cancelación de un comando pendiente").target("device", "path:deviceId").optional();
         audit("PUT", "/private/agent/v1/devices/{deviceId}/hardware", DEVICES, "device.hardware",
-                "Restricciones de hardware del dispositivo").target("device", "path:deviceId").optional();
+                "Excepción de hardware y puertos del dispositivo").target("device", "path:deviceId");
         audit("PUT", "/private/agent/v1/devices/{deviceId}/permissions", DEVICES, "device.permissions",
                 "Permisos de aplicaciones del dispositivo").target("device", "path:deviceId").optional();
         audit("POST", "/private/wifi-certificates", POLICIES, "wifi.certificate.upload", "Carga de certificado Wi-Fi").optional();
