@@ -77,8 +77,13 @@ class SupportAccessibilityService : AccessibilityService() {
     fun screenshot(executor: Executor, done: (Bitmap?, Int) -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             done(null, ERROR_UNSUPPORTED)
-            return
+        } else {
+            screenshotR(executor, done)
         }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
+    private fun screenshotR(executor: Executor, done: (Bitmap?, Int) -> Unit) {
         runCatching {
             takeScreenshot(Display.DEFAULT_DISPLAY, executor, object : TakeScreenshotCallback {
                 override fun onSuccess(result: ScreenshotResult) {
@@ -264,7 +269,11 @@ class SupportAccessibilityService : AccessibilityService() {
         private const val NOTICE_TOP_DP = 28
         private const val NOTICE_COLOR = 0xE6B3261E.toInt()
 
-        /** The connected service, or null while it is switched off. */
+        /**
+         * The connected service, or null while it is switched off. Android owns the instance; the reference is
+         * dropped in onUnbind/onDestroy, so nothing outlives the service.
+         */
+        @android.annotation.SuppressLint("StaticFieldLeak")
         @Volatile var instance: SupportAccessibilityService? = null
             private set
     }
