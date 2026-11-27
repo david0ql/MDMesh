@@ -3280,14 +3280,12 @@
     </changeSet>
 
     <changeSet id="26.10.27-fleet-roles" author="dallycontrol">
-        <validCheckSum>1:any</validCheckSum>
+        <!-- Role 3 by id: on an empty database it still has its original (Russian) name, so the lookup by
+             name returned null and a fresh install could not start. The checksum already applied is kept valid. -->
+        <validCheckSum>9:725a726d951ce6fc370d566cf5e98d7d</validCheckSum>
         <comment>Three folder tiers: (a) new permission manage_fleet gates modifying folders/policies; (b) a
                  view-only "Visor" role (view + safe device actions, no modify, no interrupting actions);
                  (c) disruptive_actions restored to "User" since that is now the full folder-editor role.</comment>
-        <!-- (c) used to look the role up by its name 'User', which only exists after the installer's seed SQL has
-             renamed role 3: on an EMPTY database the changelog runs first, the lookup gave NULL and the first boot
-             failed here (found by scripts/schema-drift-check.sh). It now uses the role's fixed id (3). Databases that
-             already ran the old text keep it: any stored checksum is accepted, nothing is re-run. -->
         <sql>
             -- (a) permission to modify folders / assign policies (FleetResource); granted to every role that
             --     can already edit devices, so current editors and admins keep modifying.
@@ -3299,9 +3297,9 @@
                 WHERE p.name = 'edit_devices';
             -- (c) the folder editor (User role) regains the interrupting actions (full folder admin).
             INSERT INTO userRolePermissions (roleId, permissionId)
-                SELECT 3, (SELECT id FROM permissions WHERE name = 'disruptive_actions')
-                WHERE EXISTS (SELECT 1 FROM userRoles WHERE id = 3)
-                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions
+                SELECT 3,
+                       (SELECT id FROM permissions WHERE name = 'disruptive_actions')
+                WHERE NOT EXISTS (SELECT 1 FROM userRolePermissions
                     WHERE roleId = 3
                       AND permissionId = (SELECT id FROM permissions WHERE name = 'disruptive_actions'));
             -- (b) view-only folder role: can view and run the safe device actions, nothing else.
