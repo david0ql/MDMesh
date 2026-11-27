@@ -117,6 +117,21 @@ public class AgentEnrollmentTokenDAO {
         return mapper.listAttempts(customerId, includeUnknown, Math.max(1, Math.min(limit, 500)));
     }
 
+    public int countCustomers() {
+        return mapper.countCustomers();
+    }
+
+    /** The one customer that already has this phone (by hardware id or usable serial); null when none or several. */
+    public Integer customerOfPhone(String hardwareId, String serial) {
+        String s = com.hmdm.util.EnrollmentIdentity.usableSerial(serial);
+        String hw = com.hmdm.util.EnrollmentIdentity.cap(hardwareId, 128);
+        if (hw == null && s == null) {
+            return null;
+        }
+        java.util.List<Integer> owners = mapper.customersOfPhone(hw, s);
+        return owners.size() == 1 ? owners.get(0) : null;
+    }
+
     /** {unresolved, ownerWithoutToken}: phones still not enrolled after failing, over the last [days] days. */
     public int[] countUnresolved(int customerId, boolean includeUnknown, int days) {
         long since = System.currentTimeMillis() - days * 24L * 3600 * 1000;
