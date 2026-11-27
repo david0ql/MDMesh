@@ -68,7 +68,7 @@ object EventType {
     /** Someone left the kiosk on the device with the exit password. */
     const val KIOSK_EXIT = "kioskExit"
 
-    /** A wrong kiosk exit password. `detail`: failures in a row and the wait it earned, e.g. `intento 3; espera 30 s`. */
+    /** A wrong kiosk exit password. `detail`: failures in a row and the wait earned (`intento 3; espera 30 s`). */
     const val KIOSK_EXIT_FAILED = "kioskExitFailed"
 
     /** An exit attempt refused without comparing anything: no password in the policy, or still waiting. */
@@ -77,9 +77,9 @@ object EventType {
     /** A wrong anti-theft (power) PIN. Same `detail` as [KIOSK_EXIT_FAILED]. */
     const val POWER_PIN_FAILED = "powerPinFailed"
 
-    /** Android 16+ kiosk: an app the kiosk keeps closed (`detail`: its package, Settings) came to the front and was sent back. */
+    /** Android 16+ kiosk: an app the kiosk keeps closed (`detail`: its package) came to the front and was sent back. */
     const val KIOSK_ESCAPE_BLOCKED = "kioskEscapeBlocked"
 
-    /** Packages the kiosk wanted suspended but Android refused (`notSuspended=pkg[,pkg]; coveredBy=…`); emitted when it changes. */
+    /** Packages Android refused to suspend for the kiosk (`notSuspended=pkg[,pkg]; coveredBy=…`); sent on change. */
     const val KIOSK_LOCKDOWN_GAP = "kioskLockdownGap"
 }

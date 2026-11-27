@@ -65,7 +65,9 @@ class KioskApplierTest {
 
     private class FakeLockdown : KioskLockdown {
         val log = mutableListOf<String>()
-        override fun engage(payload: KioskApplyPayload, allowed: List<String>) { log += "engage:${payload.mode}:${allowed.sorted().joinToString(",")}" }
+        override fun engage(payload: KioskApplyPayload, allowed: List<String>) {
+            log += "engage:${payload.mode}:${allowed.sorted().joinToString(",")}"
+        }
         override fun release() { log += "release" }
     }
 
@@ -89,12 +91,12 @@ class KioskApplierTest {
 
     @Test fun `a kiosk that could not be entered locks nothing down`() = runTest {
         val lock = FakeLockdown()
-        KioskApplier(FakeController(KioskResult.Unsupported), InMemoryKioskStateStore(), FakeHome(), home, lockdown = lock)
-            .enter(KioskApplyPayload())
+        val refused = FakeController(KioskResult.Unsupported)
+        KioskApplier(refused, InMemoryKioskStateStore(), FakeHome(), home, lockdown = lock).enter(KioskApplyPayload())
         assertTrue(lock.log.isEmpty())
     }
 
-    @Test fun `the periodic self-heal re-engages the lock-down even on a soft kiosk, and does nothing outside kiosk`() = runTest {
+    @Test fun `the self-heal re-engages the lock-down on a soft kiosk too, and does nothing outside kiosk`() = runTest {
         val lock = FakeLockdown(); val store = InMemoryKioskStateStore()
         val a = KioskApplier(FakeController(KioskResult.Ok), store, FakeHome(), home, lockdown = lock)
         a.reassert() // not in kiosk

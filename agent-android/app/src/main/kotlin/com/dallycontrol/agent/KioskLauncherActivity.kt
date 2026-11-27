@@ -146,7 +146,8 @@ class KioskLauncherActivity : ComponentActivity() {
      * screen again and be sent back here forever.
      */
     private fun cleanLaunchIntent(pkg: String): Intent? = packageManager.getLaunchIntentForPackage(pkg)?.apply {
-        if (com.dallycontrol.agent.kiosk.KioskForegroundGuard.consumeTainted(pkg)) addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val clean = com.dallycontrol.agent.kiosk.KioskForegroundGuard.consumeTainted(pkg)
+        if (clean) addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
     /** Launch + show the pinned app (single mode), with a themed splash behind it. */
@@ -260,9 +261,8 @@ class KioskLauncherActivity : ComponentActivity() {
                 if (result == com.dallycontrol.kiosk.PinResult.Ok) {
                     doExit()
                 } else {
-                    android.widget.Toast.makeText(
-                        this, com.dallycontrol.agent.kiosk.PinGates.message(this, result), android.widget.Toast.LENGTH_LONG,
-                    ).show()
+                    val why = com.dallycontrol.agent.kiosk.PinGates.message(this, result)
+                    android.widget.Toast.makeText(this, why, android.widget.Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

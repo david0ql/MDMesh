@@ -209,7 +209,8 @@ class QuickSettingsActivity : ComponentActivity() {
                                 .record(com.dallycontrol.proto.EventType.POWER_PIN_FAILED, PinGates.eventDetail(result))
                         }
                     }
-                    android.widget.Toast.makeText(this, PinGates.message(this, result), android.widget.Toast.LENGTH_LONG).show()
+                    val why = PinGates.message(this, result)
+                    android.widget.Toast.makeText(this, why, android.widget.Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 AlertDialog.Builder(this)

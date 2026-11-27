@@ -17,9 +17,9 @@ class KioskFeaturesTest {
         assertEquals(16 or 64, lockTaskFeatures(KioskToggles(), sdk = 34))
         assertEquals(16 or 64, lockTaskFeatures(KioskToggles(), sdk = 35))
         assertEquals(64, lockTaskFeatures(KioskToggles(lockButtons = true), sdk = 35))
-        assertEquals(63 or 64, lockTaskFeatures(
-            KioskToggles(home = true, recents = true, notifications = true, systemInfo = true, keyguard = true), sdk = 35,
-        ))
+        val everything =
+            KioskToggles(home = true, recents = true, notifications = true, systemInfo = true, keyguard = true)
+        assertEquals(63 or 64, lockTaskFeatures(everything, sdk = 35))
         assertEquals("unused on the soft kiosk", 16, lockTaskFeatures(KioskToggles(), sdk = 36))
     }
 

@@ -39,29 +39,35 @@ class PinGate(private val store: PinAttemptStore, private val now: () -> Long = 
 
     fun remainingLockMs(): Long {
         val until = store.lockedUntil
-        if (until <= 0L) return 0L
-        val left = until - now()
-        if (left > MAX_LOCK_MS) { // the clock went backwards: never wait longer than the longest wait
-            store.lockedUntil = now() + MAX_LOCK_MS
-            return MAX_LOCK_MS
+        val left = if (until <= 0L) 0L else until - now()
+        return when {
+            left > MAX_LOCK_MS -> { // the clock went backwards: never wait longer than the longest wait
+                store.lockedUntil = now() + MAX_LOCK_MS
+                MAX_LOCK_MS
+            }
+            left > 0L -> left
+            else -> 0L
         }
-        return if (left > 0L) left else 0L
     }
 
     fun verify(expected: String?, typed: String): PinResult {
-        if (expected.isNullOrBlank()) return PinResult.NoSecret
         val left = remainingLockMs()
-        if (left > 0L) return PinResult.Locked(left)
-        if (matches(expected, typed)) {
-            store.failures = 0
-            store.lockedUntil = 0L
-            return PinResult.Ok
+        return when {
+            expected.isNullOrBlank() -> PinResult.NoSecret
+            left > 0L -> PinResult.Locked(left)
+            matches(expected, typed) -> {
+                store.failures = 0
+                store.lockedUntil = 0L
+                PinResult.Ok
+            }
+            else -> {
+                val failures = store.failures + 1
+                store.failures = failures
+                val lock = lockMsAfter(failures)
+                store.lockedUntil = if (lock > 0L) now() + lock else 0L
+                PinResult.Wrong(failures, lock)
+            }
         }
-        val failures = store.failures + 1
-        store.failures = failures
-        val lock = lockMsAfter(failures)
-        store.lockedUntil = if (lock > 0L) now() + lock else 0L
-        return PinResult.Wrong(failures, lock)
     }
 
     companion object {

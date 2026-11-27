@@ -48,7 +48,8 @@ class KioskHardeningTest {
 
     @Test
     fun `single-app lock task - only the Settings packages are suspended`() {
-        val plan = KioskHardening.suspendPlan(soft = false, launchable, settings, allowed = listOf("com.work.app"), protected)
+        val allowed = listOf("com.work.app")
+        val plan = KioskHardening.suspendPlan(soft = false, launchable, settings, allowed, protected)
         assertEquals(setOf("com.android.settings", "com.android.settings.intelligence"), plan)
     }
 
@@ -62,7 +63,8 @@ class KioskHardeningTest {
 
     @Test
     fun `a policy that allows Settings itself keeps it usable`() {
-        val plan = KioskHardening.suspendPlan(soft = true, launchable, settings, allowed = listOf("com.android.settings"), protected)
+        val allowed = listOf("com.android.settings")
+        val plan = KioskHardening.suspendPlan(soft = true, launchable, settings, allowed, protected)
         assertFalse("com.android.settings" in plan)
         assertTrue("com.android.settings.intelligence" in plan)
     }

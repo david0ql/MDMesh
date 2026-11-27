@@ -49,9 +49,10 @@ class AndroidKioskLockdown(
         prefs.edit().putBoolean(KEY_ENGAGED, true).apply()
         restrict(KioskHardening.restrictions(sdk))
         if (soft) {
-            runCatching { dpm.setStatusBarDisabled(admin, KioskHardening.statusBarDisabled(payload.features.softStatusBar)) }
+            val closed = KioskHardening.statusBarDisabled(payload.features.softStatusBar)
+            runCatching { dpm.setStatusBarDisabled(admin, closed) }
         }
-        if (sdk >= Build.VERSION_CODES.N) suspend(soft, allowed)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) suspend(soft, allowed)
         // Soft kiosk: what Android would not suspend (Settings, on Android 14+) is kept out of the foreground.
         val open = prefs.getString(KEY_GAP, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
         if (soft && open.isNotEmpty()) {
@@ -97,7 +98,8 @@ class AndroidKioskLockdown(
     private fun suspend(soft: Boolean, allowed: List<String>) {
         val pm = context.packageManager
         val launchable = runCatching {
-            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo.packageName }
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+                .map { it.activityInfo.packageName }
         }.getOrDefault(emptyList())
         val plan = KioskHardening.suspendPlan(soft, launchable, settingsPackages(), allowed, protectedPackages())
         val before = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
@@ -149,10 +151,12 @@ class AndroidKioskLockdown(
     private fun protectedPackages(): List<String> {
         val pm = context.packageManager
         val homes = runCatching {
-            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0).map { it.activityInfo.packageName }
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+                .map { it.activityInfo.packageName }
         }.getOrDefault(emptyList())
         val keyboards = runCatching {
-            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).inputMethodList.map { it.packageName }
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).inputMethodList
+                .map { it.packageName }
         }.getOrDefault(emptyList())
         val dialer = runCatching {
             (context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
@@ -195,7 +199,8 @@ class AndroidKioskLockdown(
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENGAGED, false)
 
         private fun suspendedByKiosk(context: Context, pkg: String): Boolean =
-            pkg in context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
+            pkg in context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
 
         /** Let one package the kiosk keeps suspended open for a moment (see [TimedAllow]). */
         fun lift(context: Context, pkg: String) {
@@ -208,7 +213,8 @@ class AndroidKioskLockdown(
         /** Close it again (a no-op once the kiosk was left or no longer suspends it). */
         fun restore(context: Context, pkg: String) {
             lifted -= pkg
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !engaged(context) || !suspendedByKiosk(context, pkg)) return
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+            if (!engaged(context) || !suspendedByKiosk(context, pkg)) return
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
             runCatching { dpm.setPackagesSuspended(AdminReceiver.componentName(context), arrayOf(pkg), true) }
         }
@@ -240,8 +246,9 @@ internal object KioskForegroundGuard {
     fun canWatch(context: Context): Boolean = runCatching {
         val ops = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
         @Suppress("DEPRECATION")
-        ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName) ==
-            android.app.AppOpsManager.MODE_ALLOWED
+        val op = android.app.AppOpsManager.OPSTR_GET_USAGE_STATS
+        val mode = ops.checkOpNoThrow(op, android.os.Process.myUid(), context.packageName)
+        mode == android.app.AppOpsManager.MODE_ALLOWED
     }.getOrDefault(false)
 
     @Synchronized
@@ -262,9 +269,8 @@ internal object KioskForegroundGuard {
                     val (front, before) = foreground(usage)
                     if (front == null || front !in closed || letThrough(front)) return@runCatching
                     if (before != null && before != app.packageName) tainted += before
-                    app.startActivity(
-                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
+                    val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                    app.startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     val now = android.os.SystemClock.elapsedRealtime()
                     if (now - lastReport > REPORT_EVERY_MS || lastReport == 0L) {
                         lastReport = now

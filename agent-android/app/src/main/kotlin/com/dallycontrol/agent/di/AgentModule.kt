@@ -256,7 +256,9 @@ object AgentModule {
         LockTaskKioskController(
             handle.dpm, handle.admin,
             supportPackages = listOf(
-                DroidVncController.PACKAGE, "com.google.android.permissioncontroller", "com.android.permissioncontroller",
+                DroidVncController.PACKAGE,
+                "com.google.android.permissioncontroller",
+                "com.android.permissioncontroller",
             ),
         )
 
@@ -323,17 +325,25 @@ object AgentModule {
         store: KioskStateStore,
         roles: RoleResolver,
         @ApplicationContext context: Context,
-        handle: DpmHandle,
-        events: EventSink,
+        lockdown: com.dallycontrol.core.kiosk.KioskLockdown,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        // The lock-down keeps the kiosk closed beyond lock task: kiosk restrictions, Settings (and, on the soft
-        // kiosk, every app outside it) suspended, status bar. droidVNC-NG stays usable for remote support.
-        val lockdown = com.dallycontrol.agent.kiosk.AndroidKioskLockdown(
-            context, handle.dpm, handle.admin, events, supportPackages = listOf(DroidVncController.PACKAGE),
-        )
         return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles, lockdown)
     }
+
+    /**
+     * What keeps the kiosk closed beyond lock task: kiosk restrictions, Settings (and, on the soft kiosk, every app
+     * outside it) suspended, status bar. droidVNC-NG stays usable for remote support.
+     */
+    @Provides
+    @Singleton
+    fun provideKioskLockdown(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.core.kiosk.KioskLockdown = com.dallycontrol.agent.kiosk.AndroidKioskLockdown(
+        context, handle.dpm, handle.admin, events, supportPackages = listOf(DroidVncController.PACKAGE),
+    )
 
     /**
      * Lets a downgrade uninstall a kiosk-pinned app: on a kiosk device, bring the kiosk launcher forward so the

@@ -26,6 +26,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -56,9 +57,18 @@ MODE = "-"
 
 def api(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
-    req = urllib.request.Request(A.api + path, data=data, method=method, headers={"Content-Type": "application/json"})
-    with OP.open(req, timeout=30) as r:
-        return json.loads(r.read() or b"{}")
+    last = None
+    for attempt in range(4):  # a loaded dev machine answers late or with a 502 now and then: that is not a result
+        req = urllib.request.Request(A.api + path, data=data, method=method, headers={"Content-Type": "application/json"})
+        try:
+            with OP.open(req, timeout=60) as r:
+                return json.loads(r.read() or b"{}")
+        except Exception as e:  # noqa: BLE001
+            last = e
+            if method != "GET" and attempt >= 1 and not isinstance(e, urllib.error.HTTPError):
+                break  # a POST that may have reached the server is not sent a third time
+            time.sleep(5)
+    raise last
 
 
 def adb(*args, timeout=90):
@@ -160,12 +170,14 @@ def restrictions():
 
 
 def ui():
-    sh("uiautomator dump /sdcard/dc-ui.xml >/dev/null 2>&1")
-    raw = sh("cat /sdcard/dc-ui.xml")
-    try:
-        return list(ET.fromstring(raw[raw.index("<?xml"):]).iter("node"))
-    except Exception:
-        return []
+    for _ in range(3):  # the dump fails now and then while a window is animating
+        sh("rm -f /sdcard/dc-ui.xml; uiautomator dump /sdcard/dc-ui.xml >/dev/null 2>&1")
+        raw = sh("cat /sdcard/dc-ui.xml")
+        try:
+            return list(ET.fromstring(raw[raw.index("<?xml"):]).iter("node"))
+        except Exception:
+            time.sleep(1)
+    return []
 
 
 def find(nodes, **want):
@@ -279,8 +291,7 @@ def t_state(mode):
         check("Ajustes (com.android.settings) suspendido", until(lambda: suspended("com.android.settings"), 15))
     elif SDK < 36:
         # Android 14+ does not let anyone suspend Settings: lock task blocks in-task starts instead (flag 64).
-        feats = lock_task_features()
-        check("Android 14/15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", feats >= 0 and feats & 64, f"mask={feats}")
+        check_mask("Android 14/15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", lambda f: f & 64)
     else:
         info("Android 16+", "Ajustes no se puede suspender ni hay lock task: lo devuelve el vigilante de primer plano (ver pruebas de intents)")
     check("la app de trabajo no está suspendida", not suspended(APP))
@@ -308,10 +319,12 @@ def t_settings_intents(mode):
                   not settings_in_front(), top() + " | " + (log[-1][-90:] if log else "sin log"))
             sh("input keyevent KEYCODE_BACK")
     home()
-    if mode == "launcher":
-        tile = find(ui(), **{"content-desc": "kiosk-app-" + APP})
-        if tile:
-            tap(tile)
+    # Open the work app the way the user does: its icon (multi-app) or the kiosk's "open <app>" button, which a
+    # pinned app's kiosk shows after it was left several times in a row (single-app; else it reopens by itself).
+    nodes = ui()
+    button = find(nodes, **{"content-desc": "kiosk-app-" + APP}) or find(nodes, **{"content-desc": "kiosk-open-app"})
+    if button:
+        tap(button)
     time.sleep(4)
     check("tras los intentos, la app de trabajo se abre normalmente (no queda Ajustes encima)",
           until(lambda: top().startswith(APP + "/"), 8), top())
@@ -373,16 +386,22 @@ def power_menu_shown():
 
 
 def lock_task_features():
-    """The lock-task feature mask in force (dumpsys activity lists it per user, by flag name or number)."""
-    out = sh("dumpsys activity activities") + sh("dumpsys activity lockTask 2>/dev/null")
-    m = re.search(r"mLockTaskFeatures=\{([^}]*)\}", out)
-    if not m:
-        return -1
-    body = m.group(1)
-    num = re.search(r"u0[:=]\s*(?:0x([0-9a-fA-F]+)|(\d+))", body) or re.search(r"=\s*(?:0x([0-9a-fA-F]+)|(\d+))", body)
-    if num:
-        return int(num.group(1), 16) if num.group(1) else int(num.group(2))
-    return -1
+    """The lock-task feature mask the policy set (-1 when this release does not print it)."""
+    dp = sh("dumpsys device_policy")
+    for pat in (r"LockTaskPolicy \{[^}]*mFlags=\s*(\d+)", r"mLockTaskFeatures[=:]\s*(\d+)", r"lockTaskFeatures[=:]\s*(\d+)"):
+        m = re.search(pat, dp)
+        if m:
+            return int(m.group(1))
+    m = re.search(r"mLockTaskFeatures=\{[^}]*?(\d+)\s*\}", sh("dumpsys activity activities"))
+    return int(m.group(1)) if m else -1
+
+
+def check_mask(name, want):
+    feats = lock_task_features()
+    if feats < 0:
+        info(name, "esta versión no muestra la máscara de lock task en dumpsys")
+    else:
+        check(name, want(feats), f"mask={feats}")
 
 
 def t_power(mode):
@@ -393,15 +412,12 @@ def t_power(mode):
     if 28 <= SDK < 36:
         s, d = enter(mode, lock_buttons=True)
         check("quiosco con «bloquear botones»: aplicado", s == "done", f"{s} {d}")
-        feats = lock_task_features()
-        check("con «bloquear botones» la política quita GLOBAL_ACTIONS (16) de lock task", feats >= 0 and feats & 16 == 0, f"mask={feats}")
+        check_mask("con «bloquear botones» la política quita GLOBAL_ACTIONS (16) de lock task", lambda f: f & 16 == 0)
         if POWER_DETECTABLE:
             check("con «bloquear botones» el menú de encendido NO se abre", not power_menu_shown())
         else:
             info("menú de encendido con «bloquear botones»", "no se abre (no concluyente en esta imagen; ver la máscara de lock task)")
         enter(mode)
-        feats = lock_task_features()
-        info("máscara de lock task por defecto", f"{feats} (16 = menú de encendido permitido)")
     else:
         info("menú de encendido bloqueable", "no en esta versión (Android < 9 o quiosco sin lock task)")
 

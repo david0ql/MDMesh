@@ -74,12 +74,8 @@ class KioskApplier(
             ),
         )
         if (current == desired) return // mask intact, nothing to heal
-        val resolved = if (p.roles.isEmpty()) ResolvedRoles() else runCatching { roles.resolve(p.roles) }.getOrDefault(ResolvedRoles())
-        val supportCall = if (p.theme.supportPhone.isNullOrBlank() || com.dallycontrol.proto.KioskRoles.PHONE in p.roles) emptyList()
-        else runCatching { roles.resolve(listOf(com.dallycontrol.proto.KioskRoles.PHONE)).all }.getOrDefault(emptyList())
-        val allowed = (p.allowedPackages + listOfNotNull(p.pinPackage) + resolved.all + supportCall).distinct()
         home.setClaimEnabled(true)
-        kiosk.enter(homeComponent, allowed, desired) // re-applies packages + feature mask + HOME claim, no launcher focus change
+        kiosk.enter(homeComponent, allowedFor(p), desired) // re-applies packages + feature mask + HOME claim, no launcher focus change
     }
 
     suspend fun exit(): KioskResult = when (val r = kiosk.exit()) {
@@ -95,10 +91,13 @@ class KioskApplier(
 
     /** Everything the kiosk lets run for [p]: its apps, the pinned one, and the packages its functions resolve to. */
     private fun allowedFor(p: KioskApplyPayload): List<String> {
-        val resolved = if (p.roles.isEmpty()) ResolvedRoles() else runCatching { roles.resolve(p.roles) }.getOrDefault(ResolvedRoles())
-        val supportCall = if (p.theme.supportPhone.isNullOrBlank() || com.dallycontrol.proto.KioskRoles.PHONE in p.roles) emptyList()
-        else runCatching { roles.resolve(listOf(com.dallycontrol.proto.KioskRoles.PHONE)).all }.getOrDefault(emptyList())
-        return (p.allowedPackages + listOfNotNull(p.pinPackage) + resolved.all + supportCall).distinct()
+        val phone = com.dallycontrol.proto.KioskRoles.PHONE
+        val resolved = if (p.roles.isEmpty()) emptyList()
+        else runCatching { roles.resolve(p.roles).all }.getOrDefault(emptyList())
+        val needsCallScreen = !p.theme.supportPhone.isNullOrBlank() && phone !in p.roles
+        val supportCall = if (!needsCallScreen) emptyList()
+        else runCatching { roles.resolve(listOf(phone)).all }.getOrDefault(emptyList())
+        return (p.allowedPackages + listOfNotNull(p.pinPackage) + resolved + supportCall).distinct()
     }
 
     /** True when a kiosk payload is persisted (device believes it is / should be in kiosk). */

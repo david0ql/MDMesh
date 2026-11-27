@@ -10,6 +10,9 @@ object KioskHardening {
     /** First release whose lock task crashes system_server on real phones (see docs/KIOSK-HARDENING.md). */
     const val SOFT_KIOSK_SDK = 36
 
+    /** Android 9: DISALLOW_USER_SWITCH and DISALLOW_SYSTEM_ERROR_DIALOGS exist from here on. */
+    const val CRASH_DIALOG_RESTRICTION_SDK = 28
+
     const val DISALLOW_SAFE_BOOT = "no_safe_boot"
     const val DISALLOW_ADD_USER = "no_add_user"
     const val DISALLOW_USER_SWITCH = "no_user_switch"
@@ -30,7 +33,8 @@ object KioskHardening {
 
     /**
      * Lock task only stops an app from opening a screen in a NEW task; an allowed app can still start another app's
-     * screen inside its own task — e.g. Wi-Fi settings. Up to Android 13 the kiosk closes that by suspending Settings.
+     * screen inside its own task — e.g. Wi-Fi settings. Up to Android 13 the kiosk closes that by suspending
+     * Settings.
      * Android 14+ refuses to suspend Settings (and hiding it instead leaves the phone without its boot-time home: it
      * never finishes starting), so on Android 14/15 lock task itself is told to block in-task starts of anything
      * that is not allowed in the kiosk. (Android 16+ has no lock task here: see [softKiosk].)
@@ -40,7 +44,8 @@ object KioskHardening {
     /**
      * Soft kiosk only: whether the status bar (and with it the system quick settings and their gear to Settings) is
      * disabled. Closed unless the policy explicitly asks for it ([softStatusBar], which the server sends only for an
-     * explicit "yes" to notifications — the plain `notifications` flag is also true for "auto", so it cannot be used).
+     * explicit "yes" to notifications — the plain `notifications` flag is also true for "auto", so it cannot be
+     * used).
      */
     fun statusBarDisabled(softStatusBar: Boolean?): Boolean = softStatusBar != true
 
@@ -52,7 +57,7 @@ object KioskHardening {
     fun restrictions(sdk: Int): Set<String> = buildSet {
         add(DISALLOW_SAFE_BOOT)
         add(DISALLOW_ADD_USER)
-        if (sdk >= 28) {
+        if (sdk >= CRASH_DIALOG_RESTRICTION_SDK) {
             add(DISALLOW_USER_SWITCH)
             add(DISALLOW_SYSTEM_ERROR_DIALOGS)
         }

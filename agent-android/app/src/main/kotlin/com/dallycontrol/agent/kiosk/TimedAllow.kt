@@ -46,7 +46,8 @@ object TimedAllow {
             revoke(app, pkg)
             // The window ended with the screen still up: back to the kiosk home.
             if (AndroidKioskLockdown.engaged(app)) runCatching {
-                app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                app.startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
         grants[pkg] = Grant(added, expire)

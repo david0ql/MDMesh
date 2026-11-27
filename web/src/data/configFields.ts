@@ -84,7 +84,7 @@ export const CONFIG_FIELDS: FieldDef[] = [
   { key: 'mobileEnrollment', label: 'Inscribir con datos móviles', type: 'switch', group: 'Red', help: 'Prefiere los datos móviles sobre el Wi‑Fi durante el aprovisionamiento.' },
 
   // ── Security ───────────────────────────────────────────────────────────-─
-  { key: 'password', label: 'Contraseña de salida del quiosco', type: 'password', group: 'Seguridad', enforced: true, help: 'Contraseña de salida del quiosco: la pide el teléfono para salir (7 toques o botón Salir). Obligatoria con el modo quiosco, mínimo 4 caracteres; si la dejas vacía el servidor genera una de 8 dígitos. Tras 3 intentos fallidos hay una espera creciente (30 s, 1 min, 2 min… hasta 30 min). Se guarda tal como se escribe.' },
+  { key: 'password', label: 'Contraseña de salida del quiosco', type: 'password', group: 'Seguridad', focused: true, enforced: true, help: 'Contraseña de salida del quiosco: la pide el teléfono para salir (7 toques o botón Salir). Obligatoria con el modo quiosco, mínimo 4 caracteres; si la dejas vacía el servidor genera una de 8 dígitos. Tras 3 intentos fallidos hay una espera creciente (30 s, 1 min, 2 min… hasta 30 min). Se guarda tal como se escribe.' },
   { key: 'appPermissions', label: 'Permisos de apps', type: 'enum', group: 'Seguridad', help: 'Cómo se manejan los permisos en tiempo de ejecución de las apps administradas.', options: [
     { value: 'GRANTALL', label: 'Conceder todos automáticamente' }, { value: 'ASKLOCATION', label: 'Preguntar solo por ubicación' },
     { value: 'DENYLOCATION', label: 'Denegar ubicación' }, { value: 'ASKALL', label: 'Preguntar por todo' },
