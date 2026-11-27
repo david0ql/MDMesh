@@ -97,10 +97,17 @@ function dumpUi() {
   }
   return '';
 }
+let current = null; // the open session, asked whether the screen service is connected again
 async function serviceBack() {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     const bound = adb('shell', 'dumpsys', 'accessibility').split('Bound services')[1] || '';
-    if (bound.split('}')[0].includes('SupportAccessibilityService')) return true;
+    if (bound.split('}')[0].includes('SupportAccessibilityService')) {
+      if (!current) return true;
+      const from = Date.now();
+      current.send({ t: 'info.get' });
+      const info = await current.until(() => current.msg('info', from), 2000);
+      if (info && info.connected) return true;
+    }
     await sleep(300);
   }
   return false;
@@ -194,6 +201,7 @@ class Session {
     await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('socket failed')); });
     ws.send(JSON.stringify({ t: 'auth', token: r.data.token }));
     this.ping = setInterval(() => { try { ws.send('{"t":"ping"}'); } catch { /* closed */ } }, 20000);
+    current = this;
     return this;
   }
   on(data) {
@@ -241,6 +249,7 @@ class Session {
   msg(type, after = 0, pred = () => true) { return this.msgs.find((m) => m.t === type && m.at >= after && pred(m)); }
   last(type) { return [...this.msgs].reverse().find((m) => m.t === type); }
   async close() {
+    if (current === this) current = null;
     clearInterval(this.ping);
     this.send({ t: 'bye' });
     await sleep(300);

@@ -26,6 +26,11 @@
         "theme": { "type": "object", "properties": { "backgroundColor": {"type":"string"}, "textColor": {"type":"string"}, "iconSize": {"type":"string"} } }
       }
     },
-    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } }
+    "location": { "type": "object", "properties": { "mode": { "enum": ["passive", "active"] } } },
+    "remoteSupport": {
+      "type": "object", "additionalProperties": true,
+      "description": "Remote support through the agent (ADR 0012). Absent = the agent's defaults (engine auto, notice shown, calls accepted by the person, authorisation asked after enrollment).",
+      "properties": { "engine": { "enum": ["builtin", "droidvnc"] }, "notice": {"type":"boolean"}, "callAccept": { "enum": ["auto"] }, "setupPrompt": {"type":"boolean"} }
+    }
   }
 }

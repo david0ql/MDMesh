@@ -55,9 +55,13 @@ async function waitUi(pred, ms = 12000) {
 }
 // `uiautomator dump` unbinds the agent's screen service for a moment (see remote-support-e2e.mjs): wait for it.
 async function serviceBack() {
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 40; i++) {
     const bound = adb('shell', 'dumpsys', 'accessibility').split('Bound services')[1] || '';
-    if (bound.split('}')[0].includes('SupportAccessibilityService')) return;
+    if (bound.split('}')[0].includes('SupportAccessibilityService')) {
+      await hook('(s.info && (s.info.connected = false), s.send({ t: "info.get" }))');
+      await sleep(500);
+      if (await hook('s.info && s.info.connected')) return;
+    }
     await sleep(300);
   }
 }

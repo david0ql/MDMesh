@@ -16,7 +16,7 @@ import kotlinx.serialization.json.put
  * messages (`{"t": "<type>", …}`) and binary messages whose first byte names the content. The server relays them
  * to the operator's console untouched.
  *
- * Console → device: `screen.start {maxDim, quality}`, `screen.set`, `screen.stop`, `ack {seq}`, `tap {x, y}`,
+ * Console → device: `info.get`, `screen.start {maxDim, quality}`, `screen.set`, `screen.stop`, `ack {seq}`, `tap {x, y}`,
  * `swipe {pts: [[x, y, tMs]…]}`, `key {k}`, `text {s}`, `chat {s}`, `call.start {accept?, testTone?}`, `call.end`,
  * `clip.set {s}`, `clip.get`, `file.put {id, name, size}` + chunks + `file.end {id}`, `file.list {path}`,
  * `file.get {id, path}`, `bye`. Coordinates are fractions (0..1) of the screen.

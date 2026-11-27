@@ -232,6 +232,7 @@ class SupportSessionManager @Inject constructor(
                 changed()
             }
             "peer" -> if (m.str("state") == "joined") sendInfo() else { stopStream(); stopCall(notifyPeer = false) }
+            "info.get" -> sendInfo()
             "end" -> teardown(m.str("reason") ?: "ended", tellPeer = false)
             "bye" -> teardown("console", tellPeer = false)
             "screen.start" -> startStream(m.int("maxDim"), m.int("quality"))
@@ -340,7 +341,9 @@ class SupportSessionManager @Inject constructor(
         var sentSeq = -1
         var sentAt = 0L
         var lastCrc = -1L
-        var interval = MIN_INTERVAL_MS
+        // Android refuses an accessibility screenshot asked less than a third of a second after the previous one;
+        // screen capture (Android 7-10) has no such limit.
+        var interval = if (projection) PROJECTION_INTERVAL_MS else A11Y_INTERVAL_MS
         var lastCapture = 0L
         var statsAt = System.currentTimeMillis()
         var captures = 0
@@ -675,9 +678,10 @@ class SupportSessionManager @Inject constructor(
         /** Same window the server gives a device to come back (SupportSessions.REJOIN_MILLIS). */
         private const val REJOIN_MS = 45_000L
         private const val POLL_MS = 8L
-        private const val MIN_INTERVAL_MS = 70L
-        private const val INTERVAL_STEP_MS = 60L
-        private const val MAX_INTERVAL_MS = 400L
+        private const val PROJECTION_INTERVAL_MS = 80L
+        private const val A11Y_INTERVAL_MS = 340L
+        private const val INTERVAL_STEP_MS = 20L
+        private const val MAX_INTERVAL_MS = 500L
         private const val ACK_TIMEOUT_MS = 1_500L
         private const val MAX_BACKLOG = 256L * 1024
         private const val BACKLOG_WAIT_MS = 20L
