@@ -374,6 +374,9 @@ services:
       dockerfile: docker/ops.Dockerfile
     restart: unless-stopped
     profiles: ["backup"]
+    # root inside the container (capabilities dropped above): the backups volume is shared with the supervisor, which
+    # writes it as root, owner-only.
+    user: "0:0"
     command: ["/ops/backup-scheduler.sh"]
     depends_on:
       postgres:
@@ -408,6 +411,8 @@ services:
       - dallycontroldata:/data:ro
       # Optional operator files: rclone.conf (BACKUP_RCLONE_REMOTE) and id_ed25519/known_hosts (BACKUP_RSYNC_TARGET).
       - ${BACKUP_CONFIG_DIR:-./ops/backup-config}:/config:ro
+      # .env (HASH_SECRET, passwords) goes into the backup only when BACKUP_ENCRYPTION_PASSPHRASE is set.
+      - .:/project:ro
     mem_limit: ${BACKUP_MEM_LIMIT:-512m}
     cpus: ${BACKUP_CPUS:-1.0}
 

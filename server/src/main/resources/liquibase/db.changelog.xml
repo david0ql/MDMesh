@@ -3415,7 +3415,7 @@
 
     <!-- More objects that only existed in the production database, found by scripts/schema-drift-check.sh (the
          mappers use them, no changeSet created them, so a fresh install or a restore into a new server failed on
-         the policy history, saved scripts and the settings page). Shapes follow the mappers and domain classes.
+         the policy history, saved scripts and the settings page). Same definitions as production.
          Idempotent: a no-op where they already exist. -->
     <changeSet id="26.11.27-backfill-drift-check" author="dallycontrol">
         <sql>
@@ -3426,29 +3426,30 @@
                 configurationName VARCHAR(255),
                 userId INT,
                 userName VARCHAR(255),
-                action VARCHAR(64),
+                action VARCHAR(16) NOT NULL,
                 changesJson TEXT,
                 revision VARCHAR(64),
-                createdAt BIGINT
+                createdAt BIGINT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS config_audit_configuration_idx ON config_audit (customerId, configurationId, id);
+            CREATE INDEX IF NOT EXISTS config_audit_cfg_idx ON config_audit (configurationId, id DESC);
+            CREATE INDEX IF NOT EXISTS config_audit_customer_idx ON config_audit (customerId);
 
             CREATE TABLE IF NOT EXISTS savedScript (
                 id SERIAL PRIMARY KEY,
-                customerId INT NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                description TEXT,
-                body TEXT,
+                customerId INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                name VARCHAR(100) NOT NULL,
+                description VARCHAR(500),
+                body TEXT NOT NULL,
                 paramsJson TEXT,
                 quickAction BOOLEAN NOT NULL DEFAULT FALSE,
                 createdBy INT,
                 createdAt BIGINT,
                 updatedAt BIGINT
             );
-            CREATE INDEX IF NOT EXISTS savedscript_customer_idx ON savedScript (customerId);
+            CREATE INDEX IF NOT EXISTS idx_savedscript_customer ON savedScript (customerId);
 
-            ALTER TABLE settings ADD COLUMN IF NOT EXISTS dashboardRefreshSeconds INT;
-            ALTER TABLE settings ADD COLUMN IF NOT EXISTS offlineThresholdDays INT;
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS dashboardRefreshSeconds INTEGER;
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS offlineThresholdDays INTEGER;
         </sql>
         <rollback/>
     </changeSet>
