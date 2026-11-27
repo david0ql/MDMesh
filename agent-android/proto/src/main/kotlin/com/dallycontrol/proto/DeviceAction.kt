@@ -83,8 +83,8 @@ object DeviceAction {
     const val APP_INSTALL_FORCE = "device.appInstallForce"
 
     /**
-     * Open on the phone the exact Android screen where the person turns on a special access for an app (all files,
-     * overlay, unknown sources...): `{ "packageName": "...", "access": "<PermissionCatalog.SPECIAL>" }`.
+     * Open on the phone the exact Android screen where the person turns on a special access for an app (all
+     * files, overlay, unknown sources...): `{ "packageName": "...", "access": "<PermissionCatalog.SPECIAL>" }`.
      */
     const val PERMISSION_SCREEN = "device.permissionScreen"
 

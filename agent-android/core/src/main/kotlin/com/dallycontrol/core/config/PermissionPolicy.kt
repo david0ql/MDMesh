@@ -68,19 +68,21 @@ object PermissionPlanner {
                     if (!canGrantSensors && permission in PermissionCatalog.SENSOR_PERMISSIONS) blocked += permission
                     else steps += Step(permission, Action.GRANT, rule)
                 PermissionRule.DENY -> steps += Step(permission, Action.DENY, rule)
-                PermissionRule.PROMPT ->
-                    steps += Step(permission, if (before == PermissionRule.GRANT) Action.REVOKE_AND_RELEASE else Action.RELEASE, rule)
+                PermissionRule.PROMPT -> {
+                    val action = if (before == PermissionRule.GRANT) Action.REVOKE_AND_RELEASE else Action.RELEASE
+                    steps += Step(permission, action, rule)
+                }
                 else -> if (before != null) steps += Step(permission, Action.RELEASE, null)
             }
         }
         // Foreground permissions first, background location last (stable otherwise).
-        return Plan(steps.sortedBy { if (it.permission == PermissionCatalog.BACKGROUND_LOCATION) 1 else 0 }, blocked)
+        val (background, foreground) = steps.partition { it.permission == PermissionCatalog.BACKGROUND_LOCATION }
+        return Plan(foreground + background, blocked)
     }
 
-    /** The rule in force for [permission]: its group's rule, else the "all" preset, else null. Unknown values = none. */
+    /** The rule for [permission]: its group's rule, else the "all" preset, else null. Unknown values = none. */
     fun ruleFor(rules: ConfigAppPermissions?, permission: String): String? {
-        if (rules == null) return null
-        val own = rules.permissions[PermissionCatalog.groupOf(permission)]
-        return (own ?: rules.all)?.takeIf { it in PermissionRule.ALL }
+        val own = rules?.permissions?.get(PermissionCatalog.groupOf(permission))
+        return (own ?: rules?.all)?.takeIf { it in PermissionRule.ALL }
     }
 }

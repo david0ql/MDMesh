@@ -73,13 +73,15 @@ object PermissionCatalog {
         ),
         CONTACTS to listOf(P + "READ_CONTACTS", P + "WRITE_CONTACTS", P + "GET_ACCOUNTS"),
         PHONE to listOf(
-            P + "READ_PHONE_STATE", P + "READ_PHONE_NUMBERS", P + "CALL_PHONE", P + "ANSWER_PHONE_CALLS", P + "READ_CALL_LOG",
-            P + "WRITE_CALL_LOG", P + "PROCESS_OUTGOING_CALLS", P + "USE_SIP", "com.android.voicemail.permission.ADD_VOICEMAIL",
+            P + "READ_PHONE_STATE", P + "READ_PHONE_NUMBERS", P + "CALL_PHONE", P + "ANSWER_PHONE_CALLS",
+            P + "READ_CALL_LOG", P + "WRITE_CALL_LOG", P + "PROCESS_OUTGOING_CALLS", P + "USE_SIP",
+            "com.android.voicemail.permission.ADD_VOICEMAIL",
         ),
         SMS to listOf(P + "SEND_SMS", P + "RECEIVE_SMS", P + "READ_SMS", P + "RECEIVE_WAP_PUSH", P + "RECEIVE_MMS"),
         NOTIFICATIONS to listOf(P + "POST_NOTIFICATIONS"),
         NEARBY to listOf(
-            P + "BLUETOOTH_SCAN", P + "BLUETOOTH_CONNECT", P + "BLUETOOTH_ADVERTISE", P + "NEARBY_WIFI_DEVICES", P + "UWB_RANGING",
+            P + "BLUETOOTH_SCAN", P + "BLUETOOTH_CONNECT", P + "BLUETOOTH_ADVERTISE", P + "NEARBY_WIFI_DEVICES",
+            P + "UWB_RANGING",
         ),
         ACTIVITY to listOf(P + "ACTIVITY_RECOGNITION", P + "BODY_SENSORS", P + "BODY_SENSORS_BACKGROUND"),
         CALENDAR to listOf(P + "READ_CALENDAR", P + "WRITE_CALENDAR"),
@@ -100,7 +102,7 @@ object PermissionCatalog {
         P + "ACTIVITY_RECOGNITION", P + "BODY_SENSORS", P + "BODY_SENSORS_BACKGROUND",
     )
 
-    // --- Special accesses (not runtime permissions: DevicePolicyManager.setPermissionGrantState does not cover them) ---
+    // --- Special accesses: not runtime permissions, so setPermissionGrantState does not cover them ---
     const val ALL_FILES = "allFiles"
     const val OVERLAY = "overlay"
     const val WRITE_SETTINGS = "writeSettings"
@@ -111,7 +113,8 @@ object PermissionCatalog {
     const val ACCESSIBILITY = "accessibility"
 
     val SPECIAL: List<String> = listOf(
-        ALL_FILES, OVERLAY, WRITE_SETTINGS, UNKNOWN_SOURCES, BATTERY, UNRESTRICTED_DATA, NOTIFICATION_ACCESS, ACCESSIBILITY,
+        ALL_FILES, OVERLAY, WRITE_SETTINGS, UNKNOWN_SOURCES, BATTERY, UNRESTRICTED_DATA, NOTIFICATION_ACCESS,
+        ACCESSIBILITY,
     )
 }
 

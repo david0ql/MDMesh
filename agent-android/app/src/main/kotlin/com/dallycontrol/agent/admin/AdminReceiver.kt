@@ -172,7 +172,9 @@ class AdminReceiver : DeviceAdminReceiver() {
                 val admin = componentName(context)
                 val wanted = listOf(context.packageName, com.dallycontrol.agent.remote.DroidVncController.PACKAGE)
                 val current = runCatching { dpm.getUserControlDisabledPackages(admin) }.getOrDefault(emptyList())
-                if (!current.containsAll(wanted)) dpm.setUserControlDisabledPackages(admin, (current + wanted).distinct())
+                if (!current.containsAll(wanted)) {
+                    dpm.setUserControlDisabledPackages(admin, (current + wanted).distinct())
+                }
             }
         }
 

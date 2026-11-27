@@ -10,6 +10,7 @@ import com.dallycontrol.proto.ConfigApplyPayload
 import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigApplyResult
 import com.dallycontrol.proto.ConfigOutcome
+import com.dallycontrol.proto.ConfigPermissions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -95,20 +96,29 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.device != null) outcomes["device"] = o
         }
-        // Permissions are re-asserted on EVERY apply, section or not: without one the agent keeps its baseline
-        // (grant on request, no per-app rules), so a rule that was removed is released and the policy never drifts.
-        val permissionOutcome = permissions?.let { p ->
-            runCatching { p.apply(doc.permissions ?: com.dallycontrol.proto.ConfigPermissions()) }
-                .getOrElse { e -> ConfigOutcome.failed(e.message ?: "permissions") }
-        }
-        if (permissionOutcome != null) outcomes["permissions"] = permissionOutcome
-        else if (doc.permissions != null) outcomes["permissions"] = ConfigOutcome.UNSUPPORTED
+        applyPermissions(doc)?.let { outcomes["permissions"] = it }
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
+    }
+
+    /**
+     * Permissions are re-asserted on EVERY apply, section or not: without one the agent keeps its baseline (grant on
+     * request, no per-app rules), so a rule that was removed is released and the policy never drifts.
+     *
+     * @return the outcome, or null when there is no enforcer and nothing was asked (the key is then omitted).
+     */
+    private fun applyPermissions(doc: ConfigApplyPayload): String? {
+        val enforcer = permissions
+        return when {
+            enforcer != null -> runCatching { enforcer.apply(doc.permissions ?: ConfigPermissions()) }
+                .getOrElse { e -> ConfigOutcome.failed(e.message ?: "permissions") }
+            doc.permissions != null -> ConfigOutcome.UNSUPPORTED
+            else -> null
+        }
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */

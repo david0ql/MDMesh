@@ -11,9 +11,9 @@ import com.dallycontrol.proto.ProtocolJson
 import kotlinx.serialization.Serializable
 
 /**
- * `device.permissionScreen` — `{ packageName, access }`: opens on the phone the exact Android screen where the person
- * turns on a special access for that app (Android gives a Device Owner no API to turn these on). In kiosk the system
- * screen is let through for a few minutes.
+ * `device.permissionScreen` — `{ packageName, access }`: opens on the phone the exact Android screen where the
+ * person turns on a special access for that app (Android gives a Device Owner no API to turn these on). In kiosk
+ * the system screen is let through for a few minutes.
  */
 class PermissionScreenHandler(private val permissions: AndroidPermissionEnforcer) : CommandHandler {
     override val type: String = DeviceAction.PERMISSION_SCREEN
@@ -22,13 +22,17 @@ class PermissionScreenHandler(private val permissions: AndroidPermissionEnforcer
     private data class Payload(val packageName: String = "", val access: String = "")
 
     override suspend fun handle(command: CommandEnvelope): CommandResult {
-        val p = command.payload?.let { runCatching { ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), it) }.getOrNull() }
-        if (p == null || p.packageName.isBlank() || p.access !in PermissionCatalog.SPECIAL) {
-            return CommandResults.failed(command, "invalid payload")
+        val p = command.payload
+            ?.let { runCatching { ProtocolJson.json.decodeFromJsonElement(Payload.serializer(), it) }.getOrNull() }
+        val error = if (p == null || p.packageName.isBlank() || p.access !in PermissionCatalog.SPECIAL) {
+            "invalid payload"
+        } else {
+            runCatching { permissions.openSpecial(p.packageName.trim(), p.access) }
+                .getOrElse { it.message ?: "could not open" }
         }
-        val error = runCatching { permissions.openSpecial(p.packageName.trim(), p.access) }.getOrElse { it.message ?: "could not open" }
         permissions.invalidateReport()
-        return if (error == null) CommandResults.done(command, "pantalla abierta en el teléfono") else CommandResults.failed(command, error)
+        return if (error == null) CommandResults.done(command, "pantalla abierta en el teléfono")
+        else CommandResults.failed(command, error)
     }
 }
 
