@@ -251,8 +251,9 @@ públicos del proyecto que el servidor entrega en cada reporte. Razones:
 - Se quitó del manifiesto el proveedor de arranque de Firebase (`FirebaseInitProvider`), que solo sirve para leer un
   `google-services.json` empaquetado: no hay costo de arranque cuando no hay proyecto.
 
-Versión fijada en 24.1.0: es la última línea compatible con la cadena de compilación actual del agente (AGP 8.6,
-Kotlin 2.0.20, minSdk 23). Subirla es una tarea de mantenimiento aparte, junto con AGP/Kotlin.
+Versión fijada en 24.1.0, que es la medida y probada con la cadena de compilación actual del agente (AGP 8.6,
+Kotlin 2.0.20, minSdk 23). Hay versiones más nuevas; no se probó si compilan con esta cadena, así que subirla queda
+como mantenimiento junto con AGP/Kotlin.
 
 ## 10. SMS de despertador (diseño; no activo)
 

@@ -27,6 +27,8 @@ okhttp = "4.12.0"
 kotlinxSerialization = "1.7.1"
 kotlinxCoroutines = "1.8.1"
 # Push wake channel. Pinned (no BoM, no google-services plugin): FirebaseApp is initialized by hand at run time.
+# Held on purpose at the version measured and tested with this build's AGP/Kotlin; bump it with the toolchain.
+#noinspection GradleDependency
 firebaseMessaging = "24.1.0"
 
 # QR decoding for the agent's own enrollment scanner (3.3.x is the last line that runs on Android 6 without desugaring)
