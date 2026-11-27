@@ -7,7 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.hmdm.util.InstallRetryPolicy;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class InstallRetrierTest {
@@ -74,6 +77,55 @@ public class InstallRetrierTest {
         List<List<InstallRetrier.Row>> due = due(raw, 2000 * MIN);
         assertEquals(1, due.size());
         assertEquals("d1", due.get(0).get(0).deviceNumber);
+    }
+
+    // --- an install is never brought back against the current intent ------------------------------------------------
+
+    private InstallRetrier.Row failedRow() {
+        List<Map<String, Object>> raw = new ArrayList<>();
+        raw.add(row("d1", "com.x", 7, "failed", "FAILURE_STORAGE", 1000 * MIN));
+        return InstallRetrier.rows(raw).get(0);
+    }
+
+    @Test
+    public void an_app_taken_out_of_the_policy_between_the_failure_and_the_retry_is_not_installed_again() {
+        InstallRetrier.Row failed = failedRow();
+        // Its retry is due by the clock…
+        assertEquals(1, InstallRetrier.dueGroups(
+                InstallRetrier.byDeviceAndPackage(java.util.Collections.singletonList(failed)), 1010 * MIN).size());
+        // …but a policy queued it and the policy no longer assigns the app to the phone: nothing is sent.
+        assertNull(InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(null, false, true, false)));
+        // The same when the policy now says "remove it", whoever ordered the install.
+        assertNull(InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(null, true, true, false)));
+        assertNull(InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(null, true, false, false)));
+    }
+
+    @Test
+    public void an_app_still_assigned_is_retried_with_what_the_policy_wants_now() {
+        InstallRetrier.Row failed = failedRow();
+        String newer = "{\"url\":\"https://x/b.apk\",\"packageName\":\"com.x\",\"versionCode\":8}";
+        assertEquals(newer, InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(newer, false, true, false)));
+        // Also when the failed order was a manual one for an app the policy assigns too.
+        assertEquals(newer, InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(newer, false, false, false)));
+    }
+
+    @Test
+    public void a_manual_order_is_retried_as_it_was_unless_the_app_was_uninstalled_afterwards() {
+        InstallRetrier.Row failed = failedRow();
+        assertEquals(failed.payload, InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(null, false, false, false)));
+        assertNull("someone uninstalled it after the order",
+                InstallRetrier.retryPayload(failed, new InstallRetrier.Facts(null, false, false, true)));
+    }
+
+    @Test
+    public void the_decision_table() {
+        assertEquals(InstallRetryPolicy.Decision.RESEND_POLICY, InstallRetryPolicy.decide(true, false, true, false));
+        assertEquals(InstallRetryPolicy.Decision.RESEND_POLICY, InstallRetryPolicy.decide(true, false, false, true));
+        assertEquals(InstallRetryPolicy.Decision.SKIP_UNASSIGNED, InstallRetryPolicy.decide(false, false, true, false));
+        assertEquals(InstallRetryPolicy.Decision.SKIP_REMOVED, InstallRetryPolicy.decide(false, true, false, false));
+        assertEquals(InstallRetryPolicy.Decision.SKIP_REMOVED, InstallRetryPolicy.decide(true, true, false, false));
+        assertEquals(InstallRetryPolicy.Decision.SKIP_REMOVED, InstallRetryPolicy.decide(false, false, false, true));
+        assertEquals(InstallRetryPolicy.Decision.RESEND_SAME, InstallRetryPolicy.decide(false, false, false, false));
     }
 
     @Test

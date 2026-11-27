@@ -1,5 +1,6 @@
 package com.hmdm.persistence.mapper;
 
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -34,6 +35,20 @@ public interface AppInstallStatusMapper {
             + "AND c.deviceNumber IN (SELECT f.deviceNumber FROM agentCommand f WHERE f.type IN ('app.install', 'device.appInstallForce') "
             + "AND f.status IN ('failed', 'expired') AND f.completedAt >= #{failedSince}) ORDER BY c.id"})
     List<Map<String, Object>> commandsOfDevicesWithFailures(@Param("since") long since, @Param("failedSince") long failedSince);
+
+    /** Remember that a policy (not a person) queued this install order. */
+    @Insert({"INSERT INTO agent_install_origin (commandId, origin, createdAt) VALUES (#{commandId}, #{origin}, #{createdAt}) "
+            + "ON CONFLICT (commandId) DO NOTHING"})
+    void recordOrigin(@Param("commandId") int commandId, @Param("origin") String origin, @Param("createdAt") long createdAt);
+
+    /** "policy" when a policy queued the order; null when a person did (console, API) or it predates this record. */
+    @Select({"SELECT origin FROM agent_install_origin WHERE commandId = #{commandId}"})
+    String originOf(@Param("commandId") int commandId);
+
+    /** Uninstall orders for the package (payload LIKE) sent to the device at or after [since], whatever became of them. */
+    @Select({"SELECT COUNT(*) FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND type = 'app.uninstall' "
+            + "AND createdAt >= #{since} AND regexp_replace(payload, '\\s', '', 'g') LIKE #{like}"})
+    int uninstallsSince(@Param("deviceNumber") String deviceNumber, @Param("like") String like, @Param("since") long since);
 
     /** The customer's devices with what the view shows about each, and the version of [pkg] its last inventory reported. */
     @Select({"SELECT d.id, d.number, d.description, d.configurationId, d.agentCapabilities, d.lastUpdate, g.name AS groupName, "
