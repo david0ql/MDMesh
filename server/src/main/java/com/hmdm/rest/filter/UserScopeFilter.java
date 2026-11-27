@@ -84,6 +84,7 @@ public class UserScopeFilter implements Filter {
             new Rule("POST", "/applications/configurations", null),          // link apps to a policy (version-0 guard; resource checks access)
             new Rule("POST", "/applications/(\\d+)/remove-from-my-configs", null), // unlink app from the editor's own policies (resource scopes to their configs)
             new Rule("GET", "/reports/v1(/.*)?", null),                      // reports: resource scopes each row to the user's own devices
+            new Rule("GET POST", "/alerts/v1(/.*)?", null),                  // alerts: resource scopes each row; review checks the device's folder
             new Rule("GET PUT", "/scripts", null),                          // scripts: list scoped to creator; authoring checks manage_scripts
             new Rule("DELETE", "/scripts/(\\d+)", null),                    // delete script: resource checks manage_scripts
             new Rule("POST", "/scripts/(\\d+)/run", null),                  // run script: resource checks edit_devices + per-device scope

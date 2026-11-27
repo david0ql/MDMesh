@@ -19,6 +19,7 @@ import { FleetMapPage } from './pages/FleetMapPage';
 import { GroupsPage } from './pages/GroupsPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { AlertsPage } from './pages/AlertsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/configs" element={<RequirePermission name="configurations"><ConfigurationsPage /></RequirePermission>} />
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/reports" element={<RequirePermission name="manage_fleet"><ReportsPage /></RequirePermission>} />
+              <Route path="/alerts" element={<RequirePermission name="manage_fleet"><AlertsPage /></RequirePermission>} />
               <Route path="/scripts" element={<RequirePermission name="manage_scripts"><ScriptsPage /></RequirePermission>} />
               <Route path="/enroll" element={<EnrollPage />} />
               <Route path="/settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
