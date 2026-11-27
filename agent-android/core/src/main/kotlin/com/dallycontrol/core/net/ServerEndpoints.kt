@@ -26,12 +26,9 @@ class ServerEndpoints(
         val primaryUrl = primary().trimEnd('/')
         val backups = backups()
         val index = index()
-        if (index <= 0 || index > backups.size) return primaryUrl
-        if (clock() - switchedAt() >= RETRY_PRIMARY_MS) {
-            select(0)
-            return primaryUrl
-        }
-        return backups[index - 1]
+        val onBackup = index in 1..backups.size
+        if (onBackup && clock() - switchedAt() >= RETRY_PRIMARY_MS) select(0) // time to try the primary again
+        return if (onBackup && index() == index) backups[index - 1] else primaryUrl
     }
 
     @Synchronized
@@ -59,11 +56,12 @@ class ServerEndpoints(
         if (failures == 0) firstFailureAt = now
         failures++
         val backups = backups()
-        if (backups.isEmpty()) return false
-        if (failures < FAILOVER_FAILURES || now - firstFailureAt < FAILOVER_AFTER_MS) return false
-        activeUrl() // settles a pending return to the primary before rotating
-        select((index() + 1) % (backups.size + 1))
-        return true
+        val switch = backups.isNotEmpty() && failures >= FAILOVER_FAILURES && now - firstFailureAt >= FAILOVER_AFTER_MS
+        if (switch) {
+            activeUrl() // settles a pending return to the primary before rotating
+            select((index() + 1) % (backups.size + 1))
+        }
+        return switch
     }
 
     @Synchronized

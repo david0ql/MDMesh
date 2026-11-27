@@ -42,13 +42,6 @@ class ConnectionDiagnostics(
     /** When the last check-in succeeded (0: never, as far as this install remembers). */
     val lastSuccessAt: Long @Synchronized get() = state.lastSuccessAt
 
-    fun networkConnected(): Boolean = network.current().connected
-
-    /** Backup URLs from a check-in response; null (older server) leaves the stored list alone. */
-    fun acceptBackupUrls(urls: List<String>?) {
-        if (urls != null) endpoints?.saveBackups(urls)
-    }
-
     /**
      * A check-in ("checkin") or the wake socket ("socket") failed. Failures without any network are not kept as
      * such — that is a silence with its own reason ([StopReason.NETWORK_LOST]), not a fault of the network path.
@@ -189,9 +182,13 @@ class ConnectionDiagnostics(
         )
     }
 
-    /** The server acknowledged [report]: drop what it carried and note the success. */
-    fun delivered(report: ConnectionReport?, goodbye: Boolean = false) {
+    /**
+     * The server acknowledged [report]: drop what it carried and note the success. [backupUrls] is the list the
+     * response carried; null (an older server) leaves the stored one alone.
+     */
+    fun delivered(report: ConnectionReport?, goodbye: Boolean = false, backupUrls: List<String>? = null) {
         endpoints?.onReached()
+        if (backupUrls != null) endpoints?.saveBackups(backupUrls)
         update {
             val failure = it.failure?.takeIf { f -> report == null || f.at != report.lastFailure?.at }
             // A goodbye leaves the stop in place: the next report closes it with the time the device came back.

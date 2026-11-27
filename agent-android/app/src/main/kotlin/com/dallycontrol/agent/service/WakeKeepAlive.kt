@@ -20,7 +20,8 @@ object WakeKeepAlive {
     // 5 min, not 10: the console counts a device as connected for 20 min after its last report, and with a
     // 10-minute beat a single deferred alarm already crossed that line. Android stretches this on its own in deep
     // Doze (about 9 min before Android 12, a per-hour quota after), so asking for 5 costs little there.
-    private val INTERVAL_MS = TimeUnit.MINUTES.toMillis(5)
+    private const val INTERVAL_MINUTES = 5L
+    private val INTERVAL_MS = TimeUnit.MINUTES.toMillis(INTERVAL_MINUTES)
 
     /** Schedule the next heartbeat. Idempotent (FLAG_UPDATE_CURRENT replaces any pending alarm). */
     fun schedule(context: Context) {

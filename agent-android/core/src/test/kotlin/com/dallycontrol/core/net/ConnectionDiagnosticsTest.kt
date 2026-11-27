@@ -214,7 +214,10 @@ class ConnectionDiagnosticsTest {
     @Test fun `repeated path failures move to the backup, whose use is reported`() {
         val e = endpoints().also { it.saveBackups(listOf("https://direct.example.com")) }
         val d = diagnostics(e)
-        repeat(4) { d.recordFailure(SSLHandshakeException("inspected"), ConnectionDiagnostics.CHANNEL_CHECKIN); now += minute }
+        repeat(4) {
+            d.recordFailure(SSLHandshakeException("inspected"), ConnectionDiagnostics.CHANNEL_CHECKIN)
+            now += minute
+        }
         val report = d.pendingReport()
         assertEquals(true, report.usingBackup)
         assertEquals("direct.example.com", report.serverHost)

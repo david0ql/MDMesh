@@ -20,6 +20,7 @@ object NetworkFailures {
     private const val MAX_CAUSES = 6
 
     /** Answers that come from something in the way (proxy, CDN, firewall page), not from our application. */
+    @Suppress("MagicNumber")
     private val GATEWAY_CODES = setOf(403, 407, 451, 502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530)
 
     /**
@@ -30,11 +31,12 @@ object NetworkFailures {
     fun classify(t: Throwable, httpCode: Int? = null, webSocket: Boolean = false): ClassifiedFailure {
         val chain = generateSequence(t) { it.cause.takeIf { c -> c !== it } }.take(MAX_CAUSES).toList()
         val detail = detailOf(chain)
-        if (webSocket && httpCode != null) return ClassifiedFailure(FailureKind.WS_UPGRADE, detail, httpCode)
-        chain.filterIsInstance<HttpException>().firstOrNull()?.let {
-            return ClassifiedFailure(FailureKind.HTTP, "HTTP ${it.code()}", it.code())
+        val http = chain.filterIsInstance<HttpException>().firstOrNull()
+        return when {
+            webSocket && httpCode != null -> ClassifiedFailure(FailureKind.WS_UPGRADE, detail, httpCode)
+            http != null -> ClassifiedFailure(FailureKind.HTTP, "HTTP ${http.code()}", http.code())
+            else -> ClassifiedFailure(kindOf(chain), detail, httpCode)
         }
-        return ClassifiedFailure(kindOf(chain), detail, httpCode)
     }
 
     private fun kindOf(chain: List<Throwable>): String = when {

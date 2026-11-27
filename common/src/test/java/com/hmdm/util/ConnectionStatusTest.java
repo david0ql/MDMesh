@@ -124,6 +124,7 @@ public class ConnectionStatusTest {
                 ConnectionStatus.backupUrls("https://direct.example.com/, http://plain.example.com https://u:p@x.example.com,"
                         + "https://b.example.com:8443, https://c.example.com/path, nonsense, https://direct.example.com"));
         assertTrue(ConnectionStatus.backupUrls("${agent.backup.urls}").isEmpty());
+        assertEquals(Arrays.asList("http://10.0.2.2:8112"), ConnectionStatus.backupUrls("http://10.0.2.2:8112", true));
         assertTrue(ConnectionStatus.backupUrls(null).isEmpty());
         assertTrue(ConnectionStatus.backupUrls("").isEmpty());
     }

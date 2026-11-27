@@ -69,7 +69,7 @@ object NetworkModule {
             .build()
     }
 
-    /** Primary + backup server URLs (see [com.dallycontrol.core.net.ServerEndpoints]). Plain http only in debug builds. */
+    /** Primary + backup server URLs (see [com.dallycontrol.core.net.ServerEndpoints]); plain http only in debug. */
     @Provides
     @Singleton
     fun provideServerEndpoints(

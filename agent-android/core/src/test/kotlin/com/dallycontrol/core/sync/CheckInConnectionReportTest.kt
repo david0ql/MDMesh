@@ -27,7 +27,9 @@ class CheckInConnectionReportTest {
         val identity = FakeIdentity(initialId = "dev-1", initialSecret = "sek-1")
         return CheckInCoordinator(
             api = api,
-            enrollment = EnrollmentManager(api, identity, FakeTokenProvider("t"), FakeCapabilitySource(), NoopEventSink),
+            enrollment = EnrollmentManager(
+                api, identity, FakeTokenProvider("t"), FakeCapabilitySource(), NoopEventSink,
+            ),
             identity = identity,
             capabilitySource = FakeCapabilitySource(),
             dispatcher = CommandDispatcher(emptyList()),
@@ -35,8 +37,10 @@ class CheckInConnectionReportTest {
             stateSource = { null },
             telemetrySource = { null },
             eventSink = NoopEventSink,
-            connection = connection,
-        ).apply { workContext = kotlin.coroutines.EmptyCoroutineContext }
+        ).also {
+            it.workContext = kotlin.coroutines.EmptyCoroutineContext
+            it.connection = connection
+        }
     }
 
     @Test fun `the last network failure rides the next successful check-in, once`() = runTest {

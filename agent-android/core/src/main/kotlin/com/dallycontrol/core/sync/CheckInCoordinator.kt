@@ -48,8 +48,11 @@ class CheckInCoordinator @Inject constructor(
     private val eventSink: EventSink,
     private val hardwareIdSource: HardwareIdSource = HardwareIdSource { null },
     private val syncStatus: SyncStatus = SyncStatus(),
-    private val connection: ConnectionDiagnostics = ConnectionDiagnostics(MemoryKeyValueStore()),
 ) {
+
+    /** Connection diagnostics; injected (a property, not one more constructor parameter). In-memory by default. */
+    @set:Inject
+    var connection: ConnectionDiagnostics = ConnectionDiagnostics(MemoryKeyValueStore())
 
     private val mutex = Mutex()
 
@@ -133,10 +136,7 @@ class CheckInCoordinator @Inject constructor(
         }
 
         telemetry?.let { runCatching { telemetrySource.delivered(it) } }
-        runCatching {
-            connection.delivered(connectionReport, goodbye)
-            connection.acceptBackupUrls(data.backupUrls)
-        }
+        runCatching { connection.delivered(connectionReport, goodbye, data.backupUrls) }
         // A command that must wait (no internet for its download) stays unanswered: the server re-queues it.
         val results = data.commands.mapNotNull {
             try {

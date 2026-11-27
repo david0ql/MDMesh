@@ -107,7 +107,9 @@ public class AgentResource {
     public void setConnectionSupport(com.hmdm.persistence.DeviceConnectionDAO connectionDAO,
                                      @javax.inject.Named("agent.backup.urls") String configuredBackupUrls) {
         this.connectionDAO = connectionDAO;
-        this.backupUrls = com.hmdm.util.ConnectionStatus.backupUrls(configuredBackupUrls);
+        // Plain-http backups only on a development server that itself runs on http.
+        this.backupUrls = com.hmdm.util.ConnectionStatus.backupUrls(configuredBackupUrls,
+                baseUrl != null && baseUrl.startsWith("http://"));
     }
 
     /**

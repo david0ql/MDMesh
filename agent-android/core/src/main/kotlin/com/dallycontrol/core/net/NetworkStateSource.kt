@@ -1,5 +1,6 @@
 package com.dallycontrol.core.net
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -22,6 +23,8 @@ class AndroidNetworkState(private val context: Context) : NetworkStateSource {
     override fun current(): NetworkSnapshot =
         runCatching { read() }.getOrDefault(NetworkSnapshot(NetworkSnapshot.NONE))
 
+    // ACCESS_NETWORK_STATE is declared by the app module's manifest.
+    @SuppressLint("MissingPermission")
     private fun read(): NetworkSnapshot {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return NetworkSnapshot(NetworkSnapshot.NONE)

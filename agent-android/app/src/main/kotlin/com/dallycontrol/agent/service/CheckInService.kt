@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
-import android.net.ConnectivityManager
-import android.net.Network
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
@@ -19,25 +17,17 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.dallycontrol.agent.R
-import com.dallycontrol.core.net.ConnectionDiagnostics
 import com.dallycontrol.core.power.PowerModeStore
 import com.dallycontrol.core.store.DeviceIdentity
 import com.dallycontrol.core.sync.CheckInCoordinator
 import com.dallycontrol.core.telemetry.EventLog
-import com.dallycontrol.core.transport.ConnectionWatchdog
-import com.dallycontrol.core.transport.NetworkChangeTracker
 import com.dallycontrol.core.transport.TransportManager
 import com.dallycontrol.core.transport.WakeSignal
 import com.dallycontrol.proto.EventType
-import com.dallycontrol.proto.StopReason
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 
 /**
@@ -61,28 +51,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var powerModeStore: PowerModeStore
     @Inject lateinit var eventLog: EventLog
     @Inject lateinit var deviceWatch: DeviceWatch
-    @Inject lateinit var connection: ConnectionDiagnostics
-
-    private val watchdog = ConnectionWatchdog()
-    private val networkChanges = NetworkChangeTracker()
-
-    /**
-     * The default network changed or came back: reopen the socket and report at once, instead of waiting for the
-     * socket's ping to miss (up to ~100 s) plus its backoff. This is what closes the "disconnected" stretch after
-     * walking from Wi-Fi to mobile data or coming out of a dead zone.
-     */
-    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onAvailable(network: Network) {
-            runCatching { connection.networkBack() }
-            if (networkChanges.onAvailable(network.networkHandle)) onNetworkRecovered()
-        }
-
-        override fun onLost(network: Network) {
-            if (networkChanges.onLost(network.networkHandle)) {
-                runCatching { connection.recordStop(StopReason.NETWORK_LOST) }
-            }
-        }
-    }
+    @Inject lateinit var keeper: ConnectionKeeper
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -100,7 +69,7 @@ class CheckInService : LifecycleService() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 Intent.ACTION_SHUTDOWN -> {
-                    onShutdown()
+                    keeper.onShutdown(this@CheckInService)
                     return
                 }
                 android.net.ConnectivityManager.CONNECTIVITY_ACTION ->
@@ -125,10 +94,6 @@ class CheckInService : LifecycleService() {
             addAction(Intent.ACTION_SHUTDOWN)
         }
         ContextCompat.registerReceiver(this, powerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-        runCatching {
-            (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)
-                .registerDefaultNetworkCallback(networkCallback)
-        }.onFailure { Log.w(TAG, "network callback unavailable", it) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -142,7 +107,8 @@ class CheckInService : LifecycleService() {
                 delay(REACHABILITY_GRACE_MS + 1_000L)
                 reevaluateSocket() // drop back to adaptive gating once the grace window lapses
             }
-            lifecycleScope.launch { runWatchdog() }
+            // Reconnect on network changes, watchdog, shutdown notice (see ConnectionKeeper).
+            keeper.start(applicationContext, lifecycleScope) { reevaluateSocket() }
             lifecycleScope.launch {
                 runCatching { coordinator.runOnce() } // initial sync
                     .onFailure { Log.w(TAG, "initial check-in failed", it) }
@@ -228,54 +194,6 @@ class CheckInService : LifecycleService() {
         reevaluateSocket() // a device.powerMode command may have just changed the mode
     }
 
-    private fun onNetworkRecovered() {
-        Log.i(TAG, "network changed or came back: reconnecting now")
-        transport.reconnectNow()
-        lifecycleScope.launch {
-            runCatching { coordinator.runOnce() }
-                .recoverCatching {
-                    // The network is announced a moment before it carries traffic: one more try.
-                    delay(WAKE_RETRY_DELAY_MS)
-                    coordinator.runOnce()
-                }
-                .onFailure { Log.w(TAG, "check-in after network recovery failed", it) }
-            reevaluateSocket()
-        }
-    }
-
-    /** See [ConnectionWatchdog]. Runs while the service lives; the alarm heartbeat covers a sleeping process. */
-    private suspend fun runWatchdog() {
-        while (true) {
-            delay(ConnectionWatchdog.TICK_MS)
-            runCatching { connection.markAlive() }
-            val action = watchdog.decide(
-                now = System.currentTimeMillis(),
-                lastSuccessAt = connection.lastSuccessAt,
-                networkAvailable = connection.networkConnected(),
-            )
-            if (action == ConnectionWatchdog.Action.NONE || coordinator.isBusy) continue
-            if (action == ConnectionWatchdog.Action.RESTART) {
-                Log.w(TAG, "no successful check-in for a while with network available: restarting the transport")
-                transport.restart()
-            }
-            runCatching { coordinator.runOnce() }
-                .onFailure { Log.w(TAG, "watchdog check-in failed", it) }
-        }
-    }
-
-    /**
-     * The device is shutting down (or restarting): note it and try one last report, so the console shows the
-     * device as switched off instead of as a lost connection. The note is on disk first — the report may not
-     * make it out before the system stops us.
-     */
-    private fun onShutdown() {
-        runCatching { connection.recordStop(StopReason.SHUTDOWN, batteryPercent(this)) }
-        shutdownScope.launch {
-            runCatching { withTimeout(GOODBYE_TIMEOUT_MS) { coordinator.runGoodbye() } }
-                .onFailure { Log.w(TAG, "goodbye check-in did not go out", it) }
-        }
-    }
-
     /** Start the 2.5s fast-sync loop unless one is already running — repeat "interactive"
      *  signals only extend [interactiveUntil], they must not stack extra loops. */
     @Synchronized
@@ -299,10 +217,7 @@ class CheckInService : LifecycleService() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(powerReceiver) }
-        runCatching {
-            (getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager)
-                .unregisterNetworkCallback(networkCallback)
-        }
+        keeper.stop(applicationContext)
         deviceWatch.stop()
         transport.stop()
         super.onDestroy()
@@ -344,10 +259,6 @@ class CheckInService : LifecycleService() {
 
     companion object {
         private const val WAKE_RETRY_DELAY_MS = 2_000L
-        private const val GOODBYE_TIMEOUT_MS = 4_000L
-
-        /** Outlives the service's own scope: the goodbye report runs while everything is being torn down. */
-        private val shutdownScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private const val ENROLL_POLL_MS = 5_000L
         private const val ENROLL_POLL_ATTEMPTS = 120 // 10 minutes; the periodic worker covers beyond
         private const val TAG = "CheckInService"
@@ -361,13 +272,6 @@ class CheckInService : LifecycleService() {
 
 private fun isInteractive(context: Context): Boolean =
     (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
-
-private fun batteryPercent(context: Context): Int? {
-    val batt = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
-    val level = batt.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-    val scale = batt.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-    return if (level < 0 || scale <= 0) null else level * 100 / scale
-}
 
 private fun isCharging(context: Context): Boolean {
     val batt = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))

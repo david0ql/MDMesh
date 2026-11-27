@@ -236,6 +236,11 @@ public final class ConnectionStatus {
      * origins are handed to agents. An unresolved placeholder (<code>${…}</code>) counts as not configured.
      */
     public static java.util.List<String> backupUrls(String configured) {
+        return backupUrls(configured, false);
+    }
+
+    /** @param allowHttp only for a development server that itself runs on plain http (agents in release builds refuse http anyway). */
+    public static java.util.List<String> backupUrls(String configured, boolean allowHttp) {
         java.util.List<String> out = new java.util.ArrayList<>();
         if (configured == null || configured.contains("${")) return out;
         for (String raw : configured.split("[,\\s]+")) {
@@ -243,11 +248,13 @@ public final class ConnectionStatus {
             if (u.isEmpty()) continue;
             try {
                 java.net.URI uri = new java.net.URI(u);
-                boolean plain = "https".equalsIgnoreCase(uri.getScheme()) && uri.getHost() != null && uri.getUserInfo() == null
+                boolean https = "https".equalsIgnoreCase(uri.getScheme());
+                boolean plain = (https || (allowHttp && "http".equalsIgnoreCase(uri.getScheme()))) && uri.getHost() != null && uri.getUserInfo() == null
                         && (uri.getPath() == null || uri.getPath().isEmpty() || "/".equals(uri.getPath()))
                         && uri.getQuery() == null && uri.getFragment() == null;
                 if (!plain) continue;
-                String clean = "https://" + uri.getHost().toLowerCase() + (uri.getPort() > 0 && uri.getPort() != 443 ? ":" + uri.getPort() : "");
+                String clean = (https ? "https://" : "http://") + uri.getHost().toLowerCase()
+                        + (uri.getPort() > 0 && !(https && uri.getPort() == 443) ? ":" + uri.getPort() : "");
                 if (!out.contains(clean) && out.size() < 3) out.add(clean);
             } catch (Exception e) {
                 // malformed: skipped
