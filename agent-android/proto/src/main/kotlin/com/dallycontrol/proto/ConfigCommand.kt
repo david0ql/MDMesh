@@ -98,7 +98,11 @@ data class ConfigAppPolicy(
 data class ConfigTracking(val intervalMinutes: Int = 0)
 
 @Serializable
-data class ConfigLocation(val mode: String = DeviceAction.LOCATION_PASSIVE)
+data class ConfigLocation(
+    val mode: String = DeviceAction.LOCATION_PASSIVE,
+    /** Seconds an active fix may wait for a fresh position (absent = the agent's default, 25 s). */
+    val fixTimeoutSec: Int? = null,
+)
 
 /** JSON-encoded into `CommandResult.detail` (proto/payloads/config-apply-result.schema.json). */
 @Serializable

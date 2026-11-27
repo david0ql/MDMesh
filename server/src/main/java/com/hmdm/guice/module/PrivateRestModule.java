@@ -60,5 +60,9 @@ public class PrivateRestModule extends ServletModule {
         this.bind(FDroidResource.class);
         // Eager so AgentWakeHub.INSTANCE is set at boot, before any device WebSocket connects.
         this.bind(com.hmdm.notification.AgentWakeHub.class).asEagerSingleton();
+        // Geofences: the resource, and the evaluator eager so GeofenceService.INSTANCE exists before the first check-in.
+        this.bind(com.hmdm.rest.resource.GeofenceResource.class);
+        this.bind(com.hmdm.rest.resource.support.GeofenceService.class).asEagerSingleton();
+        this.bind(com.hmdm.rest.resource.support.GeofenceTasks.class).asEagerSingleton();
     }
 }

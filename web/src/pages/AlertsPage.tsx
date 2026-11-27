@@ -13,6 +13,7 @@ import {
   type AlertStatus,
   type ExportFormat,
 } from '../api/alerts';
+import { getMailStatus } from '../api/geofences';
 
 // ---------------------------------------------------------------------------------------------
 // Filters
@@ -23,6 +24,8 @@ const TYPE_OPTIONS: { id: AlertType | ''; label: string }[] = [
   { id: 'disconnected', label: 'Desconexión' },
   { id: 'kioskExit', label: 'Salida de kiosko' },
   { id: 'simChange', label: 'Cambio de SIM' },
+  { id: 'geofenceExit', label: 'Salida de zona' },
+  { id: 'geofenceEnter', label: 'Entrada a zona' },
 ];
 
 const STATUS_OPTIONS: { id: AlertStatus | ''; label: string }[] = [
@@ -53,6 +56,9 @@ export function AlertsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
+  // Whether the server can e-mail alerts (null = unknown yet).
+  const [mailOn, setMailOn] = useState<boolean | null>(null);
+  useEffect(() => { getMailStatus().then((m) => setMailOn(m.configured)).catch(() => setMailOn(null)); }, []);
 
   const filters = useCallback(
     () => ({ type, status, from: startOfDay(from), to: endOfDay(to), minutes }),
@@ -129,8 +135,15 @@ export function AlertsPage() {
       </div>
 
       <p className="muted report-hint">
-        Alertas de desconexión, salida de modo kiosko y cambio de SIM. Marca cada una como revisada cuando la
-        atiendas; el reporte puede exportarse a Excel o CSV.
+        Alertas de desconexión, salida de modo kiosko, cambio de SIM y entrada o salida de zonas (geocercas). Marca cada una
+        como revisada cuando la atiendas; el reporte puede exportarse a Excel o CSV.{' '}
+        {mailOn === true && <>Los avisos por correo se configuran en <Link to="/geofences">Geocercas → Notificaciones por correo</Link>.</>}
+        {mailOn === false && (
+          <>
+            El servidor no tiene correo saliente (SMTP) configurado, así que no se envían avisos por correo; ver{' '}
+            <Link to="/geofences">Geocercas → Notificaciones por correo</Link>.
+          </>
+        )}
       </p>
 
       <div className="report-toolbar">
@@ -238,7 +251,10 @@ export function AlertsPage() {
                     <td>{row.tipo}</td>
                     <td>
                       {row.number ? (
-                        <Link className="row-link-a" to={`/devices/${encodeURIComponent(String(row.number))}`}>
+                        <Link
+                          className="row-link-a"
+                          to={`/devices/${encodeURIComponent(String(row.number))}${String(row.type).startsWith('geofence') ? '?tab=location' : ''}`}
+                        >
                           {String(row.name ?? row.number)}
                         </Link>
                       ) : (

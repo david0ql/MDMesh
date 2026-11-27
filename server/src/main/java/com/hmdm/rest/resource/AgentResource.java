@@ -936,7 +936,11 @@ public class AgentResource {
                 row.setProvider(loc.get("provider").asText());
             }
             row.setCapturedAt(loc.hasNonNull("capturedAt") ? loc.get("capturedAt").asLong() : System.currentTimeMillis());
-            commandDAO.recordLocation(row);
+            // Geofences are evaluated on the server for every position actually stored (trail first, oldest to newest).
+            if (commandDAO.recordLocationIfNew(row)) {
+                com.hmdm.rest.resource.support.GeofenceService geofences = com.hmdm.rest.resource.support.GeofenceService.INSTANCE;
+                if (geofences != null) geofences.onFix(row);
+            }
         } catch (Exception e) {
             logger.warn("Failed to record location for {}: {}", deviceNumber, e.getMessage());
         }

@@ -12,6 +12,8 @@ export interface LocationFix {
   provider?: string;
   capturedAt: number;
   recordedAt?: number;
+  /** Accuracy worse than the customer's threshold (set by the paginated history endpoint). */
+  lowAccuracy?: boolean;
 }
 
 export async function listLocations(
