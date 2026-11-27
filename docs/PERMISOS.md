@@ -88,7 +88,11 @@ dispositivo una API pública para activarlos. El agente hace lo que sí existe y
 | Accesibilidad | Si hay una lista de servicios permitidos, añade la app (`setPermittedAccessibilityServices` solo restringe) | Activar el servicio | `Settings.ACTION_ACCESSIBILITY_SETTINGS` |
 
 El estado de cada acceso se lee del teléfono (app‑ops, lista de Doze, servicios habilitados) y se actualiza en cuanto
-el usuario lo activa.
+el usuario lo activa. En **Android 10 o anterior** el sistema no deja que una app lea los app‑ops de otra
+(`AppOpsManager.checkOp` exige `UPDATE_APP_OPS_STATS`): para «mostrar sobre otras apps», «modificar ajustes» e
+«instalar apps desconocidas» la consola muestra «Android no deja consultarlo» en vez de suponer un estado; el botón
+**Abrir en el teléfono** funciona igual. Batería, accesibilidad y acceso a notificaciones sí se leen en todas las
+versiones.
 
 ### Otros
 

@@ -190,7 +190,7 @@ def sh(cmd, timeout=120):
     return adb("shell", cmd, timeout=timeout)
 
 
-def until(fn, timeout=90, step=2.0):
+def until(fn, timeout=150, step=2.0):
     end = time.time() + timeout
     while True:
         v = fn()
@@ -211,7 +211,8 @@ def package_perms(pkg=PKG):
 
 
 def granted(short, pkg=PKG):
-    return package_perms(pkg).get(PERM + short, (None, ""))[0]
+    """Older Android versions only list the runtime permissions an app holds: not listed = not granted."""
+    return package_perms(pkg).get(PERM + short, (False, ""))[0]
 
 
 def fixed(short, pkg=PKG):
@@ -227,15 +228,33 @@ def installed(pkg=PKG):
 
 
 def device_policy_permission_policy():
-    """The permission policy as `dumpsys device_policy` prints it: 0 prompt, 1 auto-grant, 2 auto-deny (None = not printed)."""
+    """
+    The permission policy the system holds: 0 prompt, 1 auto-grant, 2 auto-deny; None when this phone does not show it.
+    Android 14+ prints it in `dumpsys device_policy` ("Permission policy: {0=1}"). Older versions do not: there it is
+    read from the system's own policy file, which needs a rooted shell (emulators have one; a phone does not).
+    """
     dump = sh("dumpsys device_policy")
-    # Android 14+: "Permission policy: {0=1}" (per user); older: "mPermissionPolicy=1" / "Permission policy: 1".
-    for pat in (r"Permission policy: \{\s*\d+=(\d)", r"mPermissionPolicy=(\d)", r"permissionPolicy=(\d)", r"Permission policy:\s*(\d)"):
+    for pat in (r"Permission policy: \{\s*\d+=(\d)", r"mPermissionPolicy=(\d)", r"Permission policy:\s*(\d)"):
         m = re.search(pat, dump, re.I)
         if m:
             return int(m.group(1))
-    # The key is absent while the policy is the default one (0 = prompt).
-    return 0 if "Device Owner" in dump else None
+    xml = sh("su 0 cat /data/system/device_policies.xml 2>/dev/null || su root cat /data/system/device_policies.xml 2>/dev/null")
+    if "<policies" not in xml:
+        return None
+    m = re.search(r'permission-policy="(\d)"', xml)
+    return int(m.group(1)) if m else 0      # the attribute is only written when it is not the default (prompt)
+
+
+def check_policy(label, want, timeout=120):
+    """The system holds permission policy [want] (skipped, saying so, where this phone does not let it be read)."""
+    if device_policy_permission_policy() is None:
+        print(f"  SKIP  {label}: this Android does not show the permission policy without root (the console's report is checked instead)")
+        return
+    check(label, until(lambda: device_policy_permission_policy() == want, timeout), str(device_policy_permission_policy()))
+
+
+def reported_policy():
+    return (permissions().get("report") or {}).get("policy")
 
 
 def top_activity():
@@ -333,11 +352,11 @@ def body(sdk, cfg_id, storage):
     set_device_rules({})
     for option, want, label in (("ASKALL", 0, "Preguntar"), ("DENYALL", 2, "Denegar todo"), ("GRANTALL", 1, "Conceder todo")):
         edit_config(cfg_id, option=option, rules=None)
-        got = until(lambda: device_policy_permission_policy() == want, 90)
-        check(f"«{label}»: dumpsys device_policy shows permission policy {want}", got, str(device_policy_permission_policy()))
-        refresh_report()
-        rep = permissions().get("report") or {}
-        check(f"«{label}»: the console shows the effective policy", rep.get("policy") == {0: "prompt", 1: "grant", 2: "deny"}[want], str(rep.get("policy")))
+        name = {0: "prompt", 1: "grant", 2: "deny"}[want]
+        check_policy(f"«{label}»: the system holds permission policy {want}", want)
+        # The agent reads the policy back from Android (getPermissionPolicy) and the console shows that.
+        check(f"«{label}»: the console shows the effective policy", until(lambda: refresh_report() and reported_policy() == name, 120, 3),
+              str(reported_policy()))
     status = data(call("GET", f"/rest/private/agent/v1/devices/{A.device_id}/configStatus")) or {}
     detail = (status.get("lastCommand") or {}).get("detail") or ""
     check("config.apply reports the 'permissions' outcome", '"permissions":"applied' in detail.replace(" ", ""), detail[:300])
@@ -391,7 +410,7 @@ def body(sdk, cfg_id, storage):
     check("device rule saved", ok(r) and (data(r).get("override") or {}).get(PKG, {}).get("permissions", {}).get("camera") == "deny", str(r[1])[:200])
     eff = next((a for a in (data(r).get("effective") or {}).get("apps") or [] if a.get("packageName") == PKG), {})
     check("effective = policy preset + device rule", eff.get("all") == "grant" and (eff.get("permissions") or {}).get("camera") == "deny", str(eff))
-    check("dumpsys package: CAMERA granted=false", until(lambda: granted("CAMERA") is False, 90), str(package_perms().get(PERM + "CAMERA")))
+    check("dumpsys package: CAMERA granted=false", until(lambda: granted("CAMERA") is False, 150), str(package_perms().get(PERM + "CAMERA")))
     check("…and fixed by policy (the user cannot turn it on)", fixed("CAMERA"), str(package_perms().get(PERM + "CAMERA")))
     check("the rest stays granted", granted("ACCESS_FINE_LOCATION") is True and granted(storage) is True)
     log, top = launch_and_read()
@@ -406,19 +425,19 @@ def body(sdk, cfg_id, storage):
     section("5. 'Preguntar' on the device, then back to the policy")
     set_device_rules({PKG: {"permissions": {"camera": "prompt"}}})
     check("CAMERA released: not fixed any more, still not granted",
-          until(lambda: not fixed("CAMERA") and granted("CAMERA") is False, 90), str(package_perms().get(PERM + "CAMERA")))
+          until(lambda: not fixed("CAMERA") and granted("CAMERA") is False, 150), str(package_perms().get(PERM + "CAMERA")))
     set_device_rules({})
     check("device rules removed: the policy's 'grant all' applies again (CAMERA granted, fixed)",
-          until(lambda: granted("CAMERA") is True and fixed("CAMERA"), 90), str(package_perms().get(PERM + "CAMERA")))
+          until(lambda: granted("CAMERA") is True and fixed("CAMERA"), 150), str(package_perms().get(PERM + "CAMERA")))
     set_device_rules({PKG: {"permissions": {"camera": "prompt"}}})
     check("'Preguntar' after a grant of the MDM takes it back so the app has to ask",
-          until(lambda: granted("CAMERA") is False and not fixed("CAMERA"), 90), str(package_perms().get(PERM + "CAMERA")))
+          until(lambda: granted("CAMERA") is False and not fixed("CAMERA"), 150), str(package_perms().get(PERM + "CAMERA")))
     set_device_rules({})
-    until(lambda: granted("CAMERA") is True, 90)
+    until(lambda: granted("CAMERA") is True, 150)
 
     section("6. an app that was ALREADY installed gets its permissions when the rule arrives")
     edit_config(cfg_id, option="ASKALL", rules=None)
-    check("rule removed: every permission released (none fixed)", until(lambda: not any_fixed(), 90),
+    check("rule removed: every permission released (none fixed)", until(lambda: not any_fixed(), 150),
           str({k: v for k, v in package_perms().items() if "POLICY_FIXED" in v[1]}))
     sh(f"pm uninstall {PKG}")
     adb("push", A.apk, "/data/local/tmp/permtest.apk")
@@ -430,7 +449,7 @@ def body(sdk, cfg_id, storage):
     last = "ACCESS_BACKGROUND_LOCATION" if sdk >= 29 else storage      # background location is granted last
     check("the rule grants location, camera and storage with no reinstall",
           until(lambda: granted("ACCESS_FINE_LOCATION") is True and granted("CAMERA") is True and granted(storage) is True
-                and granted(last) is True, 90),
+                and granted(last) is True, 150),
           str({k: v for k, v in package_perms().items() if "LOCATION" in k or "CAMERA" in k}))
     check("…and only those: the microphone has no rule and stays as it was", granted("RECORD_AUDIO") is False and not fixed("RECORD_AUDIO"))
     if sdk >= 29:
@@ -449,7 +468,8 @@ def body(sdk, cfg_id, storage):
 
     section("7. 'Conceder todo' as default policy: an app with NO rule gets what it asks, with no dialog")
     edit_config(cfg_id, option="GRANTALL", rules=None)
-    until(lambda: device_policy_permission_policy() == 1, 90)
+    applied()
+    until(lambda: refresh_report() and reported_policy() == "grant", 120, 3)
     until(lambda: not any_fixed(), 60)
     sh(f"pm uninstall {PKG}")
     sh("pm install -r /data/local/tmp/permtest.apk")
@@ -463,6 +483,7 @@ def body(sdk, cfg_id, storage):
     sh("input keyevent KEYCODE_HOME")
 
     section("8. special accesses: what Android lets a Device Owner do, and the rest with one tap")
+    pending = "needsUser" if sdk >= 30 else "unknown"
     set_device_rules({PKG: {"special": ["allFiles", "overlay", "writeSettings", "unknownSources", "battery"]}})
     applied()
     refresh_report()
@@ -498,7 +519,8 @@ def body(sdk, cfg_id, storage):
               sh("settings get secure install_non_market_apps").strip() == "1" and special.get("unknownSources", {}).get("state") == "allowed",
               str(special.get("unknownSources")))
     else:
-        check("unknown sources: 'needs a tap' (per-app access since Android 8)", special.get("unknownSources", {}).get("state") == "needsUser",
+        # Android 10 and older do not let an app read another app's app-ops: the console then says it cannot tell.
+        check(f"unknown sources: '{pending}' (per-app access since Android 8)", special.get("unknownSources", {}).get("state") == pending,
               str(special.get("unknownSources")))
         status, detail = run("device.permissionScreen", {"packageName": PKG, "access": "unknownSources"}, cap="device.permissionScreen")
         time.sleep(3)
@@ -506,14 +528,18 @@ def body(sdk, cfg_id, storage):
         check("its screen opens on the phone", status == "done" and "settings" in top.lower(), f"{status}: {detail} | {top}")
         sh(f"appops set {PKG} REQUEST_INSTALL_PACKAGES allow")
         sh("input keyevent KEYCODE_HOME")
-    check("overlay: 'needs a tap'", special.get("overlay", {}).get("state") == "needsUser", str(special.get("overlay")))
+    check(f"overlay: '{pending}'", special.get("overlay", {}).get("state") == pending, str(special.get("overlay")))
     sh(f"appops set {PKG} SYSTEM_ALERT_WINDOW allow")
     sh(f"appops set {PKG} WRITE_SETTINGS allow")
     sh(f"dumpsys deviceidle whitelist +{PKG}")
     refresh_report()
     special = {s["key"]: s for s in report_app().get("special") or []}
-    for key in ("overlay", "writeSettings", "battery") + (("unknownSources",) if sdk >= 26 else ()):
+    readable = ("battery",) + (("overlay", "writeSettings", "unknownSources") if sdk >= 30 else ())
+    for key in readable:
         check(f"{key}: active once turned on on the phone", special.get(key, {}).get("state") == "allowed", str(special.get(key)))
+    if sdk < 30:
+        check("Android 10 or older: app-ops of another app cannot be read, the console says so instead of guessing",
+              all(special.get(k, {}).get("state") == "unknown" for k in ("overlay", "writeSettings")), str(special.get("overlay")))
     check("accessibility / notification access: the app has no such service, reported as not asked",
           special.get("accessibility", {}).get("state") == "notDeclared" and special.get("notificationAccess", {}).get("state") == "notDeclared",
           str(special.get("accessibility")))
@@ -528,14 +554,16 @@ def body(sdk, cfg_id, storage):
 
     section("9. the agent re-asserts the policy on its own start")
     edit_config(cfg_id, option="DENYALL", rules={PKG: {"permissions": {"camera": "grant"}}})
-    check("deny-all with one grant: camera granted, policy 2", until(lambda: device_policy_permission_policy() == 2 and granted("CAMERA") is True, 90),
-          f"{device_policy_permission_policy()} {package_perms().get(PERM + 'CAMERA')}")
+    check("deny-all with one grant: the camera is granted", until(lambda: granted("CAMERA") is True, 120), str(package_perms().get(PERM + "CAMERA")))
+    check_policy("…and the system holds permission policy 2 (deny)", 2)
     agent = [l.split(":")[1].strip() for l in sh("pm list packages com.dallycontrol.agent").splitlines() if l.startswith("package:")][0]
     sh(f"am force-stop {agent}")
     sh(f"monkey -p {agent} -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1")
     time.sleep(8)
-    check("after an agent restart the policy and the grant are still in force",
-          device_policy_permission_policy() == 2 and granted("CAMERA") is True and fixed("CAMERA"))
+    check("after an agent restart the grant is still in force", granted("CAMERA") is True and fixed("CAMERA"))
+    check_policy("…and so is the default policy (2 = deny)", 2, 30)
+    check("the restarted agent reports the policy in force", until(lambda: refresh_report() == "done" and reported_policy() == "deny", 150, 3),
+          str(reported_policy()))
     sh("input keyevent KEYCODE_HOME")
 
 

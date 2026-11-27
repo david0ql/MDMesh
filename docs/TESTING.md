@@ -253,3 +253,39 @@ image another stack will pick up on its next `up`.
 Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Mailpit as SMTP): 81/81 with the
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
+
+## App permissions without the user (MDM-06, [PERMISOS.md](PERMISOS.md))
+
+```bash
+scripts/build-permtestapp.sh                       # com.dallycontrol.permtest -> scripts/testapp/permtest.apk
+scripts/permissions-e2e.py --api http://localhost:8088 --serial emulator-5600 --device-id <device number>
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/permissions-console-e2e.mjs --api http://localhost:8088
+```
+
+The test app declares location (fine, coarse, background), camera, microphone, storage/media, contacts and
+notifications plus the special accesses, and on every start asks for each runtime permission it does not hold, like
+a real app; it logs what it holds (`adb logcat -s PermTest`).
+
+`permissions-e2e.py` drives a REAL agent (Device Owner) through the console's API and checks the phone itself:
+
+- the three default policies reach the phone (`dumpsys device_policy`: permission policy 0 / 1 / 2) and the console
+  shows the one in force; the `config.apply` result carries the `permissions` outcome;
+- "grant all the app declares" in the policy, then a silent install from the console: `dumpsys package` shows every
+  runtime permission `granted=true` with `POLICY_FIXED` (background location and, on Android 13+,
+  `POST_NOTIFICATIONS` included), the app's own screen is in front (no `GrantPermissionsActivity`) and its log says
+  `missing=0 asked=0`;
+- a per-device rule denies the camera (`granted=false`, `POLICY_FIXED`), "ask" releases it, removing the device
+  rule brings the policy's grant back; "ask" after a grant of the MDM takes the permission back;
+- an app installed by hand BEFORE the rule gets its permissions when the rule arrives; a rule removed while the app
+  is uninstalled does not leave anything fixed when the app comes back (Android 14+ re-applies it on its own);
+- with "grant all" and no rule, the app asks and Android grants with no dialog;
+- special accesses: battery protection through `setUserControlDisabledPackages`, "needs a tap" for all files /
+  overlay / unknown sources, `device.permissionScreen` opens the exact Settings screen, and once the access is turned
+  on (the tap is simulated with `appops set`) the console shows it active;
+- the policy and the grants survive an agent restart.
+
+`permissions-console-e2e.mjs` checks the console in headless Chromium with a scripted phone: the policy editor (no
+dead options, 13 permission rows, 8 special accesses, what is saved and what the phone receives), the device's
+«Permisos» tab (effective policy, real state per app, per-device rules, «Abrir en el teléfono», CSV), the Android 12+
+"this phone does not let the administrator grant sensor permissions" warning, and the "update the agent" notice.
+
