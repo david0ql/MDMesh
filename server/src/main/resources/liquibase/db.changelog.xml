@@ -3467,4 +3467,22 @@
         <rollback/>
     </changeSet>
 
+    <!-- Role permissions that only existed in the production database (granted by hand), found by
+         scripts/schema-drift-check.sh (role comparison): the manage_scripts permission itself (ScriptsResource checks
+         it; no changeSet created it, so on a fresh install nobody could author saved scripts) for roles 2 (Admin)
+         and 3 (User), and add_config for role 3. By role id; a no-op where they already exist. -->
+    <changeSet id="26.11.27-backfill-role-permissions" author="dallycontrol">
+        <sql>
+            INSERT INTO permissions (name, description, superadmin)
+                SELECT 'manage_scripts', 'Crear, editar y borrar scripts guardados', FALSE
+                WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE name = 'manage_scripts');
+            INSERT INTO userRolePermissions (roleId, permissionId)
+                SELECT ur.id, p.id FROM userRoles ur, permissions p
+                WHERE ((ur.id IN (2, 3) AND p.name = 'manage_scripts') OR (ur.id = 3 AND p.name = 'add_config'))
+                  AND NOT EXISTS (SELECT 1 FROM userRolePermissions urp
+                        WHERE urp.roleId = ur.id AND urp.permissionId = p.id);
+        </sql>
+        <rollback/>
+    </changeSet>
+
 </databaseChangeLog>

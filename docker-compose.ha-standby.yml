@@ -1,0 +1,31 @@
+# High availability, STANDBY side (docs/ops/ALTA-DISPONIBILIDAD.md): this server keeps a streaming replica of the
+# primary's PostgreSQL and runs NOTHING else until a failover. Use on the standby server, with the same checkout
+# and a copy of the primary's .env plus the PRIMARY_* values:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ha-standby.yml
+#   docker compose up -d postgres          # first start: clones the primary (pg_basebackup), then follows it
+#   scripts/ha-status.sh                   # replication state and lag
+# Failover (the primary is lost):   scripts/ha-promote.sh   -> promotes the replica and starts the whole stack here.
+#
+# Only `postgres` may be started here before a failover. The server would fail against a read-only replica, and a
+# cloudflared connector here would pull user traffic to a server that is not serving.
+
+services:
+  postgres:
+    # Wraps the image's entrypoint: an empty data directory is filled from the primary and marked as a standby.
+    entrypoint: ["/usr/local/bin/standby-entrypoint.sh"]
+    command: ["postgres", "-c", "hot_standby=on", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
+    environment:
+      PRIMARY_HOST: ${PRIMARY_HOST:?set PRIMARY_HOST to the primary's private address}
+      PRIMARY_PORT: ${PRIMARY_PORT:-5432}
+      REPLICATION_USER: ${REPLICATION_USER:-replicator}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD:?set REPLICATION_PASSWORD (the one given to scripts/ha-primary-setup.sh)}
+      REPLICATION_SLOT: ${REPLICATION_SLOT:-dallycontrol_standby}
+    volumes:
+      - ./ops/ha/standby-entrypoint.sh:/usr/local/bin/standby-entrypoint.sh:ro
+    healthcheck:
+      # Ready AND (still a replica that is receiving WAL, or already promoted).
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dallycontrol} -d ${DB_NAME:-dallycontrol}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 600s

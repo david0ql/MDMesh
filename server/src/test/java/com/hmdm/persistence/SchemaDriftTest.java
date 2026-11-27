@@ -43,6 +43,24 @@ import java.util.TreeMap;
  */
 public class SchemaDriftTest {
 
+    /**
+     * Every changelog a real server start applies: the main one, then the notification module and the plugin
+     * platform (it creates the {@code plugins} table the plugins register in), then each bundled plugin. Without the
+     * module changelogs a "fresh install" would lack their tables and their role permissions.
+     */
+    static final String[] CHANGELOGS = {
+            "liquibase/db.changelog.xml",
+            "liquibase/notification.changelog.xml",
+            "liquibase/plugin.changelog.xml",
+            "liquibase/devicelog.changelog.xml",
+            "liquibase/devicelog.postgres.changelog.xml",
+            "liquibase/deviceinfo.changelog.xml",
+            "liquibase/audit.changelog.xml",
+            "liquibase/messaging.changelog.xml",
+            "liquibase/xtra.changelog.xml",
+            "liquibase/push.changelog.xml",
+    };
+
     /** A parameter object that answers every property with null, so dynamic SQL renders without real arguments. */
     private static final class AnyParams extends HashMap<String, Object> {
         @Override
@@ -65,11 +83,12 @@ public class SchemaDriftTest {
 
         UnpooledDataSource dataSource = new UnpooledDataSource("org.postgresql.Driver", url, user, password);
 
-        // 1. An empty database, migrated exactly as the server does at start (same changelog, same contexts).
+        // 1. An empty database, migrated as the server does at start (same changelogs, same contexts).
         try (Connection c = dataSource.getConnection()) {
             Database database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(c));
-            Liquibase liquibase = new Liquibase("liquibase/db.changelog.xml", new ClassLoaderResourceAccessor(), database);
-            liquibase.update("common,private");
+            for (String changeLog : CHANGELOGS) {
+                new Liquibase(changeLog, new ClassLoaderResourceAccessor(), database).update("common,private");
+            }
         }
 
         // 2. Every mapper, loaded the way the server's persistence module loads them (annotations + XML).

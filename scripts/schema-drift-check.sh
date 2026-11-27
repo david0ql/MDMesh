@@ -16,20 +16,31 @@
 #       "only in a fresh install" = migrations production has not run yet (normal before a deployment); listed, not
 #       an error.
 #
+#   scripts/schema-drift-check.sh --compare-roles <roles.csv>
+#       Reference DATA: does a fresh install grant each role what production grants? <roles.csv> has one
+#       "roleId,permissionName" per line (roles 1, 2, 3, 100, 200 are created by the changelog with fixed ids):
+#         docker compose exec -T postgres psql -U dallycontrol -d dallycontrol -At -F, -c "SELECT urp.roleid, p.name FROM userrolepermissions urp JOIN permissions p ON p.id = urp.permissionid WHERE urp.roleid IN (1,2,3,100,200) ORDER BY 1,2" > prod-roles.csv
+#       "only in the file" = a grant made by hand or by a changeSet that looks roles up by NAME (names differ on
+#       an empty database): add a changeSet that grants by role id. "only in a fresh install" is listed for review.
+#       Both --compare options can be given together.
+#
 # Environment: PG_IMAGE=postgres:17, JAVA_HOME (JDK 17 for Maven).
 # Exit status: 0 no drift, 1 drift or failure.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-COMPARE=""
+COMPARE=""; ROLES=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --compare) COMPARE="${2:?--compare needs a pg_dump --schema-only file}"; shift 2 ;;
-    -h|--help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --compare-roles) ROLES="${2:?--compare-roles needs a roleId,permissionName file}"; shift 2 ;;
+    -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
 [ -z "$COMPARE" ] || [ -r "$COMPARE" ] || { echo "cannot read $COMPARE" >&2; exit 2; }
+
+[ -z "$ROLES" ] || [ -r "$ROLES" ] || { echo "cannot read $ROLES" >&2; exit 2; }
 
 command -v docker >/dev/null || { echo "docker is required" >&2; exit 1; }
 command -v mvn >/dev/null || { echo "mvn is required" >&2; exit 1; }
@@ -60,11 +71,39 @@ SCHEMA_DRIFT_DB_USER=drift SCHEMA_DRIFT_DB_PASSWORD="$PASS" \
   mvn -q -pl common,server -am test -Dtest=SchemaDriftTest -Dsurefire.failIfNoSpecifiedTests=false -DfailIfNoTests=false
 echo "== mappers: no drift (the changelog creates everything the mappers use) =="
 
-[ -n "$COMPARE" ] || exit 0
+psqlc() { docker exec -i "$NAME" psql -X -h 127.0.0.1 -U drift "$@"; }
+STATUS=0
+
+# ---- reference data: role -> permission matrix ----------------------------------------------------------------------
+if [ -n "$ROLES" ]; then
+  echo "== comparing the role -> permission grants of a fresh install with $ROLES =="
+  psqlc -d drift -At -F, -c "SELECT urp.roleid, p.name FROM userrolepermissions urp JOIN permissions p ON p.id = urp.permissionid WHERE urp.roleid IN (1,2,3,100,200)" | sort -u > "$WORK/roles-fresh.txt"
+  tr -d ' \r' < "$ROLES" | grep -E '^[0-9]+,[A-Za-z0-9_]+$' | sort -u > "$WORK/roles-ref.txt"
+  [ -s "$WORK/roles-ref.txt" ] || { echo "no 'roleId,permissionName' lines in $ROLES" >&2; exit 2; }
+  # Only the roles the file talks about are compared.
+  cut -d, -f1 "$WORK/roles-ref.txt" | sort -u > "$WORK/roles-ids.txt"
+  grep -E "^($(paste -sd'|' "$WORK/roles-ids.txt"))," "$WORK/roles-fresh.txt" > "$WORK/roles-fresh-sel.txt" || true
+  comm -13 "$WORK/roles-fresh-sel.txt" "$WORK/roles-ref.txt" > "$WORK/roles-only-ref.txt"
+  comm -23 "$WORK/roles-fresh-sel.txt" "$WORK/roles-ref.txt" > "$WORK/roles-only-fresh.txt"
+  echo "grants compared: fresh install $(wc -l < "$WORK/roles-fresh-sel.txt" | tr -d ' '), file $(wc -l < "$WORK/roles-ref.txt" | tr -d ' ') (roles $(paste -sd' ' "$WORK/roles-ids.txt"))"
+  if [ -s "$WORK/roles-only-fresh.txt" ]; then
+    echo "-- only in a fresh install ($(wc -l < "$WORK/roles-only-fresh.txt" | tr -d ' ')): review (a grant production lacks, or the file is partial)"
+    sed 's/^/   + /' "$WORK/roles-only-fresh.txt"
+  fi
+  if [ -s "$WORK/roles-only-ref.txt" ]; then
+    echo "-- ONLY IN THE FILE ($(wc -l < "$WORK/roles-only-ref.txt" | tr -d ' ')): a fresh install does NOT grant these. Add a changeSet that grants by role id"
+    sed 's/^/   - /' "$WORK/roles-only-ref.txt"
+    echo "== DRIFT in role permissions =="
+    STATUS=1
+  else
+    echo "== role permissions: a fresh install grants everything the file lists =="
+  fi
+fi
+
+[ -n "$COMPARE" ] || exit "$STATUS"
 
 # ---- compare with a schema dump of a real database ------------------------------------------------------------------
 echo "== comparing a fresh install with $COMPARE =="
-psqlc() { docker exec -i "$NAME" psql -X -h 127.0.0.1 -U drift "$@"; }
 psqlc -d drift -qc 'CREATE DATABASE reference' >/dev/null
 # Owners, extensions and roles of the source do not exist here: load what loads, the comparison shows the rest.
 psqlc -d reference -q -v ON_ERROR_STOP=0 < "$COMPARE" >/dev/null 2>"$WORK/load.err" || true
@@ -91,10 +130,17 @@ SELECT 'constraint ' || rel.relname || ' ' || pg_get_constraintdef(con.oid)
 UNION ALL
 SELECT 'function ' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'
+UNION ALL
+SELECT 'trigger ' || rel.relname || ' ' || regexp_replace(pg_get_triggerdef(t.oid), '^CREATE TRIGGER \S+ ', '')
+  FROM pg_trigger t JOIN pg_class rel ON rel.oid = t.tgrelid JOIN pg_namespace n ON n.oid = rel.relnamespace
+ WHERE n.nspname = 'public' AND NOT t.tgisinternal
 ORDER BY 1
 SQL
-psqlc -d drift -At -c "$LISTING" | sort -u > "$WORK/fresh.txt"
-psqlc -d reference -At -c "$LISTING" | sort -u > "$WORK/reference.txt"
+# The same expression is printed differently depending on the PostgreSQL version that stored it (casts and
+# parentheses around string constants): compare without them.
+normalise() { sed -E 's/::(character varying|text|bpchar)(\[\])?//g; s/[()]//g; s/  +/ /g' | sort -u; }
+psqlc -d drift -At -c "$LISTING" | normalise > "$WORK/fresh.txt"
+psqlc -d reference -At -c "$LISTING" | normalise > "$WORK/reference.txt"
 
 comm -13 "$WORK/fresh.txt" "$WORK/reference.txt" > "$WORK/only-dump.txt"
 comm -23 "$WORK/fresh.txt" "$WORK/reference.txt" > "$WORK/only-fresh.txt"
@@ -110,3 +156,4 @@ if [ -s "$WORK/only-dump.txt" ]; then
   exit 1
 fi
 echo "== no drift: a fresh install has everything the dumped database has =="
+exit "$STATUS"
