@@ -20,7 +20,7 @@ import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_DEVICE_COLUMNS, DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, saveDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
 
 type View = 'grid' | 'list';
-type StatusFilter = 'all' | 'online' | 'offline';
+type StatusFilter = 'all' | 'online' | 'offline' | 'resting';
 
 function configName(
   d: DeviceView,
@@ -183,6 +183,7 @@ export function DevicesPage() {
     return () => clearTimeout(t);
   }, [q, reload]);
 
+  const restingCount = devices.filter((d) => !isOnline(d, now) && restingLabel(d.number)).length;
   const onlineCount = useMemo(
     () => devices.filter((d) => isOnline(d, now)).length,
     [devices, now],
@@ -220,6 +221,8 @@ export function DevicesPage() {
     return devices.filter((d) => {
       if (status === 'online' && !isOnline(d, now)) return false;
       if (status === 'offline' && isOnline(d, now)) return false;
+      // "En reposo" is a part of the not-connected ones (the "Sin conexión" chip keeps counting them all).
+      if (status === 'resting' && (isOnline(d, now) || !restingLabel(d.number))) return false;
       if (config !== 'all' && configName(d, configurations) !== config) return false;
       if (group === 'none' && groupOf(d)) return false;
       // A folder shows its sub-folders' devices too.
@@ -369,6 +372,15 @@ export function DevicesPage() {
         <button className={`filter-chip ${status === 'offline' ? 'on' : ''}`} onClick={() => setStatus('offline')}>
           Sin conexión <b>{devices.length - onlineCount}</b>
         </button>
+        {restingCount > 0 && (
+          <button
+            className={`filter-chip ${status === 'resting' ? 'on' : ''}`}
+            onClick={() => setStatus('resting')}
+            title="Sin reportar, con causa conocida: equipo apagado, batería agotada o pantalla apagada"
+          >
+            En reposo <b>{restingCount}</b>
+          </button>
+        )}
         {dupTotal > 0 && (
           <button
             className={`filter-chip dup ${dupOnly ? 'on' : ''}`}
@@ -777,7 +789,7 @@ function DeviceCard({
         </div>
         <div>
           <div className="k">Última conexión</div>
-          <div className="v">{fmtRelative(d.lastUpdate)}</div>
+          <div className="v">{fmtRelative(d.lastUpdate)}{!online && restingLabel(d.number) ? ` · En reposo (${restingLabel(d.number)})` : ''}</div>
         </div>
       </div>
     </div>
