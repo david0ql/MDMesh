@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -284,7 +284,10 @@ export function ReportsPage() {
     }
   }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo, latFrom, latTo, latGroup]);
 
+  // Only the newest request may fill the table: a slow answer for the tab left behind must not replace this one's.
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     setDrillPkg(null);
@@ -331,12 +334,13 @@ export function ReportsPage() {
         default:
           return;
       }
-      setResult(r);
+      if (seq === loadSeq.current) setResult(r);
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setResult(null);
       setError((e as Error).message || 'No se pudo cargar el reporte');
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [tab, days, simFrom, simTo, selectedPkgs, minutes, usageDays, usageLimit, decFrom, decTo, latFrom, latTo, latGroup]);
 
