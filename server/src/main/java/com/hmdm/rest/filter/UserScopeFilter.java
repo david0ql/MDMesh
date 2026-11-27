@@ -100,7 +100,15 @@ public class UserScopeFilter implements Filter {
             // user they see/create/edit/delete to a subset of their own folders. Folders come from /fleet/v1/groups
             // (already scoped), so the picker only offers folders they manage.
             new Rule("GET PUT", "/dc/users", null),
-            new Rule("DELETE", "/dc/users/(\\d+)", null)
+            new Rule("DELETE", "/dc/users/(\\d+)", null),
+            // Fleet inventory: CSV / filtered export and "Actualizar ahora" (the resource narrows both to the user's
+            // devices), and scheduled report e-mails (ReportScheduleResource: manage_fleet, own folders only).
+            new Rule("GET", "/fleet/v1/export.csv", null),
+            new Rule("POST", "/fleet/v1/export", null),
+            new Rule("POST", "/fleet/v1/devices/refresh", null),
+            new Rule("POST", "/reports/v1/schedules", null),
+            new Rule("PUT DELETE", "/reports/v1/schedules/(\\d+)", null),
+            new Rule("POST", "/reports/v1/schedules/(\\d+)/send", null)
     );
 
     private final UserScope scope;

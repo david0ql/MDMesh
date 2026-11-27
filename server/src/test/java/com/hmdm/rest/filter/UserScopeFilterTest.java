@@ -70,4 +70,21 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("GET", "/rest/private/roles/all", 1));
         assertFalse(f.allowed("PUT", "/rest/private/roles", 1));
     }
+
+    @Test
+    public void fleetInventoryRoutesAreOpenAndScopedByTheirResources() {
+        assertTrue(f.allowed("GET", "/rest/private/fleet/v1/export.csv", 1));
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/export", 1));
+        assertTrue(f.allowed("POST", "/rest/private/fleet/v1/devices/refresh", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/inventory", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/inventory/export", 1));
+        assertTrue(f.allowed("GET", "/rest/private/reports/v1/schedules", 1));
+        assertTrue(f.allowed("POST", "/rest/private/reports/v1/schedules", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/reports/v1/schedules/4", 1));
+        assertTrue(f.allowed("DELETE", "/rest/private/reports/v1/schedules/4", 1));
+        assertTrue(f.allowed("POST", "/rest/private/reports/v1/schedules/4/send", 1));
+        assertFalse(f.allowed("POST", "/rest/private/reports/v1/inventory", 1));
+        assertFalse(f.allowed("DELETE", "/rest/private/reports/v1/schedules", 1));
+        assertFalse(f.allowed("POST", "/rest/private/reports/v1/schedules/4/other", 1));
+    }
 }
