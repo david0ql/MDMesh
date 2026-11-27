@@ -71,23 +71,31 @@ class LocationCollector @Inject constructor(
      * next one gets the rest (GPS indoors never answers; network usually does). null on timeout/failure.
      */
     private fun currentFix(lm: LocationManager, now: Long): Location? {
-        val providers = FixPolicy.providers(runCatching { lm.allProviders }.getOrDefault(emptyList())) { lm.isProviderEnabled(it) }
-        if (providers.isEmpty()) return null
+        val available = runCatching { lm.allProviders }.getOrDefault(emptyList())
+        // Only providers the device really has AND has enabled are asked: without Google Play services there is no
+        // fused provider and GPS goes first, with no time spent waiting for something that cannot answer.
+        val providers = FixPolicy.providers(available) { lm.isProviderEnabled(it) }
         val total = FixPolicy.timeoutSec(modeStore.fixTimeoutSec(), now, lastTimeoutAt)
-        val deadline = android.os.SystemClock.elapsedRealtime() + total * 1000L
-        for ((i, provider) in providers.withIndex()) {
-            val left = deadline - android.os.SystemClock.elapsedRealtime()
-            if (left <= 0) break
-            // The last provider may use everything that is left; earlier ones leave a share for the fallbacks.
-            val wait = if (i == providers.lastIndex) left else left * 2 / 3
-            val fix = singleFix(lm, provider, wait)
-            if (fix != null) {
-                lastTimeoutAt = 0
-                return fix
+        val attempts = ArrayList<FixPolicy.Attempt>()
+        var fix: Location? = null
+        val deadline = android.os.SystemClock.elapsedRealtime() + total * MS_PER_SEC
+        var i = 0
+        while (fix == null && i < providers.size) {
+            val started = android.os.SystemClock.elapsedRealtime()
+            val left = deadline - started
+            if (left > 0) {
+                val wait = FixPolicy.waitMs(providers[i], i == providers.lastIndex, left)
+                fix = singleFix(lm, providers[i], wait)
+                val took = android.os.SystemClock.elapsedRealtime() - started
+                attempts += FixPolicy.Attempt(providers[i], wait, took, fix != null)
             }
+            i++
         }
-        lastTimeoutAt = now
-        return null
+        val trace = FixPolicy.Trace(now, available, total, attempts)
+        FixPolicy.lastTrace = trace
+        android.util.Log.i(TAG, "fresh fix: ${trace.summary()} (disponibles=$available, espera=${total}s)")
+        lastTimeoutAt = if (fix != null) 0 else now
+        return fix
     }
 
     @SuppressLint("MissingPermission") // gated by collect()'s hasPermission() check
@@ -146,6 +154,7 @@ class LocationCollector @Inject constructor(
     @Volatile private var lastTimeoutAt = 0L
 
     private companion object {
+        const val MS_PER_SEC = 1000L
         const val TAG = "LocationCollector"
     }
 }

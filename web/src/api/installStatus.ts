@@ -31,11 +31,19 @@ export interface InstallDeviceRow extends InstallProblem {
   /** The version of the app the phone last reported in its inventory. */
   installedVersion?: string | null;
   deviceOwner: boolean;
+  /** The policy (its app list or an app group) assigns the app to this phone; false = only a manual order. */
+  assigned: boolean;
+  /** The name of the version the policy assigns (when assigned). */
+  targetVersion?: string | null;
 }
 
 export interface InstallFleetStatus {
   packageName: string;
+  /** The version the policy assigns (when no policy assigns the app: the newest one ordered by hand). */
   targetVersionCode: number;
+  targetVersion?: string | null;
+  /** How many of the phones listed have the app assigned by their policy. */
+  assigned: number;
   total: number;
   counts: Record<'installed' | 'pending' | 'installing' | 'held' | 'failed', number>;
   devices: InstallDeviceRow[];
@@ -101,10 +109,12 @@ function csvCell(v: unknown): string {
 /** The view as a CSV (semicolons and a BOM, so Excel in Spanish opens it straight). */
 export function installStatusCsv(st: InstallFleetStatus): string {
   const head = ['Equipo', 'Descripción', 'Carpeta', 'Estado', 'Motivo', 'Respuesta del equipo', 'Intentos',
-    'Próximo reintento', 'versionCode objetivo', 'Versión reportada', 'Device Owner', 'Última conexión', 'Fecha del estado'];
+    'Próximo reintento', 'versionCode objetivo', 'Versión reportada', 'Device Owner', 'Última conexión', 'Fecha del estado',
+    'Asignada por política'];
   const lines = st.devices.map((d) => [
     d.number, d.description, d.group, INSTALL_STATE_LABEL[d.state] ?? d.state, d.reason, d.detail, d.attempts,
     when(d.nextRetryAt), d.targetVersionCode || '', d.installedVersion, d.deviceOwner ? 'Sí' : 'No', when(d.lastSeen), when(d.at),
+    d.assigned ? 'Sí' : 'No (orden manual)',
   ].map(csvCell).join(';'));
   return `﻿${[head.join(';'), ...lines].join('\r\n')}\r\n`;
 }

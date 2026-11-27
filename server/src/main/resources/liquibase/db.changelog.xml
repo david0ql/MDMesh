@@ -3555,4 +3555,30 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-app-install-origin" author="dallycontrol">
+        <comment>Which install orders were queued by a policy (app list / app group) rather than by a person: a failed
+                 policy install is only retried while the policy still assigns the app to the phone.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS agent_install_origin (
+                commandId INT PRIMARY KEY,
+                origin VARCHAR(16) NOT NULL,
+                createdAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS agent_install_origin;
+        </rollback>
+    </changeSet>
+
+    <changeSet id="26.11.27-alert-offline-minutes" author="dallycontrol">
+        <comment>The "disconnected" threshold the administrator sets in the Alerts page is saved per customer, so the
+                 alert e-mails use the same value (it was a fixed 20 minutes there).</comment>
+        <sql>
+            ALTER TABLE geofence_settings ADD COLUMN IF NOT EXISTS offlineMinutes INT NOT NULL DEFAULT 20;
+        </sql>
+        <rollback>
+            ALTER TABLE geofence_settings DROP COLUMN IF EXISTS offlineMinutes;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

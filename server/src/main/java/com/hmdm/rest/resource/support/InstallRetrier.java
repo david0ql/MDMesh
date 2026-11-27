@@ -152,35 +152,90 @@ public class InstallRetrier {
         return queued;
     }
 
+    /** What the phone's policy and the queue say NOW about the package of a failed install. */
+    public static final class Facts {
+        /** The payload the phone's policy would install the package with; null when the policy does not install it. */
+        public final String policyPayload;
+        public final boolean policyRemoves;
+        /** The failed order was queued by a policy (not by a person). */
+        public final boolean orderedByPolicy;
+        /** An uninstall of the package was sent to the phone after the failed order. */
+        public final boolean uninstalledSince;
+
+        public Facts(String policyPayload, boolean policyRemoves, boolean orderedByPolicy, boolean uninstalledSince) {
+            this.policyPayload = policyPayload;
+            this.policyRemoves = policyRemoves;
+            this.orderedByPolicy = orderedByPolicy;
+            this.uninstalledSince = uninstalledSince;
+        }
+    }
+
     /**
-     * Queue the install of [last]'s package on its device again: what the device's policy wants now (a newer version
-     * may have replaced the one that failed), else the same order again. With [force], an agent that knows how first
-     * forgets that the phone's system refused that version. Returns false when there was nothing to queue.
+     * The payload to send for a retry of [last], or null when it must NOT be retried: the app was taken out of the
+     * phone's policy (or removed on purpose) between the failure and the retry. Pure — see {@link InstallRetryPolicy#decide}.
+     */
+    static String retryPayload(Row last, Facts facts) {
+        switch (InstallRetryPolicy.decide(facts.policyPayload != null, facts.policyRemoves, facts.orderedByPolicy,
+                facts.uninstalledSince)) {
+            case RESEND_POLICY:
+                return facts.policyPayload;
+            case RESEND_SAME:
+                return last.payload;
+            default:
+                return null;
+        }
+    }
+
+    private Facts facts(Device device, Row last) {
+        String policyPayload = null;
+        for (ConfigAppInstaller.DesiredInstall d : installer.desiredInstalls(device)) {
+            if (d.pkg.equals(last.pkg)) {
+                policyPayload = d.payload;
+                break;
+            }
+        }
+        boolean removes = policyPayload == null
+                && installer.policyWish(device, last.pkg) == ConfigAppInstaller.PolicyWish.REMOVE;
+        boolean byPolicy = ConfigAppInstaller.ORIGIN_POLICY.equals(mapper.originOf(last.id));
+        boolean uninstalled = mapper.uninstallsSince(last.deviceNumber,
+                "%\"packageName\":\"" + last.pkg + "\"%", last.cmd.createdAt) > 0;
+        return new Facts(policyPayload, removes, byPolicy, uninstalled);
+    }
+
+    /**
+     * Queue the install of [last]'s package on its device again — only while that is still wanted: what the device's
+     * policy wants now (a newer version may have replaced the one that failed), or the same order again when a person
+     * gave it and nobody undid it. An app taken out of the policy since the failure is NOT installed again. With
+     * [force], an agent that knows how first forgets that the phone's system refused that version. Returns false
+     * when nothing was queued.
      */
     public boolean resend(Row last, boolean force) {
         Device device = unsecureDAO.getDeviceByNumber(last.deviceNumber);
         if (device == null) return false;
+        Facts facts = facts(device, last);
+        String payload = retryPayload(last, facts);
+        if (payload == null) {
+            logger.info("Install of {} on {} not retried: no longer assigned to the device", last.pkg, last.deviceNumber);
+            return false;
+        }
+        boolean byPolicy = facts.policyPayload != null;
         boolean canForce = force && AgentCapabilityTokens.isAllowed(FORCE_TYPE,
                 AgentCapabilityTokens.flatten(commandDAO.getDeviceCapabilities(last.deviceNumber)));
-        String payload = last.payload;
-        String capability = last.cmd.requiresCapability;
-        for (ConfigAppInstaller.DesiredInstall d : installer.desiredInstalls(device)) {
-            if (d.pkg.equals(last.pkg)) {
-                payload = d.payload;
-                capability = com.hmdm.util.RolloutProgress.INSTALL_CAPABILITY;
-                break;
-            }
-        }
         String type = canForce ? FORCE_TYPE : "app.install";
         if (commandDAO.hasOpenIdentical(last.deviceNumber, type, payload)) return false;
         AgentCommand cmd = new AgentCommand();
         cmd.setDeviceNumber(last.deviceNumber);
         cmd.setType(type);
         cmd.setPayload(payload);
-        cmd.setRequiresCapability(canForce ? FORCE_TYPE : capability);
+        cmd.setRequiresCapability(canForce ? FORCE_TYPE
+                : byPolicy ? com.hmdm.util.RolloutProgress.INSTALL_CAPABILITY : last.cmd.requiresCapability);
         cmd.setStatus("pending");
         cmd.setCreatedAt(System.currentTimeMillis());
         commandDAO.insert(cmd);
+        // A policy's retry stays a policy order: it stops being retried once the policy drops the app.
+        if (byPolicy && cmd.getId() != null) {
+            mapper.recordOrigin(cmd.getId(), ConfigAppInstaller.ORIGIN_POLICY, cmd.getCreatedAt());
+        }
         wakeHub.wake(last.deviceNumber, "commands");
         return true;
     }

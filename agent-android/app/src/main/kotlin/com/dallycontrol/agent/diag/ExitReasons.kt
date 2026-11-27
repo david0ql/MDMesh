@@ -37,18 +37,21 @@ object ExitReasons {
         })
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R) // callers return early below Android 11
     private fun list(context: Context, max: Int): List<ApplicationExitInfo> = runCatching {
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
             .getHistoricalProcessExitReasons(context.packageName, 0, max)
     }.getOrDefault(emptyList())
 
     /** Normal ends (the user or an update closing it) are not reported. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
     private fun worth(reason: Int) = reason in setOf(
         ApplicationExitInfo.REASON_ANR, ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE,
         ApplicationExitInfo.REASON_LOW_MEMORY, ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE,
         ApplicationExitInfo.REASON_INITIALIZATION_FAILURE, ApplicationExitInfo.REASON_SIGNALED, ApplicationExitInfo.REASON_OTHER,
     )
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
     private fun reasonName(r: Int) = when (r) {
         ApplicationExitInfo.REASON_ANR -> "no responde (ANR)"
         ApplicationExitInfo.REASON_CRASH -> "se cerró por un error"
@@ -68,6 +71,7 @@ object ExitReasons {
         else -> "otro motivo ($r)"
     }
 
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
     private fun describe(e: ApplicationExitInfo, withTrace: Boolean): String {
         val sb = StringBuilder(reasonName(e.reason))
         e.description?.takeIf { it.isNotBlank() }?.let { sb.append(" · ").append(it.take(200)) }
@@ -77,6 +81,7 @@ object ExitReasons {
     }
 
     /** The "main" thread's top frames from the ANR trace (where it was stuck). */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
     private fun mainThread(e: ApplicationExitInfo): String? = runCatching {
         val text = e.traceInputStream?.bufferedReader()?.use { it.readText() } ?: return null
         val start = text.indexOf("\"main\"")

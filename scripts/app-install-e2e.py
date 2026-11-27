@@ -282,6 +282,8 @@ def main():
     # every signature comparison below would be against that one.
     for old in call("GET", f"/rest/private/applications/search/{PKG}")[1].get("data") or []:
         if old.get("pkg") == PKG and old.get("id"):
+            # An app still in a policy cannot be deleted: take it out of them first.
+            call("POST", f"/rest/private/applications/{old['id']}/remove-from-my-configs", {})
             call("DELETE", f"/rest/private/applications/{old['id']}")
     big = read("bigapp-v1.apk")
     v2 = read("bigapp-v2.apk")

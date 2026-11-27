@@ -395,7 +395,7 @@ public class GeofenceResource {
         for (Geofence z : dao.zonesForDevice(number)) {
             Map<String, Object> m = view(z, false, reach);
             GeofenceEvaluator.State s = states.get(z.id);
-            m.put("state", s == null ? null : stateView(z, number, device.getDescription(), s.state, s.since, s.lastFixAt));
+            m.put("state", s == null || s.state == null ? null : stateView(z, number, device.getDescription(), s.state, s.since, s.lastFixAt));
             out.add(m);
         }
         return Response.OK(out);

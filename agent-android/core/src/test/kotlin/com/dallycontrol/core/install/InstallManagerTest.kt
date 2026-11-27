@@ -124,7 +124,8 @@ class InstallManagerTest {
         )
         assertEquals(
             "INSTALL_FAILED_INSUFFICIENT_STORAGE: no room",
-            (run(STATUS_FAILURE_STORAGE, "INSTALL_FAILED_INSUFFICIENT_STORAGE: no room") as InstallOutcome.Failure).reason,
+            (run(STATUS_FAILURE_STORAGE, "INSTALL_FAILED_INSUFFICIENT_STORAGE: no room") as InstallOutcome.Failure)
+                .reason,
         )
         assertTrue(file.exists()) // a caller-provided APK is never deleted
     }
@@ -147,7 +148,8 @@ class InstallManagerTest {
     @Test
     fun `a server error is transient and a missing file is a definitive failure`() = runTest {
         suspend fun run(error: Throwable): Result<InstallOutcome> = runCatching {
-            PartsInstaller({ throw error }, { SESSION }, InstallResultBus()).install(listOf(ApkPart(url = "https://x/a.apk")))
+            PartsInstaller({ throw error }, { SESSION }, InstallResultBus())
+                .install(listOf(ApkPart(url = "https://x/a.apk")))
         }
         assertTrue(run(IllegalStateException("HTTP 503 for https://x/a.apk")).exceptionOrNull() is RetryLaterException)
         val gone = run(IllegalStateException("HTTP 404 for https://x/a.apk")).getOrThrow()
@@ -155,7 +157,7 @@ class InstallManagerTest {
     }
 
     @Test
-    fun `a download that fills the phone is reported as a failure instead of being retried silently for ever`() = runTest {
+    fun `a download that fills the phone is a reported failure, not a silent retry for ever`() = runTest {
         val outcome = PartsInstaller(
             obtain = { throw IOException("write failed: ENOSPC (No space left on device)") },
             commit = { SESSION },
@@ -180,7 +182,7 @@ class InstallManagerTest {
     // --- sha256 -------------------------------------------------------------------------------------------------
 
     @Test
-    fun `a part whose sha256 does not match is refused before anything is installed and its download is removed`() = runTest {
+    fun `a part whose sha256 does not match is refused before anything is installed`() = runTest {
         val file = apk("downloaded.apk", "tampered")
         val actual = sha(file)
         var committed = false

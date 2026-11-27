@@ -176,6 +176,42 @@ public class InstallFleetStatusTest {
         assertEquals(1, InstallFleetStatus.classify(7, cmds, OWNER).attempts);
     }
 
+    // --- every phone the policy assigns the app to is listed, against the policy's version ---------------------------
+
+    @Test
+    public void an_assigned_phone_that_never_got_an_order_is_pending() {
+        InstallFleetStatus.Result r = InstallFleetStatus.forAssignment(8, new ArrayList<InstallFleetStatus.Cmd>(), OWNER, CAP);
+        assertEquals(InstallFleetStatus.State.PENDING, r.state);
+        assertEquals("notSent", r.reasonCode);
+        assertEquals(InstallFleetStatus.ASSIGNED_NOT_SENT, r.reason);
+    }
+
+    @Test
+    public void an_assigned_phone_that_is_not_device_owner_is_held_even_without_an_order() {
+        InstallFleetStatus.Result r = InstallFleetStatus.forAssignment(8, new ArrayList<InstallFleetStatus.Cmd>(), NOT_OWNER, CAP);
+        assertEquals(InstallFleetStatus.State.HELD, r.state);
+        assertEquals("notOwner", r.reasonCode);
+        r = InstallFleetStatus.forAssignment(8, new ArrayList<InstallFleetStatus.Cmd>(), Collections.<String>emptySet(), CAP);
+        assertEquals("noCapabilities", r.reasonCode);
+    }
+
+    @Test
+    public void the_target_is_the_policys_version_not_the_last_order() {
+        // The phone installed 7; the policy now assigns 8 and no order for 8 went out yet: not "installed".
+        List<InstallFleetStatus.Cmd> cmds = list(cmd(1, "done", null, 7, 100));
+        assertEquals(InstallFleetStatus.State.PENDING, InstallFleetStatus.forAssignment(8, cmds, OWNER, CAP).state);
+        // Once the order for 8 is done it is installed; a failed order for 8 is failed although 7 went fine.
+        cmds.add(cmd(2, "done", null, 8, 200));
+        assertEquals(InstallFleetStatus.State.INSTALLED, InstallFleetStatus.forAssignment(8, cmds, OWNER, CAP).state);
+        List<InstallFleetStatus.Cmd> failed = list(cmd(1, "done", null, 7, 100), cmd(2, "failed", "FAILURE_STORAGE", 8, 200));
+        InstallFleetStatus.Result r = InstallFleetStatus.forAssignment(8, failed, OWNER, CAP);
+        assertEquals(InstallFleetStatus.State.FAILED, r.state);
+        assertEquals(1, r.attempts);
+        // And an order for a NEWER version than the policy's (the policy went back) does not count for the policy's.
+        assertEquals(InstallFleetStatus.State.PENDING,
+                InstallFleetStatus.forAssignment(7, list(cmd(1, "done", null, 8, 100)), OWNER, CAP).state);
+    }
+
     @Test
     public void payload_target_is_read_even_with_spaces() {
         Object[] t = InstallFleetStatus.payloadTarget("{ \"packageName\": \"com.x\", \"versionCode\": 12 }");

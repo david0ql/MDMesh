@@ -405,6 +405,7 @@ public class FleetResource {
         }
         commandDAO.updateGroup(c, id, name, body.configurationId, body.parentId);
         scope.refresh(c);
+        dropGeofenceCache();
         // The whole branch may inherit the change (or a new ancestor's configuration after a move).
         Set<Integer> branch = new HashSet<>(commandDAO.groupSubtree(c, id));
         int changed = scopes.apply(c, r -> r.getGroupId() != null && branch.contains(r.getGroupId()));
@@ -558,6 +559,7 @@ public class FleetResource {
         }
         int changed = scopes.apply(c, r -> members.contains(r.getId()));
         scope.refresh(c);
+        dropGeofenceCache();
         logger.info("Group {} deleted (customer {}); {} device(s) reconfigured", id, c, changed);
         return Response.OK();
     }
@@ -657,6 +659,7 @@ public class FleetResource {
             moved.add(deviceId);
         }
         int changed = scopes.apply(c, r -> moved.contains(r.getId()));
+        dropGeofenceCache(); // a device in another folder inherits other zones
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("moved", moved.size());
         out.put("skipped", skipped);
@@ -938,6 +941,12 @@ public class FleetResource {
         }
         String n = name.trim().replaceAll("\\s+", " ");
         return n.isEmpty() || n.length() > MAX_GROUP_NAME ? null : n;
+    }
+
+    /** Folders or their devices changed: the zones each device inherits may have changed too. */
+    private static void dropGeofenceCache() {
+        com.hmdm.rest.resource.support.GeofenceService geofences = com.hmdm.rest.resource.support.GeofenceService.INSTANCE;
+        if (geofences != null) geofences.invalidate();
     }
 
     /** The current customer, when the user may MODIFY the fleet (manage_fleet: change folders/policies),

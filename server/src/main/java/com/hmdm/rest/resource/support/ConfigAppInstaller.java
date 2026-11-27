@@ -47,6 +47,9 @@ public class ConfigAppInstaller {
     private final AgentCommandDAO commandDAO;
     private final AgentWakeHub wakeHub;
     private final com.hmdm.persistence.mapper.DcVersionMapper versions;
+    /** Records which install orders this class (a policy) queued. Field-injected: optional for unit tests. */
+    @Inject
+    private com.hmdm.persistence.mapper.AppInstallStatusMapper installStatus;
 
     @Inject
     public ConfigAppInstaller(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, AgentWakeHub wakeHub, PolicyApps policyApps,
@@ -98,6 +101,41 @@ public class ConfigAppInstaller {
         }
     }
 
+    private void recordPolicyOrigin(AgentCommand cmd) {
+        try {
+            if (installStatus != null && cmd.getId() != null) {
+                installStatus.recordOrigin(cmd.getId(), ORIGIN_POLICY, System.currentTimeMillis());
+            }
+        } catch (Exception e) {
+            logger.warn("Could not record the origin of install order {}: {}", cmd.getId(), e.getMessage());
+        }
+    }
+
+    /** Origin recorded for the install orders a policy queues. */
+    public static final String ORIGIN_POLICY = "policy";
+
+    /** What a device's policy says about one package. */
+    public enum PolicyWish {
+        /** The policy (its app list or an app group) installs it. */
+        INSTALL,
+        /** The policy removes it from the phone. */
+        REMOVE,
+        /** The policy does not mention it (or only hides its icon). */
+        NONE
+    }
+
+    /** What the device's policy wants for [pkg] right now. */
+    public PolicyWish policyWish(Device device, String pkg) {
+        if (device == null || device.getConfigurationId() == null || pkg == null) return PolicyWish.NONE;
+        PolicyWish wish = PolicyWish.NONE;
+        for (Application app : policyAppsOf(device)) {
+            if (app == null || app.getPkg() == null || !pkg.equals(app.getPkg().trim())) continue;
+            if (uninstallTarget(app) != null) return PolicyWish.REMOVE;
+            if (installPayload(device, app) != null) wish = PolicyWish.INSTALL;
+        }
+        return wish;
+    }
+
     /**
      * What {@link #enqueueConfigApps} would install on the device: its policy's action=install apps that have something
      * downloadable. Read-only (the "Instalación en la flota" view is built from it).
@@ -110,6 +148,34 @@ public class ConfigAppInstaller {
             if (payload != null) out.add(new DesiredInstall(app, payload));
         }
         return out;
+    }
+
+    /**
+     * What the device's policy installs for ONE package, or null when it does not assign it. For a whole fleet: pass
+     * the same [plainCache] (configuration id to its plain app list) so each policy's list is read once, not per device;
+     * the app groups of the device's folders are still resolved per device.
+     */
+    public DesiredInstall desiredInstallFor(Device device, String pkg, java.util.Map<Integer, List<Application>> plainCache) {
+        if (device == null || device.getConfigurationId() == null || pkg == null) return null;
+        try {
+            List<Application> apps = plainCache.get(device.getConfigurationId());
+            if (apps == null) {
+                apps = unsecureDAO.getPlainConfigurationApplications(device.getCustomerId(), device.getConfigurationId());
+                plainCache.put(device.getConfigurationId(), apps);
+            }
+            if (policyApps != null) {
+                com.hmdm.persistence.domain.Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
+                if (cfg != null) apps = policyApps.resolve(cfg, apps, device.getId()).apps;
+            }
+            for (Application app : apps) {
+                if (app == null || app.getPkg() == null || !pkg.equals(app.getPkg().trim())) continue;
+                String payload = installPayload(device, app);
+                if (payload != null) return new DesiredInstall(app, payload);
+            }
+        } catch (Exception e) {
+            logger.warn("Could not read what the policy of device {} installs: {}", device.getNumber(), e.getMessage());
+        }
+        return null;
     }
 
     /** The app.install payload for an action=install app of the device's policy; null when it is not installable. */
@@ -187,6 +253,7 @@ public class ConfigAppInstaller {
                 cmd.setStatus("pending");
                 cmd.setCreatedAt(now);
                 commandDAO.insert(cmd);
+                recordPolicyOrigin(cmd);
                 queued++;
             }
             if (queued > 0) {
