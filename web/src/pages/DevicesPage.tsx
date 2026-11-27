@@ -16,7 +16,7 @@ import { listConfigurations, type ConfigurationSummary } from '../api/configurat
 import { BulkActionModal } from '../components/BulkActionModal';
 import { downloadDevicesExcel, groupTree, listDeviceSummaries, listGroups, moveDevicesToGroup, setDevicesConfiguration, type DeviceSummary, type FleetGroup } from '../api/fleet';
 import { useAuth } from '../auth/AuthContext';
-import { DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
+import { DEFAULT_DEVICE_COLUMNS, DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, saveDeviceColumns, type DeviceColumn } from '../data/deviceColumns';
 
 type View = 'grid' | 'list';
 type StatusFilter = 'all' | 'online' | 'offline';
@@ -79,16 +79,21 @@ export function DevicesPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
-  // Extra list columns: chosen in Ajustes (per browser), capped by what fits at this width.
-  const [colKeys, setColKeys] = useState<string[]>(loadDeviceColumns);
+  // Extra list columns: chosen here (button "Columnas") or in Ajustes, saved per user in this
+  // browser, capped by what fits at this width.
+  const uid = authUser?.id;
+  const [colKeys, setColKeys] = useState<string[]>(() => loadDeviceColumns(uid));
   const [maxCols, setMaxCols] = useState(maxDeviceColumns);
+  const [colsOpen, setColsOpen] = useState(false);
+  useEffect(() => { setColKeys(loadDeviceColumns(uid)); }, [uid]);
   useEffect(() => {
-    const onCols = () => setColKeys(loadDeviceColumns());
+    const onCols = () => setColKeys(loadDeviceColumns(uid));
     const onResize = () => setMaxCols(maxDeviceColumns());
     window.addEventListener('dc-columns', onCols);
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('dc-columns', onCols); window.removeEventListener('resize', onResize); };
-  }, []);
+  }, [uid]);
+  const setColumns = useCallback((next: string[]) => { setColKeys(next); saveDeviceColumns(next, uid); }, [uid]);
   // The list's real width: the row shows the chosen columns, in order, only while they fit next to the name.
   const [listWidth, setListWidth] = useState(0);
   const listObserver = useRef<ResizeObserver | null>(null);
@@ -331,6 +336,15 @@ export function DevicesPage() {
             <IconList />
           </button>
         </div>
+        {view === 'list' && (
+          <ColumnsMenu
+            keys={colKeys}
+            max={maxCols}
+            open={colsOpen}
+            setOpen={setColsOpen}
+            onChange={setColumns}
+          />
+        )}
         <button className="btn btn-dark" onClick={() => navigate('/enroll')}>
           Inscribir dispositivo
         </button>
@@ -562,6 +576,89 @@ export function DevicesPage() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+function IconColumns() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3" y="4" width="18" height="16" rx="1.5" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="15" y1="4" x2="15" y2="20" />
+    </svg>
+  );
+}
+
+/** "Columnas" button + checkbox menu: each user picks which device fields the list shows, in order.
+ *  Persisted per user via onChange; columns past what fits this width are greyed as "no cabe". */
+function ColumnsMenu({
+  keys,
+  max,
+  open,
+  setOpen,
+  onChange,
+}: {
+  keys: string[];
+  max: number;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  onChange: (next: string[]) => void;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open, setOpen]);
+
+  const chosen = keys.filter((k) => DEVICE_COLUMNS.some((c) => c.key === k));
+  const toggle = (k: string) => onChange(chosen.includes(k) ? chosen.filter((x) => x !== k) : [...chosen, k]);
+  const move = (k: string, dir: -1 | 1) => {
+    const i = chosen.indexOf(k), j = i + dir;
+    if (i < 0 || j < 0 || j >= chosen.length) return;
+    const next = [...chosen]; [next[i], next[j]] = [next[j], next[i]]; onChange(next);
+  };
+
+  return (
+    <div className="cols-menu" ref={ref}>
+      <button className="btn" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(!open)} title="Elegir qué columnas ver">
+        <span className="btn-ico"><IconColumns /></span> Columnas
+      </button>
+      {open && (
+        <div className="cols-pop" role="menu">
+          <div className="cols-pop-head">
+            <span>Columnas visibles</span>
+            <button className="btn btn-sm btn-ghost" onClick={() => onChange(DEFAULT_DEVICE_COLUMNS)}>Restablecer</button>
+          </div>
+          <p className="note" style={{ margin: '0 0 8px' }}>
+            El nombre siempre se muestra. A este ancho caben <b>{max}</b> columnas más; las que pasen de ese número se ocultan.
+          </p>
+          <div className="colset">
+            {chosen.map((k, i) => {
+              const c = DEVICE_COLUMNS.find((x) => x.key === k)!;
+              return (
+                <div key={k} className={`colset-row ${i >= max ? 'over' : ''}`}>
+                  <label><input type="checkbox" checked onChange={() => toggle(k)} /> {c.label}</label>
+                  <span className="colset-ord">
+                    <button className="btn btn-sm btn-ghost" aria-label={`Subir ${c.label}`} disabled={i === 0} onClick={() => move(k, -1)}>↑</button>
+                    <button className="btn btn-sm btn-ghost" aria-label={`Bajar ${c.label}`} disabled={i === chosen.length - 1} onClick={() => move(k, 1)}>↓</button>
+                  </span>
+                  {i >= max && <span className="muted">no cabe</span>}
+                </div>
+              );
+            })}
+            {DEVICE_COLUMNS.filter((c) => !chosen.includes(c.key)).map((c) => (
+              <div key={c.key} className="colset-row off">
+                <label><input type="checkbox" checked={false} onChange={() => toggle(c.key)} /> {c.label}</label>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

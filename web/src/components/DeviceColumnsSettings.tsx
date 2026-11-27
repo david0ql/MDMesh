@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { DEFAULT_DEVICE_COLUMNS, DEVICE_COLUMNS, loadDeviceColumns, maxDeviceColumns, saveDeviceColumns } from '../data/deviceColumns';
 
-/** Which columns the device list shows (per browser), at most as many as fit the screen width. */
+/** Which columns the device list shows (per user, in this browser), at most as many as fit the screen width. */
 export function DeviceColumnsSettings() {
-  const [keys, setKeys] = useState<string[]>(loadDeviceColumns);
+  const uid = useAuth().user?.id;
+  const [keys, setKeys] = useState<string[]>(() => loadDeviceColumns(uid));
   const [max, setMax] = useState(maxDeviceColumns);
+  useEffect(() => { setKeys(loadDeviceColumns(uid)); }, [uid]);
   useEffect(() => {
     const onResize = () => setMax(maxDeviceColumns());
+    const onCols = () => setKeys(loadDeviceColumns(uid));
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-  const update = (next: string[]) => { setKeys(next); saveDeviceColumns(next); };
+    window.addEventListener('dc-columns', onCols);
+    return () => { window.removeEventListener('resize', onResize); window.removeEventListener('dc-columns', onCols); };
+  }, [uid]);
+  const update = (next: string[]) => { setKeys(next); saveDeviceColumns(next, uid); };
   const toggle = (k: string) => update(keys.includes(k) ? keys.filter((x) => x !== k) : [...keys, k]);
   const move = (k: string, dir: -1 | 1) => {
     const i = keys.indexOf(k), j = i + dir;
@@ -24,7 +29,7 @@ export function DeviceColumnsSettings() {
       <div style={{ padding: '0 20px 18px' }}>
         <p className="note" style={{ marginTop: 0 }}>
           El nombre siempre se muestra. En este ancho de pantalla caben <b>{max}</b> columnas más; las que pasen de ese número no
-          se muestran. Se guarda en este navegador.
+          se muestran. Se guarda por usuario en este navegador. También puedes cambiarlas con el botón “Columnas” de la lista.
         </p>
         <div className="colset">
           {keys.filter((k) => DEVICE_COLUMNS.some((c) => c.key === k)).map((k, i) => {

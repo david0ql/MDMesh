@@ -2974,7 +2974,38 @@ a {
 .colset-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13.5px; }
 .colset-row label { display: inline-flex; gap: 8px; align-items: center; min-width: 180px; }
 .colset-row.over label { color: var(--faint); text-decoration: line-through; }
+.colset-row.off label { color: var(--muted); }
 .colset-ord { display: inline-flex; gap: 2px; }
+
+/* "Columnas" button + dropdown on the device list */
+.cols-menu { position: relative; display: inline-flex; }
+.cols-menu .btn { gap: 6px; }
+.cols-menu .btn-ico { display: inline-flex; }
+.cols-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: 320px;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 12px 14px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-pop);
+}
+.cols-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 6px;
+}
+.cols-pop .colset { max-width: none; }
+.cols-pop .colset-row label { min-width: 0; flex: 1; cursor: pointer; }
 
 /* Update trail */
 .upd-now { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 8px; }
