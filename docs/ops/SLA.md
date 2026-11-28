@@ -21,7 +21,7 @@ depende para funcionar (ver «Exclusiones»).
 
 | Concepto | Valor |
 |---|---|
-| Disponibilidad mensual objetivo | **99,5 %** **[POR CONFIRMAR]** |
+| Disponibilidad mensual objetivo | **99,5 %** (confirmado por gerencia, 28-nov-2026) |
 | Tiempo máximo sin servicio que eso permite | 3 h 36 min en un mes de 30 días |
 | Periodo de medición | mes calendario, hora de Colombia (UTC−5) |
 | Horario cubierto | 24 horas, todos los días |
