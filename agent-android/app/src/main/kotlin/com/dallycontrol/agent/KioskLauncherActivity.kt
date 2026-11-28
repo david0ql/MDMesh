@@ -83,6 +83,7 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("ReturnCount") // not in kiosk / the guided step is up / paused
     override fun onResume() {
         super.onResume()
         // Back on the kiosk home: any system screen that was let through (sharing data…) is closed again at once.
@@ -91,11 +92,19 @@ class KioskLauncherActivity : ComponentActivity() {
         // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
         // handled by the flow collector, not here.
         val p = active ?: return
+        // The "authorisation pending" strip follows the guard's state (it changes after the kiosk was drawn).
+        val guard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
+        if (guard != shownGuard && !(p.mode == "single" && p.pinPackage != null)) setContentView(launcherGrid(p))
+        if (askAuthorisation()) return // the guided step is up; this screen resumes again when it closes
         if (p.mode == "single") {
             if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
             autoLaunch(p)
         }
     }
+
+    /** The guided authorisation step, while it is pending (see KioskAuthPrompt). */
+    private fun askAuthorisation(force: Boolean = false): Boolean =
+        com.dallycontrol.agent.kiosk.KioskAuthPrompt.ask(this, force)
 
     /**
      * Every automatic (re)launch of the pinned app counts as a bounce — whether HOME resumed or Android recreated
@@ -112,6 +121,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun applyState(p: KioskApplyPayload?) {
         active = p
+        applier.syncNativeLock(p)
         com.dallycontrol.agent.kiosk.QuickSettingsNotice.update(this, p?.quickSettings == true)
         // Anti-theft follows the kiosk: on with the policy's PIN, off (and its restrictions lifted) without it.
         runCatching {
@@ -251,8 +261,10 @@ class KioskLauncherActivity : ComponentActivity() {
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             hint = getString(R.string.kiosk_exit_password)
             contentDescription = "kiosk-exit-password"
+            maxLines = 1
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.kiosk_exit_title)
             .setView(input)
             .setPositiveButton(R.string.kiosk_exit_confirm) { _, _ ->
@@ -267,6 +279,11 @@ class KioskLauncherActivity : ComponentActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        // "Done" / Enter on the keyboard confirms, like the button.
+        input.setOnEditorActionListener { _, _, _ ->
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)?.performClick()
+            true
+        }
     }
 
     /** Every exit attempt reaches the console: the exit itself, a wrong password, a refused attempt. */
@@ -303,7 +320,11 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    /** The guard state the kiosk home was last drawn with. */
+    private var shownGuard: String? = null
+
     private fun launcherGrid(p: KioskApplyPayload): View {
+        shownGuard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         val cell = iconCellPx(p.theme.iconSize)
@@ -412,6 +433,20 @@ class KioskLauncherActivity : ComponentActivity() {
                     setBackgroundColor(Color.argb(40, Color.red(fg), Color.green(fg), Color.blue(fg)))
                     isClickable = true
                     setOnClickListener { openQuickSettings() }
+                },
+                LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
+        if (com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this) ==
+            com.dallycontrol.kiosk.KioskHardening.GUARD_MISSING_ACCESS
+        ) {
+            page.addView(
+                text(getString(R.string.kiosk_auth_banner), BANNER_SP, Color.WHITE, bold = true).apply {
+                    contentDescription = "kiosk-auth-banner"
+                    setPadding(dp(16), dp(10), dp(16), dp(10))
+                    setBackgroundColor(Color.parseColor("#B3261E"))
+                    isClickable = true
+                    setOnClickListener { askAuthorisation(force = true) }
                 },
                 LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
             )
@@ -679,6 +714,8 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private companion object {
         const val BOUNCE_DEDUPE_MS = 1_500L
+        const val BANNER_SP = 13f
+
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"

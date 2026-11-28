@@ -69,14 +69,15 @@ export async function getAppUsage(deviceId: number | string, days: number): Prom
 /**
  * How the kiosk keeps the system Settings closed on the device, as the agent last reported it (event `kioskGuard`):
  * `lockTask` (Android 11–15, blocked by the platform), `guard` (the agent's foreground guard is watching) or
- * `needsUsageAccess` (the guard has no usage access yet: Settings can still be reached from an allowed app).
+ * `needsAuthorization` (nobody gave the one tap on the phone yet: Settings can still be reached from an allowed app).
  * Null when the agent never reported it (older agent, or never in kiosk).
  */
-export type KioskGuardState = 'lockTask' | 'guard' | 'needsUsageAccess';
+export type KioskGuardState = 'lockTask' | 'guard' | 'needsAuthorization';
 
 export async function getKioskGuard(deviceId: number | string): Promise<KioskGuardState | null> {
   const ev = await apiClient.get<DeviceEvent[]>(`/private/agent/v1/devices/${deviceId}/events?since=0&types=kioskGuard&limit=20`);
   const last = [...(ev ?? [])].sort((a, b) => b.ts - a.ts)[0];
   const d = last?.detail;
-  return d === 'lockTask' || d === 'guard' || d === 'needsUsageAccess' ? d : null;
+  if (d === 'needsUsageAccess') return 'needsAuthorization';
+  return d === 'lockTask' || d === 'guard' || d === 'needsAuthorization' ? d : null;
 }

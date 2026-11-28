@@ -23,7 +23,30 @@ object KioskHardening {
      * down on some phones, a reboot loop). Everything lock task gave for free is then enforced by other means:
      * the status bar is disabled, every app outside the kiosk is suspended, and the kiosk restrictions apply.
      */
-    fun softKiosk(sdk: Int): Boolean = sdk >= SOFT_KIOSK_SDK
+    fun softKiosk(sdk: Int): Boolean = softKiosk(sdk, nativeLock16)
+
+    /**
+     * The policy's "use the native lock on Android 16+" switch (off by default), as last applied on this phone. With
+     * it Android 16+ runs lock task like Android 15 does. Only for models verified not to crash (see [softKiosk]).
+     */
+    @Volatile var nativeLock16: Boolean = false
+
+    fun softKiosk(sdk: Int, nativeLock: Boolean): Boolean = sdk >= SOFT_KIOSK_SDK && !nativeLock
+
+    /** Restarts in a row, shortly after one another, that switch the native lock of Android 16+ off again. */
+    const val NATIVE_LOCK_MAX_QUICK_BOOTS = 3
+    const val NATIVE_LOCK_QUICK_BOOT_MS = 10 * 60_000L
+
+    /**
+     * The safety net of the native lock on Android 16+: its known failure is a restart loop, so [bootTimes] (wall
+     * clock of the phone's recent starts with the native lock on, oldest first) with
+     * [NATIVE_LOCK_MAX_QUICK_BOOTS] starts inside [NATIVE_LOCK_QUICK_BOOT_MS] means "it is looping": go back to the
+     * soft kiosk.
+     */
+    fun nativeLockLooping(bootTimes: List<Long>): Boolean {
+        val last = bootTimes.takeLast(NATIVE_LOCK_MAX_QUICK_BOOTS)
+        return last.size == NATIVE_LOCK_MAX_QUICK_BOOTS && last.last() - last.first() <= NATIVE_LOCK_QUICK_BOOT_MS
+    }
 
     /** `DevicePolicyManager.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` (API 30). */
     const val LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK = 64
@@ -47,13 +70,13 @@ object KioskHardening {
 
     const val GUARD_LOCK_TASK = "lockTask"
     const val GUARD_WATCHING = "guard"
-    const val GUARD_MISSING_ACCESS = "needsUsageAccess"
+    const val GUARD_MISSING_ACCESS = "needsAuthorization"
 
     /**
      * How the system Settings is kept closed in this kiosk, as reported to the console:
      * [GUARD_LOCK_TASK] (Android 11–15: the platform blocks it, nothing else needed), [GUARD_WATCHING] (the foreground
-     * guard is watching) or [GUARD_MISSING_ACCESS] (the guard is needed but the agent has no usage access: an allowed
-     * app, or the status bar on Android 16+, can still reach Settings until someone grants it on the phone).
+     * guard is watching) or [GUARD_MISSING_ACCESS] (the guard is needed but nobody switched the agent's screen service
+     * on yet — one tap on the phone — nor does it have usage access: an allowed app can still reach Settings).
      */
     fun settingsGuard(sdk: Int, guardNeeded: Boolean, canWatch: Boolean): String = when {
         !needsForegroundGuard(sdk) || !guardNeeded -> GUARD_LOCK_TASK

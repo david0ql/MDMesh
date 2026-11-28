@@ -14,6 +14,12 @@ interface KioskLockdown {
     fun engage(payload: KioskApplyPayload, allowed: List<String>)
 
     fun release()
+
+    /**
+     * Whether the policy's "native lock on Android 16+" may be honoured on this phone right now ([wanted] = what the
+     * policy asks). False once the phone was seen restarting in a loop with it on.
+     */
+    fun nativeLockAllowed(wanted: Boolean): Boolean = wanted
 }
 
 /** No lock-down (tests, or a build without Device Owner). */

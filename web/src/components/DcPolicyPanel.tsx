@@ -34,6 +34,8 @@ export interface DcPolicy {
   notInKiosk?: string[];
   /** Packages never shown as kiosk icons, whatever brings them (functions such as the browser, groups…). */
   kioskHidden?: string[];
+  /** Android 16+: use the native lock (lock task) in the kiosk; off by default. */
+  kioskNativeLock16?: boolean;
   /** Kiosk branding: logos, wallpaper, serial, support line (folders may override). */
   kioskBrand?: import('../api/fleet').KioskBrand;
   /** Anti-theft: 4-12 digits asked in the kiosk before switching off or restarting. */
@@ -97,6 +99,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.appGroups?.length) out.appGroups = p.appGroups;
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
   if (p.kioskHidden?.length) out.kioskHidden = p.kioskHidden;
+  if (p.kioskNativeLock16 === true) out.kioskNativeLock16 = true; // off by default
   if (p.kioskBrand && Object.values(p.kioskBrand).some(Boolean)) out.kioskBrand = p.kioskBrand;
   if (p.powerPin) out.powerPin = p.powerPin;
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
@@ -322,6 +325,25 @@ export function DcPolicyPanel({ value, disabled, onChange, apps, wifiRadio }: {
             <option value="">Permitida</option>
             <option value="block">Bloquear (solo la consola instala)</option>
           </select>
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Bloqueo nativo en Android 16+</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            Apagado (por defecto): en Android 16 o superior el quiosco no usa el bloqueo de tareas de Android, porque en algunos
+            modelos (Samsung A17) reinicia el teléfono en ciclo; los Ajustes se mantienen cerrados con el vigilante del agente.
+            Encendido: usa el bloqueo nativo, que sí impide por completo abrir Ajustes y permite cerrar el menú de apagado.
+            RIESGO: actívalo solo en modelos que hayas probado en una política de prueba con un equipo en la mano. Si el equipo
+            se reinicia 3 veces en 10 minutos, el agente lo apaga solo en ese equipo y lo reporta.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Bloqueo nativo en Android 16+" data-testid="policy-native-lock16"
+            checked={p.kioskNativeLock16 === true} disabled={disabled}
+            onChange={(e) => update({ ...p, kioskNativeLock16: e.target.checked || undefined })} />
         </div>
       </div>
 

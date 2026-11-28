@@ -145,10 +145,11 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
 
   if (!canOperate) return null;
   const pending = target != null;
-  const askUsageAccess = async () => {
+  // The same guided screen as remote support: ONE switch on the phone enables both.
+  const askAuthorization = async () => {
     try {
-      await queueCommand(device.number, { type: 'device.storageAccess', requiresCapability: 'device.storageAccess', payload: JSON.stringify({ kind: 'usage' }) });
-      toast.push('ok', 'Se abrió la autorización en el teléfono', 'Quien tenga el equipo debe activar «Acceso de uso» para DallyControl (un toque). El quiosco vuelve solo.');
+      await queueCommand(device.number, { type: 'remote.inputSetup' });
+      toast.push('ok', 'Se abrió la autorización en el teléfono', 'Quien tenga el equipo activa un interruptor (un toque). Sirve para el soporte remoto y para el quiosco reforzado; el equipo vuelve solo al quiosco.');
     } catch (e) {
       toast.push('err', 'No se pudo pedir la autorización', e instanceof Error ? e.message : '');
     }
@@ -179,11 +180,12 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
       {!compact && !pending && active === false && policyKiosk && (
         <span className="muted small">Usa el quiosco de la política «{policy?.name}».</span>
       )}
-      {!compact && active && guard === 'needsUsageAccess' && (
+      {!compact && active && guard === 'needsAuthorization' && (
         <span className="field-error" data-testid="kiosk-guard" style={{ display: 'block' }}>
-          Refuerzo incompleto: a DallyControl le falta el «acceso de uso» en este teléfono (lo da el enrolamiento por cable, o un
-          toque en el equipo). Hasta autorizarlo, en esta versión de Android una app permitida puede abrir los Ajustes del sistema.{' '}
-          <button className="btn btn-sm" onClick={() => void askUsageAccess()}>Pedir autorización en el teléfono</button>
+          <strong>Falta autorización en el teléfono.</strong> Un toque, una sola vez (el mismo que habilita el soporte remoto): hasta
+          darlo, en esta versión de Android una app permitida puede abrir los Ajustes del sistema. El teléfono lo pide en pantalla cada
+          vez que vuelve al quiosco.{' '}
+          <button className="btn btn-sm" data-testid="kiosk-guard-ask" onClick={() => void askAuthorization()}>Pedir autorización en el teléfono</button>
         </span>
       )}
       {!compact && active && (guard === 'guard' || guard === 'lockTask') && (

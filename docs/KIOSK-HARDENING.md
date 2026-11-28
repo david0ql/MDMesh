@@ -44,28 +44,47 @@ El agente vuelve a aplicar todo esto en cada ciclo (cada check-in, al instalarse
 app instalada después o una restricción quitada por fuera se vuelve a cerrar sola. Al salir del quiosco (con la
 contraseña o desde la consola) se levanta únicamente lo que puso el quiosco.
 
-### El vigilante y el «acceso de uso» (equipos enrolados por QR)
+### El vigilante y su única autorización (equipos enrolados por QR)
 
-El vigilante de primer plano (Android 7–10 y 16+) necesita que DallyControl tenga el permiso especial «Acceso de uso».
-Android no deja que un Device Owner se lo dé a sí mismo (no es un permiso de ejecución: `setPermissionGrantState` no
-aplica, y cambiar el *app-op* exige firma de sistema). Lo dan:
+El vigilante (Android 7–10 y 16+) es el **servicio de pantalla del propio agente**, el mismo del soporte remoto
+(ADR 0012): Android le avisa en el instante en que se abre una ventana y, si es de una app que el quiosco mantiene
+cerrada, manda el equipo a Inicio (el quiosco). No hace falta «acceso de uso». Como Android no siempre avisa
+(visto en emulador: una tarea ya abierta que vuelve al frente, y los primeros segundos tras reiniciar), el servicio
+además mira cada 0,6 s qué ventana está al frente, dentro del propio agente. En Android 16+ devuelve
+**cualquier** app que no esté permitida en el quiosco; en Android 7–10, los Ajustes (lo demás ya lo cierra lock task).
+Mientras hay un quiosco activo el servicio recibe los cambios de ventana de todas las apps, y solo lee el nombre del
+paquete; fuera del quiosco vuelve a escuchar solo a la interfaz del sistema.
 
-- el enrolamiento por cable (`scripts/adb-enroll.sh`), automáticamente; o
-- **un toque en el teléfono**: Ajustes → Acceso de uso → DallyControl. La consola lo pide a distancia: ficha del
-  equipo → interruptor del quiosco → **«Pedir autorización en el teléfono»** (abre esa pantalla aunque el equipo esté
-  en quiosco; al activarlo, el equipo vuelve solo al quiosco).
+Android no deja que un Device Owner encienda su propio servicio de accesibilidad. Lo enciende:
 
-El agente reporta el estado real y la consola lo muestra por equipo, debajo del interruptor del quiosco (evento
-`kioskGuard`):
+- el enrolamiento por cable (`scripts/adb-enroll.sh`), solo; o
+- **un toque en el teléfono, una sola vez**: la pantalla guiada «Autoriza DallyControl en este dispositivo», que
+  aparece al enrolar por QR y explica las dos cosas que habilita (soporte remoto y quiosco reforzado).
+
+Si el equipo ya tenía «acceso de uso» (enrolado por cable con un agente anterior), el vigilante lo usa como
+alternativa (sondeo) mientras el servicio de pantalla no esté encendido.
+
+**Sin esa autorización el quiosco nunca queda abierto en silencio:**
+
+- el agente reporta `kioskGuard = needsAuthorization` y la consola muestra en la ficha del equipo, bajo el
+  interruptor del quiosco, «**Falta autorización en el teléfono**» con el botón **«Pedir autorización en el
+  teléfono»** (abre la pantalla guiada aunque el equipo esté en quiosco);
+- el quiosco muestra la pantalla guiada cada vez que se vuelve a su inicio (como máximo cada 10 minutos) y una franja
+  roja fija «Falta una autorización» en su pantalla de inicio, hasta que se complete;
+- entre tanto se aplica lo más cerrado que el Device Owner puede hacer solo: lock task donde existe (Android 7–10:
+  barra, Recientes, apps no permitidas y `am start` cerrados); en Android 16+ barra de estado deshabilitada
+  **aunque la política diga «Notificaciones = Sí»**, todo lo no permitido suspendido y, lo que Android no deja
+  suspender, oculto (nunca la app Ajustes: ver arriba);
+- **lo que queda abierto hasta dar el toque** (Android 7–10 y 16+): una app permitida que enlace a los Ajustes del
+  sistema los abre.
+
+Estados en la consola (evento `kioskGuard`):
 
 | Estado | Qué significa |
 |---|---|
-| «Quiosco reforzado: Android bloquea los Ajustes del sistema» (`lockTask`) | Android 11–15. No depende del acceso de uso. |
-| «Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco» (`guard`) | Android 7–10 / 16+ con acceso de uso. |
-| «Refuerzo incompleto: falta el acceso de uso» (`needsUsageAccess`) | Android 7–10 / 16+ **sin** acceso de uso (enrolado por QR y aún sin autorizar). Queda abierta una vía: una app permitida que enlace a Ajustes los abre y nada los cierra. En Android 7–10 el resto (barra, Recientes, `am start`) sigue cerrado por lock task; en Android 16+ la barra de estado está deshabilitada por defecto y las demás apps suspendidas. |
-
-Recomendación para flotas enroladas por QR: Android 11–15 no requiere nada; en Android 7–10 y 16+ autorizar el acceso
-de uso al entregar el equipo (un toque) y vigilar en la consola que ninguno quede en «Refuerzo incompleto».
+| «Quiosco reforzado: Android bloquea los Ajustes del sistema» (`lockTask`) | Android 11–15, o Android 16+ con el bloqueo nativo. No necesita autorización. |
+| «Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco» (`guard`) | Android 7–10 / 16+ con el servicio de pantalla encendido (o con acceso de uso). |
+| «Falta autorización en el teléfono» (`needsAuthorization`) | Android 7–10 / 16+ sin el toque. |
 
 ### Por qué Android 16 es distinto
 
@@ -78,17 +97,34 @@ se puede atrapar desde una app y ocurre con solo tener paquetes en la lista de l
 deja vacía.
 
 `LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` no lo arregla: es una opción *de* lock task, y el fallo está en lock
-task mismo. En el emulador de Android 16 (imagen de Google, no Samsung) no se reproduce la caída, de modo que el
-emulador no sirve para decidir si ya es seguro; reactivarlo exige probar en los modelos reales (ver «Solo en teléfono
-físico»). Mientras tanto Android 16+ queda así, **sin presentarlo como bloqueo absoluto**:
+task mismo. En el emulador de Android 16 (imagen de Google, no Samsung) no se reproduce la caída. Por eso Android 16+
+queda así por defecto, **sin presentarlo como bloqueo absoluto**:
 
 - Cerrado de verdad: apps que no son de trabajo (suspendidas), barra de estado y ajustes rápidos (deshabilitados por
   defecto), Inicio (vuelve al quiosco), modo seguro, usuarios, salida sin contraseña.
-- **Mitigado, no bloqueado:** los Ajustes del sistema. Si una app permitida los abre por intent (o el usuario toca el
-  engranaje con «Notificaciones = Sí»), se ven durante menos de un segundo y el vigilante devuelve el equipo al
-  quiosco. Sin acceso de uso no hay vigilante y esa vía queda abierta.
+- **Mitigado, no bloqueado:** los Ajustes del sistema. Si una app permitida los abre, el vigilante devuelve el
+  equipo al quiosco en el instante en que se abre la ventana; puede alcanzar a verse un parpadeo.
 - No se puede cerrar: el menú de apagado (apagar/reiniciar; al encender vuelve al quiosco) y los botones
-  Inicio/Recientes (Recientes solo puede reabrir apps permitidas; una tarjeta de Ajustes se devuelve igual).
+  Inicio/Recientes (Recientes solo puede reabrir apps permitidas).
+
+#### Interruptor «Bloqueo nativo en Android 16+» (apagado por defecto)
+
+Política → panel de funciones → **Bloqueo nativo en Android 16+**. Encendido, el agente usa lock task en Android 16+
+igual que en Android 15 (con el bloqueo de inicios dentro de la tarea): los Ajustes quedan bloqueados por Android, sin
+depender de ninguna autorización, y «Bloquear botones físicos» vuelve a cerrar el menú de apagado.
+
+Cómo probarlo en un modelo (que no sea el A17, donde ya se sabe que falla):
+
+1. Crea una política de prueba, copia de la real, con el interruptor encendido, y asígnala a **un** equipo que
+   tengas en la mano (con depuración USB permitida, para poder sacarlo si entra en ciclo).
+2. Abre la app de trabajo, sal con Inicio y vuelve a entrar unas 20 veces; reinicia el equipo dos veces. Si
+   `adb shell dumpsys activity activities | grep mLockTaskModeState` dice `LOCKED` y el equipo no se reinicia solo, corre
+   `scripts/kiosk-escape-test.py` contra él.
+3. Red de seguridad: si el equipo arranca 3 veces en 10 minutos con el interruptor encendido, el agente lo apaga
+   solo en ese equipo (vuelve al quiosco suave) y lo reporta (`kioskLockdownGap: nativeLock16 apagado…`). Para
+   sacarlo a mano: apagar el interruptor en la política, o `adb shell dpm remove-active-admin` en un equipo de
+   prueba.
+4. Solo cuando un modelo pase, asigna la política a los demás equipos de ese modelo.
 
 ## Salida del quiosco
 
@@ -332,6 +368,23 @@ Lectura de la tabla:
 - Consola y servidor (`scripts/kiosk-console-e2e.mjs`, Chromium sin interfaz): 15/15. El aviso por equipo del
   estado del refuerzo (interruptor del quiosco) no se probó en navegador: solo compila; el evento que lo alimenta sí
   se verificó en las tres versiones.
+
+### Corridas estilo QR (vigilante por servicio de pantalla), 2026-11-27 noche
+
+La tabla de arriba es de la corrida con enrolamiento por cable y vigilante por acceso de uso. Con `QR_STYLE=1` (sin
+acceso de uso ni `WRITE_SECURE_SETTINGS`, primero sin el toque y luego con el toque simulado) se alcanzó a correr:
+
+| Versión | Resultado | Notas |
+|---|---|---|
+| Android 10 | 102 pasan, 0 fallan | Con el commit «guard also checks the window in front». Sin el toque: `needsAuthorization`, pantalla y franja de autorización, una app permitida abre Ajustes; con el toque: vuelve al quiosco. |
+| Android 16 | 102 pasan, 2 fallan | Mismo commit. Los 2 fallos: la pantalla de autorización tardó en aparecer (corregido después, sin repetir la corrida completa). Sin el toque: Ajustes abre por `am start` y desde una app permitida. |
+| Android 15 | 97 pasan, 5 fallan | Los 5 son de la herramienta: con el servicio de pantalla encendido `uiautomator dump` no describe el diálogo en primer plano. Comprobado a mano que el diálogo de salida aparece y que el ícono abre la app tras un inicio bloqueado (queda encima el aviso «app no disponible» de Android hasta cerrarlo). |
+
+**Sin validar en emulador:** los tres últimos cambios del agente (pedir la autorización en cuanto el quiosco sabe que
+falta, Enter confirma la contraseña de salida, y que el re-refuerzo no corra tras salir del quiosco: en la última
+corrida de Android 16 la salida con contraseña correcta falló por esa carrera, provocada por `uiautomator` al
+suspender el servicio) y el interruptor «Bloqueo nativo en Android 16+». Tampoco se probó en navegador el aviso
+«Falta autorización» ni su botón.
 
 ### Solo en teléfono físico
 

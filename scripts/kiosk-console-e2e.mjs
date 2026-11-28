@@ -18,6 +18,9 @@ const { chromium } = await import(pathToFileURL(pw).href);
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const api = arg('--api', 'http://localhost:8088');
 const password = process.env.DALLYCONTROL_ADMIN_PASSWORD || 'admin';
+// Optional: a device currently in kiosk, and the reinforcement state its page must show (kioskGuard).
+const device = arg('--device');
+const expectGuard = arg('--expect-guard');
 
 let pass = 0, fail = 0;
 const check = (name, ok, detail = '') => { console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${name}${ok || !detail ? '' : `  [${detail}]`}`); ok ? pass++ : fail++; };
@@ -98,6 +101,36 @@ try {
   }
   check('consola: con la contraseña generada el quiosco se guarda', saved === generated, `${saved} vs ${generated}`);
 
+
+  // --- device page: the kiosk's reinforcement state and the "ask on the phone" button -------------------------
+  if (device) {
+    const found = (await rest('POST', '/private/devices/search', { value: device, pageNum: 1, pageSize: 10 })).data;
+    const row = (found?.devices?.items ?? found?.items ?? []).find((d) => d.number === device);
+    check('equipo encontrado en la consola', !!row, JSON.stringify(found ?? null).slice(0, 160));
+    await page.goto(`${api}/devices/${row.id}`);
+    await page.getByRole('button', { name: /^Control/ }).first().click().catch(() => {});
+    const guard = page.getByTestId('kiosk-guard').first();
+    const shown = await guard.waitFor({ timeout: 45000 }).then(() => true, () => false);
+    const text = shown ? (await guard.textContent()) ?? '' : '';
+    if (expectGuard === 'needsAuthorization') {
+      check('ficha del equipo: «Falta autorización en el teléfono»', /Falta autorización en el teléfono/.test(text), text.slice(0, 120));
+      const before = Date.now();
+      await page.getByTestId('kiosk-guard-ask').first().click();
+      const toast = page.locator('.toast.ok', { hasText: 'Se abrió la autorización en el teléfono' });
+      check('botón «Pedir autorización en el teléfono»: confirma que se envió', await toast.waitFor({ timeout: 10000 }).then(() => true, () => false));
+      let cmd = null;
+      const final = (c) => c && ['done', 'failed', 'unsupported'].includes(c.status);
+      for (let i = 0; i < 60 && !final(cmd); i++) {
+        const hist = (await rest('GET', `/private/agent/v1/devices/${device}/commands`)).data ?? [];
+        cmd = hist.find((c) => c.type === 'remote.inputSetup' && (c.createdAt ?? 0) >= before - 5000) ?? cmd;
+        if (!final(cmd)) await page.waitForTimeout(2000);
+      }
+      check('…y el teléfono abrió la pantalla de autorización (remote.inputSetup: done)', cmd?.status === 'done', JSON.stringify(cmd ?? null).slice(0, 160));
+    } else {
+      check(`ficha del equipo: quiosco reforzado (${expectGuard})`, /Quiosco reforzado/.test(text), text.slice(0, 120));
+      check('…sin botón de autorización', await page.getByTestId('kiosk-guard-ask').count() === 0);
+    }
+  }
 } catch (e) {
   check('sin errores inesperados', false, String(e).slice(0, 300));
 } finally {

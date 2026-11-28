@@ -143,13 +143,14 @@
     <string name="support_hang_up">Hang up</string>
     <string name="support_mute">Mute</string>
     <string name="support_unmute">Unmute</string>
-    <string name="remote_setup_title">Turn on remote support</string>
-    <string name="remote_setup_body">So that support can help you on this device without anyone having to accept each time, turn on one switch, once:\n\n1. Tap “Open settings”.\n2. Choose “%1$s” (under Installed or Downloaded apps).\n3. Turn the switch on and confirm with Allow.\n\nThis screen closes by itself when it is done.</string>
+    <string name="remote_setup_title">Authorize DallyControl on this device</string>
+    <string name="remote_setup_body">One switch, once, does two things:\n\n• Support can help you on this device without anyone having to accept each time.\n• The kiosk stays closed: if the system Settings open, the device returns to the kiosk by itself.\n\n1. Tap “Open settings”.\n2. Choose “%1$s” (under Installed or Downloaded apps).\n3. Turn the switch on and confirm with Allow.\n\nThis screen closes by itself when it is done.</string>
     <string name="remote_setup_pending">Pending: the switch is off.</string>
-    <string name="remote_setup_done">Done. Remote support is ready.</string>
+    <string name="remote_setup_done">Done. Remote support and the reinforced kiosk are active.</string>
     <string name="remote_setup_failed">Could not open the settings. Open Settings &gt; Accessibility by hand.</string>
     <string name="remote_setup_open">Open settings</string>
     <string name="remote_setup_later">Not now</string>
+    <string name="kiosk_auth_banner">Authorization pending: tap here to finish setting up this device.</string>
     <!-- Status screen (MainActivity) and kiosk launcher labels. -->
     <string name="main_subtitle">Device agent</string>
     <string name="main_label_management">MANAGEMENT</string>

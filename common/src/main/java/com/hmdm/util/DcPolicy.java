@@ -59,6 +59,8 @@ public class DcPolicy {
     private List<String> notInKiosk;
     /** Packages never shown as kiosk icons, whatever brings them (a function such as the browser, a group…). */
     private List<String> kioskHidden;
+    /** Android 16+: use the native lock (lock task) in the kiosk. Off by default: it restarts some phones in a loop. */
+    private Boolean kioskNativeLock16;
     /** Kiosk branding: logo above the apps, logo below, serial at the bottom (folders may override the logos). */
     private KioskBrand kioskBrand;
     /** Anti-theft in the kiosk: 4-12 digits asked before switching the phone off or restarting it. */
@@ -293,7 +295,7 @@ public class DcPolicy {
 
     @JsonIgnore
     public boolean isEmpty() {
-        return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
+        return kioskNativeLock16 == null && kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
                 && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
                 && remoteSupport == null && permissions == null
@@ -348,6 +350,7 @@ public class DcPolicy {
         }
         c.notInKiosk = packages(notInKiosk);
         c.kioskHidden = packages(kioskHidden);
+        c.kioskNativeLock16 = Boolean.TRUE.equals(kioskNativeLock16) ? Boolean.TRUE : null; // off unless turned on
         c.kioskBrand = kioskBrand == null ? null : kioskBrand.cleaned();
         c.powerPin = powerPin != null && powerPin.trim().matches("^[0-9]{4,12}$") ? powerPin.trim() : null;
         if (device != null) {

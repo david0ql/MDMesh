@@ -35,6 +35,15 @@ public class DesiredConfigBuilderTest {
     }
 
     @Test
+    public void native_lock_on_android_16_is_off_unless_the_policy_turns_it_on() {
+        assertNull(DesiredConfigBuilder.build(kioskConfig(), Collections.emptyList()).getKiosk().getNativeLock16());
+        Configuration on = kioskConfig(); on.setDcPolicy("{\"kioskNativeLock16\":true}");
+        assertEquals(Boolean.TRUE, DesiredConfigBuilder.build(on, Collections.emptyList()).getKiosk().getNativeLock16());
+        Configuration off = kioskConfig(); off.setDcPolicy("{\"kioskNativeLock16\":false}");
+        assertNull(DesiredConfigBuilder.build(off, Collections.emptyList()).getKiosk().getNativeLock16());
+    }
+
+    @Test
     public void kiosk_without_exit_password_can_only_be_left_from_the_console() {
         for (String blank : new String[] {null, "", "   "}) {
             Configuration c = kioskConfig(); c.setPassword(blank);

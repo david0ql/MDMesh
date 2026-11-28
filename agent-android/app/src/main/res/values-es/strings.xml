@@ -141,13 +141,14 @@
     <string name="support_hang_up">Colgar</string>
     <string name="support_mute">Silenciar</string>
     <string name="support_unmute">Activar micrófono</string>
-    <string name="remote_setup_title">Activa el soporte remoto</string>
-    <string name="remote_setup_body">Para que soporte pueda ayudarte en este dispositivo sin que nadie tenga que aceptar cada vez, activa un interruptor, una sola vez:\n\n1. Toca «Abrir ajustes».\n2. Elige «%1$s» (en Apps instaladas o descargadas).\n3. Activa el interruptor y confirma con Permitir.\n\nEsta pantalla se cierra sola cuando termine.</string>
+    <string name="remote_setup_title">Autoriza DallyControl en este dispositivo</string>
+    <string name="remote_setup_body">Un interruptor, una sola vez, sirve para dos cosas:\n\n• Soporte puede ayudarte en este dispositivo sin que nadie tenga que aceptar cada vez.\n• El quiosco queda cerrado: si se abren los Ajustes del sistema, el equipo vuelve solo al quiosco.\n\n1. Toca «Abrir ajustes».\n2. Elige «%1$s» (en Apps instaladas o descargadas).\n3. Activa el interruptor y confirma con Permitir.\n\nEsta pantalla se cierra sola cuando termine.</string>
     <string name="remote_setup_pending">Pendiente: el interruptor está apagado.</string>
-    <string name="remote_setup_done">Listo. El soporte remoto quedó activo.</string>
+    <string name="remote_setup_done">Listo. El soporte remoto y el quiosco reforzado quedaron activos.</string>
     <string name="remote_setup_failed">No se pudieron abrir los ajustes. Abre Ajustes &gt; Accesibilidad a mano.</string>
     <string name="remote_setup_open">Abrir ajustes</string>
     <string name="remote_setup_later">Ahora no</string>
+    <string name="kiosk_auth_banner">Falta una autorización: toca aquí para terminar de configurar este equipo.</string>
     <!-- Pantalla de estado (MainActivity) y rótulos del lanzador del quiosco. -->
     <string name="main_subtitle">Agente del dispositivo</string>
     <string name="main_label_management">ADMINISTRACIÓN</string>

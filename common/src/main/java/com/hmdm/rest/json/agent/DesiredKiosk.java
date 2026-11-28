@@ -50,4 +50,6 @@ public class DesiredKiosk {
     private String powerPin;
     /** Packages allowed but never shown as icons (the kiosk home skips them). */
     private List<String> hidden;
+    /** Android 16+: use the native lock (lock task) instead of the soft kiosk; null = off (the default). */
+    private Boolean nativeLock16;
 }
