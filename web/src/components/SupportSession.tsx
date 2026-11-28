@@ -483,9 +483,10 @@ export function SupportSession({ device, start, startedAt, altScreen, onScreenMo
 
   function onKeyDown(e: ReactKeyboardEvent<HTMLCanvasElement>) {
     if (!canControl || e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return;
-    if (e.key === 'Backspace') { e.preventDefault(); key('backspace'); return; }
-    if (e.key === 'Enter') { e.preventDefault(); key('enter'); return; }
-    if (e.key === 'Escape') { e.preventDefault(); key('back'); return; }
+    // Text still waiting in the batch goes first, so the keys act on what was typed before them.
+    if (e.key === 'Backspace') { e.preventDefault(); flushText(); key('backspace'); return; }
+    if (e.key === 'Enter') { e.preventDefault(); flushText(); key('enter'); return; }
+    if (e.key === 'Escape') { e.preventDefault(); flushText(); key('back'); return; }
     if (e.key.length === 1 || [...e.key].length === 1) {
       e.preventDefault(); // the space bar would scroll the page
       textBuf.current += e.key;
@@ -943,9 +944,11 @@ export function SupportSession({ device, start, startedAt, altScreen, onScreenMo
                 <>
                   <h3>No se pudo mostrar la pantalla</h3>
                   <p>
-                    {screenError === 'capture refused'
-                      ? 'El teléfono no aceptó la captura de pantalla.'
-                      : `El teléfono respondió: ${screenError ?? screenState ?? 'sin detalle'}.`}
+                    {screenError === 'kiosk'
+                      ? 'Este teléfono (Android 7 a 10) está en modo quiosco y ahí Android no deja capturar la pantalla. Saca el teléfono del quiosco durante el soporte, o usa droidVNC‑NG (motor «Solo droidVNC‑NG» en la política). El chat, la llamada y los archivos siguen disponibles.'
+                      : screenError === 'capture refused'
+                        ? 'El teléfono no aceptó la captura de pantalla.'
+                        : `El teléfono respondió: ${screenError ?? screenState ?? 'sin detalle'}.`}
                   </p>
                   <button className="btn btn-primary" disabled={!live} onClick={startScreen}>Reintentar</button>
                 </>

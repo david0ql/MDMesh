@@ -46,11 +46,11 @@ automatically where the agent's engine is not authorised.
 
 `SupportAccessibilityService` (declared in the agent, listed in Accessibility as "Soporte remoto DallyControl"):
 
-- **Android 11+ (API 30+):** `takeScreenshot()`, no dialog at all, also in a kiosk and on the lock screen.
-- **Android 7–10 (API 24–29):** Android's screen capture (MediaProjection); the service itself presses "Start now"
-  (and ticks "Don't show again" where the dialog has it), so these releases need nobody either. Not available in a
-  kiosk on these releases (Android does not let the System UI consent show in lock task): droidVNC-NG has the same
-  limit there.
+- **Android 12+ (API 31+):** `takeScreenshot()`, no dialog at all, also in a kiosk and on the lock screen.
+- **Android 7–11 (API 24–30):** Android's screen capture (MediaProjection); the service itself presses "Start now"
+  (and ticks "Don't show again" where the dialog has it), so these releases need nobody either. Inside a kiosk
+  Android does not let that consent show: Android 11 then uses `takeScreenshot()` (one a second there), Android
+  7–10 has no screen in a kiosk.
 - Touch through `dispatchGesture` (taps, long presses, swipes), navigation through global actions (Back, Home,
   Recents, notifications, lock, power menu), typing through `ACTION_SET_TEXT` on the focused field.
 - It listens only to System UI window changes (for that consent) and receives no other app's events.
@@ -131,8 +131,15 @@ With droidVNC-NG as the screen, the session channel still carries voice, chat an
   person and operate the phone, not to watch video. (droidVNC-NG's accessibility capture has the same limit.) A
   touch is seen one or two captures later: about half a second on a phone, more on a loaded emulator (see
   docs/TESTING.md for the measured values).
-- (−) The Android 7–10 capture path (screen capture with its consent pressed by the service) is implemented but was
-  not run on an emulator in this round: those releases stay on droidVNC-NG until it is.
+- **Capture by release (measured, see docs/TESTING.md):** Android 12+ uses accessibility screenshots (Android allows
+  three a second; the agent keeps one "in hand" on a still screen and takes it 120 ms after a touch, so a touch is
+  seen in about 0.3 s). Android 11 allows only one accessibility screenshot a second, so Android 7–11 use Android's
+  screen capture with its consent pressed by the agent's own service (6–11 images a second, a touch seen in about
+  0.25 s; the first image of a session takes 2–4 s, the time of the consent). Android requires a notification while
+  screen capture runs, so on Android 7–11 the session notice cannot be switched off.
+- (−) Inside a kiosk Android blocks that consent screen: Android 11 falls back to accessibility screenshots (one a
+  second); Android 7–10 cannot show the screen from inside a kiosk (the console says so; chat, voice and files work,
+  and droidVNC-NG remains the engine for the screen there).
 - (−) Windows that set FLAG_SECURE (banking apps, password fields of some keyboards) are black in the image.
 - (−) A secure lock screen is shown as is: the operator can type the PIN only if they know it.
 - (−) Both sockets of a session must end on the same server process (in-memory relay, like the wake hub).

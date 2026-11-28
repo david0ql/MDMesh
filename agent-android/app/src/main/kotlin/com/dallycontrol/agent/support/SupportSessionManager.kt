@@ -97,6 +97,7 @@ class SupportSessionManager @Inject constructor(
     @Volatile private var streamJob: Job? = null
     @Volatile private var sendJob: Job? = null
     @Volatile private var ackedSeq = -1
+    @Volatile private var inputAt = 0L
     @Volatile private var maxDim = SupportProtocol.DEFAULT_DIM
     @Volatile private var quality = SupportProtocol.DEFAULT_QUALITY
     @Volatile private var voice: VoiceCall? = null
@@ -396,19 +397,39 @@ class SupportSessionManager @Inject constructor(
         wakeScreen()
         val notice = SupportEngine.settings(context).notice
         if (notice) service.showNotice(context.getString(R.string.support_viewing))
-        val projection = Build.VERSION.SDK_INT < SupportReadiness.MIN_SDK_A11Y_CAPTURE
-        if (projection && !ProjectionCapture.ensure(context, service, maxDim)) {
-            screenError("capture refused")
+        // Up to Android 11: Android's screen capture (its consent is pressed by the service). Where that is not to be
+        // had and accessibility can take screenshots (Android 11 inside a kiosk), those are used, at their slower pace.
+        val canShoot = Build.VERSION.SDK_INT >= SupportReadiness.MIN_SDK_A11Y_CAPTURE
+        // Inside a kiosk Android blocks the capture's consent screen (it is System UI's, not an allowed app): there
+        // Android 11 goes straight to accessibility screenshots, and Android 7-10 has no way to show the screen.
+        val inKiosk = runCatching {
+            context.getSystemService(android.app.ActivityManager::class.java).lockTaskModeState !=
+                android.app.ActivityManager.LOCK_TASK_MODE_NONE
+        }.getOrDefault(false)
+        if (inKiosk && !canShoot && !ProjectionCapture.active) {
+            screenError("kiosk")
             return
+        }
+        var projection = Build.VERSION.SDK_INT <= SupportReadiness.MAX_SDK_PREFER_PROJECTION && !(inKiosk && canShoot)
+        if (projection && !ProjectionCapture.ensure(context, service, maxDim)) {
+            if (!canShoot) {
+                screenError("capture refused")
+                return
+            }
+            projection = false
         }
         val jpeg = ByteArrayOutputStream(JPEG_BUFFER)
         var previous: Bitmap? = null
+        var stillSince = 0L
         var seq = 0
         var sentSeq = -1
         var sentAt = 0L
         // Android refuses an accessibility screenshot asked less than a third of a second after the previous one;
         // screen capture (Android 7-10) has no such limit.
-        var interval = if (projection) PROJECTION_INTERVAL_MS else A11Y_INTERVAL_MS
+        val shotInterval =
+            if (Build.VERSION.SDK_INT == SupportReadiness.MIN_SDK_A11Y_CAPTURE) SupportReadiness.A11Y_INTERVAL_SDK30_MS
+            else A11Y_INTERVAL_MS
+        var interval = if (projection) PROJECTION_INTERVAL_MS else shotInterval
         var lastCapture = 0L
         var statsAt = System.currentTimeMillis()
         var captures = 0
@@ -431,8 +452,19 @@ class SupportSessionManager @Inject constructor(
             // One frame in flight: the next is taken only once the console has drawn the last one (or it is overdue).
             if (sentSeq > ackedSeq && now - sentAt < ACK_TIMEOUT_MS) { delay(POLL_MS); continue }
             if (conn.backlog() > MAX_BACKLOG) { delay(BACKLOG_WAIT_MS); continue }
-            val wait = lastCapture + interval - now
-            if (wait > 0) delay(wait)
+            // Pacing. Android allows one accessibility screenshot every 333 ms, so each one must count:
+            //  - a screen that has been still for a while is looked at less often, which keeps a capture "in hand";
+            //  - right after a touch the next capture is taken as soon as Android allows it, but not before the app
+            //    has had a moment to react, so that capture is the one that shows the touch's effect.
+            val idle = stillSince > 0 && now - stillSince > IDLE_AFTER_MS
+            var due = lastCapture + if (idle && !projection) IDLE_INTERVAL_MS else interval
+            while (true) {
+                val t = System.currentTimeMillis()
+                val touched = inputAt
+                if (t - touched < TOUCH_WINDOW_MS) due = minOf(due, maxOf(lastCapture + interval, touched + SETTLE_MS))
+                if (t >= due) break
+                delay(minOf(WAIT_STEP_MS, due - t))
+            }
             lastCapture = System.currentTimeMillis()
             // Every few seconds: how the capture is doing (shown in the console's status line, read by the e2e test).
             if (lastCapture - statsAt >= STATS_MS) {
@@ -454,15 +486,21 @@ class SupportSessionManager @Inject constructor(
                 sentBytes = 0
             }
             val bitmap: Bitmap? = if (projection) {
-                if (!ProjectionCapture.active && !ProjectionCapture.ensure(context, current, maxDim)) {
-                    screenError("capture refused")
-                    return
+                // Also when it is running: a change of quality or a rotation resizes the capture.
+                if (!ProjectionCapture.ensure(context, current, maxDim)) {
+                    if (!canShoot) {
+                        screenError("capture refused")
+                        return
+                    }
+                    projection = false
+                    interval = shotInterval
+                    continue
                 }
                 ProjectionCapture.frame()
             } else {
                 val (b, error) = screenshot(current)
                 if (error == SupportAccessibilityService.ERROR_TOO_SOON) {
-                    interval = minOf(interval + INTERVAL_STEP_MS, MAX_INTERVAL_MS)
+                    interval = minOf(interval + INTERVAL_STEP_MS, maxOf(MAX_INTERVAL_MS, shotInterval + INTERVAL_STEP_MS))
                 }
                 b
             }
@@ -474,15 +512,17 @@ class SupportSessionManager @Inject constructor(
             // Always a private copy at the size sent, so it can be compared with the next one.
             val resized = Bitmap.createScaledBitmap(bitmap, w, h, true)
             val scaled = if (resized === bitmap) resized.copy(Bitmap.Config.ARGB_8888, false) else resized
-            if (!projection) bitmap.recycle()
+            if (!ProjectionCapture.owns(bitmap)) bitmap.recycle()
             // An unchanged screen is not sent again (a still screen costs no data and no encoding), except as a slow
             // keep-alive. Comparing pixels is far cheaper than encoding, so the loop is back at the screen sooner.
             val still = previous?.let { it.width == w && it.height == h && it.sameAs(scaled) } == true
             if (still && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) {
                 scaled.recycle()
+                if (stillSince == 0L) stillSince = System.currentTimeMillis()
                 delay(STILL_WAIT_MS)
                 continue
             }
+            stillSince = 0L
             previous?.recycle()
             previous = scaled
             jpeg.reset()
@@ -508,8 +548,13 @@ class SupportSessionManager @Inject constructor(
 
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // four kinds of input, each validated before use
     private fun input(type: String, m: JsonObject) {
+        inputAt = System.currentTimeMillis()
         if (type == "wake") { wakeScreen(); return }
-        val service = SupportAccessibilityService.instance ?: return
+        val service = SupportAccessibilityService.instance
+        if (service == null) {
+            Log.i(TAG, "input $type dropped: the screen service is not connected")
+            return
+        }
         when (type) {
             "tap" -> {
                 val x = m.num("x") ?: return
@@ -526,8 +571,10 @@ class SupportSessionManager @Inject constructor(
                 }.orEmpty().take(MAX_SWIPE_POINTS)
                 if (pts.size >= 2) service.gesture(pts)
             }
-            "key" -> m.str("k")?.let { service.key(it) }
-            "text" -> m.str("s")?.takeIf { it.isNotEmpty() }?.let { service.type(it.take(MAX_TEXT)) }
+            "key" -> m.str("k")?.let { k -> if (!service.key(k)) Log.i(TAG, "key $k had no effect") }
+            "text" -> m.str("s")?.takeIf { it.isNotEmpty() }?.let {
+                if (!service.type(it.take(MAX_TEXT))) Log.i(TAG, "text not typed: no editable field has the focus")
+            }
         }
     }
 
@@ -552,6 +599,7 @@ class SupportSessionManager @Inject constructor(
     // --- chat ----------------------------------------------------------------------------------------------------
 
     private fun onChat(text: String) {
+        Log.i(TAG, "chat line from support (${text.length} chars); support screen visible=$screenVisible")
         chat += ChatLine(true, text.take(MAX_TEXT), System.currentTimeMillis())
         changed()
         // Always bring the support screen up (it is a no-op when it is already on top): relying on the screen's own
@@ -789,6 +837,11 @@ class SupportSessionManager @Inject constructor(
         private const val BACKLOG_WAIT_MS = 20L
         private const val EMPTY_WAIT_MS = 80L
         private const val STILL_WAIT_MS = 20L
+        private const val IDLE_AFTER_MS = 1_500L
+        private const val IDLE_INTERVAL_MS = 700L
+        private const val TOUCH_WINDOW_MS = 2_000L
+        private const val SETTLE_MS = 120L
+        private const val WAIT_STEP_MS = 15L
         private const val STILL_REFRESH_MS = 5_000L
         private const val CAPTURE_TIMEOUT_MS = 3_000L
         private const val STATS_MS = 2_000L

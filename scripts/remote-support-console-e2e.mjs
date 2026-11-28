@@ -218,6 +218,8 @@ try {
   check('a message typed in the console is shown on the phone', read || (!!screen && screen.bubbles > 0),
     screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
   const answer = `respuesta${Date.now() % 100000}`;
+  await sleep(2500); // the first layout moves once the system bars are known
+  screen = supportScreen() || screen;
   if (screen && screen.field) {
     adbTap(screen.field); // the person on the phone answers
     await sleep(1200);
@@ -239,7 +241,7 @@ try {
   const inCall = check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
   let phoneRxRms = 0; let pageRxRms = 0;
   if (!inCall) throw new Error('no call: the rest of the voice checks cannot run');
-  for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
+  for (let i = 0; i < 24; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
     await sleep(500);
     phoneRxRms = Math.max(phoneRxRms, (await hook('s.callStats && s.callStats.rxRms')) || 0);
     pageRxRms = Math.max(pageRxRms, (await hook('s.rxAudioRms')) || 0);
@@ -264,6 +266,88 @@ try {
   check('"Colgar" ends the call', ['ended', 'idle'].includes(await hook('s.callState')), `${await hook('s.callState')}`);
   adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
 
+  // --- the operator's own keyboard: click the reply box in the image, type, Enter (the reply comes back by chat) ---
+  {
+    await page.getByTestId('support-chat-input').fill('Escribe aquí, por favor');
+    await page.getByTestId('support-chat-send').click();
+    let scr = null;
+    for (let i = 0; i < 30 && !(scr && scr.field); i++) { await sleep(1000); scr = supportScreen(); }
+    await sleep(2500); // the screen's first layout moves once the system bars are known: read it settled
+    scr = supportScreen() || scr;
+    const kb = `teclado${Date.now() % 100000}`;
+    if (check('the support screen is still up on the phone (reply box to type into)', !!scr && !!scr.field, top())) {
+      await serviceBack();
+      const b3 = await canvas.boundingBox();
+      const fx = (scr.field.b[0] + scr.field.b[2]) / 2 / size[0];
+      const fy = (scr.field.b[1] + scr.field.b[3]) / 2 / size[1];
+      await page.mouse.click(b3.x + fx * b3.width, b3.y + fy * b3.height);
+      await sleep(2500);
+      await canvas.focus();
+      await page.keyboard.type(kb, { delay: 60 });
+      await sleep(2500);
+      await page.keyboard.press('Enter');
+      const back = await page.getByTestId('support-chat-list').getByText(kb).waitFor({ timeout: 15000 }).then(() => true, () => false);
+      check('physical keyboard -> text: typed in the console, sent with Enter, the reply arrives through the session', back);
+    }
+
+    // --- clipboard, both ways (the support screen is in front, so Android lets the agent read its clipboard) ------
+    const clip = `portapapeles ${Date.now() % 100000}`;
+    await page.getByRole('button', { name: 'Portapapeles', exact: true }).click();
+    const panel = page.getByTestId('support-clip-panel');
+    await panel.getByLabel('Texto para el teléfono').fill(clip);
+    await panel.getByRole('button', { name: 'Enviar texto al teléfono' }).click();
+    await sleep(1500);
+    await panel.getByRole('button', { name: 'Traer del teléfono' }).click();
+    const got = await panel.locator('.ss-clip').filter({ hasText: clip }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    check('clipboard: text sent to the phone and brought back from the phone', got, got ? '' : (await panel.textContent().catch(() => '') || '').slice(-160));
+    await page.getByRole('button', { name: 'Portapapeles', exact: true }).click();
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+  }
+
+  // --- session bar: quality, scale, screenshot, recording ----------------------------------------------------------
+  {
+    const w0 = await canvas.evaluate((c) => c.width);
+    await page.getByLabel('Calidad de la imagen').selectOption({ label: 'Alta' });
+    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS'); // something new to draw at the new size
+    await page.waitForFunction((w) => document.querySelector('[data-testid="support-viewer"]').width > w, w0, { timeout: 15000 }).catch(() => null);
+    const w1 = await canvas.evaluate((c) => c.width);
+    check('"Calidad: Alta" gives a larger image', w1 > w0, `${w0} -> ${w1} px wide`);
+    await page.getByLabel('Calidad de la imagen').selectOption({ label: 'Media' });
+    const fitW = (await canvas.boundingBox()).width;
+    await page.getByLabel('Escala de la pantalla').selectOption('real');
+    await sleep(800);
+    const realW = (await canvas.boundingBox()).width;
+    check('"Escala: Tamaño real" shows the image at its own size', realW > fitW, `${Math.round(fitW)} -> ${Math.round(realW)} px on screen`);
+    await page.getByLabel('Escala de la pantalla').selectOption('fit');
+    const [png] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }).catch(() => null),
+      page.getByRole('button', { name: 'Captura', exact: true }).click()]);
+    const pngPath = png ? await png.path() : null;
+    check('"Captura" downloads the screen as a PNG', !!pngPath && fs.statSync(pngPath).size > 2000 && /\.png$/.test(png.suggestedFilename()),
+      png ? `${png.suggestedFilename()}, ${fs.statSync(pngPath).size} bytes` : 'no download');
+    await page.getByRole('button', { name: 'Grabar', exact: true }).click();
+    for (let i = 0; i < 4; i++) { await page.getByTestId(i % 2 ? 'support-key-home' : 'support-key-recents').click(); await sleep(900); }
+    const [rec] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null),
+      page.getByRole('button', { name: 'Detener grabación' }).click()]);
+    const recPath = rec ? await rec.path() : null;
+    check('"Grabar" / "Detener grabación" downloads the session as a video', !!recPath && fs.statSync(recPath).size > 5000,
+      rec ? `${rec.suggestedFilename()}, ${fs.statSync(recPath).size} bytes` : 'no download');
+    await page.getByTestId('support-key-home').click();
+    await shot('04b-barra');
+  }
+
+  // --- lock from the session bar ----------------------------------------------------------------------------------
+  {
+    const awake = () => /mWakefulness=Awake/.test(adb('shell', 'dumpsys', 'power'));
+    const was = awake();
+    await page.locator(".ss-bar").getByRole("button", { name: "Bloquear", exact: true }).click();
+    let asleep = false;
+    for (let i = 0; i < 40 && !asleep; i++) { await sleep(500); asleep = !awake(); }
+    check('"Bloquear" in the session bar locks the phone (screen off)', was && asleep);
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_MENU');
+    await sleep(1500);
+  }
+
   // --- end + history ---------------------------------------------------------------------------------------------
   await page.getByTestId('support-end').click();
   await page.waitForFunction(() => window.__dcSupport?.state === 'ended', null, { timeout: 15000 }).catch(() => null);
@@ -277,6 +361,26 @@ try {
   const listed = await page.getByTestId('support-sessions-table').getByText(user).first().waitFor({ timeout: 15000 }).then(() => true, () => false);
   check('the fleet page "Sesiones de soporte" lists it', listed);
   await shot('06-sesiones');
+
+  // --- restart from the session bar (last: the phone goes away) --------------------------------------------------------
+  if (!process.argv.includes('--no-reboot')) {
+    await page.goto(`${api}/devices/${device}`);
+    await page.locator('.tabs').getByRole('button', { name: 'Remoto', exact: true }).click();
+    await page.getByRole('button', { name: 'Ver y controlar' }).click();
+    await page.waitForFunction(() => (window.__dcSupport?.frames || 0) > 0, null, { timeout: 60000 }).catch(() => null);
+    const bootBefore = adb('shell', 'cat', '/proc/sys/kernel/random/boot_id').trim();
+    page.once('dialog', (d) => d.accept());
+    await page.locator(".ss-bar").getByRole("button", { name: "Reiniciar", exact: true }).click();
+    let rebooted = false;
+    for (let i = 0; i < 90 && !rebooted; i++) {
+      await sleep(2000);
+      try { rebooted = adb('shell', 'cat', '/proc/sys/kernel/random/boot_id').trim() !== bootBefore; } catch { /* going down */ }
+    }
+    check('"Reiniciar" in the session bar restarts the phone', rebooted);
+    for (let i = 0; i < 90; i++) { try { if (adb('shell', 'getprop', 'sys.boot_completed').trim() === '1') break; } catch { /* booting */ } await sleep(2000); }
+    const ended = await page.waitForFunction(() => window.__dcSupport?.state === 'ended', null, { timeout: 90000 }).then(() => true, () => false);
+    check('the session ends by itself when the phone goes away', ended, `${await hook('s.state')}`);
+  }
   const errors = consoleErrors.filter((e) => !/favicon|ERR_ABORTED/.test(e));
   check('no errors in the browser console', errors.length === 0, errors.slice(0, 3).join(' | '));
 } catch (e) {

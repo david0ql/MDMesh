@@ -839,3 +839,22 @@ attempts log, tracked download, the report endpoint and the counter); `enroll-co
 enroller was run under PowerShell 7 on macOS with a simulated adb (`scripts/windows-enroller-sim.sh`, 9/9), not on
 Windows PowerShell 5.1. Not covered by any of this: the camera and the QR reader, each maker's setup wizard, Play
 Protect, FRP, captive portals, real Zero-Touch / Knox enrollment, the agent's own QR scanner with a real camera.
+
+**Second round (2026-11-27 evening, final agent merged with `integration/mobicontrol`, QR-style enrollment, host load
+17-24 unless noted).** `--latency 10` = 10 fresh sessions and 10 taps; `--kiosk` = single-app and multi-app kiosk.
+
+| | Android 10 (API 29) | Android 11 (API 30) | Android 15 (API 35) | Android 16 (API 36) |
+|---|---|---|---|---|
+| Capture | screen capture, consent pressed by the service | same (accessibility screenshots inside a kiosk) | accessibility screenshots | accessibility screenshots |
+| `remote-support-e2e.mjs` | 45/48 | 63/64 (with `--kiosk`) | 59/59 (with `--kiosk`) | 46/50 at load 41 |
+| `remote-support-console-e2e.mjs` | 26/29 | 30/30 | 30/30 | 29/30 |
+| First image, p50 / p90 | 4.2 s / 4.5 s | 1.8 s / 2.8 s | 0.5 s / 1.3 s | 1.2 s / 1.7 s (load 41) |
+| Touch to image, p50 / p90 | 250 / 319 ms | 212 / 288 ms | 297 / 608 ms | 874 / 3461 ms (load 41: not valid) |
+| Session inside the kiosk (screen, touch, chat + reply, call, still in kiosk) | not run | pass, both kiosks | pass, both kiosks | **not verified**: `kiosk.enter` answered done but the phone was not in lock task; two later runs did not get past enrollment on the loaded machine |
+
+Misses, as they were: Android 10 - the policy's unattended call did not connect, Enter from the console does not send
+in a single-line field (Android 10 has no "IME enter" action), "Calidad: Alta" did not enlarge the image (fixed
+afterwards, not re-run), the synthetic microphone of Chromium was heard as near-silence once (also once on Android 11;
+it passed three times on Android 15). Android 11 - the session notice cannot be hidden while screen capture runs
+(Android's rule; the script now skips that check there). Android 16 console - the reply typed over adb did not
+arrive (the one typed through the session did).

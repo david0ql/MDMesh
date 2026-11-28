@@ -151,8 +151,10 @@ class SupportProtocolTest {
 
     @Test
     fun `capture method follows the android release`() {
-        assertEquals("a11y", SupportReadiness.capture(30))
+        assertEquals("a11y", SupportReadiness.capture(31))
         assertEquals("a11y", SupportReadiness.capture(36))
+        // Android 11 has accessibility screenshots, but only one a second: screen capture is preferred there.
+        assertEquals("projection", SupportReadiness.capture(30))
         assertEquals("projection", SupportReadiness.capture(29))
         assertEquals("projection", SupportReadiness.capture(24))
         assertEquals("none", SupportReadiness.capture(23))

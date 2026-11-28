@@ -68,11 +68,15 @@ En la política, sección **Soporte remoto**:
 
 ## Limitaciones por versión de Android
 
-| Android | Ver | Controlar | Sin nadie en el teléfono | Notas |
-|---------|-----|-----------|--------------------------|-------|
-| 6 (API 23) | No | No | — | Android no tiene las funciones necesarias. |
-| 7 – 10 (API 24–29) | Sí | Sí | Sí, tras la autorización | La imagen usa la captura de pantalla de Android; el agente acepta él mismo el aviso «Iniciar ahora». **No funciona dentro del quiosco** en estas versiones (Android no deja mostrar ese aviso en modo quiosco): ahí, usar droidVNC-NG o sacar el teléfono del quiosco durante el soporte. **Este camino está implementado pero aún no se probó en emulador ni en teléfono**: mientras tanto, en Android 7–10 usar droidVNC-NG (motor «Solo droidVNC-NG»); chat, voz y archivos sí funcionan con el agente. |
-| 11 – 16 (API 30–36) | Sí | Sí | Sí, tras la autorización | Sin ningún aviso, también en quiosco y con el teléfono bloqueado. Android limita la captura a unas 3 imágenes por segundo: suficiente para guiar y operar, no para ver video. |
+| Android | Ver y controlar | Sin nadie en el teléfono | Cómo captura | Dentro del quiosco |
+|---------|-----------------|--------------------------|--------------|--------------------|
+| 6 (API 23) | No | — | — | — |
+| 7 – 10 (API 24–29) | Sí | Sí, tras la autorización | Captura de pantalla de Android; el agente acepta él mismo el aviso «Iniciar ahora» (2–4 s al empezar cada sesión). Fluida: 6 imágenes/s o más. | **La pantalla no se puede ver** (Android bloquea ese aviso en quiosco): la consola lo dice y ofrece seguir con chat, llamada y archivos; para ver la pantalla, sacar el teléfono del quiosco o usar droidVNC-NG. |
+| 11 (API 30) | Sí | Sí, tras la autorización | Igual que 7–10. | Sí, con capturas de accesibilidad: una imagen por segundo (límite de Android 11). |
+| 12 – 16 (API 31–36) | Sí | Sí, tras la autorización | Capturas de accesibilidad, sin ningún aviso; hasta 3 imágenes/s (límite de Android). | Sí, igual que fuera del quiosco. |
+
+Probado en emulador en Android 10, 11, 15 y 16 (ver [TESTING.md](TESTING.md)). En Android 7–11 la notificación de la
+sesión no se puede ocultar por política: Android la exige mientras se captura la pantalla.
 
 Válido en todas las versiones:
 
@@ -103,15 +107,14 @@ Válido en todas las versiones:
 Emuladores en la máquina de pruebas (red local, servidor en Docker). Ver los números de cada corrida en
 [TESTING.md](TESTING.md#remote-support-through-the-agent-adr-0012).
 
-| Medida | Objetivo | Resultado |
-|--------|----------|-----------|
-| Tiempo hasta la primera imagen (desde «Ver y controlar») | < 10 s | 1,8 – 2,4 s (Android 11 y 15) |
-| Latencia de un toque (clic → imagen con el efecto) | < 1 s | 0,26 s con la máquina a carga 22; 0,7 s a carga 27; 1,2 – 2,3 s a carga 29 – 35 |
-| El teléfono se une a la sesión | — | 0,4 – 1,1 s |
+| Medida (10 repeticiones, p50 / p90) | Objetivo | Android 10 | Android 11 | Android 15 |
+|---|---|---|---|---|
+| Primera imagen desde «iniciar sesión» | < 10 s | 4,2 s / 4,5 s | 1,8 s / 2,8 s | 0,5 s / 1,3 s |
+| Toque → imagen con el efecto | < 1 s | 0,25 s / 0,32 s | 0,21 s / 0,29 s | 0,30 s / 0,61 s |
 
-La máquina de pruebas estuvo sobrecargada (carga 20 – 35 con 15 núcleos) en todas las corridas: los tiempos son
-cotas superiores. La latencia de toque depende de cuánto tarda una captura (unos 200 ms en el emulador cuando no
-está ahogado) y del límite de Android de una captura cada 333 ms; **debe confirmarse en un teléfono físico**.
+Medido en emulador con la máquina a carga 17–24 (15 núcleos); con la máquina más cargada los tiempos suben (ver
+TESTING.md). La cota de Android 12+ es una captura cada 333 ms; el agente guarda una captura «en mano» cuando la
+pantalla está quieta y la toma 120 ms después de un toque. En teléfono físico falta confirmarlo.
 
 La orden de inicio viaja por el canal en vivo del agente (el mismo socket por el que el servidor lo despierta): un
 teléfono conectado se une sin esperar a su siguiente reporte.

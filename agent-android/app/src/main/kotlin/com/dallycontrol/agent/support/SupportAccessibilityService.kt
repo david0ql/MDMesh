@@ -168,12 +168,26 @@ class SupportAccessibilityService : AccessibilityService() {
         return if (node.isMultiLine) type("\n") else false
     }
 
-    private fun focusedInput(): AccessibilityNodeInfo? =
-        runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()?.takeIf { it.isEditable }
+    /**
+     * The text field that has the input focus. Asked of the service first; when Android answers nothing there (it
+     * does while the keyboard's own window is the one last touched), each window on screen is asked in turn.
+     */
+    private fun focusedInput(): AccessibilityNodeInfo? {
+        val direct = runCatching { findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()?.takeIf { it.isEditable }
+        if (direct != null) return direct
+        val roots = runCatching { windows.mapNotNull { it.root } }.getOrDefault(emptyList()) +
+            listOfNotNull(runCatching { rootInActiveWindow }.getOrNull())
+        return roots.firstNotNullOfOrNull { root ->
+            runCatching { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) }.getOrNull()?.takeIf { it.isEditable }
+        }
+    }
 
     @Suppress("CyclomaticComplexMethod") // password, hint and plain fields each read their text differently
     private fun edit(change: (String, Int, Int) -> TextEdit.State): Boolean {
         val node = focusedInput() ?: return false
+        // Android hands out a cached copy of the field: read its text as it is now, or text typed a moment ago
+        // (the console sends what is typed in small batches) would be overwritten instead of continued.
+        runCatching { node.refresh() }
         val id = node.hashCode()
         val hint = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && node.isShowingHintText) "" else null
         val current: String
