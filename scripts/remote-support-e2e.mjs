@@ -796,7 +796,9 @@ if (want('policy')) {
     p.send({ t: 'screen.start', maxDim: 540, quality: 40 });
     await p.until(() => p.frames[0], 20000);
     await sleep(1000);
-    check('notice turned off by the policy: none is shown while the screen is viewed', !!p.frames[0] && !noticeShown());
+    // Android's screen capture (Android 7-11) cannot run without its own foreground-service notification.
+    if (info && info.capture === 'projection') console.log('  SKIP  notice off: this Android captures with screen capture, whose notification Android requires');
+    else check('notice turned off by the policy: none is shown while the screen is viewed', !!p.frames[0] && !noticeShown());
     const from = Date.now();
     p.send({ t: 'call.start', testTone: true });
     const active = await p.until(() => p.msg('call.state', from, (m) => m.s === 'active'), 15000);

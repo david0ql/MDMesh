@@ -944,9 +944,11 @@ export function SupportSession({ device, start, startedAt, altScreen, onScreenMo
                 <>
                   <h3>No se pudo mostrar la pantalla</h3>
                   <p>
-                    {screenError === 'capture refused'
-                      ? 'El teléfono no aceptó la captura de pantalla.'
-                      : `El teléfono respondió: ${screenError ?? screenState ?? 'sin detalle'}.`}
+                    {screenError === 'kiosk'
+                      ? 'Este teléfono (Android 7 a 10) está en modo quiosco y ahí Android no deja capturar la pantalla. Saca el teléfono del quiosco durante el soporte, o usa droidVNC‑NG (motor «Solo droidVNC‑NG» en la política). El chat, la llamada y los archivos siguen disponibles.'
+                      : screenError === 'capture refused'
+                        ? 'El teléfono no aceptó la captura de pantalla.'
+                        : `El teléfono respondió: ${screenError ?? screenState ?? 'sin detalle'}.`}
                   </p>
                   <button className="btn btn-primary" disabled={!live} onClick={startScreen}>Reintentar</button>
                 </>

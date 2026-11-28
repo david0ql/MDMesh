@@ -400,7 +400,17 @@ class SupportSessionManager @Inject constructor(
         // Up to Android 11: Android's screen capture (its consent is pressed by the service). Where that is not to be
         // had and accessibility can take screenshots (Android 11 inside a kiosk), those are used, at their slower pace.
         val canShoot = Build.VERSION.SDK_INT >= SupportReadiness.MIN_SDK_A11Y_CAPTURE
-        var projection = Build.VERSION.SDK_INT <= SupportReadiness.MAX_SDK_PREFER_PROJECTION
+        // Inside a kiosk Android blocks the capture's consent screen (it is System UI's, not an allowed app): there
+        // Android 11 goes straight to accessibility screenshots, and Android 7-10 has no way to show the screen.
+        val inKiosk = runCatching {
+            context.getSystemService(android.app.ActivityManager::class.java).lockTaskModeState !=
+                android.app.ActivityManager.LOCK_TASK_MODE_NONE
+        }.getOrDefault(false)
+        if (inKiosk && !canShoot && !ProjectionCapture.active) {
+            screenError("kiosk")
+            return
+        }
+        var projection = Build.VERSION.SDK_INT <= SupportReadiness.MAX_SDK_PREFER_PROJECTION && !(inKiosk && canShoot)
         if (projection && !ProjectionCapture.ensure(context, service, maxDim)) {
             if (!canShoot) {
                 screenError("capture refused")
