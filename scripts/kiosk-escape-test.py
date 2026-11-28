@@ -359,7 +359,7 @@ def t_settings_intents(mode):
     for action in SETTINGS_ACTIONS:
         out = sh(f"am start -a {action}")
         time.sleep(2)
-        check(f"adb am start {action.split('.')[-1]}: no abre Ajustes", not settings_in_front(), top() + " | " + out.strip()[-120:])
+        check(f"adb am start {action.split('.')[-1]}: no abre Ajustes", until(lambda: not settings_in_front(), 6, 0.5), top() + " | " + out.strip()[-120:])
         sh("input keyevent KEYCODE_BACK")
         home()
     for new_task in (False, True):

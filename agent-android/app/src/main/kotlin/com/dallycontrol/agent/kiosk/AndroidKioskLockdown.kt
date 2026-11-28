@@ -94,9 +94,13 @@ class AndroidKioskLockdown(
 
     /** The screen service came or went: re-evaluate the guard with what was engaged last. */
     private fun reengage() {
-        val (payload, allowed) = lastEngaged ?: return
-        if (!engaged(context)) return
-        kotlin.concurrent.thread(name = "kiosk-lockdown") { runCatching { engage(payload, allowed) } }
+        kotlin.concurrent.thread(name = "kiosk-lockdown") {
+            // Under the same lock as release(): a kiosk that was left meanwhile is never engaged again from here.
+            synchronized(this) {
+                val (payload, allowed) = lastEngaged ?: return@thread
+                if (engaged(context)) runCatching { engage(payload, allowed) }
+            }
+        }
     }
 
     /**
