@@ -542,3 +542,17 @@ DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wifi-console-e2e.mjs --api http:/
 The emulator only has an open network (`AndroidWifi`), so association is real for that one and the rest is checked as
 saved configuration. Authentication against WPA2/WPA3/802.1X needs an access point: WIFI.md, "Con un punto de acceso
 real".
+
+Result (2026-11-27, own stack + debug agent after merging `integration/mobicontrol`, clean emulators, host load 15–30):
+
+| Emulator | Checks | Not applicable there (reported by the agent, not failures) |
+|---|---|---|
+| Android 9 (API 28) | 70/70 | WPA3 and OWE (no API before Android 10: reported "not supported"), metered flag refused, `installKeyPair` needs a screen lock, no `cmd wifi forget-network` (the lock-down setting is checked instead), Android 13 rules reported as not available |
+| Android 11 (API 30) | 78/78 | device-MAC option refused; Android 13 rules reported as not available |
+| Android 15 (API 35) | 86/86 | — |
+
+Console: `wifi-console-e2e.mjs` 30/30 with `--device` (29 without). The runs found and fixed three agent bugs: on
+Android 13+ a static IP dropped the proxy; a network saved while the radio was starting stayed disabled for auto-join
+(Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
+earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
+ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
