@@ -1,4 +1,5 @@
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
+import { HardwarePolicyPanel } from '../components/HardwarePolicyPanel';
 import { listAppVersions, listPolicyDowngrades, listVersionLabels, setPolicyDowngrade, topCode, type LabeledVersion } from '../api/versions';
 import { AppGroupsPanel } from '../components/AppGroupsPanel';
 import { KioskBrandEditor } from '../components/KioskBrandEditor';
@@ -457,6 +458,12 @@ function ConfigEditor({
       toast.push('err', 'Aún cargando', 'Las apps asignadas todavía se están cargando; intenta de nuevo en un momento.');
       return;
     }
+    // A kiosk is always left with a password (the phone asks for it): never save one without it.
+    if (draft.kioskMode && String(draft.password ?? '').trim().length < 4) {
+      toast.push('err', 'Falta la contraseña de salida del quiosco',
+        'Un quiosco sin contraseña se podría abandonar desde el teléfono. Escribe una de al menos 4 caracteres en Seguridad → «Contraseña de salida del quiosco», o usa «Generar».');
+      return;
+    }
     const keys = isNew ? [] : kioskAffectingChanges(baseline, draft);
     // deviceCount null = unknown -> confirm anyway (fail closed); 0 = no device will re-apply.
     if (keys.length > 0 && deviceCount !== 0) { setConfirmKeys(keys); return; }
@@ -708,6 +715,8 @@ function ConfigEditor({
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)}
         apps={allowed.filter((a) => !!a.pkg && a.action !== 2).map((a) => ({ pkg: a.pkg as string, name: a.name }))} />
 
+      <HardwarePolicyPanel draft={draft} disabled={readOnly} set={set} />
+
       {!readOnly && <PolicyFolders policyId={draft.id as number | undefined} value={folders} onChange={setFolders} />}
 
       <button className="cfg-adv-toggle" onClick={() => setAdvanced((v) => !v)}>
@@ -829,6 +838,7 @@ function FieldControl({ def, value, apps, assigned, disabled, onChange }: { def:
     case 'color':
       return <input type="color" value={value ? String(value) : '#ffffff'} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
     case 'password':
+      if (def.key === 'password') return <ExitPasswordField value={value} disabled={disabled} onChange={onChange} />;
       return <input className="input" type="password" value={value == null ? '' : String(value)} disabled={disabled} onChange={(e) => onChange(e.target.value)} autoComplete="new-password" />;
     default:
       return <input className="input" type="text" value={value == null ? '' : String(value)} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
@@ -874,5 +884,29 @@ function PolicyAppGroups({ dc, kiosk, disabled, onChange }: {
         </div>
       ))}
     </section>
+  );
+}
+
+/** A random 8-digit kiosk exit password (digits: easy to dictate to a technician and to type on the phone). */
+function generateExitPassword(): string {
+  const buf = new Uint32Array(8);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (n) => String(n % 10)).join('');
+}
+
+/** The kiosk exit password: typed or generated, and readable on demand (a technician needs it in the field). */
+function ExitPasswordField({ value, disabled, onChange }: { value: unknown; disabled?: boolean; onChange: (v: unknown) => void }) {
+  const [shown, setShown] = useState(false);
+  const v = value == null ? '' : String(value);
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <input className="input mono" type={shown ? 'text' : 'password'} value={v} disabled={disabled} aria-label="Contraseña de salida del quiosco"
+        data-testid="kiosk-exit-password" onChange={(e) => onChange(e.target.value)} autoComplete="new-password" />
+      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setShown((x) => !x)}>{shown ? 'Ocultar' : 'Ver'}</button>
+      {!disabled && (
+        <button type="button" className="btn btn-sm" onClick={() => { onChange(generateExitPassword()); setShown(true); }}>Generar</button>
+      )}
+      {!!v && v.trim().length < 4 && <span className="field-error">Mínimo 4 caracteres.</span>}
+    </span>
   );
 }

@@ -13,12 +13,30 @@
 // brought up over adb, Home is pressed in the viewer, the launcher must come back); remote.vnc.stop ends
 // the session (the viewer is disconnected). Uses the Playwright copy under scripts/shots
 // (cd scripts/shots && npm install && npx playwright install chromium). Exit 0 only if all checks pass.
+//
+// --support: remote support through the agent itself (ADR 0012) instead of droidVNC-NG. Runs
+//   scripts/remote-support-e2e.mjs          (unattended start after a QR-style enrollment with --authorize, touch
+//                                            control read back over adb, chat, voice both ways, files, the log)
+//   scripts/remote-support-console-e2e.mjs  (the same session from the console's screen in Chromium, with the
+//                                            browser's synthetic microphone; skipped with --no-console)
+// passing the other arguments on (--api, --device, --serial, --authorize, --only, --skip, --pkg, --shots).
 import { createRequire } from 'module';
 import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+if (process.argv.includes('--support')) {
+  const { spawnSync } = await import('child_process');
+  const rest = process.argv.slice(2).filter((a) => a !== '--support' && a !== '--no-console');
+  const strip = (args, names) => args.filter((a, i) => !names.includes(a) && !names.includes(args[i - 1]));
+  const run = (script, args) => spawnSync(process.execPath, [path.join(here, script), ...args], { stdio: 'inherit' }).status;
+  let code = run('remote-support-e2e.mjs', strip(rest, ['--shots']));
+  if (!process.argv.includes('--no-console')) {
+    code = run('remote-support-console-e2e.mjs', strip(rest, ['--only', '--skip', '--pkg']).filter((a) => a !== '--authorize')) || code;
+  }
+  process.exit(code || 0);
+}
 const { chromium } = createRequire(path.join(here, 'shots', 'package.json'))('playwright');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const api = arg('--api', 'http://localhost:8088');

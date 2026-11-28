@@ -171,4 +171,16 @@ public interface AgentCommandMapper {
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND type = #{type} ORDER BY id DESC LIMIT 1"})
     AgentCommand findLatestOfType(@Param("deviceNumber") String deviceNumber, @Param("type") String type);
+
+    /**
+     * A wipe the device announced ("wiping now": status accepted, device marked by the check-in) and that was never
+     * followed by another report is over: it ran. One whose device keeps reporting stays as announced and its mark
+     * goes away ({@link #unmarkReportingDevices}).
+     */
+    @Update({"UPDATE agentCommand c SET status = 'done', detail = #{detail} FROM devices d " +
+            "WHERE d.number = c.deviceNumber AND d.customerId = #{customerId} AND d.wipedAt IS NOT NULL " +
+            "AND lower(c.type) = 'device.wipe' AND c.status = 'accepted' AND d.wipedAt < #{silentSince} " +
+            "AND d.lastUpdate <= d.wipedAt + #{slack}"})
+    int closeAnnouncedWipes(@Param("customerId") int customerId, @Param("silentSince") long silentSince,
+                            @Param("slack") long slack, @Param("detail") String detail);
 }

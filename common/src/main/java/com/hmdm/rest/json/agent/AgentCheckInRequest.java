@@ -56,7 +56,7 @@ public class AgentCheckInRequest {
     /** Buffered lifecycle events flushed on this check-in. */
     private List<AgentTelemetryEvent> events;
 
-    /** Connection diagnostics since the agent's last delivered report (optional; agents before 0.9.9 omit it). */
+    /** Connection diagnostics since the agent's last delivered report (optional; agents up to 0.9.8 omit it). */
     private AgentConnectionReport connection;
     /** How the agent can be woken (push token, battery exemption…); optional, agents before the push channel omit it. */
     private AgentWakeReport wake;

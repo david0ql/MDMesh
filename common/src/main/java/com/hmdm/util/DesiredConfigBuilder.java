@@ -81,12 +81,41 @@ public final class DesiredConfigBuilder {
     public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
                                       List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
                                       String dataSharingOverride) {
+        return build(cfg, apps, notInKiosk, folderBrands, extraKioskPackages, dataSharingOverride, null);
+    }
+
+    /**
+     * @param hardwareOverride per-device hardware and ports override (rule key → allow / block, see
+     *   {@link HardwarePolicy}); it wins over the policy's own rules and toggles. Null / empty = follow the policy.
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
+                                      String dataSharingOverride, Map<String, String> hardwareOverride) {
+        return build(cfg, apps, notInKiosk, folderBrands, extraKioskPackages, dataSharingOverride, hardwareOverride, null);
+    }
+
+    /**
+     * @param inheritedFrpAccounts the Google account ids the device's folder chain (nearest first) or the company
+     *   gives it for factory-reset protection; used when the policy has no accounts of its own and has not switched
+     *   the protection off (see {@link FrpAccounts#resolve}). Null / empty = none.
+     */
+    public static DesiredConfig build(Configuration cfg, List<Application> apps, Set<String> notInKiosk,
+                                      List<KioskBrand> folderBrands, Set<String> extraKioskPackages,
+                                      String dataSharingOverride, Map<String, String> hardwareOverride,
+                                      List<String> inheritedFrpAccounts) {
         List<Application> list = apps == null ? Collections.<Application>emptyList() : apps;
         DcPolicy dc = DcPolicy.parse(cfg.getDcPolicy());
         DesiredConfig d = new DesiredConfig();
         d.setConfigurationId(cfg.getId());
         d.setPolicies(policies(cfg));
-        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, dc.getKioskRoles(), notInKiosk) : null);
+        Map<String, String> hw = HardwarePolicy.effective(dc.getHardware(), HardwarePolicy.clean(hardwareOverride, false));
+        List<String> kioskRoles = dc.getKioskRoles();
+        // A blocked camera cannot be opened: the kiosk does not offer its icon (apps that use it just get no image).
+        if (HardwarePolicy.BLOCK.equals(hw.get(HardwarePolicy.CAMERA)) && kioskRoles != null && kioskRoles.contains("camera")) {
+            kioskRoles = new ArrayList<String>(kioskRoles);
+            kioskRoles.remove("camera");
+        }
+        d.setKiosk(cfg.isKioskMode() ? kiosk(cfg, list, kioskRoles, notInKiosk) : null);
         // Quick settings (Wi-Fi, Bluetooth, brightness) are part of a kiosk unless the policy turns them off.
         if (d.getKiosk() != null && !Boolean.FALSE.equals(dc.getKioskQuickSettings())) d.getKiosk().setQuickSettings(Boolean.TRUE);
         if (d.getKiosk() != null && dc.getPowerPin() != null) {
@@ -122,12 +151,7 @@ public final class DesiredConfigBuilder {
         com.hmdm.rest.json.agent.DesiredDevice rules = dc.getDevice();
         // The anti-theft PIN implies "no factory reset from Settings".
         if (dc.getPowerPin() != null && cfg.isKioskMode() && (rules == null || rules.getFactoryReset() == null)) {
-            com.hmdm.rest.json.agent.DesiredDevice r = new com.hmdm.rest.json.agent.DesiredDevice();
-            if (rules != null) {
-                r.setTethering(rules.getTethering()); r.setGoogleAccounts(rules.getGoogleAccounts());
-                r.setAccountDomain(rules.getAccountDomain()); r.setAccountDomains(rules.getAccountDomains());
-                r.setFrpAccounts(rules.getFrpAccounts());
-            }
+            com.hmdm.rest.json.agent.DesiredDevice r = rules == null ? new com.hmdm.rest.json.agent.DesiredDevice() : rules.copy();
             r.setFactoryReset("block");
             rules = r;
         }
@@ -139,7 +163,7 @@ public final class DesiredConfigBuilder {
                 rules.setTethering(t);
             }
         }
-        d.setDevice(rules);
+        d.setDevice(withFrp(rules, inheritedFrpAccounts));
         if (dc.getWifi() != null) {
             List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
             for (DcPolicy.Wifi w : dc.getWifi()) {
@@ -149,6 +173,8 @@ public final class DesiredConfigBuilder {
             }
             d.setWifi(nets);
         }
+        // Remote support settings travel only when the policy sets one (so older policies keep their revision).
+        d.setRemoteSupport(dc.getRemoteSupport());
         // Device-level kiosk apps: add the phone's own "show in kiosk" packages before the revision is hashed,
         // so the device re-applies and the app appears in its kiosk without touching the shared policy.
         if (d.getKiosk() != null && extraKioskPackages != null && !extraKioskPackages.isEmpty()) {
@@ -168,8 +194,52 @@ public final class DesiredConfigBuilder {
         }
         // Mobile data per app: the policy's own section (a device's override is added by the server's reconciler).
         d.setMobileData(MobileDataPolicy.desired(dc.getMobileData(), null));
+        hardware(d, hw, cfg.getRestrictions());
         d.setRevision(revision(d));
         return d;
+    }
+
+    /**
+     * The device rules as they travel to the phone: the reset-protection accounts are the policy's own, else the
+     * inherited ones, else none; {@code frpMode} (a console-side switch) never travels.
+     */
+    static com.hmdm.rest.json.agent.DesiredDevice withFrp(com.hmdm.rest.json.agent.DesiredDevice rules, List<String> inherited) {
+        boolean off = rules != null && FrpAccounts.MODE_OFF.equals(rules.getFrpMode());
+        boolean own = rules != null && rules.getFrpAccounts() != null && !rules.getFrpAccounts().isEmpty();
+        boolean inherit = !off && !own && inherited != null && !inherited.isEmpty();
+        if (rules == null && !inherit) return null;
+        com.hmdm.rest.json.agent.DesiredDevice r = rules == null ? new com.hmdm.rest.json.agent.DesiredDevice() : rules.copy();
+        r.setFrpMode(null);
+        if (off) r.setFrpAccounts(null);
+        else if (inherit) r.setFrpAccounts(new ArrayList<String>(inherited));
+        return r.isBlank() ? null : r;
+    }
+
+    /**
+     * Hardware and ports. Toggles (USB storage, Bluetooth, screenshots) travel in {@code policies}, which every agent
+     * applies; the camera goes both ways (its toggle for agents before the hardware section, the rule for the rest, which
+     * also undo it when the rule goes away); everything else in {@code hardware.rules}. The free field is sent only
+     * with the entries on the validated list. Nothing is added to a policy that sets none of this, so its revision
+     * does not change.
+     */
+    private static void hardware(DesiredConfig d, Map<String, String> hw, String freeField) {
+        Map<String, String> rules = new TreeMap<String, String>();
+        for (Map.Entry<String, String> e : hw.entrySet()) {
+            HardwarePolicy.Rule r = HardwarePolicy.rule(e.getKey());
+            if (r == null) continue;
+            boolean allowed = HardwarePolicy.ALLOW.equals(e.getValue());
+            if (r.kind == HardwarePolicy.Kind.TOGGLE) d.getPolicies().put(r.key, allowed);
+            else if (r.kind == HardwarePolicy.Kind.RULE) {
+                rules.put(r.key, e.getValue());
+                if (HardwarePolicy.CAMERA.equals(r.key)) d.getPolicies().put(r.key, allowed);
+            }
+        }
+        List<String> free = HardwarePolicy.parseRestrictions(freeField).accepted;
+        if (rules.isEmpty() && free.isEmpty()) return;
+        com.hmdm.rest.json.agent.DesiredHardware h = new com.hmdm.rest.json.agent.DesiredHardware();
+        h.setRules(rules.isEmpty() ? null : rules);
+        h.setRestrictions(free.isEmpty() ? null : free);
+        d.setHardware(h);
     }
 
     /** systemUpdateType: 0 device default (absent), 1 immediately, 2 in the from/to window (HH:MM), 3 postpone. */
@@ -290,9 +360,16 @@ public final class DesiredConfigBuilder {
         // Recents, the clock and battery, and the pull-down. The policy turns each off with an explicit "No".
         f.setHome(shown(cfg.getKioskHome())); f.setRecents(shown(cfg.getKioskRecents())); f.setNotifications(shown(cfg.getKioskNotifications()));
         f.setSystemInfo(shown(cfg.getKioskSystemInfo())); f.setKeyguard(cfg.getKioskKeyguard()); f.setLockButtons(cfg.getKioskLockButtons());
+        // Android 16+ has no lock task (soft kiosk): its status bar brings the system quick settings along, so it
+        // stays closed unless the policy explicitly asks for notifications ("Sí"), never by "Auto".
+        f.setSoftStatusBar(Boolean.TRUE.equals(cfg.getKioskNotifications()) ? Boolean.TRUE : null);
         k.setFeatures(f);
-        k.setExitMode(Boolean.TRUE.equals(cfg.getKioskExit()) ? "visible" : "gesture");
-        k.setPassword(cfg.getPassword());
+        // Leaving the kiosk on the device always needs a password. A policy without one (saved before that was
+        // required) is sent as "remote": no exit on the device at all, which also closes agents that used to let
+        // the 7-tap gesture out without asking. Such a kiosk is left from the console.
+        String password = KioskExitPolicy.isBlank(cfg.getPassword()) ? null : cfg.getPassword();
+        k.setExitMode(KioskExitPolicy.effectiveExitMode(Boolean.TRUE.equals(cfg.getKioskExit()) ? "visible" : "gesture", password));
+        k.setPassword(password);
         DesiredKioskTheme t = new DesiredKioskTheme();
         t.setBackgroundColor(cfg.getBackgroundColor()); t.setTextColor(cfg.getTextColor());
         t.setIconSize(cfg.getIconSize() == null ? null : cfg.getIconSize().name());

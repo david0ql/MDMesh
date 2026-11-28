@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * <p>Connection diagnostics an agent piggybacks on a check-in (optional; agents before 0.9.9 do not send it): the
+ * <p>Connection diagnostics an agent piggybacks on a check-in (optional; agents up to 0.9.8 do not send it): the
  * last network failure since its previous delivered report, how many times the wake socket reconnected, and why the
  * device went silent. Lets the console explain a gap instead of guessing.</p>
  */

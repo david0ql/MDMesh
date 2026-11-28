@@ -20,7 +20,7 @@
         "mode": { "enum": ["single", "launcher"] },
         "allowedPackages": { "type": "array", "items": { "type": "string" } },
         "pinPackage": { "type": "string" },
-        "features": { "type": "object", "properties": { "home": {"type":"boolean"}, "recents": {"type":"boolean"}, "notifications": {"type":"boolean"}, "systemInfo": {"type":"boolean"}, "keyguard": {"type":"boolean"}, "lockButtons": {"type":"boolean"} } },
+        "features": { "type": "object", "properties": { "home": {"type":"boolean"}, "recents": {"type":"boolean"}, "notifications": {"type":"boolean"}, "systemInfo": {"type":"boolean"}, "keyguard": {"type":"boolean"}, "lockButtons": {"type":"boolean"}, "softStatusBar": {"type":"boolean"} } },
         "exitMode": { "enum": ["gesture", "visible", "remote"] },
         "password": { "type": "string" },
         "theme": { "type": "object", "properties": { "backgroundColor": {"type":"string"}, "textColor": {"type":"string"}, "iconSize": {"type":"string"} } }
@@ -41,6 +41,22 @@
         "appLimits": { "type": "array", "items": { "type": "object", "required": ["pkg", "bytes"], "properties": { "pkg": {"type":"string"}, "bytes": {"type":"integer","minimum":1} } } },
         "essential": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "hardware": {
+      "type": "object", "additionalProperties": true,
+      "description": "Hardware and ports. Absent = not managed (the agent undoes what an earlier document set). Agents before this section ignore it; the camera is also sent as policies.camera for them.",
+      "properties": {
+        "rules": {
+          "type": "object", "additionalProperties": { "enum": ["allow", "block"] },
+          "description": "Rule key -> allow | block. Keys: camera, usbDebug, usbData, physicalMedia, bluetoothSharing, bluetoothConfig, nfc, nfcBeam, microphone, airplaneMode, wifiDirect, printing, networkReset, dateTime, unknownSources, locationConfig, locationSharing, contentCapture, assistContent (see registry.md)."
+        },
+        "restrictions": { "type": "array", "items": { "type": "string", "pattern": "^no_[a-z0-9_]+$" }, "description": "Extra UserManager.DISALLOW_* values from the validated list." }
+      }
+    },
+    "remoteSupport": {
+      "type": "object", "additionalProperties": true,
+      "description": "Remote support through the agent (ADR 0012). Absent = the agent's defaults (engine auto, notice shown, calls accepted by the person, authorisation asked after enrollment).",
+      "properties": { "engine": { "enum": ["builtin", "droidvnc"] }, "notice": {"type":"boolean"}, "callAccept": { "enum": ["auto"] }, "setupPrompt": {"type":"boolean"} }
     }
   }
 }

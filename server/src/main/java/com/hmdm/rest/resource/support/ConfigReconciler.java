@@ -53,7 +53,11 @@ public class ConfigReconciler {
                 : new java.util.HashSet<String>(commandDAO.listDeviceKioskApps(device.getId()));
         // Per-device "share data" override: when set it wins over the policy's device.tethering.
         String dataSharing = device.getId() == null ? null : commandDAO.getDeviceDataSharing(device.getId());
-        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing);
+        // Per-device hardware and ports override: wins over the policy's rules.
+        java.util.Map<String, String> hardware = device.getId() == null ? null
+                : com.hmdm.util.HardwarePolicy.parseOverride(commandDAO.getDeviceHardwareOverride(device.getId()));
+        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing, hardware,
+                inheritedFrpAccounts(device));
         return withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc));
     }
 
@@ -96,6 +100,27 @@ public class ConfigReconciler {
             logger.warn("Geofence tracking interval of {} not applied: {}", device.getNumber(), e.getMessage());
         }
         return doc;
+    }
+
+    /** Reset-protection defaults (field-injected so the constructor other code calls stays as it is). */
+    @Inject
+    private com.hmdm.persistence.ProtectionDAO protectionDAO;
+
+    /**
+     * The Google account ids the device's folder chain (nearest folder first) or the company gives it for
+     * factory-reset protection. Never fails the document: without them the policy's own accounts still apply.
+     */
+    private List<String> inheritedFrpAccounts(Device device) {
+        if (protectionDAO == null || device.getId() == null) return null;
+        try {
+            com.hmdm.util.FrpAccounts.Effective e = com.hmdm.util.FrpAccounts.resolve(null, null,
+                    protectionDAO.deviceFolderDefaults(device.getCustomerId(), device.getId()),
+                    protectionDAO.companyDefault(device.getCustomerId()));
+            return e.ids();
+        } catch (Exception e) {
+            logger.warn("Reset-protection accounts of device {} not read: {}", device.getNumber(), e.getMessage());
+            return null;
+        }
     }
 
     /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */

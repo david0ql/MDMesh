@@ -84,6 +84,10 @@ public class CommandHistoryView {
      * Never throws; the payload parsing rules live in {@link CommandPayloads#packageNameOf}.
      */
     public static String subjectOf(String type, String payloadJson) {
+        // A wipe / lost mode: what was ordered (intent and options), so it stays readable in the history.
+        if (com.hmdm.util.ProtectionCommands.WIPE.equals(type) || com.hmdm.util.ProtectionCommands.LOST_MODE.equals(type)) {
+            return com.hmdm.util.ProtectionCommands.subjectOf(type, payloadJson);
+        }
         if (!"app.install".equals(type) && !"app.uninstall".equals(type)) return null;
         return CommandPayloads.packageNameOf(payloadJson);
     }

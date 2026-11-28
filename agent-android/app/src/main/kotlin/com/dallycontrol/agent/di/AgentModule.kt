@@ -27,7 +27,6 @@ import com.dallycontrol.core.command.handlers.DeviceRebootHandler
 import com.dallycontrol.core.command.handlers.DeviceRingHandler
 import com.dallycontrol.core.command.handlers.DeviceLocationModeHandler
 import com.dallycontrol.core.command.handlers.DevicePowerModeHandler
-import com.dallycontrol.core.command.handlers.DeviceWipeHandler
 import com.dallycontrol.core.config.ConfigApplier
 import com.dallycontrol.core.location.LocationModeStore
 import com.dallycontrol.core.power.PowerModeStore
@@ -142,7 +141,8 @@ object AgentModule {
             policyKeys = registry::supportedPolicyKeys,
             // Remote view/control via droidVNC-NG (ADR 0010): probed per check-in, so installing it or
             // granting its input service shows up without an agent restart.
-            remoteControl = vnc::capability,
+            // The agent's own support engine (ADR 0012) is reported next to it.
+            remoteControl = { com.dallycontrol.agent.support.SupportEngine.capability(context, vnc.capability()) },
             oem = oemAdapter::capability,
             // Silent install needs Device Owner — advertise app.silentInstall only when we have it, so
             // the server's capability gate won't queue an app.install we can't perform.
@@ -188,6 +188,7 @@ object AgentModule {
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
+        protection: com.dallycontrol.agent.policy.ProtectionReport,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -202,7 +203,8 @@ object AgentModule {
                 runCatching { appActivity.collect() } // record user "opened app / camera" activity events
             }
         },
-        security = { security.collect() },
+        // Factory-reset protection, anti-tamper rules and lost mode as the device holds them now.
+        security = { security.collect().copy(protection = protection.read()) },
         // The trail fixes a successful check-in carried are on the server now.
         onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
     )
@@ -257,7 +259,16 @@ object AgentModule {
     @Singleton
     fun provideKioskController(handle: DpmHandle): KioskController =
         // droidVNC-NG stays startable in kiosk so remote support works on locked devices (ADR 0010).
-        LockTaskKioskController(handle.dpm, handle.admin, supportPackages = listOf(DroidVncController.PACKAGE))
+        // Android's permission dialog opens inside the asking app's task: it stays allowed, or — with in-task starts
+        // blocked on Android 11–15 (KioskHardening.blockInTaskStarts) — kiosk apps could not ask for permissions.
+        LockTaskKioskController(
+            handle.dpm, handle.admin,
+            supportPackages = listOf(
+                DroidVncController.PACKAGE,
+                "com.google.android.permissioncontroller",
+                "com.android.permissioncontroller",
+            ),
+        )
 
     @Provides
     @Singleton
@@ -322,10 +333,25 @@ object AgentModule {
         store: KioskStateStore,
         roles: RoleResolver,
         @ApplicationContext context: Context,
+        lockdown: com.dallycontrol.core.kiosk.KioskLockdown,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles)
+        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, roles, lockdown)
     }
+
+    /**
+     * What keeps the kiosk closed beyond lock task: kiosk restrictions, Settings (and, on the soft kiosk, every app
+     * outside it) suspended, status bar. droidVNC-NG stays usable for remote support.
+     */
+    @Provides
+    @Singleton
+    fun provideKioskLockdown(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.core.kiosk.KioskLockdown = com.dallycontrol.agent.kiosk.AndroidKioskLockdown(
+        context, handle.dpm, handle.admin, events, supportPackages = listOf(DroidVncController.PACKAGE),
+    )
 
     /**
      * Lets a downgrade uninstall a kiosk-pinned app: on a kiosk device, bring the kiosk launcher forward so the
@@ -513,11 +539,6 @@ object AgentModule {
 
     @Provides
     @IntoSet
-    fun provideWipeHandler(handle: DpmHandle): CommandHandler =
-        DeviceWipeHandler(handle)
-
-    @Provides
-    @IntoSet
     fun providePowerModeHandler(store: PowerModeStore): CommandHandler =
         DevicePowerModeHandler(store)
 
@@ -604,20 +625,29 @@ object AgentModule {
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
+        lostMode: com.dallycontrol.core.lost.LostMode,
     ): ConfigApplier = ConfigApplier(
-        toggles, kiosk, location::set, store, browser, apps,
+        // While the device is lost its position cadence wins; the policy's values are kept for when it is found.
+        toggles, kiosk, { mode -> location.set(lostMode.locationModeFromPolicy(mode)) }, store, browser, apps,
         wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
-        setTrackingMinutes = trail::setIntervalMinutes,
+        setTrackingMinutes = { minutes -> trail.setIntervalMinutes(lostMode.trackingFromPolicy(minutes)) },
         setLocationFixTimeout = location::setFixTimeoutSec,
         mobileData = mobileData::apply,
+        hardware = com.dallycontrol.agent.policy.HardwareRules(context, deviceRules.handle)::apply,
+        setRemoteSupport = { com.dallycontrol.agent.support.SupportEngine.applySettings(context, it) },
     )
 
     @Provides
     @Singleton
-    fun provideDeviceRules(@ApplicationContext context: Context, handle: DpmHandle, events: EventSink): com.dallycontrol.agent.policy.DeviceRules =
-        com.dallycontrol.agent.policy.DeviceRules(context, handle, events)
+    fun provideDeviceRules(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+        protection: com.dallycontrol.agent.policy.DeviceProtection,
+    ): com.dallycontrol.agent.policy.DeviceRules =
+        com.dallycontrol.agent.policy.DeviceRules(context, handle, events, protection)
 
     /** `device.clearCache`: Android's own "clear every app's cache" confirmation, opened on the phone. */
     @Provides
@@ -658,4 +688,17 @@ object AgentModule {
         com.dallycontrol.agent.data.MobileDataEnforcer(
             context, handle, events, protected = listOf(DroidVncController.PACKAGE),
         )
+    // --- Remote support through the agent itself (ADR 0012) ---
+
+    @Provides
+    @IntoSet
+    fun provideRemoteSessionStartHandler(
+        sessions: com.dallycontrol.agent.support.SupportSessionManager,
+    ): CommandHandler = com.dallycontrol.agent.support.RemoteSessionStartHandler(sessions)
+
+    @Provides
+    @IntoSet
+    fun provideRemoteSessionStopHandler(
+        sessions: com.dallycontrol.agent.support.SupportSessionManager,
+    ): CommandHandler = com.dallycontrol.agent.support.RemoteSessionStopHandler(sessions)
 }

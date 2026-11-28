@@ -1,0 +1,54 @@
+@page { size: A4; margin: 29mm 22mm 18mm 22mm;
+  @top-left { content: ""; width: 100%; height: 13mm; background: url(logo.jpeg) no-repeat left bottom / auto 9mm; vertical-align: bottom; padding-bottom: 2.5mm; border-bottom: .75pt solid #1F3A5F; }
+  @bottom-left { content: "Asistencia Móvil · NOMBRE DEL INFORME"; /* CAMBIAR: texto del pie de cada página */ font-family:"Avenir Next",Helvetica,Arial,sans-serif; font-weight:500; font-size:7.5pt; letter-spacing:.02em; color:#5F6B7A; }
+  @bottom-right { content: "Página " counter(page) " de " counter(pages); font-family:"Avenir Next",Helvetica,Arial,sans-serif; font-weight:500; font-size:7.5pt; color:#5F6B7A; }
+}
+@page :first { @bottom-left { content: none; } @bottom-right { content: none; } }
+:root{
+  --ink:#1F2933; --mute:#5F6B7A; --line:#D5DBE3; --navy:#1F3A5F;
+  --ok:#2F6F4E; --warn:#A56A12; --bad:#9B2C2C;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Charter,Georgia,serif;font-size:10pt;line-height:15pt}
+.sec{position:relative}
+.sec.pb{break-before:page}
+.sans,.k,h1,h2,table,.cap,.steps,.meta{font-family:"Avenir Next",Helvetica,Arial,sans-serif}
+.k{font-weight:500;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 2.2mm;break-after:avoid}
+h1{font-weight:600;font-size:19pt;line-height:24pt;color:var(--navy);margin:0 0 3.5mm;break-after:avoid;break-inside:avoid}
+h2{font-weight:600;font-size:12pt;line-height:16pt;color:var(--navy);margin:4mm 0 1.5mm;break-after:avoid;break-inside:avoid}
+p{margin:0 0 1.8mm;orphans:2;widows:2}
+ul.b{margin:0 0 2.2mm;padding-left:5mm}
+ul.b li{margin:0 0 0.8mm}
+.hd{position:fixed;left:0;right:0;top:-16mm;border-bottom:.75pt solid var(--navy);padding-bottom:2.5mm}
+.hd img{display:block;height:9mm;width:auto}
+svg{display:block;width:100%;height:auto;break-inside:avoid}
+svg text{font-family:"Avenir Next",Helvetica,Arial,sans-serif}
+table{width:100%;border-collapse:collapse;font-size:8.5pt;line-height:11.5pt}
+thead{display:table-header-group}
+tr{break-inside:avoid}
+th{font-weight:500;font-size:7.5pt;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);text-align:left;border-bottom:.75pt solid var(--ink);padding:0 2mm 1.2mm 0;vertical-align:bottom}
+td{border-bottom:.5pt solid var(--line);padding:0.7mm 2mm 0.7mm 0;vertical-align:top}
+td.n{width:7mm;color:var(--mute)}
+td.r,th.r{text-align:right}
+td.c{color:var(--mute)}
+table.compact{font-size:8pt;line-height:10pt}
+table.compact td{padding:0.6mm 2mm 0.6mm 0}
+.figs{display:grid;grid-template-columns:repeat(3,1fr);gap:7mm;border-top:.5pt solid var(--line);padding-top:3.5mm;margin-top:5mm}
+.fig .v{font-weight:600;font-size:22pt;line-height:26pt;color:var(--navy)}
+.fig .t{font-size:8.5pt;line-height:11.5pt;color:var(--mute);margin-top:1.5mm}
+.dot{display:inline-block;width:2.2mm;height:2.2mm;border-radius:50%;margin-right:1.6mm;vertical-align:.2mm}
+.callout{border-left:1.5pt solid var(--navy);padding:.5mm 0 .5mm 4mm;margin:4mm 0 4mm}
+.callout b{font-weight:600;color:var(--navy)}
+.cap{font-size:7.5pt;line-height:10pt;color:var(--mute);margin:1.5mm 0 2mm}
+.nota{font-size:8pt;line-height:11pt;color:var(--mute);margin:1.5mm 0 2.5mm;font-family:Charter,Georgia,serif}
+.steps{margin:0 0 3mm;padding:0;list-style:none;counter-reset:s;font-size:9pt;line-height:13pt}
+.steps li{counter-increment:s;padding:1.6mm 0 1.6mm 8mm;border-bottom:.5pt solid var(--line);position:relative}
+.steps li:before{content:counter(s);position:absolute;left:0;top:1.6mm;font-weight:600;color:var(--navy)}
+.muted{color:var(--mute)}
+.formula{font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-size:8.5pt;color:var(--ink)}
+.cover{height:249mm}
+.cover .title-block{padding-top:40mm}
+.meta-row{display:flex;font-size:9pt;line-height:14pt;padding:1.6mm 0;border-bottom:.5pt solid var(--line)}
+.meta-row span:first-child{width:34mm;color:var(--mute)}
+.keep{break-inside:avoid}

@@ -285,6 +285,26 @@ Result (2026-11-27, own stack + debug agent 0.9.7 on a clean API 31 emulator, Ma
 device and `--mailpit`; "Actualizar ahora" showed the new battery level 1.8 s after the request; the scheduled
 e-mail fired by the server arrived 32 s after its slot, exactly once; `--expect-no-smtp` 3/3; `--expect-offline` 4/4 (22 min after the emulator was shut down).
 
+## Kiosk escape test (docs/KIOSK-HARDENING.md)
+
+`scripts/kiosk-escape-test.py` puts an enrolled Device-Owner device in the kiosk through the admin API (single app,
+then several apps) and tries every known way out over adb: Settings by `am start`, an allowed app opening Settings by
+intent (same task and new task), the status bar and its gear, Home, Recents, the power menu (open by default, closed
+with "lock buttons"), the "share data" screen, the 7-tap exit with wrong passwords (wait after the third, attempts
+reported to the server) and with the right one, a kiosk without password (no exit on the device), the kiosk an old
+server would send (`--legacy-psql`) and, with `--reboot`, a restart that must come back into the kiosk untouched.
+`scripts/build-escapeapp.sh` builds its stand-in work app; `scripts/kiosk-escape-matrix.sh` runs it on a clean
+emulator per release (headless; `EMU_PORT`, `WEB_PORT`, `LEGACY_PSQL`, `EMU_ARGS`); `scripts/kiosk-console-e2e.mjs`
+checks the console and server side of the exit password in headless Chromium.
+
+```bash
+scripts/build-escapeapp.sh
+LEGACY_PSQL="docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol -d dallycontrol" \
+  scripts/kiosk-escape-matrix.sh agent-android/app/build/outputs/apk/debug/app-debug.apk mdm_api29 mdm_api35 mdm_api36
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/kiosk-console-e2e.mjs --api http://localhost:8088
+```
+
+Results: see the table at the end of [KIOSK-HARDENING.md](KIOSK-HARDENING.md).
 ## QR provisioning on every Android release (MDM-01)
 
 `scripts/qr-matrix/qr_matrix.py` runs Android's real managed provisioning with a QR payload on a clean emulator per
@@ -491,6 +511,195 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
+
+## Hardware y puertos (MDM-12)
+
+`scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
+device uses (restored at the end) it: blocks every hardware rule, the older toggles (screenshots, USB storage,
+Bluetooth), data sharing and a free list of Android restrictions; checks the server status ("Restricciones aplicadas")
+rule by rule, `dumpsys user`, `dumpsys device_policy`, that a screenshot fails or is black, that the camera is refused,
+that MTP is refused (`svc usb`) and that the hotspot cannot be switched on in Settings; blocks USB debugging and checks
+that adb stops answering; reverts everything and checks that adb comes back by itself and nothing is left; and sets and
+removes a per-device camera exception. Rules newer than the device's Android must be reported `unsupported: sdk-N`.
+
+```bash
+scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <device number>
+# on a phone you reach only by cable, keep adb: --keep-usb-debug
+
+(cd scripts/shots && npm ci)       # once: Playwright
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
+```
+
+Result (2026-11-27, own stack + debug agent on clean emulators; a rule the release cannot honour must be reported, so
+the totals differ):
+
+| Android | API | `hardware-e2e.py` | Notes |
+|---|---|---|---|
+| 9 | 28 | 57/57 | USB data, NFC, Wi-Fi Direct, content capture and assistant reported `unsupported: sdk-N`; date/time with the restriction; no camera app on the image (camera check skipped, policy state verified) |
+| 15 | 35 | 58/58 | after merging the base branch; NFC reported `unsupported: platform` (this image refuses the restriction); `hardware-console-e2e.mjs --device` 26/26 |
+| 16 | 36 | 57/58 | NFC applied; the one failure was the script counting `dumpsys user`'s per-user-type templates as restrictions in force (fixed, re-verified on API 35) |
+
+On every release: adb stopped answering when USB debugging was blocked and came back by itself after the revert; the
+emulators report `canUsbDataSignalingBeDisabled() = true`, so "USB data" was applied and reverted there. `svc usb
+getFunctions` gives no answer on these images, so the MTP check is skipped (the `no_usb_file_transfer` restriction is
+verified instead).
+
+## Remote support through the agent (ADR 0012)
+
+Screen, touch, voice, chat and files over the agent's own session channel, with no droidVNC-NG. Unit tests:
+`SupportSessionsTest` (relay rules, view-only, audit, capabilities, policy), `SupportHubTest` (when a session ends by
+itself), `UserScopeFilterTest#remoteSupportIsScopedToTheirDevices`, and on the agent `SupportProtocolTest` (µ-law
+codec, frame layout, scaling, typing, readiness, compatibility with older servers) and `SupportChannelTest` (the
+device's socket against a real WebSocket server).
+
+End to end, on an emulator or a phone (`scripts/remote-e2e.mjs --support …` runs both):
+
+```bash
+# the operator's side of the session socket, no browser: every check is on the wire or read back over adb
+node scripts/remote-support-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554 [--authorize]
+# the console's screen in headless Chromium (synthetic microphone): image, soft keys, click, chat, call, history
+node scripts/remote-support-console-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554
+# from a shell: status, start (prints key + token), stop, log
+scripts/remote-session.sh --api http://localhost:8088 --device <id> --support --status
+```
+
+**QR-style enrollment on an emulator.** `adb install -g` (what `scripts/adb-enroll.sh --apk …` does) grants the agent
+WRITE_SECURE_SETTINGS, so that device needs no tap at all. To reproduce a QR / zero-touch enrollment, install the
+agent first **without** `-g` (`adb install agent.apk`) and run `scripts/adb-enroll.sh` without `--apk`: the agent then
+holds nothing a Device Owner cannot grant itself, shows the guided screen by itself after enrolling, and
+`remote-support-e2e.mjs --authorize` does the one tap on the phone's real Settings screens before going on.
+
+`uiautomator dump` (used by both scripts to read what is on the phone) makes Android unbind every accessibility
+service for a moment, the agent's screen service included; the scripts wait for it to be bound again. A real session
+never meets that.
+
+Voice on an emulator started with `-no-audio`: the phone's microphone records silence, so a debug agent sends a 440 Hz
+tone when the call is started with `testTone` (the scripts do), and the checks are on level and pitch at both ends;
+the real microphone path is still opened and checked (`recording`, frames flowing).
+
+Results (2026-11-27, own stack, debug agent merged with `integration/mobicontrol`, emulators at 720x1600, enrolled
+QR-style: no adb grant). **The test machine was at load 20-35 (15 cores) during every run, so the times are upper
+bounds, not the product's speed**; the host load is printed with each run's measures.
+
+| | Android 11 (API 30) | Android 15 (API 35) |
+|---|---|---|
+| Device-Owner self-authorisation (`info.probe`) | grant refused, `setSecureSetting` SecurityException | same |
+| Guided screen after enrollment, one tap in the real Settings screens, console goes from "Falta autorización" to "Remoto listo" | pass | pass |
+| Authorisation kept after a reboot and after updating the agent | pass | pass |
+| `remote-support-e2e.mjs` (merged agent) | 35/40 | 37/40 |
+| `remote-support-console-e2e.mjs` (merged agent) | 20/20 | 19/20 (the one miss was the test's own mute check, since fixed; 20/20 on API 30 with the fix) |
+| Device joins after "start" | 0.4 s | 1.1 s |
+| First image (protocol / console click) | 0.7 s / 2.4 s | 2.3 s / 1.8 s |
+| Touch to image | 1.2 s at load 29 | 0.26 s at load 22 (0.7 s at load 27, 2.3 s at load 35) |
+| Images while scrolling | 0.6 /s at load 29 | 2.1 /s at load 22 |
+| Capture / encode per image | 204 ms / 28 ms | 209 ms / 28 ms |
+
+What did not pass in the protocol script, and why:
+
+- **Typing a reply through the remote session and tapping Enviar** (API 30 and 35): the reply typed *on the phone*
+  (console script, over adb) arrives and is logged; the variant where the operator taps the reply box, types and taps
+  Enviar through the session did not complete in any run. Typing into a focused field through the session was seen
+  working once (API 35, text read back with uiautomator); the script's way of finding the box and the button on a
+  busy emulator is the suspect, but it is **not confirmed**. Check on a phone: open a text field, type from the console.
+- **Notice turned off by the policy while a session is open** (API 35, 2 of 3 runs): the session notification stayed.
+  A session opened after the policy has arrived shows no notice (API 30 pass).
+- **Touch-to-image under 1 s and images while scrolling** on API 30 at load 29: see the table; Android 11 also
+  refused some screenshots as "too soon" at 340 ms spacing, so the agent backed off to 500 ms there.
+- **The support screen for a chat line** was not seen on top in the last API 30 protocol run (it was in the console run
+  of the same boot and in the earlier ones).
+
+Not run: Android 7-10 (the screen-capture path with its consent pressed by the service), kiosk, a physical phone.
+
+
+## Connection stability (MDM-02): reconnection, diagnostics, resting state
+
+```bash
+# the customer's network check (DNS, port, TLS issuer, HTTPS, WebSocket upgrade); see docs/REQUISITOS-RED.md
+scripts/prueba-red.sh https://<server>
+
+# two "bad networks" in front of the dev stack, to see the tools and the agent fail the right way
+scripts/red-simulada.py tls  --listen 8443 --upstream localhost:8088 &   # certificate of a made-up firewall CA
+scripts/red-simulada.py nows --listen 8122 --upstream localhost:8088 &   # 403 to any WebSocket upgrade
+scripts/prueba-red.sh https://localhost:8443 http://localhost:8122        # expect one FALLA each (TLS, WebSocket)
+
+# a real agent (debug build, enrolled with scripts/adb-enroll.sh): cuts the network in several ways, measures the
+# time back to the live channel and to a command's result, and checks what reaches /rest/private/connection/v1.
+# The stack needs AGENT_BACKUP_URLS (the tls scenario reports through the backup URL).
+scripts/conexion-e2e.py --serial emulator-5554 --device-id <id> --api http://localhost:8088 \
+    --server-url http://10.0.2.2:8088 --tls-url https://10.0.2.2:8443 --nows-url http://10.0.2.2:8122 \
+    --backup-device-url http://10.0.2.2:8080 --compose "docker compose --env-file docker/dev.env" \
+    --db-container dallycontrol-dev-postgres-1 [--only baseline,wifi,outage,airplane,doze,server,failover,tls,nows,resting,reboot]
+
+# the console in headless Chromium: the "Última falla de conexión" card and "En reposo"
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/consola-conexion-e2e.mjs --api http://localhost:8088 --device <id> \
+    --expect "Certificado TLS rechazado" --issuer "FortiGate CA simulada" [--resting <id shown as En reposo>]
+```
+
+Results (2026-11-27, own stack through Caddy, debug agent on clean emulators). The machine ran about 13 agents at
+once (load average 27–40 during every run), so the times are upper bounds, not what an idle machine gives.
+
+| Scenario | Android 16 (API 36) | Android 10 (API 29) |
+|---|---|---|
+| Command with the live channel open | 0.7–0.9 s at load ~20; 2.0–11.6 s at load ~30 | 1.9–3.9 s |
+| Wi-Fi off, falls to mobile data: command done | 2.0 s (channel live again in 3.3 s) | 6.8 s (17.0 s) |
+| Wi-Fi back: command done | 6.4 s | 2.8 s |
+| 90 s with no network, then back: channel / command queued meanwhile | 16.5 s / 39.5 s (earlier run: 3.9 s) | 1.5 s / 12.2 s |
+| Airplane mode 60 s, then off: command queued meanwhile | 35.9 s (the emulator's radio takes most of it) | not run |
+| Forced Doze (screen off, unplugged): command | 17.7 s | 4.4 s, 2.1 s; channel open 98 % of 5 min, 0 reconnections |
+| Server drops a socket whose phone lost the network (150 s idle) | 146.9 s | 156.0 s |
+| Server restart: command after it answers again | not measured (run lost to the test machine) | 2.9 s (channel 38.6 s, limit was 30 s) |
+| Network inspects TLS (red-simulada tls) | console gets `tls` + issuer "FortiGate CA simulada" in 212 s, through the backup URL; command by the backup URL 4.9 s | not run with the final build |
+| Network blocks WebSocket (red-simulada nows) | console gets "WebSocket rechazado (HTTP 403)" in 131 s; commands keep arriving (3.3 s) | not run |
+| "En reposo" vs "Sin conexión" | screen off + silent 45 min = resting; after 17 h = offline; in use + silent = offline | not run (docker exec timed out) |
+| Orderly reboot | goodbye report received ("Apagado o reinicio del equipo"), closed with its duration; channel back 55 s after the reboot command, without opening the app | channel back in 53.9 s, command 4.0 s (goodbye not received with the earlier build) |
+
+Console (`consola-conexion-e2e.mjs`): 9/9. `prueba-red.sh`: passes against the stack, fails with the right cause
+against both simulated networks.
+
+Not covered by an emulator: makers' battery managers (HyperOS, One UI) stopping the service, a real Wi-Fi to
+mobile hand-over while walking, Doze over hours (forced Doze only), and the path through Cloudflare (WebSocket ping
+frames and the 150 s idle limit were only checked through the local Caddy).
+
+## Factory-reset protection, lost mode and remote wipe
+
+`scripts/frp-wipe-e2e.py` checks, on a real enrolled agent, the two anti-theft criteria (MDM-03 and MDM-09; the user
+guide is [FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md)):
+
+```bash
+scripts/frp-wipe-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> --destructive
+scripts/frp-wipe-e2e.py --api http://localhost:8088 --only reenroll        # API only, no device
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/frp-console-e2e.mjs --api http://localhost:8088 \
+    --device-id <numeric id> --policy "Managed Launcher"                   # the console screens, headless Chromium
+```
+
+- `frp`: company default account, a policy that blocks reset from Settings / safe mode / OEM unlock and wipes after 10
+  wrong unlocks; `dumpsys device_policy` and the agent's own read-back must agree, and the console must say what the
+  device really holds. Android 10 and older go through Google Play services' `factoryResetProtectionAdmin`
+  restriction (read back from `/data/system/users/0/res_com.google.android.gms.xml`); Android 11+ through
+  `setFactoryResetProtectionPolicy`.
+- `lost`: lost mode end to end (lock, message + phone on the lock screen, a position every minute, wipe after N wrong
+  unlocks, back to the policy's values when it ends).
+- `reenroll`: a phone that enrolls again after a reset returns to its row / folder by serial or IMEI; a deleted one is
+  re-created from its tombstone; junk identifiers never match.
+- `wipe-online`, `wipe-offline` (`--destructive`): the agent announces the wipe before running it, flags per option,
+  who ordered it and with which options, and a wipe queued without link for 3 days that runs on reconnect.
+
+Emulator limits: no `/misc` partition (the reset is accepted as handed to recovery, as above) and no persistent data
+block, so on Android 11+ `setFactoryResetProtectionPolicy` answers "unsupported" there. The test then requires the
+console to say "FRP inactiva: este equipo no admite…" instead of a false "activa". The FRP challenge after a reset
+by hardware buttons can only be confirmed on a physical phone with Google services: the steps are in
+[FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md), section 8.
+
+Result (2026-11-27, own stack, debug agent built from this branch after merging `integration/mobicontrol`; machine
+load 26-34 while measuring, so no timing is claimed):
+
+| Android | API | frp + lost | wipe-online | wipe-offline | console (`frp-console-e2e.mjs`) |
+|---------|-----|------------|-------------|--------------|----------------------------------|
+| 10 | 29 | 26/26: FRP active through Google Play services, account read back from its restrictions file | 8/8, `wipeData(flags=3)` | 13/13, `wipeData` with reason, flags 0 | 34/34 with lost mode really sent and turned off |
+| 15 | 35 | 25/25: restrictions held; `setFactoryResetProtectionPolicy` answers "The persistent data block service is not supported on this device" and the console shows "FRP inactiva: este equipo no admite…" | 8/8, `wipeDevice(flags=3)`; the image then erased its user data in place and restarted | 13/13 on a fresh emulator, `wipeDevice(flags=0)` | 32/33 before the script waited for the device's answer; not repeated on this API |
+
+`--only reenroll`: 11/11. Not covered on an emulator: the FRP challenge after a reset by hardware buttons, and FRP
+actually held on Android 11+ (no persistent data block on the images).
 
 ## Second wake channel (push FCM, backup polling) — MDM-07
 

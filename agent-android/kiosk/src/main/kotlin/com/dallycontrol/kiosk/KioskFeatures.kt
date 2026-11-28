@@ -23,9 +23,14 @@ data class KioskToggles(
  * ([DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS]) is ON by default — that is the
  * framework's own default in lock-task — and is removed only when [KioskToggles.lockButtons]
  * is explicitly `true` ("lock the hardware buttons").
+ *
+ * On Android 11–15 the mask also carries `LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK` (see
+ * [KioskHardening.blockInTaskStarts]); [sdk] is a parameter only so that this is unit-testable.
  */
-fun lockTaskFeatures(t: KioskToggles): Int {
+fun lockTaskFeatures(t: KioskToggles, sdk: Int = android.os.Build.VERSION.SDK_INT): Int {
     var f = 0
+    // Android 11–15: an allowed app may not start another app's screen (Settings above all) inside its own task.
+    if (KioskHardening.blockInTaskStarts(sdk)) f = f or KioskHardening.LOCK_TASK_FEATURE_BLOCK_ACTIVITY_START_IN_TASK
     if (t.home == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_HOME
     if (t.recents == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_OVERVIEW
     if (t.notifications == true) f = f or DevicePolicyManager.LOCK_TASK_FEATURE_NOTIFICATIONS

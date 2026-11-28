@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Operación y soporte</title>
+<meta name="doc-titulo" content="Operación, soporte y nivel de servicio">
+<meta name="doc-subtitulo" content="Cómo se instala, se vigila, se respalda y se actualiza el servicio, qué hacer ante un incidente y qué se compromete con el cliente.">
+<meta name="doc-publico" content="Equipo de TI que opera el servidor, personal de guardia y gerencia de servicio">
+<meta name="doc-etiqueta" content="Manual de operación">
+<!--ESTILOS-->
+</head><body>
+<!--PORTADA-->
+
+<section class="sec pb" id="contenido">
+  <p class="k">Contenido</p>
+  <h1>Qué contiene este manual</h1>
+  <p class="lead">Este manual reúne los procedimientos de operación de {{PRODUCTO}}. Cada capítulo dice qué hacer, con qué orden y cómo comprobar el resultado. El último capítulo es la propuesta de Acuerdo de nivel de servicio.</p>
+  <!--INDICE-->
+  <div class="callout"><b>Marcas [POR CONFIRMAR].</b> Son decisiones comerciales que define la gerencia antes de firmar con un cliente: disponibilidad comprometida, horarios, tiempos, compensaciones y contactos. Este documento no las inventa; las deja visibles para completarlas.</div>
+  <p class="nota">Los comandos se ejecutan en el servidor, en el directorio de la instalación (donde está el archivo <code>.env</code>). <code>&lt;dominio&gt;</code> es la dirección pública del servicio.</p>
+</section>
+
+<section class="sec pb" id="resumen" data-temas="resumen, operación, cifras, mediciones">
+  <p class="k">1 · Resumen</p>
+  <h1>El servicio se vigila solo, se respalda a diario y se actualiza sin corte</h1>
+  <p>{{PRODUCTO}} corre como un conjunto de contenedores en un servidor Linux: base de datos, servidor de aplicación, borde web y supervisor. A ese conjunto se suman cuatro piezas de operación que se activan por configuración: monitor con página de estado, respaldos programados, despliegue con relevo y, de forma opcional, un servidor en espera.</p>
+  <p>Cada procedimiento de este manual se ejecutó en un entorno de pruebas el 27 de noviembre de 2026. Las cifras de esta página son de ese entorno, con bases de datos pequeñas; el capítulo de cada tema dice qué falta medir en producción.</p>
+  <div class="figs">
+    <div class="fig"><div class="v">0 de 343</div><div class="t">peticiones fallidas durante un despliegue normal, en prueba local con carga normal</div></div>
+    <div class="fig"><div class="v">20 s</div><div class="t">para restaurar base de datos y archivos y volver a servicio, con la base de prueba</div></div>
+    <div class="fig"><div class="v">2 min</div><div class="t">como máximo entre una falla y el aviso al personal de guardia, con sondeo cada minuto</div></div>
+  </div>
+  <h2>Qué debe estar activo en producción</h2>
+  <table>
+    <thead><tr><th style="width:44mm">Pieza</th><th style="width:60mm">Para qué sirve</th><th>Cómo se activa</th></tr></thead>
+    <tbody>
+      <tr><td>Monitor y página de estado</td><td>Detecta caídas, avisa y calcula la disponibilidad mensual.</td><td>Perfil <code>monitor</code> y variables <code>MONITOR_*</code> y <code>ALERT_*</code> (capítulo 4).</td></tr>
+      <tr><td>Respaldos programados</td><td>Copia diaria verificada, con copia fuera del servidor.</td><td>Perfil <code>backup</code> y variables <code>BACKUP_*</code> (capítulo 5).</td></tr>
+      <tr><td>Despliegue con relevo</td><td>Actualiza sin interrumpir a usuarios ni equipos.</td><td>Usar siempre <code>scripts/deploy.sh</code> (capítulo 3).</td></tr>
+      <tr><td>Segundo conector del túnel</td><td>Evita que un conector colgado corte el acceso.</td><td>Perfil <code>cloudflare-replica</code> (capítulo 7).</td></tr>
+      <tr><td>Servidor en espera</td><td>Vuelve en minutos si se pierde el servidor.</td><td>Opcional; exige un segundo servidor (capítulo 6).</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Fuente: documentos de operación del repositorio (docs/ops). Mediciones del 27 de noviembre de 2026 en entorno de pruebas.</p>
+  <div class="callout"><b>Pendiente.</b> La primera medición en producción de cada procedimiento (despliegue, restauración y conmutación) se anota en el capítulo 9, «Datos que completa la operación».</div>
+</section>
+
+<section class="sec pb" id="instalacion" data-temas="instalación, instalar, despliegue inicial, docker, .env, secretos, correo, SMTP">
+  <p class="k">2 · Instalación</p>
+  <h1>La instalación genera sus secretos y obliga a cambiar la clave inicial</h1>
+  <p>Hay tres formas de instalar. Las tres crean los secretos de la instalación, siembran la base de datos y entregan un usuario administrador con una contraseña temporal que el sistema obliga a cambiar en el primer ingreso. No existe una contraseña de fábrica.</p>
+  <table>
+    <thead><tr><th style="width:38mm">Forma</th><th style="width:52mm">Cuándo usarla</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>Imágenes publicadas</td><td>Instalación rápida, sin compilar.</td><td>El guion <code>quickstart.sh</code> descarga las imágenes de la versión publicada, genera <code>.env</code>, arranca y siembra.</td></tr>
+      <tr><td>Desde el código fuente</td><td>Instalación administrada con el repositorio.</td><td><code>./setup.sh</code> pregunta cómo se publica el servicio, construye las imágenes, arranca y siembra.</td></tr>
+      <tr><td>Nativa, sin contenedores</td><td>Servidor Debian o Ubuntu con su propio proxy TLS.</td><td><code>sudo ./setup.sh --native</code> instala base de datos y servidor de aplicación como servicio del sistema.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Cómo se publica el servicio</h2>
+  <table>
+    <thead><tr><th style="width:38mm"></th><th>Túnel de Cloudflare</th><th>Dominio propio (ruta directa)</th></tr></thead>
+    <tbody>
+      <tr><td>Puertos abiertos en el servidor</td><td>Ninguno</td><td>80 y 443</td></tr>
+      <tr><td>Certificado TLS</td><td>Lo gestiona Cloudflare</td><td>Let's Encrypt, automático en el borde</td></tr>
+      <tr><td>Protección de red (DDoS, WAF)</td><td>La de Cloudflare</td><td>La del proveedor de red</td></tr>
+      <tr><td>En un servidor compartido</td><td>No choca con otros productos</td><td>Los puertos 80 y 443 solo pueden ser de un producto</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Pasos de una instalación desde el código fuente</h2>
+  <ol class="steps">
+    <li>Prepare un servidor Linux con Docker y Compose v2, y un dominio. Para el túnel, cree el túnel en el panel de Cloudflare y dirija su nombre público a <code>http://caddy:80</code>.</li>
+    <li>Clone el repositorio y ejecute <code>./setup.sh</code>. Elija la forma de publicación y, si es túnel, pegue el token.</li>
+    <li>Guarde la contraseña temporal del administrador que imprime el instalador: se muestra una sola vez.</li>
+    <li>Abra <code>https://&lt;dominio&gt;</code>, ingrese como <span class="ui">admin</span> y defina la contraseña definitiva en la pantalla <span class="ui">Define tu contraseña</span>.</li>
+    <li>Guarde una copia de <code>.env</code> en el gestor de secretos de la empresa (ver nota siguiente).</li>
+    <li>Active el monitor y los respaldos (capítulos 4 y 5) antes de inscribir equipos reales.</li>
+  </ol>
+  <div class="callout"><b>El archivo .env es parte del servicio.</b> Contiene <code>HASH_SECRET</code>. Si ese valor cambia o se pierde, los equipos ya inscritos no pueden volver a autenticarse y hay que inscribirlos de nuevo. Nunca lo regenere.</div>
+
+  <h2>Correo saliente</h2>
+  <p>El servidor envía por correo las alertas de la flota y los reportes programados. Se configura en <code>.env</code> con <code>SMTP_HOST</code>, <code>SMTP_PORT</code>, <code>SMTP_FROM</code>, <code>SMTP_USERNAME</code>, <code>SMTP_PASSWORD</code> y, según el servidor de correo, <code>SMTP_STARTTLS</code> o <code>SMTP_SSL</code>. Después de cambiarlos ejecute <code>docker compose up -d server</code>.</p>
+  <p>El monitor usa el mismo servidor de correo, salvo que se definan <code>ALERT_SMTP_*</code>. Para las alertas de caída conviene un canal que no dependa del propio servidor (capítulo 4).</p>
+
+  <h2>Comprobación final</h2>
+  <ul class="chk">
+    <li><code>docker compose ps</code> muestra <code>server</code> y <code>caddy</code> como <code>healthy</code>.</li>
+    <li><code>https://&lt;dominio&gt;/healthz/deep</code> responde 200 con <code>"status":"ok"</code>.</li>
+    <li>La consola abre y el administrador ya cambió su contraseña.</li>
+    <li>Hay copia de <code>.env</code> fuera del servidor.</li>
+  </ul>
+</section>
+
+<section class="sec pb" id="actualizacion" data-temas="actualización, actualizar, despliegue sin corte, deploy, relevo, volver atrás, rollback">
+  <p class="k">3 · Actualización</p>
+  <h1>Una actualización normal no interrumpe la consola ni a los equipos</h1>
+  <p>Para actualizar una instalación en marcha se usan dos órdenes: <code>git pull</code> y <code>scripts/deploy.sh</code>. El guion construye primero, respalda después y solo entonces releva el servidor. Si la versión nueva no arranca, la anterior nunca dejó de atender.</p>
+  <table>
+    <thead><tr><th style="width:26mm">Paso</th><th>Qué hace</th><th style="width:48mm">Si falla</th></tr></thead>
+    <tbody>
+      <tr><td>1. Construir</td><td>Construye o descarga las imágenes nuevas antes de tocar nada, de una en una.</td><td>No se cambió nada.</td></tr>
+      <tr><td>2. Respaldar</td><td>Volcado verificado de la base de datos en <code>/backups/predeploy</code>; conserva los 10 últimos.</td><td>No se cambió nada.</td></tr>
+      <tr><td>3. Relevar el servidor</td><td>Arranca una segunda instancia con la versión nueva, espera a que esté sana y responda rápido cinco veces seguidas; solo entonces retira la anterior, la recrea y quita el relevo.</td><td>Se elimina el relevo; la instancia anterior nunca se tocó.</td></tr>
+      <tr><td>4. Consola web</td><td>Copia los archivos nuevos dentro del borde en ejecución y recarga su configuración sin reiniciarlo.</td><td>Se restaura la consola anterior.</td></tr>
+      <tr><td>5. Verificar</td><td>Salud del servidor, salud a través del borde y dirección pública.</td><td>Vuelta atrás automática.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Opciones del guion: <code>--no-build</code>, <code>--no-backup</code>, <code>--skip-web</code>, <code>--tunnel</code>, <code>--classic</code>, <code>--rollback</code>, <code>--yes</code>.</p>
+
+  <h2>Qué se midió</h2>
+  <table class="compact">
+    <thead><tr><th style="width:52mm">Escenario (27 de noviembre de 2026, entorno local)</th><th>API de los equipos</th><th>Consola</th><th style="width:44mm">Canal inmediato del equipo</th></tr></thead>
+    <tbody>
+      <tr><td>Despliegue normal, carga normal</td><td>0 fallidas de 343</td><td>0 de 346</td><td>2 reconexiones: 1,1 s y 2,1 s</td></tr>
+      <tr><td>Despliegue normal, carga media-alta</td><td>0 fallidas de 334</td><td>0 de 336</td><td>3 reconexiones: 7,1 s en total</td></tr>
+      <tr><td>Versión que no arranca</td><td>0 fallidas de 103</td><td>0 de 103</td><td>Ninguna desconexión</td></tr>
+      <tr><td>Vuelta atrás con <code>--rollback</code></td><td>0 fallidas de 333</td><td>0 de 339</td><td>2 reconexiones: 1,2 s y 1,1 s</td></tr>
+      <tr><td>Máquina saturada, tras los ajustes</td><td>0 fallidas de 933; 33 respuestas de más de 1 s</td><td>0 de 1.128</td><td>3 reconexiones: 7,1 s en total</td></tr>
+      <tr><td>Primer despliegue con este mecanismo</td><td>Corte de un arranque del servidor: 32 s</td><td>Sin corte</td><td>1 desconexión de 26,6 s</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Sondas de 5 consultas por segundo durante todo el despliegue y un cliente que mantiene el canal inmediato con los tiempos de reintento del agente. No es un teléfono real.</p>
+
+  <h2>Lo que sí cambia durante una actualización</h2>
+  <ul class="b">
+    <li>Cada equipo conectado pierde su canal de aviso inmediato dos veces, unos 3 segundos en total, y se reconecta solo. Las órdenes quedan en cola y no se pierden.</li>
+    <li>Los usuarios de la consola pueden tener que iniciar sesión de nuevo, porque la sesión vive en la memoria de cada instancia. Se deduce del diseño; no se midió.</li>
+    <li>El relevo necesita memoria y procesador para dos servidores durante uno o dos minutos. Despliegue cuando la carga esté por debajo del número de núcleos.</li>
+    <li>Construir las imágenes en el mismo servidor compite con el servicio. Lo más seguro es construir fuera y descargar las imágenes, o desplegar en horas de poca carga.</li>
+  </ul>
+
+  <h2>El primer despliegue y la vuelta atrás</h2>
+  <p>La primera vez que se usa este mecanismo el borde en ejecución es el antiguo y no conoce la instancia de relevo. El guion lo detecta y recrea el servidor a la manera clásica, con un corte de un arranque (32 segundos en el ensayo). Hágalo en ventana de mantenimiento y active antes el segundo conector del túnel.</p>
+  <p><code>scripts/deploy.sh --rollback</code> reinstala, con el mismo relevo, las imágenes que estaban en uso antes del último despliegue. <b>La base de datos no vuelve atrás</b>: las migraciones ya aplicadas se conservan. Si una migración dañó datos, la salida es el respaldo previo al despliegue (capítulo 5), sabiendo que se pierde lo ocurrido desde entonces.</p>
+  <div class="callout"><b>Antes de cada despliegue.</b> Disco por debajo del 85 %, carga por debajo del número de núcleos y comprobación de deriva de esquema con <code>scripts/schema-drift-check.sh</code> (capítulo 8). Use siempre <code>scripts/deploy.sh</code>, no <code>./setup.sh</code>.</div>
+</section>
+
+<section class="sec pb" id="monitoreo" data-temas="monitoreo, alertas, página de estado, healthz, salud, disponibilidad, telegram, webhook">
+  <p class="k">4 · Monitoreo y alertas</p>
+  <h1>El monitor comprueba el servicio cada minuto y avisa tras dos fallas seguidas</h1>
+  <p>El monitoreo tiene tres piezas. La salud real la declara cada instancia. El monitor propio la consulta, guarda el resultado, avisa y publica la página de estado. Un monitor externo sirve de segunda fuente: si el servidor entero se apaga, el monitor propio se apaga con él.</p>
+
+  <h2>Direcciones de salud</h2>
+  <table>
+    <thead><tr><th style="width:42mm">Dirección</th><th>Responde 200 cuando…</th><th style="width:56mm">Úsela para</th></tr></thead>
+    <tbody>
+      <tr><td><code>/healthz/deep</code></td><td>el borde, el servidor y la base de datos funcionan</td><td>Monitoreo. Define la disponibilidad.</td></tr>
+      <tr><td><code>/healthz</code></td><td>el borde y el servidor responden</td><td>Compatibilidad con sondas anteriores.</td></tr>
+      <tr><td><code>/healthz/edge</code></td><td>el borde responde, aunque el servidor esté caído</td><td>Distinguir una caída del túnel de una del servidor.</td></tr>
+      <tr><td><code>/healthz/supervisor</code></td><td>el supervisor responde</td><td>Vigilar que los equipos nuevos puedan descargar el agente.</td></tr>
+      <tr><td><code>/estado</code>, <code>/estado.json</code></td><td>—</td><td>Página de estado para el cliente.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Ninguna pide autenticación ni entrega datos internos. Durante un despliegue, la instancia que se retira sigue respondiendo 200 a un monitor mientras atienda bien: un despliegue no cuenta como tiempo sin servicio.</p>
+
+  <h2>Activar el monitor</h2>
+  <ol class="steps">
+    <li>En <code>.env</code>, agregue <code>monitor</code> a <code>COMPOSE_PROFILES</code> y defina <code>MONITOR_PUBLIC_URL</code> con la dirección pública de <code>/healthz/deep</code>.</li>
+    <li>Defina al menos un canal de alerta: <code>ALERT_EMAIL_TO</code>, <code>ALERT_TELEGRAM_BOT_TOKEN</code> con <code>ALERT_TELEGRAM_CHAT_ID</code>, o <code>ALERT_WEBHOOK_URL</code>.</li>
+    <li>Con respaldos activos, defina <code>MONITOR_BACKUP_MAX_AGE_HOURS=26</code>.</li>
+    <li>Ejecute <code>docker compose up -d monitor</code> y compruebe que <code>https://&lt;dominio&gt;/estado</code> abre.</li>
+    <li>Pruebe el canal: detenga el supervisor un minuto (<code>docker compose stop supervisor</code>), espere el aviso y arránquelo de nuevo. Debe llegar el aviso de recuperación.</li>
+  </ol>
+
+  <h2>Qué comprueba</h2>
+  <table>
+    <thead><tr><th style="width:38mm">Comprobación</th><th style="width:58mm">Falla cuando…</th><th>Qué indica</th></tr></thead>
+    <tbody>
+      <tr><td>Acceso público</td><td>la dirección externa no responde 200</td><td>Usuarios y equipos no pueden entrar. Define la disponibilidad.</td></tr>
+      <tr><td>Servicio interno</td><td><code>/healthz/deep</code> por el borde no responde 200</td><td>Servidor o base de datos caídos.</td></tr>
+      <tr><td>Supervisor</td><td>no responde</td><td>Sin actualizaciones ni descarga del agente.</td></tr>
+      <tr><td>Túnel</td><td>un conector no tiene conexiones</td><td>Túnel caído o degradado.</td></tr>
+      <tr><td>Espacio en disco</td><td>uso igual o mayor al 85 %</td><td>Riesgo de que la base de datos se detenga.</td></tr>
+      <tr><td>Último respaldo</td><td>pasó más del plazo o falló la copia externa</td><td>No hay respaldo reciente.</td></tr>
+      <tr><td>Equipos reportando</td><td>los que reportaron en 30 minutos caen un 40 % o más frente a la última hora</td><td>El servicio responde, pero los equipos no llegan.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">«Equipos reportando» tarda de 15 a 20 minutos en notar una caída total. Un apagado masivo al final de un turno puede dispararla; en ese caso suba <code>MONITOR_DEVICES_DROP_PERCENT</code>.</p>
+
+  <h2>Cómo avisa</h2>
+  <ul class="b">
+    <li><b>Aviso:</b> tras 2 fallas seguidas. El incidente se fecha en la primera falla.</li>
+    <li><b>Recuperación:</b> tras 2 aciertos seguidos, con la duración del incidente.</li>
+    <li><b>Recordatorio:</b> cada 60 minutos mientras siga en falla.</li>
+    <li><b>Tiempo de detección:</b> entre 1 y 2 minutos con sondeo cada 60 segundos. En prueba con sondeo cada 10 segundos, la alerta llegó a los 20,1 segundos de detener la base de datos.</li>
+  </ul>
+  <p>Los canales se pueden combinar: correo, Telegram y webhook compatible con Slack, Mattermost y Google Chat. Si el correo de alertas sale por el mismo servidor que se cayó, no llegará: use al menos un canal externo.</p>
+
+  <h2>Página de estado y disponibilidad mensual</h2>
+  <p>La página <code>/estado</code> muestra el estado general y por componente, la disponibilidad de los últimos 90 días y por mes, y los incidentes recientes con inicio, fin y duración. La disponibilidad del mes es el cociente entre ciclos correctos y ciclos realizados de la comprobación de acceso público. El historial se conserva 13 meses.</p>
+  <div class="callout"><b>Segunda fuente.</b> Registre la dirección pública de <code>/healthz/deep</code> en un monitor externo que no corra en el mismo servidor. Si el servidor se apaga por completo, es el único que avisa.</div>
+</section>
+
+<section class="sec pb" id="respaldos" data-temas="respaldos, backup, restauración, restaurar, cifrado, retención, copia externa">
+  <p class="k">5 · Respaldos y restauración</p>
+  <h1>Cada respaldo se verifica al hacerse y se restaura de prueba cada semana</h1>
+  <table>
+    <thead><tr><th style="width:40mm">Qué se respalda</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>Base de datos</td><td>Volcado comprimido diario, con su suma de comprobación y un manifiesto con el número de filas de las tablas principales.</td></tr>
+      <tr><td>Archivos subidos</td><td>Instantánea diaria de aplicaciones, íconos y archivos de configuración. Lo que no cambia no ocupa espacio de nuevo.</td></tr>
+      <tr><td>Configuración secreta</td><td><code>.env</code> y la clave de sesión, solo si el cifrado está activo.</td></tr>
+    </tbody>
+  </table>
+  <p>El respaldo previo a cada despliegue se guarda aparte. Cada respaldo debe poder leerse completo; los domingos, además, se restaura de verdad en una base temporal y se valida.</p>
+
+  <h2>Activar los respaldos programados</h2>
+  <ol class="steps">
+    <li>En <code>.env</code>, agregue <code>backup</code> a <code>COMPOSE_PROFILES</code> y defina <code>BACKUP_TIME</code> (por ejemplo 02:30).</li>
+    <li>Defina <code>BACKUP_ENCRYPTION_PASSPHRASE</code> con una frase larga y guárdela fuera del servidor.</li>
+    <li>Configure un destino fuera del servidor: almacenamiento compatible con S3 (<code>BACKUP_S3_*</code>), un destino de rclone (<code>BACKUP_RCLONE_REMOTE</code>) o rsync por SSH (<code>BACKUP_RSYNC_TARGET</code>).</li>
+    <li>Ejecute <code>docker compose up -d backup</code>.</li>
+    <li>Haga el primero a mano: <code>docker compose run --rm backup /ops/backup.sh</code>. El resultado debe decir «copia fuera del servidor: correcta».</li>
+    <li>Pruebe la restauración: <code>scripts/restore-backup.sh verify</code>.</li>
+  </ol>
+  <div class="callout"><b>Si se pierde la frase de cifrado, se pierden los respaldos.</b> Guárdela en el gestor de secretos de la empresa, nunca en el servidor ni en el repositorio.</div>
+
+  <h2>Retención</h2>
+  <p>Se conservan los 30 respaldos más recientes, el último de cada una de las 8 últimas semanas y el de cada uno de los 12 últimos meses: unos 43 en régimen. Con <code>BACKUP_REMOTE_REQUIRED=1</code>, una copia externa fallida hace fallar el respaldo y el monitor avisa.</p>
+
+  <h2>Restaurar</h2>
+  <pre>scripts/restore-backup.sh list                              # qué respaldos hay
+scripts/restore-backup.sh verify                            # prueba: no toca el servicio
+scripts/restore-backup.sh apply latest --yes                # restauración real, solo base de datos
+scripts/restore-backup.sh apply latest --with-files --yes   # base de datos y archivos</pre>
+  <p>La restauración real detiene el servidor, restaura en una base nueva, la valida y solo entonces intercambia los nombres. La base anterior no se borra: queda con el sufijo de la fecha, para volver atrás si la restauración fue un error. Si la validación falla, la base en uso no se toca.</p>
+
+  <h2>Restaurar en un servidor nuevo</h2>
+  <ol class="steps">
+    <li>Instale Docker, clone el repositorio en la misma versión y recupere <code>.env</code> del gestor de secretos o del respaldo de configuración.</li>
+    <li>Arranque solo la base de datos: <code>docker compose up -d postgres</code>.</li>
+    <li>Traiga del destino externo las carpetas <code>db/</code> y <code>files/</code> a una ruta local.</li>
+    <li>Restaure: <code>BACKUP_HOST_DIR=/ruta scripts/restore-backup.sh apply &lt;archivo&gt; --yes</code> y después los archivos.</li>
+    <li>Arranque todo con <code>docker compose up -d</code> y compruebe <code>/healthz/deep</code>.</li>
+  </ol>
+  <p class="nota">Con túnel de Cloudflare no hay que cambiar el DNS: el conector del servidor nuevo usa el mismo token.</p>
+
+  <h2>Qué se probó</h2>
+  <table class="compact">
+    <thead><tr><th>Prueba (27 de noviembre de 2026)</th><th style="width:78mm">Resultado</th></tr></thead>
+    <tbody>
+      <tr><td>Prueba automática de punta a punta, 7 pasos, base de 5.000 equipos</td><td>Los 7 pasos correctos; respaldo 1 s, restauración 1 s</td></tr>
+      <tr><td>Desastre provocado sobre el servicio en marcha: 15 de 20 equipos borrados y una aplicación eliminada</td><td>Todo de vuelta e idéntico; servicio sano en 20 s</td></tr>
+      <tr><td>Respaldo cifrado con copia a un almacenamiento S3 de pruebas</td><td>Copia correcta y comprobada</td></tr>
+      <tr><td>Respaldo dañado o truncado</td><td>Se rechaza</td></tr>
+      <tr><td>Destino externo caído con copia obligatoria</td><td>El respaldo termina con error y el monitor avisa</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Tiempos de bases pequeñas. No se probó contra un proveedor de almacenamiento real ni rsync por SSH a otro servidor.</p>
+  <div class="callout"><b>Pendiente.</b> Medir en producción el tiempo de <code>scripts/restore-backup.sh verify</code>. Esa cifra sustenta el tiempo de recuperación del acuerdo de servicio.</div>
+</section>
+
+<section class="sec pb" id="alta-disponibilidad" data-temas="alta disponibilidad, servidor en espera, réplica, conmutación, HA, RPO, RTO">
+  <p class="k">6 · Alta disponibilidad</p>
+  <h1>Un servidor en espera reduce la pérdida de datos de horas a segundos</h1>
+  <p>Hoy el servicio corre en un solo servidor. Si ese servidor se pierde, el servicio vuelve cuando se consiga otro y se restaure el respaldo. Hay tres caminos, de menor a mayor costo.</p>
+  <table>
+    <thead><tr><th style="width:52mm">Opción</th><th style="width:28mm">Pérdida de datos</th><th style="width:38mm">Vuelta al servicio</th><th>Costo</th></tr></thead>
+    <tbody>
+      <tr><td>A. Solo respaldos</td><td>Hasta 24 h</td><td>Horas</td><td>Ninguno adicional</td></tr>
+      <tr><td>B. Servidor en espera con réplica continua</td><td>Segundos</td><td>Minutos, con una orden</td><td>Un segundo servidor y un enlace privado</td></tr>
+      <tr><td>C. Base de datos gestionada</td><td>Segundos</td><td>Minutos para la base</td><td>Mensualidad del proveedor</td></tr>
+    </tbody>
+  </table>
+
+  <svg viewBox="0 0 680 190" role="img" aria-label="Servidor principal y servidor en espera">
+    <defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5F6B7A"/></marker></defs>
+    <rect x="240" y="6" width="200" height="34" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="340" y="28" font-size="11" text-anchor="middle" fill="#1F2933">Túnel público (mismo token)</text>
+    <rect x="40" y="80" width="250" height="100" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="165" y="100" font-size="11" font-weight="600" text-anchor="middle" fill="#1F3A5F">Servidor principal</text>
+    <text x="165" y="120" font-size="10" text-anchor="middle" fill="#1F2933">Conector, borde y servidor</text>
+    <text x="165" y="140" font-size="10" text-anchor="middle" fill="#1F2933">Base de datos primaria</text>
+    <rect x="390" y="80" width="250" height="100" fill="#fff" stroke="#5F6B7A" stroke-width="0.75" stroke-dasharray="4 3"/>
+    <text x="515" y="100" font-size="11" font-weight="600" text-anchor="middle" fill="#1F3A5F">Servidor en espera</text>
+    <text x="515" y="120" font-size="10" text-anchor="middle" fill="#1F2933">Aplicación detenida</text>
+    <text x="515" y="140" font-size="10" text-anchor="middle" fill="#1F2933">Base de datos réplica</text>
+    <line x1="290" y1="136" x2="387" y2="136" stroke="#5F6B7A" stroke-width="0.75" marker-end="url(#fa)"/>
+    <text x="339" y="128" font-size="9" text-anchor="middle" fill="#5F6B7A">cambios, en continuo</text>
+    <text x="339" y="152" font-size="9" text-anchor="middle" fill="#5F6B7A">enlace privado</text>
+    <line x1="300" y1="40" x2="190" y2="78" stroke="#5F6B7A" stroke-width="0.75" marker-end="url(#fa)"/>
+    <line x1="380" y1="40" x2="490" y2="78" stroke="#5F6B7A" stroke-width="0.75" stroke-dasharray="4 3" marker-end="url(#fa)"/>
+    <text x="500" y="56" font-size="9" fill="#5F6B7A">solo tras conmutar</text>
+  </svg>
+  <p class="cap">Opción B. El servidor en espera solo ejecuta la base de datos como réplica de solo lectura. La aplicación se arranca allí al conmutar.</p>
+
+  <h2>Preparar la opción B</h2>
+  <ol class="steps">
+    <li>Consiga un segundo servidor Linux con Docker en otro centro de datos, y un enlace privado entre los dos. El puerto de la base de datos nunca se publica en internet.</li>
+    <li>En el principal, agregue <code>docker-compose.ha-primary.yml</code> a <code>COMPOSE_FILE</code>, defina <code>PG_REPL_BIND</code> con su dirección en el enlace privado y <code>REPLICATION_PASSWORD</code>. Recree la base de datos una vez, en ventana: unos 10 segundos.</li>
+    <li>Ejecute <code>scripts/ha-primary-setup.sh</code> con la dirección privada del servidor en espera.</li>
+    <li>En el servidor en espera, copie <code>.env</code>, use <code>docker-compose.ha-standby.yml</code>, defina <code>PRIMARY_HOST</code> y arranque <b>solo</b> la base de datos: <code>docker compose up -d postgres</code>.</li>
+    <li>Compruebe con <code>scripts/ha-status.sh</code> y prográmelo cada 5 minutos: sale con error si la réplica se rompe.</li>
+    <li>Programe la copia periódica de los archivos subidos, que no viajan por la réplica.</li>
+  </ol>
+  <div class="callout"><b>En el servidor en espera no arranque todo.</b> Un conector del túnel encendido allí recibiría parte del tráfico real contra una base de solo lectura.</div>
+
+  <h2>Conmutar cuando el principal se perdió</h2>
+  <ol class="steps">
+    <li>Confirme que el principal está fuera de servicio. Si aún responde y se va a retirar, deténgalo. Dos servidores atendiendo a la vez dañan los datos.</li>
+    <li>En el servidor en espera ejecute <code>scripts/ha-status.sh</code> y anote el retraso: es lo que se pierde.</li>
+    <li>Ejecute <code>scripts/ha-promote.sh --yes</code>. El guion se niega si el principal todavía responde.</li>
+    <li>Compruebe desde fuera <code>https://&lt;dominio&gt;/healthz/deep</code>. Con ruta directa, cambie el DNS.</li>
+    <li>No arranque el servidor antiguo tal como quedó: reconstrúyalo como réplica nueva.</li>
+  </ol>
+  <p>En la prueba del 27 de noviembre de 2026, con dos instalaciones independientes en una misma máquina, el servicio completo quedó sano en el servidor en espera 21 segundos después de la caída del principal, con todos los datos, incluida una escritura hecha un segundo antes. En un incidente real el tiempo lo domina decidir la conmutación: el tiempo realista es de 15 minutos.</p>
+  <div class="callout"><b>Pendiente.</b> La prueba no cubre el enlace privado entre dos centros de datos, el registro del conector con el token real ni la copia de archivos. Haga un simulacro completo al montar el segundo servidor y repítalo cada seis meses. La opción C no se probó de punta a punta.</div>
+</section>
+
+<section class="sec pb" id="acceso" data-temas="túnel, cloudflare, conector, ruta directa, acceso, DNS">
+  <p class="k">7 · Acceso al servicio</p>
+  <h1>Dos conectores del túnel evitan que un reinicio corte el acceso</h1>
+  <p>El servicio se publica por un túnel: un conector abre conexiones salientes y entrega las peticiones al borde. No hay puertos abiertos en el servidor. Con un solo conector, reiniciarlo corta el acceso entre 10 y 20 segundos.</p>
+  <h2>Activar el segundo conector</h2>
+  <ol class="steps">
+    <li>En <code>.env</code>, agregue <code>cloudflare-replica</code> a <code>COMPOSE_PROFILES</code> y sume el segundo conector a <code>MONITOR_TUNNEL_URLS</code>.</li>
+    <li>Ejecute <code>docker compose up -d cloudflared-2</code>. El conector original no se toca.</li>
+    <li>Compruebe en el panel del túnel que se ven 2 conectores.</li>
+    <li>Para reiniciarlos sin corte, de uno en uno: <code>scripts/deploy.sh --tunnel</code>.</li>
+  </ol>
+  <p>Un segundo conector en el mismo servidor no protege de la caída del servidor. Para eso el conector de reserva vive en el servidor en espera y se arranca solo en la conmutación.</p>
+  <h2>Ruta directa</h2>
+  <p>El borde puede publicar los puertos 80 y 443 y obtener su certificado de forma automática. Sirve como modo principal o como camino de emergencia si el problema es el túnel. Exige una dirección pública, los dos puertos abiertos y un registro DNS. En modo directo es obligatorio <code>CF_IP_HEADER_STRIP=CF-Connecting-IP</code>.</p>
+  <div class="callout"><b>Los equipos usan el nombre con el que se inscribieron.</b> Cualquier ruta alterna debe responder por ese mismo nombre, o los equipos no la usarán.</div>
+  <h2>Diagnóstico rápido</h2>
+  <table>
+    <thead><tr><th style="width:62mm">Síntoma</th><th style="width:56mm">Comprobación</th><th>Causa probable</th></tr></thead>
+    <tbody>
+      <tr><td>Página de error 1033 o 530 del túnel</td><td><code>docker compose ps cloudflared</code></td><td>Conector detenido o token inválido</td></tr>
+      <tr><td>Error 502 y «connection refused» en el registro del conector</td><td><code>docker compose ps caddy</code></td><td>El borde está reiniciando o caído</td></tr>
+      <tr><td><code>/healthz/edge</code> responde y <code>/healthz/deep</code> no</td><td><code>docker compose ps server postgres</code></td><td>Servidor o base de datos</td></tr>
+      <tr><td>Todo responde desde el servidor y nada desde fuera</td><td>Registro del conector</td><td>Túnel, DNS o proveedor del túnel</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Probado en entorno local: el monitor detecta un conector sin conexiones y avisa. No se pudo probar fuera de producción el reparto de tráfico entre dos conectores, porque exige el token real.</p>
+</section>
+
+<section class="sec pb" id="incidentes" data-temas="incidentes, caída, runbook, guardia, disco lleno, base de datos, túnel, equipos no reportan, informe posterior">
+  <p class="k">8 · Procedimiento de incidentes</p>
+  <h1>Los primeros cinco minutos deciden qué capa falla y quién debe saberlo</h1>
+  <ol class="steps">
+    <li><b>Confirme y clasifique</b> el incidente de P1 a P4 según el capítulo 10. Mire <code>/estado</code> y el aviso recibido.</li>
+    <li><b>Avise</b> que lo está atendiendo: canal de guardia y, si es P1 o P2, el cliente. Anote la hora.</li>
+    <li><b>Ubique la capa que falla</b> con la tabla siguiente.</li>
+    <li><b>Pregunte si hubo un despliegue</b> en la última hora. Si lo hubo, lo primero es volver atrás.</li>
+    <li><b>No borre nada</b> para «limpiar»: ni volúmenes, ni contenedores, ni la base de datos. Si duda, pare y escale.</li>
+  </ol>
+  <pre>docker compose ps
+curl -s -o /dev/null -w '%{http_code}\n' https://&lt;dominio&gt;/healthz/edge
+curl -s https://&lt;dominio&gt;/healthz/deep
+df -h / ; docker system df</pre>
+  <table>
+    <thead><tr><th style="width:42mm"><code>/healthz/edge</code></th><th style="width:56mm"><code>/healthz/deep</code></th><th>Vaya a</th></tr></thead>
+    <tbody>
+      <tr><td>No responde</td><td>—</td><td>Caída del túnel o del servidor completo</td></tr>
+      <tr><td>200</td><td>503 con <code>"db":"fail"</code></td><td>Caída de la base de datos</td></tr>
+      <tr><td>200</td><td>503 sin respuesta del servidor</td><td>El servidor de aplicación no responde</td></tr>
+      <tr><td>200</td><td>200</td><td>Los equipos no reportan</td></tr>
+    </tbody>
+  </table>
+
+  <h2>El servidor de aplicación no responde</h2>
+  <table>
+    <thead><tr><th style="width:66mm">Lo que ve en <code>docker compose logs --tail 100 server</code></th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Acaba de haber un despliegue</td><td><code>scripts/deploy.sh --rollback</code></td></tr>
+      <tr><td>Falta de memoria</td><td>Suba <code>SERVER_MEM_LIMIT</code> en <code>.env</code> y ejecute <code>docker compose up -d server</code></td></tr>
+      <tr><td>Error de conexión a la base de datos</td><td>Trate primero la base de datos</td></tr>
+      <tr><td>Error de migración al arrancar</td><td>No reintente a ciegas. Vuelva a la versión anterior y escale a desarrollo</td></tr>
+      <tr><td>Colgado sin errores</td><td><code>docker compose restart server</code>; corte de un arranque, de 20 a 40 segundos</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Caída de la base de datos</h2>
+  <table>
+    <thead><tr><th style="width:66mm">Lo que ve en <code>docker compose logs --tail 80 postgres</code></th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Contenedor detenido</td><td><code>docker compose up -d postgres</code>; el servidor se reconecta solo (medido: 9 segundos)</td></tr>
+      <tr><td>Sin espacio en disco</td><td>Libere disco primero y después arranque la base</td></tr>
+      <tr><td>Demasiadas conexiones</td><td><code>docker compose restart server</code> e investigue qué las agotó</td></tr>
+      <tr><td>Errores de lectura de bloques o no arranca</td><td>Posible corrupción. No borre el volumen. Restaure o conmute</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Disco lleno</h2>
+  <p>Libere de menor a mayor riesgo. Primero la caché de construcción y las imágenes sin uso: <code>docker builder prune -f</code> y <code>docker image prune -f</code>. Después, las bases guardadas por restauraciones anteriores que ya no hagan falta. Por último, baje la retención local de respaldos solo si la copia externa está al día.</p>
+  <div class="callout"><b>Nunca</b> use <code>docker system prune --volumes</code> ni <code>docker volume prune</code>: borran datos.</div>
+
+  <h2>Los equipos no reportan</h2>
+  <ol class="steps">
+    <li>Determine cuántos y cuáles: todos, una carpeta, un operador móvil o una versión del agente. En la consola, ordene por última conexión.</li>
+    <li>Pruebe el camino de los equipos desde un teléfono con datos móviles: <code>https://&lt;dominio&gt;/healthz/deep</code> debe responder. Pruebe con otro operador.</li>
+    <li>Cuente las peticiones de agentes en los últimos 10 minutos en el registro del borde.</li>
+  </ol>
+  <table>
+    <thead><tr><th style="width:56mm">Lo que ve</th><th style="width:50mm">Causa probable</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Cero peticiones de agentes, servicio sano</td><td>DNS, certificado, túnel o regla de seguridad de red</td><td>Revise los eventos de seguridad del proveedor del túnel y el certificado</td></tr>
+      <tr><td>Peticiones con respuesta 401 o 403</td><td>Cambió <code>HASH_SECRET</code> o se restauró una base antigua</td><td>Compárelo con la copia segura de <code>.env</code>. Nunca lo regenere</td></tr>
+      <tr><td>Peticiones con error 5xx</td><td>Error del servidor</td><td>Trate el servidor de aplicación</td></tr>
+      <tr><td>Solo faltan los de un operador o zona</td><td>Red móvil</td><td>Confirme con otro operador e informe al cliente</td></tr>
+      <tr><td>Solo faltan los de una versión del agente</td><td>Defecto del agente o actualización en curso</td><td>Escale a desarrollo con dos números de equipo</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Tras corregir la causa, la flota tarda de 15 a 20 minutos en verse completa. Un equipo aislado sin reportar no es un incidente del servicio.</p>
+
+  <h2>Cierre e informe posterior</h2>
+  <p>Al cerrar, envíe el aviso de recuperación al cliente. Todo incidente P1, y los P2 que superen su tiempo de solución, terminan con un informe posterior al incidente. El informe describe hechos, decisiones y sistemas, no personas, y contiene: resumen, impacto, línea de tiempo con los tiempos de detección, respuesta y recuperación, causa directa y de fondo, qué funcionó y qué no, y acciones con responsable y fecha.</p>
+  <h2>Antes de desplegar</h2>
+  <ul class="chk">
+    <li>Deriva de esquema comprobada con <code>scripts/schema-drift-check.sh</code> contra un volcado de solo esquema de producción. El esquema de producción nunca se altera a mano.</li>
+    <li><code>scripts/backup-restore-test.sh</code> correcto, si se tocó algo de respaldos.</li>
+    <li>Disco por debajo del 85 %.</li>
+    <li>Despliegue con <code>scripts/deploy.sh</code>.</li>
+  </ul>
+</section>
+
+<section class="sec pb" id="datos-guardia" data-temas="guardia, contactos, datos por completar, pendientes de operación">
+  <p class="k">9 · Datos que completa la operación</p>
+  <h1>Estos datos se completan una vez y se revisan con cada cambio de personal</h1>
+  <p>Ninguno de estos datos se escribe en este manual ni en el repositorio. Se guardan en el gestor de secretos o en el documento interno de guardia. Esta página es la lista de lo que debe existir.</p>
+  <ul class="chk">
+    <li>Acceso al servidor: proveedor, consola de emergencia y quién tiene acceso.</li>
+    <li>Panel del túnel: cuenta y quién tiene acceso.</li>
+    <li>Ubicación de la copia segura de <code>.env</code> y de la frase de cifrado de respaldos.</li>
+    <li>Destino externo de respaldos y su credencial.</li>
+    <li>Canal de alertas y quién lo recibe, de día y de noche.</li>
+    <li>Líder técnico y gerencia para el escalamiento.</li>
+    <li>Contacto del cliente para avisos.</li>
+  </ul>
+  <h2>Mediciones pendientes en producción</h2>
+  <table>
+    <thead><tr><th>Medición</th><th style="width:70mm">Cómo se toma</th><th style="width:30mm">Resultado</th></tr></thead>
+    <tbody>
+      <tr><td>Primer despliegue con relevo</td><td><code>scripts/measure-downtime.sh</code> durante <code>scripts/deploy.sh</code></td><td>Pendiente</td></tr>
+      <tr><td>Tiempo de restauración de prueba</td><td><code>scripts/restore-backup.sh verify</code></td><td>Pendiente</td></tr>
+      <tr><td>Reinicio de un conector con dos activos</td><td><code>scripts/measure-downtime.sh</code> durante el reinicio</td><td>Pendiente</td></tr>
+      <tr><td>Simulacro de conmutación, si hay servidor en espera</td><td><code>scripts/ha-promote.sh</code> en ventana</td><td>Pendiente</td></tr>
+      <tr><td>Consumo real de memoria en un día normal</td><td><code>docker stats --no-stream</code></td><td>Pendiente</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="sla" data-temas="SLA, acuerdo de nivel de servicio, disponibilidad, severidad, tiempos de respuesta, soporte, compensación, mantenimiento">
+  <p class="k">10 · Acuerdo de nivel de servicio</p>
+  <h1>Propuesta de acuerdo: qué se compromete y cómo se mide</h1>
+  <div class="callout"><b>Estado: propuesta.</b> Los valores marcados <span class="pc">[POR CONFIRMAR]</span> son comerciales y los decide la gerencia antes de entregar este acuerdo a un cliente. El resto describe cómo funciona hoy el servicio y cómo se mide.</div>
+
+  <h2>10.1 Alcance</h2>
+  <p>El acuerdo cubre el servicio {{PRODUCTO}} que opera el proveedor para el cliente: la consola web de administración; la comunicación con los equipos Android (registro, reporte periódico, políticas, órdenes y descarga de aplicaciones); el canal de aviso inmediato a los equipos; y el control remoto de pantalla, cuando está contratado. No cubre los equipos Android, sus redes móviles o Wi-Fi, ni servicios de terceros de los que el servicio no depende.</p>
+
+  <h2>10.2 Disponibilidad comprometida</h2>
+  <table>
+    <thead><tr><th style="width:80mm">Concepto</th><th>Valor</th></tr></thead>
+    <tbody>
+      <tr><td>Disponibilidad mensual objetivo</td><td><b>99,5 %</b> <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Tiempo máximo sin servicio que eso permite</td><td>3 h 36 min en un mes de 30 días</td></tr>
+      <tr><td>Periodo de medición</td><td>Mes calendario, hora de Colombia</td></tr>
+      <tr><td>Horario cubierto</td><td>24 horas, todos los días</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th style="width:24mm">Objetivo</th><th style="width:44mm">Tiempo sin servicio al mes</th><th>Qué exige</th></tr></thead>
+    <tbody>
+      <tr><td>99,0 %</td><td>7 h 12 min</td><td>Infraestructura actual</td></tr>
+      <tr><td>99,5 %</td><td>3 h 36 min</td><td>Infraestructura actual, con monitoreo, respaldos y despliegue sin corte activos</td></tr>
+      <tr><td>99,9 %</td><td>43 min</td><td>Servidor en espera con réplica y segundo conector del túnel en otro servidor</td></tr>
+    </tbody>
+  </table>
+  <p>El servicio corre hoy en un solo servidor. Mientras no exista el servidor en espera, una falla del equipo físico o de su centro de datos puede tardar horas en resolverse; por eso no se recomienda comprometer 99,9 % con la infraestructura actual.</p>
+  <h3>Cómo se mide</h3>
+  <ul class="b">
+    <li>Un monitor automático consulta cada minuto, desde fuera, la dirección pública de salud del servicio, que solo responde «correcto» si la consola, la comunicación con los equipos y la base de datos funcionan.</li>
+    <li>La disponibilidad del mes es: consultas correctas ÷ consultas realizadas × 100.</li>
+    <li>El cliente puede ver el resultado en cualquier momento en la página de estado, <code>https://&lt;dominio&gt;/estado</code>.</li>
+    <li>Como segunda fuente se usa un monitor externo. Si las dos fuentes difieren, se toma la más desfavorable para el proveedor.</li>
+  </ul>
+  <p>Un minuto cuenta como sin servicio cuando la consulta de ese minuto falla. No cuentan las ventanas de mantenimiento anunciadas ni las causas excluidas.</p>
+
+  <h2>10.3 Mantenimiento</h2>
+  <table>
+    <thead><tr><th style="width:80mm">Concepto</th><th>Valor</th></tr></thead>
+    <tbody>
+      <tr><td>Ventana de mantenimiento programado</td><td>Domingos de 2:00 a 5:00 a. m., hora de Colombia <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Aviso previo</td><td>48 horas, por correo al contacto del cliente <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Máximo de mantenimiento con corte</td><td>2 horas al mes <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Mantenimiento de emergencia por seguridad</td><td>Sin ventana; se avisa en cuanto se decide</td></tr>
+    </tbody>
+  </table>
+  <p>Las actualizaciones normales del producto no necesitan ventana: se aplican con un relevo del servidor (capítulo 3). Durante un mantenimiento con corte, la consola muestra una página de mantenimiento y los equipos siguen funcionando con la última política recibida; al terminar se ponen al día solos.</p>
+
+  <h2>10.4 Severidad de los incidentes</h2>
+  <table>
+    <thead><tr><th style="width:24mm">Nivel</th><th>Definición</th><th style="width:62mm">Ejemplos</th></tr></thead>
+    <tbody>
+      <tr><td><b>P1 Crítico</b></td><td>El servicio no está disponible o los equipos no pueden comunicarse; afecta a toda la operación.</td><td>La consola no abre; ningún equipo reporta; pérdida de datos.</td></tr>
+      <tr><td><b>P2 Alto</b></td><td>Una función principal no sirve o el servicio está muy degradado; no hay alternativa razonable.</td><td>No se pueden instalar aplicaciones; las órdenes no llegan; el control remoto no conecta.</td></tr>
+      <tr><td><b>P3 Medio</b></td><td>Una función secundaria falla o hay una alternativa; afecta a pocos usuarios o equipos.</td><td>Un reporte no se genera; un equipo concreto no aplica su política.</td></tr>
+      <tr><td><b>P4 Bajo</b></td><td>Consulta, duda de uso, mejora o defecto menor sin impacto en la operación.</td><td>Texto incorrecto; solicitud de una función nueva.</td></tr>
+    </tbody>
+  </table>
+  <p>El proveedor asigna el nivel al recibir el caso y puede cambiarlo, explicando por qué, cuando se conoce el impacto real.</p>
+
+  <h2>10.5 Tiempos de respuesta y de solución</h2>
+  <p>«Respuesta» es el primer contacto de una persona del proveedor que confirma que el caso se está atendiendo. «Solución» es el restablecimiento del servicio, aunque sea con una medida provisional.</p>
+  <table>
+    <thead><tr><th style="width:12mm">Nivel</th><th>Cobertura</th><th>Primera respuesta</th><th style="width:28mm">Informes de avance</th><th>Solución o medida provisional</th></tr></thead>
+    <tbody>
+      <tr><td><b>P1</b></td><td>24 h, todos los días <span class="pc">[POR CONFIRMAR]</span></td><td>30 minutos <span class="pc">[POR CONFIRMAR]</span></td><td>Cada 60 minutos</td><td>4 horas <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td><b>P2</b></td><td>24 h, todos los días <span class="pc">[POR CONFIRMAR]</span></td><td>2 horas <span class="pc">[POR CONFIRMAR]</span></td><td>Cada 4 horas</td><td>8 horas hábiles <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td><b>P3</b></td><td>Horario hábil</td><td>1 día hábil <span class="pc">[POR CONFIRMAR]</span></td><td>Al cambiar de estado</td><td>5 días hábiles <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td><b>P4</b></td><td>Horario hábil</td><td>2 días hábiles <span class="pc">[POR CONFIRMAR]</span></td><td>Al cambiar de estado</td><td>Según plan de versiones</td></tr>
+    </tbody>
+  </table>
+  <p>Horario hábil: lunes a viernes de 8:00 a. m. a 6:00 p. m., hora de Colombia, sin festivos <span class="pc">[POR CONFIRMAR]</span>.</p>
+  <p>Los incidentes P1 y P2 que detecta el monitoreo automático se atienden sin esperar a que el cliente los reporte: la alerta llega al personal de guardia en un máximo de dos minutos desde la falla.</p>
+  <p>Todo incidente P1, y los P2 que superen su tiempo de solución, terminan con un informe posterior al incidente entregado al cliente en un máximo de 5 días hábiles <span class="pc">[POR CONFIRMAR]</span>: qué pasó, por cuánto tiempo, la causa y qué se cambió para que no se repita.</p>
+
+  <h2>10.6 Canales de soporte y escalamiento</h2>
+  <table>
+    <thead><tr><th style="width:56mm">Canal</th><th>Uso</th><th style="width:44mm">Dato</th></tr></thead>
+    <tbody>
+      <tr><td>Correo de soporte</td><td>Todos los niveles; deja registro</td><td><span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Teléfono o mensajería de guardia</td><td>P1 y P2, a cualquier hora</td><td><span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>Página de estado</td><td>Consultar si hay un incidente en curso</td><td><code>https://&lt;dominio&gt;/estado</code></td></tr>
+    </tbody>
+  </table>
+  <p>Para acelerar la atención, el reporte debe incluir: qué no funciona, desde cuándo, a cuántos equipos o usuarios afecta y, si aplica, el número de un equipo de ejemplo.</p>
+  <table>
+    <thead><tr><th style="width:14mm">Paso</th><th>Cuándo</th><th style="width:62mm">Responsable</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Al abrir el caso</td><td>Ingeniero de guardia <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>2</td><td>P1 sin respuesta en 30 minutos, o sin solución en 2 horas</td><td>Líder técnico <span class="pc">[POR CONFIRMAR]</span></td></tr>
+      <tr><td>3</td><td>P1 sin solución en 4 horas, o P2 sin solución en su plazo</td><td>Gerencia <span class="pc">[POR CONFIRMAR]</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>10.7 Respaldo y recuperación de datos</h2>
+  <table>
+    <thead><tr><th style="width:52mm">Concepto</th><th style="width:40mm">Compromiso</th><th>Cómo se cumple</th></tr></thead>
+    <tbody>
+      <tr><td>Máxima pérdida de datos ante un desastre (RPO)</td><td>24 horas <span class="pc">[POR CONFIRMAR]</span></td><td>Respaldo diario completo, verificado, con copia fuera del servidor. Con servidor en espera: segundos.</td></tr>
+      <tr><td>Tiempo máximo para restablecer el servicio tras un desastre (RTO)</td><td>4 horas <span class="pc">[POR CONFIRMAR]</span></td><td>Restauración documentada y probada. Con servidor en espera: 15 minutos.</td></tr>
+      <tr><td>Retención de respaldos</td><td>30 diarios, 8 semanales, 12 mensuales</td><td>Automática.</td></tr>
+      <tr><td>Prueba de restauración</td><td>Semanal, automática</td><td>Cada domingo el respaldo se restaura en una base temporal y se valida.</td></tr>
+      <tr><td>Antes de cada actualización</td><td>Respaldo verificado</td><td>Lo hace el procedimiento de despliegue; si falla, no se actualiza.</td></tr>
+    </tbody>
+  </table>
+  <p>Mediciones de referencia del procedimiento, con base de datos de prueba: restauración completa de base de datos y archivos con el servicio de vuelta en 20 segundos; conmutación al servidor en espera en 21 segundos de trabajo técnico. El tiempo real crece con el tamaño de la base. Los respaldos que salen del servidor viajan y se guardan cifrados.</p>
+
+  <h2>10.8 Exclusiones</h2>
+  <p>No cuentan como incumplimiento ni como tiempo sin servicio:</p>
+  <ol class="steps">
+    <li>Mantenimiento programado y anunciado dentro de los límites de la sección 10.3.</li>
+    <li>Fallas de la red, la energía o los equipos del cliente, incluidos los equipos Android, sus tarjetas SIM y su cobertura.</li>
+    <li>Fallas generalizadas de terceros fuera del control del proveedor: la red del túnel, operadores móviles, servicios de Google en los que se apoyan los equipos Android y el proveedor del centro de datos.</li>
+    <li>Uso contrario a la documentación, cambios hechos por el cliente en la configuración, o cargas fuera de lo acordado (número de equipos contratados <span class="pc">[POR CONFIRMAR]</span>).</li>
+    <li>Suspensión del servicio por falta de pago o por orden de autoridad.</li>
+    <li>Fuerza mayor.</li>
+    <li>Funciones marcadas como «beta» o «experimental».</li>
+  </ol>
+
+  <h2>10.9 Compensación por incumplimiento <span class="pc">[POR CONFIRMAR]</span></h2>
+  <p>Propuesta, sobre la mensualidad del mes afectado:</p>
+  <table>
+    <thead><tr><th>Disponibilidad medida en el mes</th><th class="r" style="width:30mm">Crédito</th></tr></thead>
+    <tbody>
+      <tr><td>Menor al objetivo y mayor o igual a 99,0 %</td><td class="r">5 %</td></tr>
+      <tr><td>Menor a 99,0 % y mayor o igual a 98,0 %</td><td class="r">10 %</td></tr>
+      <tr><td>Menor a 98,0 %</td><td class="r">20 %</td></tr>
+    </tbody>
+  </table>
+  <p>El crédito se solicita dentro de los 30 días siguientes al cierre del mes y se aplica a la factura siguiente. Es la única compensación por incumplimiento de disponibilidad.</p>
+
+  <h2>10.10 Revisión</h2>
+  <p>Este acuerdo se revisa cada 6 meses <span class="pc">[POR CONFIRMAR]</span> o cuando cambie la infraestructura; por ejemplo, al activar el servidor en espera, que permite subir el objetivo a 99,9 %.</p>
+
+  <h2>Para la gerencia: qué respalda cada cifra propuesta</h2>
+  <table>
+    <thead><tr><th style="width:42mm">Cifra</th><th>De dónde sale</th></tr></thead>
+    <tbody>
+      <tr><td>99,5 %</td><td>Un solo servidor compartido. Los dos incidentes registrados (11 minutos y el corte de un despliegue) habrían consumido menos del 10 % del margen mensual.</td></tr>
+      <tr><td>Respuesta P1 en 30 minutos</td><td>El monitor avisa en 2 minutos o menos; el resto es disponibilidad real de la persona de guardia. Requiere definir quién está de guardia y cómo se le contacta de noche.</td></tr>
+      <tr><td>Pérdida máxima de 24 horas</td><td>Respaldo diario. Bajarla exige el servidor en espera.</td></tr>
+      <tr><td>Restablecimiento en 4 horas</td><td>Restaurar en un servidor nuevo: aprovisionarlo, instalar y restaurar. La restauración en sí tarda de segundos a minutos; el resto es conseguir el servidor.</td></tr>
+      <tr><td>Ventana dominical</td><td>Es el horario de menor uso habitual; confirmar con la operación del cliente.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><b>Próximo paso.</b> La gerencia confirma o cambia cada valor marcado <span class="pc">[POR CONFIRMAR]</span> y completa los datos de contacto antes de entregar este acuerdo a un cliente.</div>
+</section>
+</body></html>

@@ -55,6 +55,11 @@ data class KioskFeaturesDto(
     val systemInfo: Boolean? = null,
     val keyguard: Boolean? = null,
     val lockButtons: Boolean? = null,
+    /**
+     * Android 16+ (kiosk without lock task): keep the status bar, and with it the system quick settings, usable.
+     * Sent as `true` only when the policy explicitly allows notifications; absent = closed (the safe default).
+     */
+    val softStatusBar: Boolean? = null,
 )
 
 @Serializable

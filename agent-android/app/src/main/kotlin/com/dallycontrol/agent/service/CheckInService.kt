@@ -52,6 +52,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var eventLog: EventLog
     @Inject lateinit var deviceWatch: DeviceWatch
     @Inject lateinit var keeper: ConnectionKeeper
+    @Inject lateinit var supportSessions: com.dallycontrol.agent.support.SupportSessionManager
     @Inject lateinit var wake: com.dallycontrol.agent.wake.WakeChannel
 
     @Volatile private var started = false
@@ -91,6 +92,9 @@ class CheckInService : LifecycleService() {
     @Suppress("DEPRECATION")
     override fun onCreate() {
         super.onCreate()
+        // The screen service was switched on or off: tell the console now instead of at the next periodic check-in.
+        com.dallycontrol.agent.support.SupportEngine.syncComponent(this)
+        com.dallycontrol.agent.support.SupportEngine.listeners += supportReport
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -183,7 +187,25 @@ class CheckInService : LifecycleService() {
         }
     }
 
+    @Volatile private var reportedSupportState: String? = null
+
+    // Only a real change is reported (the service switched on or off, the policy changed): Android also unbinds and
+    // rebinds the service for passing reasons, and a check-in for each of those kept the agent busy for nothing.
+    private val supportReport: () -> Unit = {
+        val state = com.dallycontrol.agent.support.SupportEngine.screenState(this)
+        if (state != reportedSupportState) {
+            reportedSupportState = state
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { coordinator.runOnce() } }
+        }
+    }
+
     private suspend fun onWake(signal: WakeSignal) {
+        // Remote support (ADR 0012): join the session right away; the check-in below then answers the queued command.
+        if (signal.kind == "support") {
+            signal.sessionId?.let { id ->
+                runCatching { supportSessions.join(id) }.onFailure { Log.w(TAG, "support join failed", it) }
+            }
+        }
         when (signal.kind) {
             "interactive" -> {
                 interactiveUntil = System.currentTimeMillis() + (signal.ttlSec ?: 120) * 1000L

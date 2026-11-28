@@ -34,8 +34,9 @@ export function ConfigStatusCard({ status }: { status: ConfigStatus | null }) {
       ) : null}
       {outcomes ? (
         <ul className="cfg-outcomes">
-          {Object.entries(outcomes.outcomes).map(([k, o]) => (
-            <li key={k} className={o.startsWith('applied') ? 'ok' : o === 'unsupported' ? 'muted' : 'alert'}>
+          {/* Hardware and ports rules have their own tab (Restricciones), with the reason of each one. */}
+          {Object.entries(outcomes.outcomes).filter(([k]) => !k.startsWith('hardware.') && !k.startsWith('restrictions.')).map(([k, o]) => (
+            <li key={k} className={o.startsWith('applied') ? 'ok' : o.startsWith('unsupported') ? 'muted' : 'alert'}>
               <span className="mono">{k}</span> <span>{OUTCOME_LABELS[o] ?? o}</span>
             </li>
           ))}

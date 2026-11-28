@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Notas de versión</title>
+<meta name="doc-titulo" content="Notas de versión">
+<meta name="doc-subtitulo" content="Qué cambia en esta entrega frente a la evaluación, criterio por criterio, y con qué alcance se probó cada cambio.">
+<meta name="doc-publico" content="Responsables de la evaluación del producto y administradores de la consola">
+<meta name="doc-etiqueta" content="Notas de versión · {{EDICION}}">
+<!--ESTILOS-->
+<style>table.cr td:first-child{white-space:nowrap;color:var(--navy);font-weight:600}</style>
+</head><body>
+<!--PORTADA-->
+
+<section class="sec pb" id="resumen" data-temas="resumen, qué cambia, entrega, novedades">
+  <p class="k">1 · Resumen</p>
+  <h1>Esta entrega trae cambios para los 17 criterios, probados en emulador</h1>
+  <p>La evaluación calificó el producto en 17 criterios, MDM-01 a MDM-17. Esta entrega trae cambios para todos. Once criterios tienen cambios ya integrados en la versión que acompaña estas notas. Siete tienen desarrollo terminado en su propia rama, que entra en la integración siguiente; aquí se describen como «por integrar». MDM-07 figura en los dos grupos: su parte principal está integrada y el despertador queda por integrar.</p>
+  <p>Todo lo que estas notas llaman «probado» se probó en emuladores de Android y en un servidor de pruebas, el 27 de noviembre de 2026, salvo que se indique otra fecha. Ninguna prueba de esta entrega se hizo en teléfono físico. El capítulo 4 lista lo que solo un teléfono físico puede confirmar.</p>
+  <div class="figs">
+    <div class="fig"><div class="v">17</div><div class="t">criterios de la evaluación con cambios en esta entrega</div></div>
+    <div class="fig"><div class="v">11</div><div class="t">criterios con cambios ya integrados en esta versión</div></div>
+    <div class="fig"><div class="v">7</div><div class="t">criterios con desarrollo terminado, por integrar; uno coincide con los anteriores</div></div>
+  </div>
+  <table>
+    <thead><tr><th style="width:44mm">Estado en estas notas</th><th>Qué significa</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot" style="background:var(--ok)"></span>Integrado</td><td>Está en la versión que se entrega. Los manuales lo documentan con sus pantallas.</td></tr>
+      <tr><td><span class="dot" style="background:var(--warn)"></span>Por integrar</td><td>Desarrollado y con pruebas propias, en una rama aparte. Los manuales lo describen con la marca «Llega con…» y sin capturas.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">La matriz de evaluación identifica cada criterio con un código. Estas notas usan el código y un título corto del tema; el texto oficial de cada criterio es el de la matriz.</p>
+  <div class="callout"><b>Próximo paso.</b> Integrar las siete ramas pendientes, repetir en teléfonos físicos las pruebas del capítulo 4 y actualizar estas notas con los resultados por modelo.</div>
+</section>
+
+<section class="sec pb" id="criterios-integrados" data-temas="criterios, MDM-01, MDM-02, MDM-04, MDM-05, MDM-07, MDM-09, MDM-11, MDM-14, MDM-15, MDM-16, MDM-17, integrado">
+  <p class="k">2 · Cambios integrados</p>
+  <h1>Once criterios tienen cambios en la versión que se entrega</h1>
+  <table class="cr">
+    <thead><tr><th style="width:18mm">Criterio</th><th style="width:24mm">En la evaluación</th><th>Qué cambia para el cliente</th><th style="width:48mm">Cómo se probó</th></tr></thead>
+    <tbody>
+      <tr><td>MDM-01<br>Enrolamiento</td><td>Pendiente</td><td>El QR lleva la hora y pone en fecha un equipo nuevo. La configuración inicial se aplica igual en todas las versiones de Android. Hay códigos de carpeta reutilizables, exportación para Zero-Touch y Samsung KME, y un panel «Intentos de inscripción» con el motivo de cada falla. Un equipo que quedó administrado sin inscribirse se recupera desde el agente, sin formatear.</td><td>QR en emulador: Android 7 a 10 inscritos al primer intento. Android 11 a 17: no obtenido por sobrecarga de la máquina de pruebas. Reglas del servidor: 24 comprobaciones correctas.</td></tr>
+      <tr><td>MDM-02<br>Conectividad</td><td>No cumple</td><td>El agente reconecta de inmediato al cambiar de red. La consola distingue «En reposo» de «Sin conexión» y muestra la «Última falla de conexión» con su causa, la red y el emisor del certificado. Se entrega una herramienta que prueba la red del cliente y un documento de requisitos de red. El servidor admite una dirección de respaldo.</td><td>Escenarios de red simulados en emulador. Pendiente: confirmar en la sede donde se sospecha inspección del tráfico cifrado.</td></tr>
+      <tr><td>MDM-04<br>Instalación de aplicaciones</td><td>Cumple</td><td>La ventana «Instalación en la flota» muestra el estado por equipo y el motivo de cada falla en lenguaje llano. El servidor reintenta solo las fallas temporales, hasta 5 veces en 24 horas.</td><td>Emulador, con agente real: fallas por firma, archivo dañado y falta de espacio.</td></tr>
+      <tr><td>MDM-05<br>Aplicaciones propias</td><td>Cumple</td><td>Los archivos de 50 MB o más se suben por partes, hasta 4 GB, y la subida se reanuda si se corta. La consola avisa si cambia la firma y rechaza formatos no instalables con una explicación.</td><td>Servidor de pruebas detrás de un intermediario con tope de 100 MB: parte dañada, reanudación y firma distinta.</td></tr>
+      <tr><td>MDM-07<br>Órdenes remotas</td><td>No cumple</td><td>Las órdenes ya no se pierden: quedan en cola, se reentregan si el equipo no responde y cada tipo tiene su plazo. Bloquear y borrar no vencen. El historial muestra creada, entregada y completada con su latencia; las órdenes se pueden cancelar. Hay un reporte de latencia por tipo de orden.</td><td>Emulador, Android 11, 15 y 16: órdenes sin enlace por 2 horas ejecutadas al reconectar; reentrega sin doble ejecución. Con carga alta en la máquina: bloquear, mediana de 2 a 3,5 segundos.</td></tr>
+      <tr><td>MDM-09<br>Borrado remoto</td><td>En revisión</td><td>La orden de borrado no vence: un equipo robado y apagado se borra al encender. Queda registrado quién la envió y la ficha conserva la marca «Borrado» con fecha y autor. El borrado no se puede enviar a varios equipos a la vez.</td><td>Emulador: borrado en cola con el equipo sin enlace. El emulador no ejecuta el borrado físico real.</td></tr>
+      <tr><td>MDM-11<br>Ubicación y geocercas</td><td>En revisión</td><td>Nuevas geocercas en círculo o polígono, con regla de permanecer o no entrar, horario, asignación por carpeta y alertas por correo. El mapa de la flota muestra recorridos y zonas. El historial marca las posiciones de baja precisión.</td><td>Emulador con posiciones simuladas y consola en navegador automatizado.</td></tr>
+      <tr><td>MDM-14<br>Documentación</td><td>No cumple</td><td>Se entregan siete documentos: manual del administrador, guía de enrolamiento, arquitectura y requisitos, solución de problemas, operación y nivel de servicio, guía rápida del técnico y estas notas. La consola tiene un menú «Ayuda» con los manuales, búsqueda por tema y un botón «?» en cada pantalla.</td><td>Cada instrucción se cotejó con los rótulos de la consola. Capturas tomadas de un ambiente de demostración.</td></tr>
+      <tr><td>MDM-15<br>Auditoría y roles</td><td>En revisión</td><td>La auditoría registra órdenes remotas, acciones masivas, cambios de la flota, exportaciones y accesos denegados. Tiene pantalla propia con filtros, detalle del cambio y exportación. Los registros no se pueden alterar y la cadena se verifica. Los roles se crean a partir de plantillas y el servidor comprueba cada permiso.</td><td>Pruebas automáticas de la matriz de roles y consola en navegador automatizado.</td></tr>
+      <tr><td>MDM-16<br>Inventario y reportes</td><td>En revisión</td><td>El inventario incluye almacenamiento y red. Los reportes se exportan a Excel y CSV y se programan por correo, diario, semanal o mensual. El estado «en línea» usa 20 minutos en toda la consola.</td><td>Servidor de pruebas con 5.000 equipos sintéticos: Excel en 6 segundos.</td></tr>
+      <tr><td>MDM-17<br>Infraestructura y servicio</td><td>En revisión</td><td>Monitor con página de estado y alertas, respaldos diarios verificados con copia externa, actualización sin corte con vuelta atrás automática, guía de servidor en espera y propuesta de acuerdo de nivel de servicio.</td><td>Entorno local: 0 peticiones fallidas de 343 en un despliegue; restauración completa en 20 segundos; conmutación técnica en 21 segundos. Pendiente la primera medición en producción.</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">MDM-13 tiene una parte integrada (datos móviles por aplicación) y otra por integrar (Wi-Fi corporativo): se detalla en el capítulo 3.</p>
+  <div class="callout"><b>Pendiente de la gerencia.</b> El acuerdo de nivel de servicio se entrega como propuesta. Los valores de disponibilidad, tiempos de respuesta, compensaciones y contactos están marcados «por confirmar» en el manual de operación.</div>
+</section>
+
+<section class="sec pb" id="criterios-por-integrar" data-temas="criterios, MDM-03, MDM-06, MDM-08, MDM-10, MDM-12, MDM-13, por integrar, pendiente">
+  <p class="k">3 · Cambios por integrar</p>
+  <h1>Siete criterios tienen el desarrollo terminado y entran en la integración siguiente</h1>
+  <table class="cr">
+    <thead><tr><th style="width:18mm">Criterio</th><th style="width:24mm">En la evaluación</th><th>Qué cambiará para el cliente</th><th style="width:48mm">Cómo se probó en su rama</th></tr></thead>
+    <tbody>
+      <tr><td>MDM-03<br>Protección contra restablecimiento</td><td>Pendiente</td><td>Cuentas de reactivación por empresa, carpeta o política; estado de la protección en cada ficha; modo perdido con mensaje, sonido y borrado automático opcional. Hoy la versión integrada ya permite indicar las cuentas en la política (Android 11 o superior).</td><td>Emulador Android 10. El emulador no reproduce la protección real: solo se confirma en teléfono físico con servicios de Google.</td></tr>
+      <tr><td>MDM-06<br>Permisos por aplicación</td><td>En revisión</td><td>Regla por defecto y reglas por aplicación y por permiso, con el estado real en cada equipo y exportación. Hoy la versión integrada concede todos los permisos de forma automática.</td><td>Emulador con agente real. Desde Android 12, conceder permisos de sensores depende de cómo se inscribió el equipo.</td></tr>
+      <tr><td>MDM-07<br>Despertador</td><td>No cumple</td><td>Señal por el servicio de mensajes de Google para despertar un equipo dormido, y una tarjeta «Alcance de órdenes» con el canal en uso. Complementa lo ya integrado para este criterio.</td><td>Emulador con un servicio de mensajes simulado. La entrega real y los tiempos solo se miden con un proyecto real y teléfonos físicos.</td></tr>
+      <tr><td>MDM-08<br>Control remoto</td><td>En desarrollo</td><td>Captura y control desde el propio agente, llamada de voz, chat, portapapeles, archivos y registro de sesiones. Hoy la versión integrada permite ver y controlar la pantalla.</td><td>Emulador, con un tono sintético para la voz. La calidad real del audio y el comportamiento por fabricante solo se confirman en teléfono físico.</td></tr>
+      <tr><td>MDM-10<br>Quiosco</td><td>En revisión</td><td>Contraseña de salida obligatoria, espera creciente tras intentos fallidos, bloqueo de los Ajustes del sistema dentro del quiosco y estado del refuerzo en la ficha.</td><td>Pruebas automáticas de escape preparadas para Android 10, 15 y 16. La tabla de resultados por versión está pendiente en su documento.</td></tr>
+      <tr><td>MDM-12<br>Hardware y puertos</td><td>En revisión</td><td>Sección «Hardware y puertos» con 23 funciones, entre ellas cámara, micrófono, depuración USB y datos por USB, y el resultado real por equipo.</td><td>Emulador, Android 9 y 16. El corte de datos por USB depende del fabricante.</td></tr>
+      <tr><td>MDM-13<br>Wi-Fi y datos móviles</td><td>En revisión</td><td><b>Integrado:</b> restricción de datos móviles por aplicación, con lista negra o blanca, límites por equipo y por aplicación, alertas y reportes. <b>Por integrar:</b> Wi-Fi con WPA3 y redes empresariales con certificados, bloqueos de Wi-Fi y estado de cada red por equipo.</td><td>Datos móviles: emulador. Wi-Fi: emulador como configuración guardada; la autenticación real exige un teléfono y un punto de acceso.</td></tr>
+    </tbody>
+  </table>
+  <h2>Cambios de comportamiento que traerá la integración</h2>
+  <ul class="b">
+    <li><b>Quiosco:</b> las políticas con quiosco y sin contraseña de salida recibirán una contraseña generada de 8 dígitos. El administrador debe consultarla en la política antes de necesitarla en campo.</li>
+    <li><b>Wi-Fi:</b> el ajuste Wi-Fi de la sección Red pasará a controlar el encendido del radio. Impedir que el usuario cambie la configuración será un bloqueo aparte.</li>
+    <li><b>Servidor:</b> el despertador agrega variables de configuración y salida del servidor hacia el servicio de mensajes de Google; el Wi-Fi empresarial agrega un archivo de clave que debe entrar en los respaldos.</li>
+  </ul>
+  <p class="nota">El archivo de pendientes de los manuales lista las secciones y capturas que se completan con cada integración.</p>
+</section>
+
+<section class="sec pb" id="alcance-pruebas" data-temas="alcance de las pruebas, emulador, teléfono físico, pendiente de validar, compatibilidad">
+  <p class="k">4 · Alcance de las pruebas</p>
+  <h1>Lo probado en emulador no reemplaza la prueba en los teléfonos de la flota</h1>
+  <p>Un emulador ejecuta el mismo Android y el mismo agente, pero no tiene la cámara, el asistente de bienvenida, el gestor de batería ni las protecciones de cada fabricante. Esta lista separa lo que ya se sabe de lo que falta confirmar.</p>
+  <table>
+    <thead><tr><th style="width:42mm">Tema</th><th>Qué falta confirmar en teléfono físico</th></tr></thead>
+    <tbody>
+      <tr><td>Enrolamiento por QR</td><td>La cámara y el lector de cada fabricante; los asistentes de Samsung, Xiaomi y Motorola; el veredicto de la protección de Google Play, en especial en Android 15 y 16; el QR en Android 11 a 17.</td></tr>
+      <tr><td>Zero-Touch y Samsung KME</td><td>La asignación real en los portales, que exige equipos registrados por un revendedor.</td></tr>
+      <tr><td>Conectividad</td><td>El comportamiento con el ahorro de batería de cada fabricante tras horas de reposo; las redes con inspección del tráfico cifrado.</td></tr>
+      <tr><td>Órdenes remotas</td><td>Las latencias en red móvil real. Las cifras medidas son de emulador con la máquina cargada.</td></tr>
+      <tr><td>Borrado y protección</td><td>El borrado físico y la pantalla de verificación de cuenta tras un restablecimiento con botones.</td></tr>
+      <tr><td>Quiosco</td><td>El bloqueo del sistema en Android 16 por modelo; hoy esa versión usa el quiosco propio del agente.</td></tr>
+      <tr><td>Control remoto</td><td>Que el fabricante no cierre el componente en segundo plano; la calidad de la voz cuando se integre.</td></tr>
+      <tr><td>Actualización sin corte</td><td>El primer despliegue en producción y el comportamiento del agente real durante el relevo.</td></tr>
+      <tr><td>Inscriptor para Windows</td><td>Su ejecución en un computador con Windows real.</td></tr>
+    </tbody>
+  </table>
+  <h2>Compatibilidad</h2>
+  <ul class="b">
+    <li>Los agentes ya instalados siguen funcionando con el servidor nuevo. Las funciones que un agente antiguo no conoce aparecen en la consola como «No soportado» o «Agente desactualizado».</li>
+    <li>La tarjeta «Última falla de conexión» y la dirección de respaldo requieren actualizar el agente a la versión de esta entrega.</li>
+    <li>El primer despliegue con el mecanismo sin corte tiene un corte de un arranque del servidor, 32 segundos en el ensayo. Se hace en ventana de mantenimiento.</li>
+  </ul>
+  <div class="callout"><b>Recomendación.</b> Antes de la siguiente evaluación, repetir estas pruebas en un equipo físico de cada modelo de la flota y registrar el resultado por modelo y versión de Android.</div>
+</section>
+</body></html>
