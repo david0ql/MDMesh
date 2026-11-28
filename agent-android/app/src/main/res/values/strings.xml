@@ -151,6 +151,9 @@
     <string name="remote_setup_open">Open settings</string>
     <string name="remote_setup_later">Not now</string>
     <string name="kiosk_auth_banner">Authorization pending: tap here to finish setting up this device.</string>
+    <string name="kiosk_gate_title">This device is not authorized yet</string>
+    <string name="kiosk_gate_body">No app opens on this device until DallyControl is authorized. It is one switch, once: tap the button and follow the steps.</string>
+    <string name="kiosk_gate_button">Authorize now</string>
     <!-- Status screen (MainActivity) and kiosk launcher labels. -->
     <string name="main_subtitle">Device agent</string>
     <string name="main_label_management">MANAGEMENT</string>

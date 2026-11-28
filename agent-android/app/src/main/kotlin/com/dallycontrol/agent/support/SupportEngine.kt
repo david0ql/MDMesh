@@ -171,8 +171,26 @@ object SupportEngine {
                 admin, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
                 listOfNotNull(current, component(context).flattenToString()).joinToString(":"),
             )
-        }.fold({ if (isServiceOn(context)) "written" else "ignored" }, { "threw ${it.javaClass.simpleName}" })
-        probe = "sdk=${Build.VERSION.SDK_INT} grantWriteSecureSettings=$grant setSecureSetting=$secure"
+        }.fold(
+            { if (isServiceOn(context)) "written" else "ignored" },
+            { "threw ${it.javaClass.simpleName} (${it.message?.take(PROBE_MESSAGE_MAX)})" },
+        )
+        // Usage access (the kiosk guard's other source) is an app-op behind a signature permission: same answer.
+        val usage = runCatching {
+            dpm.setPermissionGrantState(
+                admin, context.packageName, Manifest.permission.PACKAGE_USAGE_STATS,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
+            )
+        }.fold(
+            {
+                val held = context.checkSelfPermission(Manifest.permission.PACKAGE_USAGE_STATS) ==
+                    PackageManager.PERMISSION_GRANTED
+                if (held) "granted" else "refused($it)"
+            },
+            { "threw ${it.javaClass.simpleName}" },
+        )
+        probe = "sdk=${Build.VERSION.SDK_INT} grantWriteSecureSettings=$grant setSecureSetting=$secure " +
+            "grantUsageAccess=$usage"
         Log.i(TAG, "device-owner self-authorisation: $probe")
     }
 
@@ -192,6 +210,7 @@ object SupportEngine {
     }
 
     private const val POLL_MS = 100L
+    private const val PROBE_MESSAGE_MAX = 120
     private const val REBIND_WAIT_MS = 20_000L
 
     internal fun onServiceChanged() {
@@ -205,6 +224,9 @@ object SupportEngine {
     fun supportCapability(context: Context): SupportCapability {
         val screen = screenState(context)
         val ready = screen == SupportScreenState.READY
+        // Still waiting for the one tap: what Android answers to a Device Owner trying to do it itself goes on record
+        // (once per start), so a release of Android that allows it is noticed without a new agent.
+        if (screen == SupportScreenState.NEEDS_AUTHORIZATION) runCatching { probeDeviceOwnerRoutes(context) }
         return SupportCapability(
             session = true,
             screen = screen,

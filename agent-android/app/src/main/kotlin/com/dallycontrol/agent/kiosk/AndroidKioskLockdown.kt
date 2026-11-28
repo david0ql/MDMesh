@@ -34,6 +34,7 @@ import com.dallycontrol.proto.KioskApplyPayload
  * Only what this class set is undone on [release] (kept in its own preferences), so restrictions owned by the
  * policy's device rules or the anti-theft PIN are never lifted from here.
  */
+@Suppress("TooManyFunctions") // engage/release and one small step of the lock-down each
 class AndroidKioskLockdown(
     context: Context,
     private val dpm: DevicePolicyManager,
@@ -50,9 +51,9 @@ class AndroidKioskLockdown(
         if (!dpm.isDeviceOwnerApp(context.packageName)) return
         val sdk = Build.VERSION.SDK_INT
         val soft = KioskHardening.softKiosk(sdk)
+        noteFieldKiosk()
         prefs.edit().putBoolean(KEY_ENGAGED, true).apply()
         restrict(KioskHardening.restrictions(sdk))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) suspend(soft, allowed)
         // Settings (never suspended) is kept out of the foreground by the guard wherever lock task does not already
         // do it; on the soft kiosk the guard sends back ANY app the kiosk does not allow (whatever Android refused to
         // suspend included).
@@ -68,6 +69,10 @@ class AndroidKioskLockdown(
         // How Settings is kept closed on this phone, for the console (reported when it changes): by lock task, by the
         // guard, or — the guard needs one tap on the phone (the agent's screen service) — not yet.
         val state = KioskHardening.settingsGuard(sdk, guardNeeded, canWatch)
+        // Closed until authorised: without the guard's one tap no app of the kiosk can be opened (they are suspended
+        // too, so neither the kiosk home nor Recents nor a notification opens them) — there is no kiosk in use from
+        // which an allowed app could reach Settings. Lifted by the next engage once the screen service is on.
+        val gate = suspendWithGate(state, soft, allowed)
         if (state != prefs.getString(KEY_GUARD, null)) {
             prefs.edit().putString(KEY_GUARD, state).apply()
             events.record(EventType.KIOSK_GUARD, state)
@@ -82,7 +87,8 @@ class AndroidKioskLockdown(
             runCatching { dpm.setStatusBarDisabled(admin, bar) }
         }
         // Not authorised yet: ask now (and again whenever the kiosk home comes back), never stay quiet about it.
-        if (state == KioskHardening.GUARD_MISSING_ACCESS) {
+        // (With the gate up the kiosk home asks, once it is in front: asked from here it would be covered by it.)
+        if (state == KioskHardening.GUARD_MISSING_ACCESS && !gate) {
             android.os.Handler(android.os.Looper.getMainLooper()).post { runCatching { KioskAuthPrompt.ask(context) } }
         }
         KioskForegroundGuard.onServiceChange = { reengage() }
@@ -97,6 +103,46 @@ class AndroidKioskLockdown(
     }
 
     @Volatile private var lastEngaged: Pair<KioskApplyPayload, List<String>>? = null
+
+    /**
+     * A phone that was already working in a kiosk when this agent arrived as an update keeps the old behaviour (strip
+     * + periodic prompt) until it is authorised or leaves the kiosk; every other kiosk is gated. Decided once, the
+     * first time this agent engages a kiosk.
+     */
+    private fun noteFieldKiosk() {
+        if (prefs.contains(KEY_FIELD)) return
+        val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        val field = info != null && KioskHardening.fieldKiosk(
+            prefs.contains(KEY_ENGAGED), info.firstInstallTime, info.lastUpdateTime, System.currentTimeMillis(),
+        )
+        prefs.edit().putBoolean(KEY_FIELD, field).apply()
+    }
+
+    /**
+     * Suspend what the kiosk keeps closed and, while the gate is up, the allowed apps too.
+     * @return whether the gate is up
+     */
+    private fun suspendWithGate(state: String, soft: Boolean, allowed: List<String>): Boolean {
+        if (state != KioskHardening.GUARD_MISSING_ACCESS && prefs.getBoolean(KEY_FIELD, false)) {
+            prefs.edit().putBoolean(KEY_FIELD, false).apply()
+        }
+        val gate = KioskHardening.authGate(state, strict(context))
+        val gateChanged = gate != prefs.getBoolean(KEY_GATE, false)
+        // The kiosk home follows this flag: it is raised BEFORE the apps are suspended and lowered only AFTER they are
+        // usable again, so the home never opens an app that is still (or already) suspended.
+        if (gate && gateChanged) prefs.edit().putBoolean(KEY_GATE, true).commit()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            suspend(soft, allowed, if (gate) KioskHardening.gatePlan(allowed, protectedPackages()) else emptySet())
+        }
+        if (!gate && gateChanged) prefs.edit().putBoolean(KEY_GATE, false).commit()
+        if (gateChanged) {
+            events.record(
+                EventType.KIOSK_LOCKDOWN_GAP,
+                if (gate) "authGate: quiosco cerrado hasta dar la autorización en el teléfono" else "authGate: off",
+            )
+        }
+        return gate
+    }
 
     /** The screen service came or went: re-evaluate the guard with what was engaged last. */
     private fun reengage() {
@@ -152,7 +198,7 @@ class AndroidKioskLockdown(
         prefs.getStringSet(KEY_HIDDEN, emptySet()).orEmpty()
             .forEach { runCatching { dpm.setApplicationHidden(admin, it, false) } }
         prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_HIDDEN).remove(KEY_GAP).remove(KEY_GUARD)
-            .apply()
+            .remove(KEY_GATE).putBoolean(KEY_FIELD, false).apply()
         lastEngaged = null
         if (Build.VERSION.SDK_INT >= KioskHardening.SOFT_KIOSK_SDK) {
             runCatching { dpm.setStatusBarDisabled(admin, false) }
@@ -175,7 +221,7 @@ class AndroidKioskLockdown(
     }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.N)
-    private fun suspend(soft: Boolean, allowed: List<String>) {
+    private fun suspend(soft: Boolean, allowed: List<String>, gated: Set<String>) {
         val pm = context.packageManager
         val launchable = runCatching {
             pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
@@ -185,7 +231,7 @@ class AndroidKioskLockdown(
         val hiddenBefore = prefs.getStringSet(KEY_HIDDEN, emptySet()).orEmpty()
         // What this kiosk hid stays in the plan (a hidden app no longer shows up in the query above).
         val plan = KioskHardening.suspendPlan(soft, launchable, settingsPackages(), allowed, protected) +
-            (hiddenBefore - allowed.toSet() - protected.toSet())
+            (hiddenBefore - allowed.toSet() - protected.toSet()) + gated
         val before = prefs.getStringSet(KEY_SUSPENDED, emptySet()).orEmpty()
 
         // Lift what this kiosk no longer wants closed (an app the policy now allows).
@@ -256,6 +302,20 @@ class AndroidKioskLockdown(
         private const val KEY_GAP = "gap"
         private const val KEY_HIDDEN = "hidden"
         private const val KEY_GUARD = "guard_state"
+        private const val KEY_GATE = "auth_gate"
+        private const val KEY_FIELD = "field_kiosk"
+
+        /**
+         * Whether a kiosk without its authorisation is closed altogether ([KioskHardening.authGate]): yes, unless the
+         * policy turned the guided step off or this phone was already working in a kiosk when the agent was updated.
+         */
+        fun strict(context: Context): Boolean =
+            com.dallycontrol.agent.support.SupportEngine.settings(context).setupPrompt &&
+                !context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_FIELD, false)
+
+        /** The kiosk is closed until the one authorisation is given on the phone (nothing can be opened). */
+        fun gated(context: Context): Boolean =
+            engaged(context) && context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_GATE, false)
         private const val KEY_NATIVE_TRIPPED = "native16_tripped"
         private const val KEY_NATIVE_BOOT = "native16_boot"
         private const val KEY_NATIVE_BOOTS = "native16_boots"

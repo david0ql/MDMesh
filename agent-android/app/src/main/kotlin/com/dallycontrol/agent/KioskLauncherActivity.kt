@@ -86,6 +86,7 @@ class KioskLauncherActivity : ComponentActivity() {
     @Suppress("ReturnCount") // not in kiosk / the guided step is up / paused
     override fun onResume() {
         super.onResume()
+        inFront = true
         // Back on the kiosk home: any system screen that was let through (sharing data…) is closed again at once.
         com.dallycontrol.agent.kiosk.TimedAllow.revokeAll(this)
         // A single-app pin that returned us to HOME means the pinned app exited or crashed — re-pin
@@ -94,12 +95,87 @@ class KioskLauncherActivity : ComponentActivity() {
         val p = active ?: return
         // The "authorisation pending" strip follows the guard's state (it changes after the kiosk was drawn).
         val guard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
+        gateTick.run()
+        // Closed until authorised: nothing is opened from here, only the guided step (see KioskHardening.authGate).
+        if (gated()) {
+            if (!shownGate) setContentView(gateView(p))
+            askAuthorisation()
+            return
+        }
         if (guard != shownGuard && !(p.mode == "single" && p.pinPackage != null)) setContentView(launcherGrid(p))
         if (askAuthorisation()) return // the guided step is up; this screen resumes again when it closes
         if (p.mode == "single") {
             if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
             autoLaunch(p)
         }
+    }
+
+    override fun onPause() {
+        inFront = false
+        gateHandler.removeCallbacks(gateTick)
+        super.onPause()
+    }
+
+    private fun gated(): Boolean = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.gated(this)
+
+    /** The gate screen is what is drawn now. */
+    private var shownGate = false
+    private var inFront = false
+    private val gateHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * The gate is decided by the lock-down (the check-in service, another thread), a moment after the kiosk state
+     * reaches this screen, and lifted the moment the authorisation is given: while this screen is in front it follows.
+     */
+    private val gateTick = object : Runnable {
+        override fun run() {
+            gateHandler.removeCallbacks(this)
+            val p = active
+            if (p != null && gated() != shownGate) {
+                if (gated()) setContentView(gateView(p)) else applyState(p)
+            }
+            // The gate closed the kiosk: the guided step comes up by itself over this screen, once per closing (the
+            // lock-down may have opened it a moment before this screen came to the front and covered it).
+            if (p != null) com.dallycontrol.agent.kiosk.KioskAuthPrompt.askForGate(this@KioskLauncherActivity)
+            if (p != null) gateHandler.postDelayed(this, GATE_TICK_MS)
+        }
+    }
+
+    /** Closed until authorised: what the kiosk shows instead of its apps. */
+    private fun gateView(p: KioskApplyPayload): View = frame(parseColor(p.theme.backgroundColor, INK)).apply {
+        shownGate = true
+        val col = LinearLayout(this@KioskLauncherActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(28), 0, dp(28), 0)
+            layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
+        }
+        col.addView(
+            text(getString(R.string.kiosk_auth_banner), BANNER_SP, Color.WHITE, bold = true).apply {
+                contentDescription = "kiosk-auth-banner"
+                setPadding(dp(16), dp(10), dp(16), dp(10))
+                setBackgroundColor(Color.parseColor("#B3261E"))
+            },
+        )
+        val fg = parseColor(p.theme.textColor, TEXT)
+        col.addView(
+            centeredText(getString(R.string.kiosk_gate_title), GATE_TITLE_SP, fg, bold = true)
+                .apply { setPadding(0, dp(GATE_GAP_DP), 0, 0) },
+        )
+        col.addView(
+            centeredText(getString(R.string.kiosk_gate_body), GATE_BODY_SP, fg)
+                .apply { setPadding(0, dp(GATE_GAP_DP / 2), 0, dp(GATE_GAP_DP)) },
+        )
+        col.addView(
+            Button(this@KioskLauncherActivity).apply {
+                text = getString(R.string.kiosk_gate_button)
+                isAllCaps = false
+                contentDescription = "kiosk-auth-gate"
+                setOnClickListener { askAuthorisation(force = true) }
+            },
+        )
+        addView(col)
+        addExitAffordance(p, this)
     }
 
     /** The guided authorisation step, while it is pending (see KioskAuthPrompt). */
@@ -143,7 +219,11 @@ class KioskLauncherActivity : ComponentActivity() {
             return
         }
         startLockTaskSafely()
-        if (p.mode == "single" && p.pinPackage != null) {
+        // The kiosk state usually arrives after onResume: the gate is followed from here on.
+        if (inFront) gateHandler.postDelayed(gateTick, GATE_TICK_MS)
+        if (gated()) {
+            setContentView(gateView(p))
+        } else if (p.mode == "single" && p.pinPackage != null) {
             if (paused) setContentView(pausedView(p)) else autoLaunch(p)
         } else {
             setContentView(launcherGrid(p))
@@ -162,6 +242,10 @@ class KioskLauncherActivity : ComponentActivity() {
 
     /** Launch + show the pinned app (single mode), with a themed splash behind it. */
     private fun launchPinned(p: KioskApplyPayload) {
+        if (gated()) {
+            setContentView(gateView(p))
+            return
+        }
         val intent = p.pinPackage?.let { cleanLaunchIntent(it) }
         if (intent == null) {
             setContentView(launcherGrid(p)) // unknown package → fall back to the grid
@@ -312,6 +396,7 @@ class KioskLauncherActivity : ComponentActivity() {
     // --- Views -------------------------------------------------------------------------------
 
     private fun splashView(p: KioskApplyPayload): View {
+        shownGate = false
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         return frame(bg).apply {
@@ -325,6 +410,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun launcherGrid(p: KioskApplyPayload): View {
         shownGuard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
+        shownGate = false
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         val cell = iconCellPx(p.theme.iconSize)
@@ -556,6 +642,9 @@ class KioskLauncherActivity : ComponentActivity() {
                         ?.let { android.widget.Toast.makeText(this@KioskLauncherActivity, it, android.widget.Toast.LENGTH_LONG).show() }
                 } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
+                } else if (gated()) {
+                    active?.let { setContentView(gateView(it)) }
+                    askAuthorisation(force = true)
                 } else {
                     cleanLaunchIntent(pkg)?.let { startActivity(it) }
                 }
@@ -576,6 +665,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     /** Still in kiosk; the pinned app left several times in a row. One tap opens it again. */
     private fun pausedView(p: KioskApplyPayload): View = frame(parseColor(p.theme.backgroundColor, INK)).apply {
+        shownGate = false
         val label = p.pinPackage?.let { pkg ->
             runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }
                 .getOrNull()
@@ -715,6 +805,10 @@ class KioskLauncherActivity : ComponentActivity() {
     private companion object {
         const val BOUNCE_DEDUPE_MS = 1_500L
         const val BANNER_SP = 13f
+        const val GATE_TICK_MS = 1_000L
+        const val GATE_TITLE_SP = 20f
+        const val GATE_BODY_SP = 15f
+        const val GATE_GAP_DP = 24
 
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"

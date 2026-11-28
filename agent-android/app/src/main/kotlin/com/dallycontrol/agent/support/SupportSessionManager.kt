@@ -749,19 +749,36 @@ class SupportSessionManager @Inject constructor(
     }
 
     /**
-     * Android 10+ only lets the focused app read the clipboard, so from the background the agent usually cannot:
-     * it then offers the text selected in the focused field (through the screen service) instead.
+     * Android 10+ only lets the app with the input focus read the clipboard. In front (the support screen) the agent
+     * reads it directly; from the background its screen service takes the focus for a moment to read it
+     * ([SupportAccessibilityService.readClipboard]); when even that gives nothing, the text selected in the focused
+     * field is offered instead.
      */
     private fun readClipboard() = main.post {
-        val clip = runCatching {
+        val direct = runCatching {
             context.getSystemService(ClipboardManager::class.java).primaryClip?.takeIf { it.itemCount > 0 }
                 ?.getItemAt(0)?.coerceToText(context)?.toString()
         }.getOrNull()
-        val text = clip ?: SupportAccessibilityService.instance?.focusedText()
-        send(SupportProtocol.message("clip") {
-            put("s", (text ?: "").take(MAX_CLIP))
-            put("source", if (clip != null) "clipboard" else if (text != null) "field" else "none")
-        })
+        val service = SupportAccessibilityService.instance
+        fun answer(clip: String?) {
+            val text = clip ?: service?.focusedText()
+            send(SupportProtocol.message("clip") {
+                put("s", (text ?: "").take(MAX_CLIP))
+                put("source", if (clip != null) "clipboard" else if (text != null) "field" else "none")
+            })
+        }
+        // The field's text is read BEFORE the service takes the focus away from it.
+        if (direct != null || service == null) answer(direct)
+        else {
+            val field = service.focusedText()
+            service.readClipboard { clip ->
+                if (clip != null) answer(clip)
+                else send(SupportProtocol.message("clip") {
+                    put("s", (field ?: "").take(MAX_CLIP))
+                    put("source", if (field != null) "field" else "none")
+                })
+            }
+        }
     }
 
     // --- files ---------------------------------------------------------------------------------------------------

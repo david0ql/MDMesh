@@ -31,8 +31,9 @@ Ajustes se abría desde la app de trabajo.
 - **Android 7 a 10** (no existe esa opción) **y Android 16+** (sin lock task): el agente vigila qué app está en primer
   plano (acceso de uso, que da el enrolamiento por cable) y, si aparece Ajustes, vuelve al quiosco de inmediato y lo
   reporta (`kioskEscapeBlocked`). Es una mitigación: la pantalla puede verse un instante (menos de un segundo). La
-  siguiente vez que se abre la app de trabajo arranca limpia, para que no quede Ajustes encima. Sin acceso de uso
-  el agente lo avisa en el historial (`kioskLockdownGap: settingsNotGuarded`).
+  siguiente vez que se abre la app de trabajo arranca limpia, para que no quede Ajustes encima. En un equipo
+  enrolado por QR el vigilante es el servicio de pantalla del agente y necesita un toque; **mientras falte, el
+  quiosco no abre ninguna app** (ver «El vigilante y su única autorización»).
 
 **Por qué no se suspende ni se oculta la app Ajustes.** En Ajustes vive la pantalla de inicio que Android usa
 mientras arranca (FallbackHome). Probado en emulador: con Ajustes *oculto* (`setApplicationHidden`) el teléfono no
@@ -64,19 +65,58 @@ Android no deja que un Device Owner encienda su propio servicio de accesibilidad
 Si el equipo ya tenía «acceso de uso» (enrolado por cable con un agente anterior), el vigilante lo usa como
 alternativa (sondeo) mientras el servicio de pantalla no esté encendido.
 
-**Sin esa autorización el quiosco nunca queda abierto en silencio:**
+**Cerrado hasta autorizar.** Sin esa autorización el quiosco **no abre ninguna app** (desde el agente siguiente a
+la 0.9.8):
 
-- el agente reporta `kioskGuard = needsAuthorization` y la consola muestra en la ficha del equipo, bajo el
-  interruptor del quiosco, «**Falta autorización en el teléfono**» con el botón **«Pedir autorización en el
-  teléfono»** (abre la pantalla guiada aunque el equipo esté en quiosco);
-- el quiosco muestra la pantalla guiada cada vez que se vuelve a su inicio (como máximo cada 10 minutos) y una franja
-  roja fija «Falta una autorización» en su pantalla de inicio, hasta que se complete;
-- entre tanto se aplica lo más cerrado que el Device Owner puede hacer solo: lock task donde existe (Android 7–10:
-  barra, Recientes, apps no permitidas y `am start` cerrados); en Android 16+ barra de estado deshabilitada
-  **aunque la política diga «Notificaciones = Sí»**, todo lo no permitido suspendido y, lo que Android no deja
-  suspender, oculto (nunca la app Ajustes: ver arriba);
-- **lo que queda abierto hasta dar el toque** (Android 7–10 y 16+): una app permitida que enlace a los Ajustes del
-  sistema los abre.
+- las apps permitidas quedan **suspendidas** igual que las demás, así que no las abre ni el inicio del quiosco, ni
+  Recientes, ni una notificación; Android responde «Bloqueada por la política de trabajo»;
+- el inicio del quiosco muestra solo la pantalla «**Este equipo aún no está autorizado**» con el botón **Autorizar
+  ahora**, y la pantalla guiada se abre sola encima al entrar al quiosco;
+- en modo de una sola app, la app no se lanza hasta que se da el toque; en cuanto se da, se abre sola (no hay que
+  tocar nada más ni esperar a la consola);
+- el agente reporta `kioskGuard = needsAuthorization` y `kioskLockdownGap = authGate: quiosco cerrado…`; la consola
+  muestra en la ficha del equipo «**Falta autorización en el teléfono**» con el botón **«Pedir autorización en el
+  teléfono»**;
+- la salida con contraseña sigue disponible en esa pantalla (según el modo de salida de la política).
+
+Con esto **no existe un quiosco en uso desde el que una app permitida pueda abrir Ajustes**: el hueco de Android
+7–10 y 16+ ya no depende de que alguien se acuerde de dar el toque; sin el toque el equipo no sirve para trabajar y
+lo dice en pantalla y en la consola. Lo único que sigue pasando por Ajustes es el toque mismo: al pulsar «Autorizar
+ahora» se abre la pantalla de Accesibilidad de Ajustes durante 5 minutos como máximo (se cierra en cuanto el
+interruptor queda encendido o se vuelve al inicio del quiosco). Por eso **el toque lo da quien enrola el equipo,
+antes de entregarlo**.
+
+Dos casos en que el quiosco NO se cierra así (queda como antes: franja roja «Falta una autorización», pantalla
+guiada cada 10 minutos, y una app permitida puede abrir Ajustes hasta que se dé el toque):
+
+- la política tiene **Soporte remoto → Pedir la autorización al inscribir = No**: el administrador decidió no pedir
+  el toque y acepta el hueco;
+- un equipo que **ya estaba trabajando en quiosco** cuando recibió este agente como actualización: no se le
+  interrumpe el trabajo en campo. En cuanto se autoriza, o sale del quiosco y vuelve a entrar, pasa a la regla
+  general.
+
+#### Por qué no se puede quitar el toque (comprobado, 2026-11-28)
+
+Se probaron en emulador, como Device Owner sin ningún permiso dado por cable, todas las vías que Android ofrece. El
+agente las intenta al arrancar mientras falte el toque y deja el resultado en el registro (`SupportEngine:
+device-owner self-authorisation: …`) y en la sesión de soporte (`info.probe`). Texto literal en los dos emuladores:
+`grantWriteSecureSettings=refused(false) setSecureSetting=threw SecurityException (Permission denial: Device owners
+cannot update enabled_accessibility_services) grantUsageAccess=refused(false)`.
+
+| Vía | Qué responde Android (API 29 y API 36) |
+|---|---|
+| `DevicePolicyManager.setSecureSetting(ENABLED_ACCESSIBILITY_SERVICES, …)` | `SecurityException: Permission denial: Device owners cannot update enabled_accessibility_services`. Un Device Owner solo puede escribir una lista fija de ajustes (método de entrada por defecto, fuentes desconocidas, modo de ubicación…); los servicios de accesibilidad no están en ella. |
+| `setPermissionGrantState(WRITE_SECURE_SETTINGS)` (para escribir el ajuste directamente) | Devuelve `false` y el permiso sigue sin concederse: solo concede permisos «de ejecución»; este es de firma/desarrollo. |
+| `setPermissionGrantState(PACKAGE_USAGE_STATS)` (acceso de uso, la otra fuente del vigilante) | Devuelve `false` por la misma razón; el acceso de uso es además una «operación de app» que solo cambian el usuario en Ajustes o adb. |
+| `setPermittedAccessibilityServices` | Solo **restringe** qué servicios puede encender el usuario; no enciende ninguno. |
+| Ocultar o suspender la app Ajustes | Rompe el arranque del teléfono (ver arriba). |
+| Lock task con bloqueo de inicios dentro de la tarea | No existe antes de Android 11; en Android 16 lock task hace caer el sistema en los equipos del cliente (ver abajo). |
+| Dejar inútil lo que Ajustes permite (restricciones de usuario) | Reduce el daño, pero Ajustes sigue abriéndose: no cumple «sin vías de escape». |
+
+Conclusión: en un enrolamiento por QR / Zero-Touch **no hay forma de API de encender el vigilante sin un toque** en
+Android 7–10 ni en Android 16+. Android 11–15 no lo necesita. El enrolamiento por cable (`scripts/adb-enroll.sh`, el
+inscriptor de Windows) sí lo enciende solo, porque adb puede dar `WRITE_SECURE_SETTINGS`. Por eso el toque quedó
+como paso obligatorio e imposible de saltar (arriba), no como recomendación.
 
 Estados en la consola (evento `kioskGuard`):
 
@@ -84,7 +124,7 @@ Estados en la consola (evento `kioskGuard`):
 |---|---|
 | «Quiosco reforzado: Android bloquea los Ajustes del sistema» (`lockTask`) | Android 11–15, o Android 16+ con el bloqueo nativo. No necesita autorización. |
 | «Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco» (`guard`) | Android 7–10 / 16+ con el servicio de pantalla encendido (o con acceso de uso). |
-| «Falta autorización en el teléfono» (`needsAuthorization`) | Android 7–10 / 16+ sin el toque. |
+| «Falta autorización en el teléfono» (`needsAuthorization`) | Android 7–10 / 16+ sin el toque: el quiosco está cerrado (no abre ninguna app) hasta que se dé. |
 
 ### Por qué Android 16 es distinto
 
@@ -150,6 +190,9 @@ Cómo probarlo en un modelo (que no sea el A17, donde ya se sabe que falla):
 | Agente antiguo (0.8.x–0.9.8) con quiosco sin contraseña que aún no se reaplica | Sigue como estaba hasta su siguiente check-in; entonces recibe la contraseña generada y la exige (los agentes antiguos ya comparaban la contraseña cuando había una). |
 | «Entrar en quiosco» personalizado enviado sin contraseña (API o consola antigua) | El servidor lo envía con salida «solo remoto»: el teléfono no muestra ninguna salida, en cualquier versión del agente. |
 | Agente nuevo con un quiosco guardado sin contraseña (antes de reaplicar) | No sale en el teléfono: muestra «solo se sale desde la consola» y lo reporta. |
+
+| Equipo Android 7–10 o 16+ enrolado por QR, **ya en quiosco**, que recibe el agente nuevo | Sigue trabajando: no se cierra. Muestra la franja «Falta una autorización» y la pantalla guiada cada 10 minutos hasta que alguien dé el toque. La regla «cerrado hasta autorizar» le aplica desde la siguiente vez que entre al quiosco. |
+| Equipo Android 7–10 o 16+ enrolado por QR, sin autorizar, al que se le activa el quiosco **después** de actualizar | El quiosco queda cerrado (no abre apps) hasta dar el toque en el teléfono; la consola dice «Falta autorización en el teléfono». Para no exigirlo: política → Soporte remoto → «Pedir la autorización al inscribir = No» (queda el hueco de Ajustes). |
 
 Ningún equipo sale del quiosco ni queda bloqueado por la actualización: las apps permitidas siguen abriendo y
 «Quitar quiosco» desde la consola funciona siempre.
@@ -383,12 +426,32 @@ acceso de uso ni `WRITE_SECURE_SETTINGS`; primero sin el toque y luego con el to
 Consola en Chromium (`scripts/kiosk-console-e2e.mjs --device … --expect-guard …`, Android 16): «Falta autorización en
 el teléfono» y su botón (el teléfono abre la pantalla guiada), 19/19; tras el toque, «Quiosco reforzado», 18/18.
 
-Soporte remoto dentro del quiosco en Android 16 (`scripts/remote-support-e2e.mjs --only ready,screen,control`): la
-sesión abre, el agente captura con su servicio de pantalla, se muestra el aviso y el toque del operador llega (7 de
-11). Las 4 que fallan dependen de abrir Ajustes en el teléfono, que dentro del quiosco se devuelve por diseño; las
-cifras de latencia (2,9 s) y de imágenes al desplazar (0,2 fps) salieron de esa misma secuencia y **no son
-concluyentes**: falta medir una sesión de soporte sobre una app permitida. Consecuencia a decidir: durante una sesión
-de soporte en un equipo en quiosco el operador tampoco puede abrir Ajustes.
+#### Corridas finales con «cerrado hasta autorizar» (2026-11-28)
+
+`scripts/kiosk-escape-test.py --qr-style --reboot`, equipo enrolado estilo QR (sin `-g`, sin acceso de uso, sin
+`WRITE_SECURE_SETTINGS`), agente final de esta rama:
+
+| Versión | Resultado | Sin el toque | Con el toque |
+|---|---|---|---|
+| Android 10 (API 29) | **105 pasan, 0 fallan** | `needsAuthorization`; la pantalla guiada sale sola; el inicio muestra «Autorizar ahora» y ninguna app; la app permitida está suspendida y **no abre** (ni ella ni Ajustes); en una sola app, la app no se lanza | `guard`; en una sola app la app se abre sola; la app que abre Ajustes vuelve al quiosco; matriz completa, salida con contraseña y reinicio pasan |
+| Android 16 (API 36) | **107 pasan, 0 fallan** | igual; al intentar abrir la app suspendida Android muestra «Blocked by work policy» (solo botón Cerrar); la barra de estado no se despliega | igual |
+| Android 15 (API 35) | 4 de 4 (solo la parte QR) | no necesita toque (`lockTask`): no se pide nada y la app permitida no abre Ajustes | — |
+
+Lo que sigue abierto sin el toque y por qué no cuenta como vía de escape para quien usa el equipo: `adb shell am
+start` de Ajustes en Android 16 (hace falta depuración USB, que la política puede cerrar), y la pantalla de
+Accesibilidad durante los 5 minutos del paso guiado.
+
+En Android 10 el aviso de Android para una app suspendida trae un botón «Más información» (lleva a la ficha del
+administrador del dispositivo, no al resto de Ajustes); no se probó navegar desde ahí. Dentro del quiosco no hay
+forma de pulsar una app suspendida (no hay íconos y lock task cierra Recientes salvo que la política lo abra).
+
+Soporte remoto dentro del quiosco en Android 16 (`scripts/remote-support-e2e.mjs --kiosk`, 2026-11-28): **pasa** en
+los tres quioscos de la prueba (una app, varias apps, y varias apps con Ajustes cerrado, que es cuando el vigilante
+está activo): la sesión abre sola, se ve la pantalla, el toque del técnico actúa (0,2–0,7 s hasta ver el efecto), el
+chat abre la pantalla de soporte sobre el quiosco y la respuesta llega, la llamada se establece, y el equipo sigue
+en quiosco. Lo que antes aparecía como «a medias» era la prueba (buscaba lock task, que Android 16 no usa, y abría
+Ajustes, que el quiosco devuelve). Durante una sesión el técnico tampoco puede abrir Ajustes en un equipo en
+quiosco: se saca del quiosco desde la consola.
 
 Un fallo real encontrado y corregido en esta ronda: tras reiniciar, un equipo ya autorizado se veía unos segundos como
 «sin autorizar», volvía a pedir el toque y dejaba Ajustes permitido hasta 5 minutos (Android 10 lo mostró).
@@ -404,5 +467,10 @@ Un fallo real encontrado y corregido en esta ronda: tras reiniciar, un equipo ya
 - Barra de estado y Recientes con navegación por gestos y con las capas de Samsung/Motorola/Xiaomi.
 - Suspensión de apps preinstaladas del fabricante en Android 16 (algunas pueden negarse: el agente lo reporta en
   `kioskLockdownGap`).
-- «Pedir autorización en el teléfono» en un equipo enrolado por QR (el toque del acceso de uso).
+- «Cerrado hasta autorizar» en un enrolamiento real por QR: que la pantalla guiada aparece al terminar el asistente
+  del fabricante y que el interruptor de Accesibilidad se encuentra en su capa (Samsung lo pone en «Apps
+  instaladas»); y que el fabricante no apaga el servicio después (Xiaomi/HyperOS): si lo apaga, el quiosco se cierra
+  y pide el toque otra vez, no queda abierto.
+- Un equipo que ya estaba en quiosco al recibir el agente nuevo: que sigue trabajando (no se cierra) y muestra la
+  franja.
 

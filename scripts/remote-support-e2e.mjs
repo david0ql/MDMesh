@@ -51,6 +51,8 @@ const adbBin = (...a) => execFileSync('adb', ['-s', serial, ...a], { maxBuffer: 
 const sdk = Number(adb('shell', 'getprop', 'ro.build.version.sdk').trim());
 const topOnce = () => (adb('shell', 'dumpsys activity activities')
   .match(/(?:topResumedActivity|mResumedActivity|mFocusedActivity)[=:].*? (\S+\/\S+?)[ }]/) || [])[1] || '';
+// Settings at its first screen, whatever an earlier step (or run) left open in its task.
+const openSettings = () => adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS', '--activity-clear-task');
 const top = () => { for (let i = 0; i < 4; i++) { const t = topOnce(); if (t) return t; } return ''; };
 
 let pass = 0, fail = 0;
@@ -390,7 +392,7 @@ try {
 
   // --- control -----------------------------------------------------------------------------------------------------
   if (want('control')) {
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const before = top();
     s.send({ t: 'key', k: 'home' });
@@ -399,7 +401,7 @@ try {
     check('operator presses Home: the phone leaves Settings', /settings/i.test(before) && !/settings/i.test(after), `${before} -> ${after}`);
 
     // A button, found by its bounds on the phone's screen, tapped through the session; the effect read over adb.
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const list = nodes(dumpUi()).filter((n) => /settings/i.test(n.pkg));
     await serviceBack();
@@ -426,7 +428,7 @@ try {
     s.send({ t: 'key', k: 'home' });
     await sleep(800);
     // Frame rate while the screen moves: the operator scrolls the Settings list up and down.
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2000);
     await serviceBack();
     await s.quiet();
@@ -570,15 +572,36 @@ try {
     s.send({ t: 'clip.set', s: 'texto del portapapeles e2e' });
     const ok = await s.until(() => s.msg('clip.ok', from), 5000);
     check('console -> phone: clipboard text is set', ok?.ok === true);
-    // Back from the phone: Android 10+ only lets the app in front read the clipboard, so the support screen is
-    // brought up first (a chat line does that); from the background the agent offers the focused field's text.
-    s.send({ t: 'chat', s: 'portapapeles' });
-    for (let i = 0; i < 20 && !/support\.SupportActivity/.test(top()); i++) await sleep(500);
-    await sleep(1500);
+    // Back from the phone, with ANOTHER app in front (the agent in the background): Android 10+ only lets the app
+    // with the input focus read the clipboard, so the agent's screen service takes the focus for a moment.
+    openSettings();
+    await sleep(2500);
+    const front = top();
     const getFrom = Date.now();
     s.send({ t: 'clip.get' });
     const back = await s.until(() => s.msg('clip', getFrom), 8000);
-    check('phone -> console: the clipboard text comes back', back?.s === 'texto del portapapeles e2e', back ? `source=${back.source} "${back.s}"` : 'no answer');
+    check('phone -> console: the clipboard comes back with another app in front (agent in the background)',
+      back?.s === 'texto del portapapeles e2e' && back?.source === 'clipboard' && !front.startsWith(pkg + '/'),
+      back ? `source=${back.source} "${back.s}" in front: ${front}, ${back.at - getFrom} ms` : 'no answer');
+    await sleep(800);
+    check('reading the clipboard leaves the app in front where it was', top() === front, `${front} -> ${top()}`);
+    // Text copied ON the phone by the person (not put there by the agent): typed into a field, selected, copied.
+    const copied = `copiado-${Date.now() % 100000}`;
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+    adb('shell', 'am', 'start', '-a', 'android.settings.APP_SEARCH_SETTINGS'); // Settings' search box, focused
+    await sleep(3500);
+    adb('shell', 'input', 'text', copied);
+    await sleep(1200);
+    adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A');
+    await sleep(500);
+    adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_C');
+    await sleep(1000);
+    const from2 = Date.now();
+    s.send({ t: 'clip.get' });
+    const back2 = await s.until(() => s.msg('clip', from2), 8000);
+    if (sdk < 31) console.log(`  SKIP  text copied on the phone: adb cannot press Ctrl+C before Android 12 (got source=${back2?.source} "${back2?.s}")`);
+    else check('phone -> console: text copied on the phone by the person comes back', back2?.s === copied && back2?.source === 'clipboard', back2 ? `source=${back2.source} "${back2.s}" in front: ${top()}` : 'no answer');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
     adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
   }
 } finally {
@@ -600,10 +623,22 @@ if (flag('--kiosk')) {
     }
     return { status: 'timeout' };
   };
-  const lockTask = () => (adb('shell', 'dumpsys', 'activity', 'activities').match(/mLockTaskModeState=(\w+)/) || [])[1] || '';
+  // Android 16+ runs the kiosk without lock task ("soft kiosk", docs/KIOSK-HARDENING.md): there "in the kiosk" is the
+  // agent's own lock-down being engaged (read from the debug agent's preferences), reported here as LOCKED / NONE.
+  const lockTask = () => {
+    if (sdk >= 36) {
+      let prefs = '';
+      try { prefs = adb('shell', 'run-as', pkg, 'cat', 'shared_prefs/mdm_kiosk_lockdown.xml'); } catch { /* none yet */ }
+      return /name="engaged" value="true"/.test(prefs) ? 'LOCKED(soft)' : 'NONE';
+    }
+    return (adb('shell', 'dumpsys', 'activity', 'activities').match(/mLockTaskModeState=(\w+)/) || [])[1] || '';
+  };
   const kiosks = [
     ['single-app', { mode: 'single', pinPackage: 'com.android.settings', allowedPackages: ['com.android.settings'], exitMode: 'remote' }],
     ['multi-app', { mode: 'launcher', allowedPackages: ['com.android.settings', 'com.android.chrome'] }],
+    // Settings NOT allowed: on Android 7-10 and 16+ the kiosk's guard (the same screen service) is watching every window
+    // while the session captures and taps through it.
+    ['multi-app, Settings closed', { mode: 'launcher', allowedPackages: ['com.android.chrome'] }],
   ];
   for (const [name, payload] of kiosks) {
     const entered = await command('kiosk.enter', payload);
@@ -620,12 +655,26 @@ if (flag('--kiosk')) {
       await k.quiet(1500, 8000);
       const before = top(); const n = k.frames.length;
       // single-app: a Settings row; launcher: the first app tile of the kiosk's grid (found with uiautomator, else a guess)
-      const tile = name === 'multi-app' ? nodes(dumpUi()).find((x) => /Settings|Ajustes|Chrome/i.test(x.text)) : null;
+      const tile = name !== 'single-app' ? nodes(dumpUi()).find((x) => /Settings|Ajustes|Chrome/i.test(x.text)) : null;
       await serviceBack();
+      await k.quiet(1200, 6000);
+      const n2 = k.frames.length; const tapAt = Date.now();
       if (tile) k.tapNode(tile, size); else k.send({ t: 'tap', x: 0.5, y: 0.36 });
+      const shown = await k.until(() => (k.frames.length > n2 ? k.frames[n2] : null), 6000);
+      (measures.kioskTapMs ||= {})[name] = shown ? shown.at - tapAt : null;
       let after = before;
       for (let i = 0; i < 20 && after === before; i++) { await sleep(500); after = top(); }
-      check(`kiosk ${name}: a touch on the image acts on the phone`, after !== before && k.frames.length > n, `${before} -> ${after}`);
+      check(`kiosk ${name}: a touch on the image acts on the phone`, after !== before && k.frames.length > n, `${before} -> ${after}, image ${shown ? shown.at - tapAt : '-'} ms after the touch`);
+      if (name === 'multi-app, Settings closed') {
+        // The operator is inside the kiosk too: Settings opened on the phone goes back to the kiosk (Android 7-10, 16+)
+        // or is refused by lock task (Android 11-15); the session keeps showing the screen either way.
+        openSettings();
+        let t = ''; for (let i = 0; i < 12; i++) { await sleep(500); t = top(); if (!/com\.android\.settings\//.test(t)) break; }
+        const m = k.frames.length;
+        k.send({ t: 'key', k: 'home' });
+        await sleep(2500);
+        check(`kiosk ${name}: Settings stays closed during the session, and the session goes on`, !/com\.android\.settings\//.test(t) && k.frames.length >= m && !k.closed, t);
+      }
       const line = `kiosco ${Date.now() % 100000}`;
       k.send({ t: 'chat', s: line });
       let scr = null;
@@ -691,7 +740,7 @@ if (reps > 0) {
     l.send({ t: 'screen.start', maxDim: 960, quality: 55 });
     await l.until(() => l.frames[0], 30000);
     for (let i = 0; i < reps; i++) {
-      adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+      openSettings();
       await sleep(2000);
       await l.quiet(1500, 10000);
       const n = l.frames.length; const at = Date.now();
@@ -724,7 +773,7 @@ if (want('control')) {
     await v.until(() => v.msg('peer', 0, (m) => m.state === 'joined'), 30000);
     v.send({ t: 'screen.start', maxDim: 540, quality: 40 });
     const f = await v.until(() => v.frames[0], 20000);
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const before = top();
     v.send({ t: 'key', k: 'home' });
