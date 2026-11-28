@@ -38,3 +38,21 @@ table{margin:1.5mm 0 3mm}
 .chk{list-style:none;margin:0 0 3mm;padding:0;font-family:"Avenir Next",Helvetica,Arial,sans-serif;font-size:9pt;line-height:13pt}
 .chk li{padding:1.3mm 0 1.3mm 7mm;border-bottom:.5pt solid var(--line);position:relative;break-inside:avoid}
 .chk li:before{content:"";position:absolute;left:0;top:1.9mm;width:3mm;height:3mm;border:.75pt solid var(--navy)}
+/* Cortes de página: el encabezado repetido de una tabla que continúa no queda pegado a la línea del logo; las dos
+   últimas filas no se quedan solas; una leyenda no se separa de su tabla o figura; un título no queda al pie. */
+th{padding-top:2.2mm}
+tbody tr:nth-last-child(-n+2){break-before:avoid}
+table+.cap,svg+.cap,table+.nota{break-before:avoid}
+h2,h3{break-after:avoid}
+h2+*,h3+*{break-before:avoid}
+p{orphans:3;widows:3}
+li{orphans:3;widows:3}
+/* Compactación por capítulo: la aplica el armado (armar.py) a un capítulo cuya última página queda con una cola corta. */
+.ap1 .fig img{width:76%} .ap1 .fig.m img{width:53%} .ap1 .fig.s img{width:36%}
+.ap1 p{margin-bottom:1.3mm} .ap1 h2{margin-top:3.6mm} .ap1 table{margin:1mm 0 2.2mm} .ap1 .callout{margin:2.6mm 0}
+.ap1 .steps li,.ap1 .chk li{padding-top:1.2mm;padding-bottom:1.2mm} .ap1 .steps li:before{top:1.2mm} .ap1 .fig{margin:2.2mm 0 2.6mm}
+.ap2{font-size:9.6pt;line-height:14.2pt}
+.ap2 .fig img{width:66%} .ap2 .fig.m img{width:46%} .ap2 .fig.s img{width:32%}
+.ap2 p{margin-bottom:1.1mm} .ap2 h2{margin-top:3mm} .ap2 table{margin:.8mm 0 1.8mm;font-size:8.2pt;line-height:11pt} .ap2 .callout{margin:2.2mm 0}
+.ap2 .steps,.ap2 .chk{font-size:8.7pt;line-height:12.4pt} .ap2 .steps li,.ap2 .chk li{padding-top:1mm;padding-bottom:1mm} .ap2 .steps li:before{top:1mm}
+.ap2 .fig{margin:1.8mm 0 2.2mm} .ap2 td{padding-top:.5mm;padding-bottom:.5mm}

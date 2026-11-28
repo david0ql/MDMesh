@@ -134,6 +134,8 @@ if [ -n "$PASSPHRASE" ]; then
   CFG_TMP=$(mktemp -d)
   [ -f "$ENV_FILE" ] && cp "$ENV_FILE" "$CFG_TMP/env" || true
   [ -f "$DATA_ROOT/jwt.secret" ] && cp "$DATA_ROOT/jwt.secret" "$CFG_TMP/jwt.secret" || true
+  # The key that encrypts the uploaded Wi-Fi (802.1X) certificates: without it the certificates in the database are unreadable.
+  [ -f "$DATA_ROOT/wifi-certs.key" ] && cp "$DATA_ROOT/wifi-certs.key" "$CFG_TMP/wifi-certs.key" || true
   if [ -n "$(ls -A "$CFG_TMP")" ]; then
     tar -C "$CFG_TMP" -czf - . | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_ENCRYPTION_PASSPHRASE \
       -out "$BACKUP_DIR/config/config-${STAMP}.tar.gz.enc" || fail "no se pudo cifrar la configuración"
