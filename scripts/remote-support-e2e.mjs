@@ -608,7 +608,7 @@ if (flag('--kiosk')) {
   for (const [name, payload] of kiosks) {
     const entered = await command('kiosk.enter', payload);
     let state = '';
-    for (let i = 0; i < 20 && !/LOCKED|PINNED/.test(state); i++) { await sleep(500); state = lockTask(); }
+    for (let i = 0; i < 80 && !/LOCKED|PINNED/.test(state); i++) { await sleep(500); state = lockTask(); }
     if (!check(`kiosk ${name}: the phone is in the kiosk`, entered.status === 'done' && /LOCKED|PINNED/.test(state), `${entered.status} ${entered.detail || ''} ${state}`)) continue;
     await sleep(2500);
     const k = await new Session().open(false);

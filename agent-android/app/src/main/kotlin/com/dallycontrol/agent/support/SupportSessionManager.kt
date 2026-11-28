@@ -476,7 +476,8 @@ class SupportSessionManager @Inject constructor(
                 sentBytes = 0
             }
             val bitmap: Bitmap? = if (projection) {
-                if (!ProjectionCapture.active && !ProjectionCapture.ensure(context, current, maxDim)) {
+                // Also when it is running: a change of quality or a rotation resizes the capture.
+                if (!ProjectionCapture.ensure(context, current, maxDim)) {
                     if (!canShoot) {
                         screenError("capture refused")
                         return
