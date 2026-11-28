@@ -627,13 +627,18 @@ public class AgentResource {
             recordLocation(deviceNumber, tel);
             autoName(device, tel);
             mirrorIdentity(deviceNumber, tel);
-            checkSimPhone(deviceNumber, tel);
-            // Device history (traceability): one sample every few minutes.
-            try {
-                commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
-                        com.hmdm.util.DeviceSummary.metric(tel, s.getBattery(), s.getCharging(), s.getKioskActive(), s.getLocked()));
-            } catch (Exception e) {
-                logger.warn("Could not record history of {}: {}", deviceNumber, e.getMessage());
+            // A follow-up round (it only reports what the previous round ran) carries no census. Without one there is
+            // no SIM number to compare and no network/storage reading: skip both, or the round would clear a SIM
+            // mismatch and could leave a history sample with empty network and storage.
+            if (tel != null) {
+                checkSimPhone(deviceNumber, tel);
+                // Device history (traceability): one sample every few minutes.
+                try {
+                    commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
+                            com.hmdm.util.DeviceSummary.metric(tel, s.getBattery(), s.getCharging(), s.getKioskActive(), s.getLocked()));
+                } catch (Exception e) {
+                    logger.warn("Could not record history of {}: {}", deviceNumber, e.getMessage());
+                }
             }
         }
 
