@@ -367,429 +367,46 @@ running 13 agents' builds and emulators at the same time, 1-minute load 30–50,
 issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
 Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
 
-### Results (2026-11-27, dev stack + debug agent of this branch; published agent 0.9.8 where noted)
+### Results (2026-11-27, dev stack + debug agent of this branch)
 
-New agent, QR payload from `web/src/enroll/payload.ts` (tracked download, clock, time zone, locale), from the
-provisioning intent to "enrolled with its configuration" in the console:
+New agent, QR payload from `web/src/enroll/payload.ts`, real provisioning flow (the platform's own code from the
+provisioning intent on), to "enrolled with its configuration" in the console. One clean emulator per release.
 
-| Android | Result | How the agent got the token |
-|---------|--------|------------------------------|
-| 6 (API 23) | not applicable | QR provisioning starts in Android 7 |
-| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled, first attempt, 52-56 s after Device Owner | `qr-legacy`: only once the setup wizard finalized |
-| 10 (API 29) | enrolled, first attempt | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized |
-| 11-17 (API 30-37) | **not obtained** | see below |
+| Android | Result | How the agent got the token | Attempts |
+|---------|--------|------------------------------|----------|
+| 6 (API 23) | not applicable | QR provisioning starts in Android 7 | - |
+| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled | `qr-legacy`: only once the setup wizard finalized (52-57 s) | 1 |
+| 10, 11, 12, 12L, 13 (API 29-33) | enrolled | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized | 1 |
+| 14 (API 34) | **not obtained** | the emulator had no network when the download started | - |
+| 15, 16 (API 35, 36) | enrolled | `qr-early` | 1 |
+| 17 (API 37, both images) | **not obtained** | stayed at "Getting ready for work setup" with ANR dialogs; cause not established | - |
 
-Published agent 0.9.8 with the production QR payload of that day (to Device Owner only; it cannot enroll against the
-dev stack): Device Owner on Android 7.0, 7.1, 8.0, 8.1, 9, 10 and 11 (the Android 11 run had the agent already
-installed by an earlier attempt on the same emulator). Android 12+ not obtained.
+7.1, 8.0 and 8.1 were run before the last merge and not repeated with the final APK; 7.0, 9 and 10 were. The three
+runs of Android 13, 15 and 16 landed on one device row: every emulator has the same hardware identifiers.
 
-"Device Owner but never enrolled" (the wizard is abandoned, or does not finalize): reproduced on Android 7.0 and 9 -
-the agent is Device Owner and logs `no enrollment token available` until finalization. The delivery point is the
-same code path for every release up to Android 11, and 0.9.8 has no fallback on any of them. With this branch:
-Android 10 enrolls without the finalization (`qr-early`); on Android 7.0, left without it, the agent showed its
-enrollment screen ("Scan the console's QR" / folder code) and the notification.
+Cases:
 
-Seen on the way: on Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download ("Failed to
-perform a platform-requested role holder update ... offline provisioning is false") on an image without Google Play;
-with the extra the log says "allowOffline set, provisioning via platform" and the download and install proceed.
-On Android 9 the device clock jumped to the payload's `PROVISIONING_LOCAL_TIME` before `DownloadPackageTask`.
-
-Not obtained: Android 11-17 end to end, the clock-set-back runs, the server-outage and token-replay runs. The machine
-was running the emulators of several other test suites (load average 40-50): `uiautomator` and `pm` calls timed out,
-the dev server answered 502, and on the last Android 13 attempt the emulator's system server died mid-run. The
-token-replay and de-dup behaviour is covered at the API by `enroll_api_check.py` (24 checks), the agent's handling of
-each callback by unit tests; neither replaces the device run. The Windows enroller was run under PowerShell 7 on
-macOS with a simulated adb (`scripts/windows-enroller-sim.sh`), not on Windows PowerShell 5.1.
-## Mobile data per app ([DATOS-MOVILES.md](DATOS-MOVILES.md))
-
-`scripts/mobile-data-e2e.py` has two modes. Without a device it plays the phone over the Agent v1 API and checks the
-server: the policy's section in the device document (megabytes → bytes), the per-device override and its revision,
-the device card's "use against limit", limit events → alerts (not duplicated), the report "Datos móviles: uso vs.
-límite" with its CSV/Excel export, and with `--mailpit` the alert e-mail. With `--serial` it drives a real agent on an
-emulator, where `adb shell svc wifi disable` leaves the emulated (metered) cellular network: three test apps that make
-one HTTP request per launch (`scripts/build-netprobe-testapps.sh`), one blocked, one allowed, one essential.
-
-```bash
-scripts/mobile-data-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]
-
-scripts/build-netprobe-testapps.sh
-scripts/adb-enroll.sh --server http://10.0.2.2:8088 --api-url http://localhost:8088 --debug-build \
-    --apk agent-android/app/build/outputs/apk/debug/app-debug.apk --admin-user admin --serial emulator-5554
-scripts/mobile-data-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <device number>
-
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/mobile-data-console-e2e.mjs --api http://localhost:8088
-```
-
-The emulator run covers: nothing restricted → blocklist with the system restriction (`setMeteredDataDisabledPackages`:
-the blocked app fails on mobile data and works on Wi-Fi, the allowed app and the agent keep working, Wi-Fi ↔ mobile) →
-the same with the agent's local VPN forced (always-on VPN = the agent, no consent dialog, `no_config_vpn`, idle on
-Wi-Fi) → allowlist → per-device override (allow / block / unrestricted) → app limit (warning alert, then limit alert
-and automatic block; Wi-Fi still works; announced once per period) → device limit (every app but the essential one) →
-"ignore limits" on the device → section removed (no admin-restricted uid, no always-on VPN, VPN settings unlocked).
-It reads `dumpsys netpolicy`, `dumpsys device_policy` and `dumpsys connectivity` on the way.
-
-Emulator notes: a busy dev stack's Caddy can answer 502 while the agent enrolls and the agent then keeps retrying a
-used token; enrolling against Tomcat's own port (`DEV_API_PORT`) avoids it. `dumpsys device_policy` prints the
-metered-disabled list only on recent Android versions; `dumpsys netpolicy` ("Admin restricted uids for metered
-data") shows it on all of them. Newer images do not always rejoin "AndroidWifi" after `svc wifi enable`; the script
-asks for it (`cmd wifi connect-network AndroidWifi open`).
-
-### Results (2026-11-27, own stack + debug agent built from this branch)
-
-Machine under heavy load (load average 45+, a dozen stacks and five emulators), so the waits are long but nothing was
-timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over adb as Device Owner.
-
-| What | Result |
+| Case | Result |
 |------|--------|
-| Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
-| Console in headless Chromium | 37/37 |
-| Emulator API 30 (Android 11) | 94/95 — the one miss was a check of this script (it looked for the metered list in `dumpsys device_policy`, which Android 11 does not print); fixed |
-| Emulator API 35 (Android 15) | 93/95 — both misses were checks of this script, not of the product: it read a stale state while the phone switched from the VPN to the system restriction, and it looked for `no_config_vpn` in `dumpsys device_policy`, where Android 15 keeps an empty entry after the restriction is lifted (`dumpsys user` showed it gone); both fixed |
-
-On both emulators, with both mechanisms: the blocked app failed on mobile data and worked on Wi-Fi, the allowed app
-and the agent's check-in kept working on mobile data, and switching Wi-Fi ↔ mobile changed the outcome each time. With
-the local VPN there was no consent dialog, `always_on_vpn_app` was the agent and it was removed when the policy was.
-The emulated cellular network is counted per app by `NetworkStatsManager`, so the limits ran for real: a 1.3 MB
-download against a 2 MB app limit with a 50 % threshold raised the warning, the next one the limit alert, and the app
-lost mobile data without the server telling it to.
-
-More fleet-inventory checks (2026-11-27, own stack, machine under heavy load — figures marked with the load):
-
-- `scripts/fleet-console-e2e.mjs` — the console in headless Chromium (`npx -y -p playwright@1.48 node …`): Dispositivos →
-  Exportar (Excel and CSV; everything / what the table shows / the selection, every downloaded file opened), the
-  "Dato de" column, "Actualizar ahora" (list and device page), Reportes → Inventario de la flota (tiles, thresholds,
-  exports) and Envíos programados (create, edit, pause, resume, "Enviar ahora", delete; `--no-smtp` for the notice).
-  `--folder-user` signs in as a folder administrator. `--slow N` multiplies the waits on a loaded machine.
-- `scripts/fleet-report-scope-e2e.py` — a user limited to one folder, over the API: exports, inventory report and
-  scheduled e-mails hold only that folder's devices; other folders' schedules cannot be seen, edited, sent or deleted.
-- `scripts/dev-synthetic-fleet.py` — SQL for a synthetic fleet (folders, devices with their census, a month of
-  sessions) to load-test a dev database; `--remove` deletes it.
-
-Results: browser as administrator 33/33 (5,001 devices: 29 checks before the mail part, then 33/33 with STARTTLS mail);
-browser as folder administrator 35 checks passed (262 of 5,001 devices; mail verified over the API); browser without
-SMTP 31/31; folder scope over the API 33/33; Android 9 (API 28): device 76/76 and browser with the live device 34/34
-(refresh 1.6 s, load 33); Android 15 (API 35): device 76/76 and browser 34/34 (refresh 4.4 s, load 38; enrolling
-needed the `dpm set-device-owner` retry of the first minutes after boot). Scheduled e-mails over STARTTLS + user/password against Mailpit started with
-`--smtp-require-starttls --smtp-auth-file` (it answers 530 without STARTTLS or without AUTH): "Enviar ahora" and the
-scheduler-fired run both delivered. 5,000 devices + 103,000 sessions, server heap capped at 512 MB: Excel 5.9–6.5 s,
-CSV 0.6–1.4 s, inventory report 1 s (measured before the machine saturated).
-
-## Auditoría y roles (MDM-15)
-
-What is checked, and with what:
-
-| Check | How |
-|-------|-----|
-| Every state-changing route is audited | `AuditCatalogCoverageTest` (server tests): reads the JAX-RS annotations of every resource and fails when a reachable POST / PUT / DELETE has no entry in `AuditCatalog` (or is recorded under another route's rule, or the catalog names a route that no longer exists) |
-| What a row contains, secrets never kept, before / after, result | `AuditTrailServiceTest`, `AuditPiecesTest`, `AuditTrailFilterTest`, `AuditHashTest` |
-| The trail end to end, as a limited technician | `scripts/audit-e2e.py` (needs an enrolled device; an emulator is enough) |
-| Each permission of the role matrix restricts the API | `scripts/roles-matrix-e2e.py` (no device needed) |
-| The Auditoría screen, the device / user activity, Roles | `scripts/audit-console-e2e.mjs` (headless Chromium) |
-
-```bash
-# the technician, the allowed and refused actions (a real command to the device, a wipe without permission…), the
-# rows, the scope of a folder user, the exports, immutability (also at SQL level) and the retention purge
-scripts/audit-e2e.py --api http://localhost:8080 --device <device number> --db-container dallycontrol-dev-postgres-1
-
-# for EACH permission: a role without it is refused on its endpoints, the same role with it passes; role life cycle,
-# no privilege escalation, the ready-made roles (--only perm1,perm2 runs a subset)
-scripts/roles-matrix-e2e.py --api http://localhost:8080 [--device <device number>]
-
-# the console (once: cd scripts/shots && npm install && npx playwright install chromium)
-node scripts/audit-console-e2e.mjs --web http://localhost:8088 --device <device number> --shots /tmp/audit-shots
-```
-
-A new mutating endpoint makes `AuditCatalogCoverageTest` fail until it gets a line in
-`server/src/main/java/com/hmdm/audit/AuditCatalog.java` (`audit(...)` with a Spanish label, or `skip(...)` with the
-reason). Until then the request is still recorded, with a generic label. A new permission belongs in
-`web/src/data/roleCapabilities.ts` and in the `MATRIX` of `scripts/roles-matrix-e2e.py`, with the endpoints it gates.
-
-Result (2026-11-27, own stack on an empty database + debug agent 0.9.7 on a clean API 35 emulator, through Caddy):
-`audit-e2e.py` 97/97 (the allowed command reached the device and was reported `delivered`; the wipe, lock and
-passcode attempts were refused and recorded as denied; SQL `UPDATE` / `DELETE` / `TRUNCATE` on `audit_trail` refused;
-the purge removed the planted 120-day-old row and recorded itself); `roles-matrix-e2e.py` 19 permissions, 274 calls,
-308/308; `audit-console-e2e.mjs` 48/48. The emulator has no droidVNC-NG, so starting a remote session answered "the
-device does not support remote control" (recorded as an error row); the duration of a session that did open is
-covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
-
-## App permissions without the user (MDM-06, [PERMISOS.md](PERMISOS.md))
-
-```bash
-scripts/build-permtestapp.sh                       # com.dallycontrol.permtest -> scripts/testapp/permtest.apk
-scripts/permissions-e2e.py --api http://localhost:8088 --serial emulator-5600 --device-id <device number>
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/permissions-console-e2e.mjs --api http://localhost:8088
-```
-
-The test app declares location (fine, coarse, background), camera, microphone, storage/media, contacts and
-notifications plus the special accesses, and on every start asks for each runtime permission it does not hold, like
-a real app; it logs what it holds (`adb logcat -s PermTest`).
-
-`permissions-e2e.py` drives a REAL agent (Device Owner) through the console's API and checks the phone itself:
-
-- the three default policies reach the phone (`dumpsys device_policy`: permission policy 0 / 1 / 2) and the console
-  shows the one in force; the `config.apply` result carries the `permissions` outcome;
-- "grant all the app declares" in the policy, then a silent install from the console: `dumpsys package` shows every
-  runtime permission `granted=true` with `POLICY_FIXED` (background location and, on Android 13+,
-  `POST_NOTIFICATIONS` included), the app's own screen is in front (no `GrantPermissionsActivity`) and its log says
-  `missing=0 asked=0`;
-- a per-device rule denies the camera (`granted=false`, `POLICY_FIXED`), "ask" releases it, removing the device
-  rule brings the policy's grant back; "ask" after a grant of the MDM takes the permission back;
-- an app installed by hand BEFORE the rule gets its permissions when the rule arrives; a rule removed while the app
-  is uninstalled does not leave anything fixed when the app comes back (Android 14+ re-applies it on its own);
-- with "grant all" and no rule, the app asks and Android grants with no dialog;
-- special accesses: battery protection through `setUserControlDisabledPackages`, "needs a tap" for all files /
-  overlay / unknown sources, `device.permissionScreen` opens the exact Settings screen, and once the access is turned
-  on (the tap is simulated with `appops set`) the console shows it active;
-- the policy and the grants survive an agent restart.
-
-`permissions-console-e2e.mjs` checks the console in headless Chromium with a scripted phone: the policy editor (no
-dead options, 13 permission rows, 8 special accesses, what is saved and what the phone receives), the device's
-«Permisos» tab (effective policy, real state per app, per-device rules, «Abrir en el teléfono», CSV), the Android 12+
-"this phone does not let the administrator grant sensor permissions" warning, and the "update the agent" notice.
-
-### Results (2026-11-27, isolated dev stack, debug agent built from this branch after merging `integration/mobicontrol`)
-
-| What | Result |
-|---|---|
-| `permissions-e2e.py`, emulator Android 10 (API 29) | 67/67 |
-| `permissions-e2e.py`, emulator Android 15 (API 35) | 76/76 |
-| `permissions-e2e.py`, emulator Android 16 (API 36) | 76/76 |
-| `permissions-console-e2e.mjs`, headless Chromium | 44/44 |
-
-Notes from the runs:
-
-- Android 14+ prints the permission policy in `dumpsys device_policy` (`Permission policy: {0=1}`); Android 10 does
-  not, so there the script reads it from `/data/system/device_policies.xml` through the emulator's root shell (on a
-  phone without root that check is skipped and the agent's own report is used).
-- Android 10 does not let an app read another app's app-ops: overlay / write settings / unknown sources are reported
-  as "Android does not let it be read" there; from Android 11 they are read.
-- Android 14+ keeps a permission fixed by the Device Owner across an uninstall and re-applies it when the app comes
-  back; the agent releases it then if its rule is gone (step 6b).
-- With "grant all", Android 16 on a loaded machine took ~10 s to answer the app's request (its permission activity
-  passes by with no dialog); the script waits for it instead of sampling once.
-- Not covered by an emulator: a phone provisioned with the "administrator may not grant sensor permissions" opt-out
-  (`dpm set-device-owner` cannot set it; covered by the planner's unit tests and the console test with a scripted
-  phone), and Android 7 or older (`setSecureSetting(INSTALL_NON_MARKET_APPS)` for unknown sources).
-
-## Hardware y puertos (MDM-12)
-
-`scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
-device uses (restored at the end) it: blocks every hardware rule, the older toggles (screenshots, USB storage,
-Bluetooth), data sharing and a free list of Android restrictions; checks the server status ("Restricciones aplicadas")
-rule by rule, `dumpsys user`, `dumpsys device_policy`, that a screenshot fails or is black, that the camera is refused,
-that MTP is refused (`svc usb`) and that the hotspot cannot be switched on in Settings; blocks USB debugging and checks
-that adb stops answering; reverts everything and checks that adb comes back by itself and nothing is left; and sets and
-removes a per-device camera exception. Rules newer than the device's Android must be reported `unsupported: sdk-N`.
-
-```bash
-scripts/hardware-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <device number>
-# on a phone you reach only by cable, keep adb: --keep-usb-debug
-
-(cd scripts/shots && npm ci)       # once: Playwright
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/hardware-console-e2e.mjs --api http://localhost:8088 [--device <number>]
-```
-
-Result (2026-11-27, own stack + debug agent on clean emulators; a rule the release cannot honour must be reported, so
-the totals differ):
-
-| Android | API | `hardware-e2e.py` | Notes |
-|---|---|---|---|
-| 9 | 28 | 57/57 | USB data, NFC, Wi-Fi Direct, content capture and assistant reported `unsupported: sdk-N`; date/time with the restriction; no camera app on the image (camera check skipped, policy state verified) |
-| 15 | 35 | 58/58 | after merging the base branch; NFC reported `unsupported: platform` (this image refuses the restriction); `hardware-console-e2e.mjs --device` 26/26 |
-| 16 | 36 | 57/58 | NFC applied; the one failure was the script counting `dumpsys user`'s per-user-type templates as restrictions in force (fixed, re-verified on API 35) |
-
-On every release: adb stopped answering when USB debugging was blocked and came back by itself after the revert; the
-emulators report `canUsbDataSignalingBeDisabled() = true`, so "USB data" was applied and reverted there. `svc usb
-getFunctions` gives no answer on these images, so the MTP check is skipped (the `no_usb_file_transfer` restriction is
-verified instead).
-
-## Remote support through the agent (ADR 0012)
-
-Screen, touch, voice, chat and files over the agent's own session channel, with no droidVNC-NG. Unit tests:
-`SupportSessionsTest` (relay rules, view-only, audit, capabilities, policy), `SupportHubTest` (when a session ends by
-itself), `UserScopeFilterTest#remoteSupportIsScopedToTheirDevices`, and on the agent `SupportProtocolTest` (µ-law
-codec, frame layout, scaling, typing, readiness, compatibility with older servers) and `SupportChannelTest` (the
-device's socket against a real WebSocket server).
-
-End to end, on an emulator or a phone (`scripts/remote-e2e.mjs --support …` runs both):
-
-```bash
-# the operator's side of the session socket, no browser: every check is on the wire or read back over adb
-node scripts/remote-support-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554 [--authorize]
-# the console's screen in headless Chromium (synthetic microphone): image, soft keys, click, chat, call, history
-node scripts/remote-support-console-e2e.mjs --api http://localhost:8088 --device <id> --serial emulator-5554
-# from a shell: status, start (prints key + token), stop, log
-scripts/remote-session.sh --api http://localhost:8088 --device <id> --support --status
-```
-
-**QR-style enrollment on an emulator.** `adb install -g` (what `scripts/adb-enroll.sh --apk …` does) grants the agent
-WRITE_SECURE_SETTINGS, so that device needs no tap at all. To reproduce a QR / zero-touch enrollment, install the
-agent first **without** `-g` (`adb install agent.apk`) and run `scripts/adb-enroll.sh` without `--apk`: the agent then
-holds nothing a Device Owner cannot grant itself, shows the guided screen by itself after enrolling, and
-`remote-support-e2e.mjs --authorize` does the one tap on the phone's real Settings screens before going on.
-
-`uiautomator dump` (used by both scripts to read what is on the phone) makes Android unbind every accessibility
-service for a moment, the agent's screen service included; the scripts wait for it to be bound again. A real session
-never meets that.
-
-Voice on an emulator started with `-no-audio`: the phone's microphone records silence, so a debug agent sends a 440 Hz
-tone when the call is started with `testTone` (the scripts do), and the checks are on level and pitch at both ends;
-the real microphone path is still opened and checked (`recording`, frames flowing).
-
-Results (2026-11-27, own stack, debug agent merged with `integration/mobicontrol`, emulators at 720x1600, enrolled
-QR-style: no adb grant). **The test machine was at load 20-35 (15 cores) during every run, so the times are upper
-bounds, not the product's speed**; the host load is printed with each run's measures.
-
-| | Android 11 (API 30) | Android 15 (API 35) |
-|---|---|---|
-| Device-Owner self-authorisation (`info.probe`) | grant refused, `setSecureSetting` SecurityException | same |
-| Guided screen after enrollment, one tap in the real Settings screens, console goes from "Falta autorización" to "Remoto listo" | pass | pass |
-| Authorisation kept after a reboot and after updating the agent | pass | pass |
-| `remote-support-e2e.mjs` (merged agent) | 35/40 | 37/40 |
-| `remote-support-console-e2e.mjs` (merged agent) | 20/20 | 19/20 (the one miss was the test's own mute check, since fixed; 20/20 on API 30 with the fix) |
-| Device joins after "start" | 0.4 s | 1.1 s |
-| First image (protocol / console click) | 0.7 s / 2.4 s | 2.3 s / 1.8 s |
-| Touch to image | 1.2 s at load 29 | 0.26 s at load 22 (0.7 s at load 27, 2.3 s at load 35) |
-| Images while scrolling | 0.6 /s at load 29 | 2.1 /s at load 22 |
-| Capture / encode per image | 204 ms / 28 ms | 209 ms / 28 ms |
-
-What did not pass in the protocol script, and why:
-
-- **Typing a reply through the remote session and tapping Enviar** (API 30 and 35): the reply typed *on the phone*
-  (console script, over adb) arrives and is logged; the variant where the operator taps the reply box, types and taps
-  Enviar through the session did not complete in any run. Typing into a focused field through the session was seen
-  working once (API 35, text read back with uiautomator); the script's way of finding the box and the button on a
-  busy emulator is the suspect, but it is **not confirmed**. Check on a phone: open a text field, type from the console.
-- **Notice turned off by the policy while a session is open** (API 35, 2 of 3 runs): the session notification stayed.
-  A session opened after the policy has arrived shows no notice (API 30 pass).
-- **Touch-to-image under 1 s and images while scrolling** on API 30 at load 29: see the table; Android 11 also
-  refused some screenshots as "too soon" at 340 ms spacing, so the agent backed off to 500 ms there.
-- **The support screen for a chat line** was not seen on top in the last API 30 protocol run (it was in the console run
-  of the same boot and in the earlier ones).
-
-Not run: Android 7-10 (the screen-capture path with its consent pressed by the service), kiosk, a physical phone.
-
-
-## Connection stability (MDM-02): reconnection, diagnostics, resting state
-
-```bash
-# the customer's network check (DNS, port, TLS issuer, HTTPS, WebSocket upgrade); see docs/REQUISITOS-RED.md
-scripts/prueba-red.sh https://<server>
-
-# two "bad networks" in front of the dev stack, to see the tools and the agent fail the right way
-scripts/red-simulada.py tls  --listen 8443 --upstream localhost:8088 &   # certificate of a made-up firewall CA
-scripts/red-simulada.py nows --listen 8122 --upstream localhost:8088 &   # 403 to any WebSocket upgrade
-scripts/prueba-red.sh https://localhost:8443 http://localhost:8122        # expect one FALLA each (TLS, WebSocket)
-
-# a real agent (debug build, enrolled with scripts/adb-enroll.sh): cuts the network in several ways, measures the
-# time back to the live channel and to a command's result, and checks what reaches /rest/private/connection/v1.
-# The stack needs AGENT_BACKUP_URLS (the tls scenario reports through the backup URL).
-scripts/conexion-e2e.py --serial emulator-5554 --device-id <id> --api http://localhost:8088 \
-    --server-url http://10.0.2.2:8088 --tls-url https://10.0.2.2:8443 --nows-url http://10.0.2.2:8122 \
-    --backup-device-url http://10.0.2.2:8080 --compose "docker compose --env-file docker/dev.env" \
-    --db-container dallycontrol-dev-postgres-1 [--only baseline,wifi,outage,airplane,doze,server,failover,tls,nows,resting,reboot]
-
-# the console in headless Chromium: the "Última falla de conexión" card and "En reposo"
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/consola-conexion-e2e.mjs --api http://localhost:8088 --device <id> \
-    --expect "Certificado TLS rechazado" --issuer "FortiGate CA simulada" [--resting <id shown as En reposo>]
-```
-
-Results (2026-11-27, own stack through Caddy, debug agent on clean emulators). The machine ran about 13 agents at
-once (load average 27–40 during every run), so the times are upper bounds, not what an idle machine gives.
-
-| Scenario | Android 16 (API 36) | Android 10 (API 29) |
-|---|---|---|
-| Command with the live channel open | 0.7–0.9 s at load ~20; 2.0–11.6 s at load ~30 | 1.9–3.9 s |
-| Wi-Fi off, falls to mobile data: command done | 2.0 s (channel live again in 3.3 s) | 6.8 s (17.0 s) |
-| Wi-Fi back: command done | 6.4 s | 2.8 s |
-| 90 s with no network, then back: channel / command queued meanwhile | 16.5 s / 39.5 s (earlier run: 3.9 s) | 1.5 s / 12.2 s |
-| Airplane mode 60 s, then off: command queued meanwhile | 35.9 s (the emulator's radio takes most of it) | not run |
-| Forced Doze (screen off, unplugged): command | 17.7 s | 4.4 s, 2.1 s; channel open 98 % of 5 min, 0 reconnections |
-| Server drops a socket whose phone lost the network (150 s idle) | 146.9 s | 156.0 s |
-| Server restart: command after it answers again | not measured (run lost to the test machine) | 2.9 s (channel 38.6 s, limit was 30 s) |
-| Network inspects TLS (red-simulada tls) | console gets `tls` + issuer "FortiGate CA simulada" in 212 s, through the backup URL; command by the backup URL 4.9 s | not run with the final build |
-| Network blocks WebSocket (red-simulada nows) | console gets "WebSocket rechazado (HTTP 403)" in 131 s; commands keep arriving (3.3 s) | not run |
-| "En reposo" vs "Sin conexión" | screen off + silent 45 min = resting; after 17 h = offline; in use + silent = offline | not run (docker exec timed out) |
-| Orderly reboot | goodbye report received ("Apagado o reinicio del equipo"), closed with its duration; channel back 55 s after the reboot command, without opening the app | channel back in 53.9 s, command 4.0 s (goodbye not received with the earlier build) |
-
-Console (`consola-conexion-e2e.mjs`): 9/9. `prueba-red.sh`: passes against the stack, fails with the right cause
-against both simulated networks.
-
-Not covered by an emulator: makers' battery managers (HyperOS, One UI) stopping the service, a real Wi-Fi to
-mobile hand-over while walking, Doze over hours (forced Doze only), and the path through Cloudflare (WebSocket ping
-frames and the 150 s idle limit were only checked through the local Caddy).
-
-## Factory-reset protection, lost mode and remote wipe
-
-`scripts/frp-wipe-e2e.py` checks, on a real enrolled agent, the two anti-theft criteria (MDM-03 and MDM-09; the user
-guide is [FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md)):
-
-```bash
-scripts/frp-wipe-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id> --destructive
-scripts/frp-wipe-e2e.py --api http://localhost:8088 --only reenroll        # API only, no device
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/frp-console-e2e.mjs --api http://localhost:8088 \
-    --device-id <numeric id> --policy "Managed Launcher"                   # the console screens, headless Chromium
-```
-
-- `frp`: company default account, a policy that blocks reset from Settings / safe mode / OEM unlock and wipes after 10
-  wrong unlocks; `dumpsys device_policy` and the agent's own read-back must agree, and the console must say what the
-  device really holds. Android 10 and older go through Google Play services' `factoryResetProtectionAdmin`
-  restriction (read back from `/data/system/users/0/res_com.google.android.gms.xml`); Android 11+ through
-  `setFactoryResetProtectionPolicy`.
-- `lost`: lost mode end to end (lock, message + phone on the lock screen, a position every minute, wipe after N wrong
-  unlocks, back to the policy's values when it ends).
-- `reenroll`: a phone that enrolls again after a reset returns to its row / folder by serial or IMEI; a deleted one is
-  re-created from its tombstone; junk identifiers never match.
-- `wipe-online`, `wipe-offline` (`--destructive`): the agent announces the wipe before running it, flags per option,
-  who ordered it and with which options, and a wipe queued without link for 3 days that runs on reconnect.
-
-Emulator limits: no `/misc` partition (the reset is accepted as handed to recovery, as above) and no persistent data
-block, so on Android 11+ `setFactoryResetProtectionPolicy` answers "unsupported" there. The test then requires the
-console to say "FRP inactiva: este equipo no admite…" instead of a false "activa". The FRP challenge after a reset
-by hardware buttons can only be confirmed on a physical phone with Google services: the steps are in
-[FRP-BORRADO-REMOTO.md](FRP-BORRADO-REMOTO.md), section 8.
-
-Result (2026-11-27, own stack, debug agent built from this branch after merging `integration/mobicontrol`; machine
-load 26-34 while measuring, so no timing is claimed):
-
-| Android | API | frp + lost | wipe-online | wipe-offline | console (`frp-console-e2e.mjs`) |
-|---------|-----|------------|-------------|--------------|----------------------------------|
-| 10 | 29 | 26/26: FRP active through Google Play services, account read back from its restrictions file | 8/8, `wipeData(flags=3)` | 13/13, `wipeData` with reason, flags 0 | 34/34 with lost mode really sent and turned off |
-| 15 | 35 | 25/25: restrictions held; `setFactoryResetProtectionPolicy` answers "The persistent data block service is not supported on this device" and the console shows "FRP inactiva: este equipo no admite…" | 8/8, `wipeDevice(flags=3)`; the image then erased its user data in place and restarted | 13/13 on a fresh emulator, `wipeDevice(flags=0)` | 32/33 before the script waited for the device's answer; not repeated on this API |
-
-`--only reenroll`: 11/11. Not covered on an emulator: the FRP challenge after a reset by hardware buttons, and FRP
-actually held on Android 11+ (no persistent data block on the images).
-
-## Corporate Wi-Fi (MDM-13)
-
-`scripts/wifi-policy-e2e.py` checks the policy's Wi-Fi against a real enrolled Device Owner (see [WIFI.md](WIFI.md)):
-it uploads a CA and a client PKCS#12 made on the spot, saves one network of each kind (hidden PSK, WPA3-SAE, WPA2/WPA3,
-OWE, PEAP, TTLS, EAP-TLS, and one with every option) and reads the phone over adb (`cmd wifi list-networks`,
-`dumpsys wifi`, `dumpsys device_policy`): parameters, installed certificates, the lock-down (`cmd wifi forget-network`
-refused), the Android 13 SSID allow list and minimum security, the forced radio, the safeguard that relaxes a
-lock-down which left the phone without any network, and the removal with its certificates. The console is covered by
-`scripts/wifi-console-e2e.mjs` (headless Chromium).
-
-```bash
-scripts/wifi-policy-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id>   # ~8 min; --skip-safeguard: ~4
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wifi-console-e2e.mjs --api http://localhost:8088 [--device <id>]
-```
-
-The emulator only has an open network (`AndroidWifi`), so association is real for that one and the rest is checked as
-saved configuration. Authentication against WPA2/WPA3/802.1X needs an access point: WIFI.md, "Con un punto de acceso
-real".
-
-Result (2026-11-27, own stack + debug agent after merging `integration/mobicontrol`, clean emulators; run twice, on two
-successive merges of the base branch, host load 2–30, same numbers both times):
-
-| Emulator | Checks | Not applicable there (reported by the agent, not failures) |
-|---|---|---|
-| Android 9 (API 28) | 70/70 | WPA3 and OWE (no API before Android 10: reported "not supported"), metered flag refused, `installKeyPair` needs a screen lock, no `cmd wifi forget-network` (the lock-down setting is checked instead), Android 13 rules reported as not available |
-| Android 11 (API 30) | 78/78 | device-MAC option refused; Android 13 rules reported as not available |
-| Android 15 (API 35) | 86/86 | — |
-
-Console: `wifi-console-e2e.mjs` 30/30 with `--device` (29 without). The runs found and fixed three agent bugs: on
-Android 13+ a static IP dropped the proxy; a network saved while the radio was starting stayed disabled for auto-join
-(Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
-earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
-ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
+| Wizard abandoned (never finalizes), Android 7.0 / 9 | Device Owner, no token; the agent's screen ("Scan the console's QR" / folder code) and its notification were up |
+| Same, Android 8.0 | Device Owner, no token; notification up; the screen was behind a "System UI has stopped" dialog of the emulator |
+| Same, Android 10 / 11 | enrolled anyway (`qr-early`) |
+| Clock 6 years back, QR **without** the time, HTTPS download - Android 9 and 13 | never becomes Device Owner: stays at "Setting up work device" / "Getting ready for work setup"; logcat shows `CertificateNotYetValidException` |
+| Same, QR **with** the time - Android 9 | the clock was set before `DownloadPackageTask` (logcat), but the download still did not finish in 8 minutes; cause not established |
+| Same, QR **with** the time - Android 13 | the clock was NOT set before the download (logcat keeps the old date): fails like the QR without the time |
+| Clock 6 years back, plain-HTTP download, no time in the QR - Android 9 | enrolled, first attempt |
+| Same - Android 13 | not obtained (run stopped) |
+| Token presented again by the same phone after the answer was lost - Android 9 | accepted, same device row, credentials stored |
+| Same - Android 13 | not obtained (the emulator hung in provisioning) |
+| Server down while the phone enrolls | **not run** on a device |
+| Remote-support guide vs. the wizard | before the fix it opened on top of Android's wizard (Android 13); after it: never during the wizard, shown once the wizard ended (Android 7.0, 9, 10, 11, 12, 12L, 13) |
+
+Also seen: a cut download cannot be resumed when the server sends no ETag (`DownloadManager` reason 1008, then
+"Couldn't download the admin app") - twice, on Android 11 and 13; `/files` now sends ETag and Last-Modified. On
+Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download on an image without Google Play.
+
+Server and console: `enroll_api_check.py` 24/24 against Postgres (token retry by hardware id / serial / IMEI, de-dup,
+attempts log, tracked download, the report endpoint and the counter); `enroll-console-e2e.mjs` 24/24. The Windows
+enroller was run under PowerShell 7 on macOS with a simulated adb (`scripts/windows-enroller-sim.sh`, 9/9), not on
+Windows PowerShell 5.1. Not covered by any of this: the camera and the QR reader, each maker's setup wizard, Play
+Protect, FRP, captive portals, real Zero-Touch / Knox enrollment, the agent's own QR scanner with a real camera.
