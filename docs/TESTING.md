@@ -374,79 +374,26 @@ running 13 agents' builds and emulators at the same time, 1-minute load 30–50,
 issuer, states, "Borrado" mark, the notice for a device without link, cancel, and the latency report with its Excel.
 Repeat the latency phase on an idle machine (`--only latency`) for representative figures.
 
-### Results (2026-11-27, dev stack + debug agent of this branch; published agent 0.9.8 where noted)
+### Results (2026-11-27, dev stack + debug agent of this branch)
 
-New agent, QR payload from `web/src/enroll/payload.ts` (tracked download, clock, time zone, locale), from the
-provisioning intent to "enrolled with its configuration" in the console:
+New agent, QR payload from `web/src/enroll/payload.ts`, real provisioning flow (the platform's own code from the
+provisioning intent on), to "enrolled with its configuration" in the console. One clean emulator per release.
 
-| Android | Result | How the agent got the token |
-|---------|--------|------------------------------|
-| 6 (API 23) | not applicable | QR provisioning starts in Android 7 |
-| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled, first attempt, 52-56 s after Device Owner | `qr-legacy`: only once the setup wizard finalized |
-| 10 (API 29) | enrolled, first attempt | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized |
-| 11-17 (API 30-37) | **not obtained** | see below |
+| Android | Result | How the agent got the token | Attempts |
+|---------|--------|------------------------------|----------|
+| 6 (API 23) | not applicable | QR provisioning starts in Android 7 | - |
+| 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled | `qr-legacy`: only once the setup wizard finalized (52-57 s) | 1 |
+| 10, 11, 12, 12L, 13 (API 29-33) | enrolled | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized | 1 |
+| 14 (API 34) | **not obtained** | the emulator had no network when the download started | - |
+| 15, 16 (API 35, 36) | enrolled | `qr-early` | 1 |
+| 17 (API 37, both images) | **not obtained** | stayed at "Getting ready for work setup" with ANR dialogs; cause not established | - |
 
-Published agent 0.9.8 with the production QR payload of that day (to Device Owner only; it cannot enroll against the
-dev stack): Device Owner on Android 7.0, 7.1, 8.0, 8.1, 9, 10 and 11 (the Android 11 run had the agent already
-installed by an earlier attempt on the same emulator). Android 12+ not obtained.
+7.1, 8.0 and 8.1 were run before the last merge and not repeated with the final APK; 7.0, 9 and 10 were. The three
+runs of Android 13, 15 and 16 landed on one device row: every emulator has the same hardware identifiers.
 
-"Device Owner but never enrolled" (the wizard is abandoned, or does not finalize): reproduced on Android 7.0 and 9 -
-the agent is Device Owner and logs `no enrollment token available` until finalization. The delivery point is the
-same code path for every release up to Android 11, and 0.9.8 has no fallback on any of them. With this branch:
-Android 10 enrolls without the finalization (`qr-early`); on Android 7.0, left without it, the agent showed its
-enrollment screen ("Scan the console's QR" / folder code) and the notification.
+Cases:
 
-Seen on the way: on Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download ("Failed to
-perform a platform-requested role holder update ... offline provisioning is false") on an image without Google Play;
-with the extra the log says "allowOffline set, provisioning via platform" and the download and install proceed.
-On Android 9 the device clock jumped to the payload's `PROVISIONING_LOCAL_TIME` before `DownloadPackageTask`.
-
-Not obtained: Android 11-17 end to end, the clock-set-back runs, the server-outage and token-replay runs. The machine
-was running the emulators of several other test suites (load average 40-50): `uiautomator` and `pm` calls timed out,
-the dev server answered 502, and on the last Android 13 attempt the emulator's system server died mid-run. The
-token-replay and de-dup behaviour is covered at the API by `enroll_api_check.py` (24 checks), the agent's handling of
-each callback by unit tests; neither replaces the device run. The Windows enroller was run under PowerShell 7 on
-macOS with a simulated adb (`scripts/windows-enroller-sim.sh`), not on Windows PowerShell 5.1.
-## Mobile data per app ([DATOS-MOVILES.md](DATOS-MOVILES.md))
-
-`scripts/mobile-data-e2e.py` has two modes. Without a device it plays the phone over the Agent v1 API and checks the
-server: the policy's section in the device document (megabytes → bytes), the per-device override and its revision,
-the device card's "use against limit", limit events → alerts (not duplicated), the report "Datos móviles: uso vs.
-límite" with its CSV/Excel export, and with `--mailpit` the alert e-mail. With `--serial` it drives a real agent on an
-emulator, where `adb shell svc wifi disable` leaves the emulated (metered) cellular network: three test apps that make
-one HTTP request per launch (`scripts/build-netprobe-testapps.sh`), one blocked, one allowed, one essential.
-
-```bash
-scripts/mobile-data-e2e.py --base http://localhost:8080 [--mailpit http://localhost:8025]
-
-scripts/build-netprobe-testapps.sh
-scripts/adb-enroll.sh --server http://10.0.2.2:8088 --api-url http://localhost:8088 --debug-build \
-    --apk agent-android/app/build/outputs/apk/debug/app-debug.apk --admin-user admin --serial emulator-5554
-scripts/mobile-data-e2e.py --base http://localhost:8088 --serial emulator-5554 --device <device number>
-
-DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/mobile-data-console-e2e.mjs --api http://localhost:8088
-```
-
-The emulator run covers: nothing restricted → blocklist with the system restriction (`setMeteredDataDisabledPackages`:
-the blocked app fails on mobile data and works on Wi-Fi, the allowed app and the agent keep working, Wi-Fi ↔ mobile) →
-the same with the agent's local VPN forced (always-on VPN = the agent, no consent dialog, `no_config_vpn`, idle on
-Wi-Fi) → allowlist → per-device override (allow / block / unrestricted) → app limit (warning alert, then limit alert
-and automatic block; Wi-Fi still works; announced once per period) → device limit (every app but the essential one) →
-"ignore limits" on the device → section removed (no admin-restricted uid, no always-on VPN, VPN settings unlocked).
-It reads `dumpsys netpolicy`, `dumpsys device_policy` and `dumpsys connectivity` on the way.
-
-Emulator notes: a busy dev stack's Caddy can answer 502 while the agent enrolls and the agent then keeps retrying a
-used token; enrolling against Tomcat's own port (`DEV_API_PORT`) avoids it. `dumpsys device_policy` prints the
-metered-disabled list only on recent Android versions; `dumpsys netpolicy` ("Admin restricted uids for metered
-data") shows it on all of them. Newer images do not always rejoin "AndroidWifi" after `svc wifi enable`; the script
-asks for it (`cmd wifi connect-network AndroidWifi open`).
-
-### Results (2026-11-27, own stack + debug agent built from this branch)
-
-Machine under heavy load (load average 45+, a dozen stacks and five emulators), so the waits are long but nothing was
-timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over adb as Device Owner.
-
-| What | Result |
+| Case | Result |
 |------|--------|
 | Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
 | Console in headless Chromium | 37/37 |
@@ -869,3 +816,26 @@ fix below; console 34/34 (lost mode really sent and turned off); `wipe-online` 8
 failure was real: a follow-up check-in (it carries no census) stored an empty telemetry, so the device's protection
 status was blank until the next full report; `device_state.telemetry` now keeps the last census when a check-in
 brings none. The emulator booted again after its wipe enrolled onto its own row (same hardware id), as designed.
+
+| Wizard abandoned (never finalizes), Android 7.0 / 9 | Device Owner, no token; the agent's screen ("Scan the console's QR" / folder code) and its notification were up |
+| Same, Android 8.0 | Device Owner, no token; notification up; the screen was behind a "System UI has stopped" dialog of the emulator |
+| Same, Android 10 / 11 | enrolled anyway (`qr-early`) |
+| Clock 6 years back, QR **without** the time, HTTPS download - Android 9 and 13 | never becomes Device Owner: stays at "Setting up work device" / "Getting ready for work setup"; logcat shows `CertificateNotYetValidException` |
+| Same, QR **with** the time - Android 9 | the clock was set before `DownloadPackageTask` (logcat), but the download still did not finish in 8 minutes; cause not established |
+| Same, QR **with** the time - Android 13 | the clock was NOT set before the download (logcat keeps the old date): fails like the QR without the time |
+| Clock 6 years back, plain-HTTP download, no time in the QR - Android 9 | enrolled, first attempt |
+| Same - Android 13 | not obtained (run stopped) |
+| Token presented again by the same phone after the answer was lost - Android 9 | accepted, same device row, credentials stored |
+| Same - Android 13 | not obtained (the emulator hung in provisioning) |
+| Server down while the phone enrolls | **not run** on a device |
+| Remote-support guide vs. the wizard | before the fix it opened on top of Android's wizard (Android 13); after it: never during the wizard, shown once the wizard ended (Android 7.0, 9, 10, 11, 12, 12L, 13) |
+
+Also seen: a cut download cannot be resumed when the server sends no ETag (`DownloadManager` reason 1008, then
+"Couldn't download the admin app") - twice, on Android 11 and 13; `/files` now sends ETag and Last-Modified. On
+Android 13 a payload without `PROVISIONING_ALLOW_OFFLINE` stops before the download on an image without Google Play.
+
+Server and console: `enroll_api_check.py` 24/24 against Postgres (token retry by hardware id / serial / IMEI, de-dup,
+attempts log, tracked download, the report endpoint and the counter); `enroll-console-e2e.mjs` 24/24. The Windows
+enroller was run under PowerShell 7 on macOS with a simulated adb (`scripts/windows-enroller-sim.sh`, 9/9), not on
+Windows PowerShell 5.1. Not covered by any of this: the camera and the QR reader, each maker's setup wizard, Play
+Protect, FRP, captive portals, real Zero-Touch / Knox enrollment, the agent's own QR scanner with a real camera.
