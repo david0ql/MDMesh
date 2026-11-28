@@ -4,7 +4,7 @@
 // than that cannot travel in one request. It is cut in parts (the server says the size, at most 50 MB), each sent with
 // its SHA-256 and retried on its own when it fails; the server puts them together and checks the whole file. An upload
 // cut short (page reloaded, connection lost) continues from the parts the server already has.
-import { API_BASE, ApiError, apiClient, type ApiEnvelope } from './client';
+import { API_BASE, ApiError, apiClient, envelopeError, type ApiEnvelope } from './client';
 
 /** Files this big or bigger go in parts; smaller ones in one request as always. */
 export const CHUNKED_THRESHOLD = 50 * 1024 * 1024;
@@ -77,7 +77,7 @@ function sendPart(id: string, index: number, body: ArrayBuffer, sha: string | un
       if (xhr.status < 200 || xhr.status >= 300) return reject(new ApiError(`La solicitud falló (HTTP ${xhr.status})`, 'ERROR', xhr.status));
       try {
         const env = JSON.parse(xhr.responseText) as ApiEnvelope<Session>;
-        if (env.status !== 'OK') return reject(new ApiError(env.message ?? 'El servidor devolvió un error', env.status, xhr.status));
+        if (env.status !== 'OK') return reject(envelopeError(env.message, env.status, xhr.status));
         resolve(env.data);
       } catch {
         reject(new ApiError('Respuesta inesperada del servidor (no es JSON)', 'ERROR', xhr.status));
@@ -93,7 +93,7 @@ function isFinal(e: unknown): boolean {
   if (!(e instanceof ApiError)) return false;
   if (e.status === 'CANCELLED' || e.httpStatus === 401 || e.httpStatus === 403 || e.httpStatus === 413) return true;
   // The upload is gone on the server (expired, or it restarted without its temp files).
-  return /ya no existe/.test(e.message);
+  return /ya no existe/.test(e.code);
 }
 
 /**
@@ -139,7 +139,7 @@ export async function uploadInParts<T>(file: File, as: UploadAs, onProgress?: (p
       }
     }
     if (!ok) {
-      if (lastError instanceof ApiError && /ya no existe/.test(lastError.message)) remember(file, null);
+      if (lastError instanceof ApiError && /ya no existe/.test(lastError.code)) remember(file, null);
       const why = lastError instanceof Error ? lastError.message : 'error desconocido';
       // The parts already sent stay on the server: choosing the same file again continues from here.
       throw new ApiError(`No se pudo subir la parte ${i + 1} de ${partCount}: ${why}. `

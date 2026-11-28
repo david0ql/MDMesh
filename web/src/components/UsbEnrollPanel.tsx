@@ -45,9 +45,9 @@ export function UsbEnrollPanel() {
 
       <div style={{ padding: 20 }}>
         <div className="banner banner-alert" style={{ marginBottom: 16 }}>
-          En <b>Android 15 y 16</b> el enrolamiento por <b>QR no funciona</b>: Google Play Protect bloquea la
-          instalación del agente y aparece “Se produjo un error”. Esos equipos se inscriben <b>por cable USB</b>
-          con esta herramienta, que Play Protect no bloquea.
+          En <b>Android 15 y 16</b> el enrolamiento por <b>QR puede requerir este método</b>: si el teléfono
+          muestra “Se produjo un error” al instalar el agente (Google Play Protect puede bloquearlo; aún no está
+          verificado en teléfonos físicos), inscribe ese equipo <b>por cable USB</b> con esta herramienta.
         </div>
 
         <p className="note" style={{ marginTop: 0 }}>

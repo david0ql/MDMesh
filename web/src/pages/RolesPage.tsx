@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { BUILT_IN_ROLE_IDS, deleteRole, listPermissions, listRoles, saveRole, type Permission, type Role } from '../api/roles';
+import { errorCode } from '../api/client';
 import { CAPABILITIES, ROLE_TEMPLATES, describeRole } from '../data/roleCapabilities';
 
 // Roles and permissions. An administrator creates roles with any combination of capabilities (from scratch, from a
@@ -282,8 +283,8 @@ export function RolesPage() {
 /** The server's message keys for roles, in words. */
 function roleError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  if (m === 'error.duplicate.role') return 'Ya existe un rol con ese nombre.';
-  if (m === 'error.permission.denied') return 'Solo un administrador puede cambiar los roles.';
+  if (errorCode(e) === 'error.duplicate.role') return 'Ya existe un rol con ese nombre.';
+  if (errorCode(e) === 'error.permission.denied') return 'Solo un administrador puede cambiar los roles.';
   return m;
 }
 

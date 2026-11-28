@@ -14,7 +14,7 @@
   <h1>Qué contiene este manual</h1>
   <p class="lead">Este manual recorre la consola de {{PRODUCTO}} en el orden en que se prepara una flota: quién entra, cómo se organizan los equipos, qué se les aplica y cómo se opera el día a día.</p>
   <!--INDICE-->
-  <p class="nota">Los nombres en <span class="ui">negrita sin serifa</span> son los rótulos tal como aparecen en la consola. Las capturas son de un ambiente de demostración con datos ficticios. Las secciones marcadas <span class="pend">Llega con…</span> describen funciones que se integran en la siguiente versión; sus pasos y capturas se completarán entonces.</p>
+  <p class="nota">Los nombres en <span class="ui">negrita sin serifa</span> son los rótulos tal como aparecen en la consola. Las capturas son de un ambiente de demostración con datos ficticios. La única función marcada <span class="pend">Llega con…</span> es el despertador por mensajes de Google, que se integra en la siguiente versión.</p>
 </section>
 
 <section class="sec pb" id="acceso" data-temas="acceso, iniciar sesión, login, contraseña, menú, tema, cerrar sesión">
@@ -47,6 +47,7 @@
       <tr><td>Usuarios</td><td>Cuentas de la consola</td><td>Permiso «Gestionar usuarios»</td></tr>
       <tr><td>Roles, Ajustes</td><td>Permisos por rol y parámetros del sistema</td><td>Administradores con permiso de ajustes</td></tr>
       <tr><td>Auditoría</td><td>Registro de acciones</td><td>Permiso «Ver la auditoría de acciones»</td></tr>
+      <tr><td>Sesiones de soporte</td><td>Historial de las sesiones de soporte remoto</td><td>Todos, dentro de su alcance</td></tr>
       <tr><td>Ayuda</td><td>Manuales y búsqueda por tema</td><td>Todos</td></tr>
     </tbody>
   </table>
@@ -111,7 +112,7 @@
     <li>En <span class="ui">Carpetas que maneja (con todas sus subcarpetas)</span> marque las carpetas. Marcar una cubre sus subcarpetas, también las que se creen después.</li>
     <li>Pulse <span class="ui">Guardar</span>. La persona deberá definir su propia contraseña en el primer ingreso.</li>
   </ol>
-  <h2>Otras tareas</h2>
+  <h2 style="break-before:page">Otras tareas</h2>
   <table>
     <thead><tr><th style="width:46mm">Tarea</th><th>Cómo</th></tr></thead>
     <tbody>
@@ -147,7 +148,7 @@
     <li>Asígnelo en <span class="ui">Usuarios</span> con el tipo <span class="ui">Rol personalizado…</span>.</li>
   </ol>
   <p>En cada tarjeta, <span class="ui">Qué puede hacer</span> lista en lenguaje llano lo que el rol permite y lo que no, y avisa si un permiso no tiene efecto sin otro. <span class="ui">Duplicar</span> crea una copia. <span class="ui">Eliminar</span> solo aparece en roles que no son del sistema y exige que ningún usuario lo tenga asignado.</p>
-  <h2>Permisos de la matriz</h2>
+  <h2 style="break-before:page">Permisos de la matriz</h2>
   <table class="compact">
     <thead><tr><th style="width:26mm">Módulo</th><th>Permiso, tal como aparece</th></tr></thead>
     <tbody>
@@ -208,8 +209,7 @@
     </tbody>
   </table>
   <h2>Marca por carpeta</h2>
-  <p>El botón <span class="ui">Marca</span> tiene dos pestañas. <span class="ui">Consola</span> define el logo y el nombre que ven en el encabezado los administradores de esa carpeta. <span class="ui">Quiosco</span> define logos, fondo y número de soporte para los equipos de esa carpeta que estén en quiosco. Lo que queda vacío se hereda de la carpeta superior.</p>
-  <div class="callout"><b>Diseñe el árbol antes de inscribir.</b> Un nivel por cliente o país y otro por operación suele bastar. El nombre de una carpeta puede repetirse bajo otra, no entre hermanas.</div>
+  <p>El botón <span class="ui">Marca</span> tiene dos pestañas. <span class="ui">Consola</span> define el logo y el nombre que ven en el encabezado los administradores de esa carpeta. <span class="ui">Quiosco</span> define logos, fondo y número de soporte para los equipos de esa carpeta que estén en quiosco. Lo que queda vacío se hereda de la carpeta superior. El nombre de una carpeta puede repetirse bajo otra, no entre hermanas.</p>
 </section>
 
 <section class="sec pb" id="dispositivos" data-temas="dispositivos, lista, buscar, filtrar, columnas, exportar, mover a carpeta, cambiar política, eliminar dispositivo, ficha del dispositivo, pestañas">
@@ -222,7 +222,7 @@
   <h2>Buscar y filtrar</h2>
   <ul class="b">
     <li><span class="ui">Buscar dispositivos</span> busca por número, nombre, IMEI y serie.</li>
-    <li>Los chips <span class="ui">Todos</span>, <span class="ui">En línea</span> y <span class="ui">Sin conexión</span> filtran por estado. <span class="ui">⚠ Duplicados</span> aparece cuando dos filas comparten el identificador de hardware.</li>
+    <li>Los chips <span class="ui">Todos</span>, <span class="ui">En línea</span> y <span class="ui">Sin conexión</span> filtran por estado. <span class="ui">En reposo</span> aparece cuando hay equipos sin reportar por una causa conocida: apagado, batería agotada o pantalla apagada. <span class="ui">⚠ Duplicados</span> aparece cuando dos filas comparten el identificador de hardware.</li>
     <li>Los desplegables <span class="ui">Carpeta</span>, <span class="ui">Política</span> y <span class="ui">Android</span> acotan la lista. Una carpeta incluye sus subcarpetas.</li>
     <li>El conmutador <span class="ui">Cuadrícula</span> o <span class="ui">Lista</span> cambia la vista. En lista, <span class="ui">Columnas</span> elige y ordena las columnas; la elección se guarda por usuario en el navegador.</li>
   </ul>
@@ -245,12 +245,12 @@
     <img src="img/a09-dispositivo-detalle.jpg" alt="Ficha de un dispositivo">
     <p class="cap">Figura 9. Ficha de un dispositivo.</p>
   </div>
-  <p>La columna izquierda muestra el estado de conexión, el botón <span class="ui">Actualizar ahora</span>, el nombre editable, los botones rápidos (<span class="ui">Sincronizar ahora</span>, <span class="ui">Remoto</span>, <span class="ui">Bloquear</span>, <span class="ui">Instalar apps de la política</span>) y los grupos <span class="ui">Estado</span>, <span class="ui">Ubicación</span>, <span class="ui">Hardware</span>, <span class="ui">Red</span> y <span class="ui">Gestión</span>. Debajo están las tarjetas <span class="ui">Carpeta y política</span>, <span class="ui">Estado de la política</span> y <span class="ui">Última falla de conexión</span>.</p>
+  <p>La columna izquierda muestra el estado de conexión, el botón <span class="ui">Actualizar ahora</span>, el nombre editable, los botones rápidos (<span class="ui">Sincronizar ahora</span>, <span class="ui">Remoto</span>, <span class="ui">Bloquear</span>, <span class="ui">Instalar apps de la política</span>) y los grupos <span class="ui">Estado</span>, <span class="ui">Ubicación</span>, <span class="ui">Hardware</span>, <span class="ui">Red</span> y <span class="ui">Gestión</span>. Debajo están las tarjetas <span class="ui">Carpeta y política</span>, <span class="ui">Estado de la política</span>, <span class="ui">Última falla de conexión</span> y, si la política entrega redes, <span class="ui">Wi‑Fi gestionado</span>.</p>
   <table class="compact">
     <thead><tr><th style="width:32mm">Pestaña</th><th>Contenido</th></tr></thead>
     <tbody>
-      <tr><td>Control</td><td>Órdenes remotas, quiosco, compartir datos, acciones rápidas, script e historial de órdenes.</td></tr>
-      <tr><td>Remoto</td><td>Ver y controlar la pantalla.</td></tr>
+      <tr><td>Control</td><td>Órdenes remotas, quiosco, compartir datos, protección contra restablecimiento y robo, acciones rápidas, script e historial de órdenes.</td></tr>
+      <tr><td>Remoto</td><td>Sesión de soporte: pantalla, chat, llamada, portapapeles y archivos.</td></tr>
       <tr><td>Diagnóstico</td><td>Foto del estado del teléfono: sonidos, notificaciones, alarmas, cierres del agente.</td></tr>
       <tr><td>Aplicaciones</td><td>Aplicaciones instaladas; desinstalar; mostrar una aplicación en el quiosco de ese equipo.</td></tr>
       <tr><td>Actualizaciones</td><td>Android, parche de seguridad, y la línea de tiempo de instalaciones.</td></tr>
@@ -261,6 +261,8 @@
       <tr><td>Eventos</td><td>Encendidos, cambios de red, SIM, salidas de quiosco, fallas y cortes de conexión.</td></tr>
       <tr><td>Ubicación</td><td>Historial de posiciones y estado frente a las geocercas.</td></tr>
       <tr><td>Actividad</td><td>Acciones de los administradores sobre ese equipo. Exige permiso de auditoría.</td></tr>
+      <tr><td>Permisos</td><td>Permisos de cada aplicación: regla y estado real en el equipo.</td></tr>
+      <tr><td>Restricciones</td><td>Hardware y puertos: lo que pide la política y lo que el equipo aplicó.</td></tr>
     </tbody>
   </table>
   <p>En <span class="ui">Carpeta y política</span>, el chip junto a la política dice de dónde viene: <span class="ui">Dispositivo</span>, <span class="ui">Carpeta</span> o <span class="ui">Global</span>. <span class="ui">Fijar en el dispositivo</span> le da una política propia. En <span class="ui">Estado de la política</span>, <span class="ui">Sincronizado</span> confirma que el equipo aplicó la última versión.</p>
@@ -295,14 +297,16 @@
       <tr><td>Apps</td><td><span class="ui">App principal</span>: la que abre el quiosco.</td></tr>
       <tr><td>Quiosco</td><td>Modo quiosco y sus botones (capítulo 9).</td></tr>
       <tr><td>Red</td><td>Wi-Fi, Bluetooth y <span class="ui">Reporte de ubicación</span>.</td></tr>
-      <tr><td>Seguridad</td><td>Contraseña para salir del quiosco.</td></tr>
-      <tr><td>Restricciones</td><td>Almacenamiento USB y capturas de pantalla (capítulo 10).</td></tr>
+      <tr><td>Seguridad</td><td><span class="ui">Contraseña de salida del quiosco</span> y <span class="ui">Permisos de apps</span>.</td></tr>
+      <tr><td>Restricciones</td><td>Almacenamiento USB y capturas de pantalla.</td></tr>
       <tr><td>Pantalla</td><td>Colores y tamaño de íconos del quiosco.</td></tr>
       <tr><td>Actualizaciones</td><td>Actualizaciones de Android: predeterminado, de inmediato, programadas en una franja, o aplazadas 30 días.</td></tr>
       <tr><td>Apps permitidas</td><td>Aplicaciones que la política instala y mantiene (capítulo 8).</td></tr>
       <tr><td>Marca del quiosco</td><td>Logos, fondo, serial y botón de soporte. Solo con quiosco.</td></tr>
       <tr><td>Grupos de aplicaciones</td><td>Grupos cuyas aplicaciones se instalan con esta política.</td></tr>
-      <tr><td>Funciones del dispositivo, navegador, apps y ubicación</td><td>Funciones del quiosco, compartir datos, cuentas de Google, restablecimiento, instalación por el usuario, navegador, política de apps, redes Wi-Fi, nombre del dispositivo, frecuencia de ubicación y datos móviles.</td></tr>
+      <tr><td>Funciones del dispositivo, navegador, apps y ubicación</td><td>Funciones del quiosco, compartir datos, cuentas de Google, restablecimiento y cuentas de reactivación, depuración USB, navegador, política de apps, redes Wi-Fi, ubicación, datos móviles y soporte remoto.</td></tr>
+      <tr><td>Permisos por app</td><td>Reglas de permisos por aplicación (capítulo 10).</td></tr>
+      <tr><td>Hardware y puertos</td><td>Cámara, micrófono, USB, radios y otras funciones del equipo (capítulo 10).</td></tr>
       <tr><td>Carpetas que usan esta política</td><td>Las carpetas a las que se aplica.</td></tr>
     </tbody>
   </table>
@@ -382,10 +386,14 @@
   <p class="nota">Si una política todavía incluye la aplicación para instalar, la próxima sincronización la vuelve a instalar.</p>
 </section>
 
-<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo">
+<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo, refuerzo, acceso de uso">
   <p class="k">9 · Quiosco</p>
-  <h1>El quiosco limita el equipo a las aplicaciones de trabajo</h1>
-  <p>Con <span class="ui">Modo quiosco</span> activo, el equipo solo muestra las aplicaciones que la política permite. Se configura en la política y se puede activar o quitar por equipo.</p>
+  <h1>El quiosco limita el equipo a las aplicaciones de trabajo y solo se sale con contraseña</h1>
+  <p>Con <span class="ui">Modo quiosco</span> activo, el equipo solo muestra las aplicaciones que la política permite. Bloquea los Ajustes del sistema, el modo seguro y la creación de usuarios. Se configura en la política y se puede activar o quitar por equipo.</p>
+  <div class="fig">
+    <img src="img/p01-politica-quiosco.jpg" alt="Sección Quiosco del editor de política">
+    <p class="cap">Figura 0. Sección «Quiosco» del editor de una política.</p>
+  </div>
   <h2>Una aplicación o varias</h2>
   <table>
     <thead><tr><th style="width:36mm">Resultado</th><th>Cuándo ocurre</th></tr></thead>
@@ -397,86 +405,170 @@
   <h2>Configurar el quiosco en la política</h2>
   <ol class="steps">
     <li>En <span class="ui">Apps permitidas</span>, agregue las aplicaciones con acción <span class="ui">Instalar</span>. La casilla <span class="ui">En quiosco</span> decide si cada una aparece en la pantalla del quiosco.</li>
-    <li>En <span class="ui">App principal</span> elija la aplicación que se abre al entrar.</li>
-    <li>Marque <span class="ui">Modo quiosco</span>.</li>
-    <li>En <span class="ui">Seguridad</span>, escriba la contraseña para salir del quiosco.</li>
+    <li>En <span class="ui">App principal</span> elija la aplicación que se abre al entrar y marque <span class="ui">Modo quiosco</span>.</li>
+    <li>En <span class="ui">Seguridad</span>, campo <span class="ui">Contraseña de salida del quiosco</span>, pulse <span class="ui">Generar</span> (8 dígitos al azar) o escriba una de 4 caracteres o más. <span class="ui">Ver</span> la muestra.</li>
     <li>Ajuste los botones visibles (tabla siguiente) y, si quiere, la <span class="ui">Marca del quiosco</span>.</li>
     <li>Pulse <span class="ui">Guardar</span> y confirme con <span class="ui">Guardar y aplicar</span>.</li>
   </ol>
+  <div class="fig m">
+    <img src="img/p02-politica-seguridad.jpg" alt="Sección Seguridad de la política">
+    <p class="cap">Figura 0. Sección «Seguridad»: contraseña de salida del quiosco y permisos de apps.</p>
+  </div>
+  <p>La contraseña es obligatoria: sin ella la consola no guarda y avisa «Falta la contraseña de salida del quiosco». Las políticas de quiosco que no tenían contraseña antes de esta versión recibieron una generada; consúltela en la política con <span class="ui">Ver</span>.</p>
   <table>
-    <thead><tr><th style="width:56mm">Ajuste</th><th>En Auto</th></tr></thead>
+    <thead><tr><th style="width:52mm">Ajuste</th><th>En Auto</th></tr></thead>
     <tbody>
       <tr><td>Botón Salir del quiosco</td><td>Oculto. Se sale con 7 toques seguidos en la esquina superior derecha. «Sí» muestra un botón.</td></tr>
-      <tr><td>Botones Atrás e Inicio</td><td>Visibles.</td></tr>
-      <tr><td>Botón Recientes y pantalla dividida</td><td>Visible. Requiere el botón Inicio.</td></tr>
-      <tr><td>Notificaciones</td><td>Permitidas.</td></tr>
+      <tr><td>Botones Atrás e Inicio</td><td>Visibles. «No» solo aplica hasta Android 15.</td></tr>
+      <tr><td>Botón Recientes y pantalla dividida</td><td>Visible. Solo abre aplicaciones permitidas.</td></tr>
+      <tr><td>Notificaciones</td><td>Permitidas hasta Android 15 y cerradas desde Android 16. «Sí» en Android 16 expone los ajustes rápidos del sistema.</td></tr>
       <tr><td>Hora, batería y señal</td><td>Visible.</td></tr>
       <tr><td>Pantalla de bloqueo</td><td>Sin pantalla de bloqueo en el quiosco.</td></tr>
-      <tr><td>Ajustes rápidos del quiosco</td><td>Activos: brillo, volumen, Wi-Fi y Bluetooth.</td></tr>
+      <tr><td>Bloquear botones físicos</td><td>«Sí» cierra el menú de apagado en Android 9 a 15.</td></tr>
+      <tr><td>Ajustes rápidos del quiosco</td><td>Activos: panel propio con brillo, volumen, Wi-Fi y Bluetooth. Nunca abre los Ajustes del sistema.</td></tr>
     </tbody>
   </table>
   <h2>Configuración recomendada</h2>
-  <ul class="chk">
-    <li><b>Defina siempre la contraseña de salida.</b> Sin ella, el gesto o el botón sacan del quiosco sin pedir nada.</li>
-    <li>Deje <span class="ui">Botón Salir del quiosco</span> en Auto: el gesto de 7 toques no es visible para el usuario.</li>
-    <li>Ponga un <span class="ui">Número de soporte</span> en la marca: el quiosco muestra un botón para llamar sin habilitar el teléfono completo.</li>
-    <li>En equipos expuestos a robo, defina <span class="ui">Antirrobo: clave para apagar</span> (Android 9 o superior). Bloquea además el restablecimiento desde Ajustes.</li>
-    <li>Bloquee <span class="ui">Instalación de apps por el usuario</span> y, si el equipo no debe compartir internet, <span class="ui">Compartir datos (zona Wi‑Fi)</span>.</li>
-    <li>Pruebe la política en un equipo de cada versión de Android antes de aplicarla a toda una carpeta.</li>
-  </ul>
-  <h2>Activar o quitar el quiosco en un equipo</h2>
-  <p>En la ficha, pestaña <span class="ui">Control</span>: <span class="ui">Quitar quiosco</span> lo saca para una tarea de soporte y <span class="ui">Activar quiosco</span> lo devuelve. <span class="ui">Personalizar…</span> abre <span class="ui">Entrar en quiosco</span>, donde se eligen aplicaciones, botones visibles, <span class="ui">Modo de salida</span> (Gesto, Botón visible o Solo remoto) y <span class="ui">Contraseña de salida</span> solo para ese equipo. Para varios equipos: <span class="ui">Acciones</span>, grupo <span class="ui">Kiosco</span>, <span class="ui">Activar modo kiosco…</span>. La casilla <span class="ui">En el kiosco</span> de la pestaña <span class="ui">Aplicaciones</span> muestra una aplicación solo en ese equipo.</p>
-  <h2>Límites conocidos</h2>
-  <ul class="b">
-    <li>En Android 16 el agente usa un quiosco propio, sin el bloqueo del sistema: los interruptores de botones no se aplican en esa versión.</li>
-    <li>Ningún sistema de administración impide el apagado forzado ni el restablecimiento con los botones físicos.</li>
-    <li>Si la aplicación principal se cierra más de 3 veces en un minuto, el agente no la reabre sola y muestra un botón para abrirla.</li>
-  </ul>
-  <p class="pend">Llega con la integración del quiosco reforzado</p>
-  <p>La siguiente versión hace obligatoria la contraseña de salida y la genera en las políticas que no la tengan, agrega una espera creciente tras intentos fallidos, bloquea los Ajustes del sistema dentro del quiosco y muestra el estado del refuerzo en la ficha. Este capítulo se actualizará entonces.</p>
-</section>
-
-<section class="sec pb" id="hardware" data-temas="restricciones de hardware, cámara, USB, bluetooth, capturas de pantalla, compartir datos, puertos">
-  <p class="k">10 · Restricciones de hardware</p>
-  <h1>La política controla radios, almacenamiento externo y capturas</h1>
-  <p>Estas restricciones se definen en el editor de la política y se aplican a todos sus equipos.</p>
-  <table>
-    <thead><tr><th style="width:60mm">Ajuste</th><th style="width:46mm">Dónde</th><th>Opciones</th></tr></thead>
+  <table class="compact">
+    <thead><tr><th style="width:56mm">Opción</th><th style="width:44mm">Recomendado</th><th>Por qué</th></tr></thead>
     <tbody>
-      <tr><td>Wi‑Fi</td><td>Sección Red</td><td>Auto, Sí, No</td></tr>
-      <tr><td>Bluetooth</td><td>Sección Red</td><td>Auto, Sí, No</td></tr>
-      <tr><td>Almacenamiento USB</td><td>Sección Restricciones</td><td>Auto, Sí, No</td></tr>
-      <tr><td>Bloquear capturas de pantalla</td><td>Sección Restricciones</td><td>Auto, Sí, No</td></tr>
-      <tr><td>Compartir datos (zona Wi‑Fi)</td><td>Funciones del dispositivo</td><td>Permitir (ícono en el quiosco), Bloquear</td></tr>
-      <tr><td>Instalación de apps por el usuario</td><td>Funciones del dispositivo</td><td>Permitida, Bloquear (solo la consola instala)</td></tr>
-      <tr><td>Cuentas de Google</td><td>Funciones del dispositivo</td><td>Se pueden agregar, No permitir agregar; dominios permitidos</td></tr>
-      <tr><td>Restablecimiento de fábrica</td><td>Funciones del dispositivo</td><td>Permitido, Bloquear desde Ajustes</td></tr>
+      <tr><td>Contraseña de salida del quiosco</td><td>Generada y distinta por política</td><td>Quien la conoce saca el equipo del quiosco.</td></tr>
+      <tr><td>Botón Salir del quiosco</td><td>Auto (oculto)</td><td>Visible invita a probar contraseñas.</td></tr>
+      <tr><td>Notificaciones</td><td>Auto</td><td>«Sí» en Android 16 permite dejar el equipo sin conexión desde los ajustes rápidos del sistema.</td></tr>
+      <tr><td>Bloquear botones físicos</td><td>Sí</td><td>Sin esto se puede apagar o reiniciar; al encender vuelve al quiosco.</td></tr>
+      <tr><td>Antirrobo: clave para apagar</td><td>Una clave de 6 dígitos o más</td><td>Apagar pide la clave y bloquea el restablecimiento desde Ajustes. Android 9 o superior.</td></tr>
+      <tr><td>Restablecimiento de fábrica</td><td>Bloquear, con cuentas de reactivación</td><td>Deja el equipo inservible para un tercero tras un borrado con botones (capítulo 14).</td></tr>
+      <tr><td>Depuración USB y opciones de desarrollador</td><td>Bloquear</td><td>Con cable se pueden abrir pantallas o quitar aplicaciones. Soporte tampoco podrá usar el cable.</td></tr>
+      <tr><td>Instalación de apps por el usuario</td><td>Bloquear</td><td>Solo la consola instala.</td></tr>
+      <tr><td>Compartir datos (zona Wi‑Fi)</td><td>Bloquear si no se necesita</td><td>Permitido abre solo la pantalla de zona Wi-Fi, 2 minutos como máximo.</td></tr>
+      <tr><td>Política de apps</td><td>Solo apps permitidas, con <span class="ui">Ocultar la Play Store</span></td><td>Lo que no es de trabajo desaparece también fuera del quiosco.</td></tr>
     </tbody>
   </table>
-  <p>Compartir datos se puede cambiar para un equipo desde su pestaña <span class="ui">Control</span>: <span class="ui">Permitir</span>, <span class="ui">Bloquear</span> o <span class="ui">Según política</span>. Con capturas bloqueadas, el control remoto tampoco ve la pantalla.</p>
-  <p class="pend">Llega con la integración de hardware y puertos</p>
-  <p>La siguiente versión agrega la sección «Hardware y puertos» con 23 funciones (entre ellas cámara, micrófono, depuración USB, datos por USB, tarjeta SD, NFC, modo avión, fecha y hora), cada una con «Sin gestionar», «Permitir» o «Bloquear», y una pestaña «Restricciones» en la ficha con el resultado real en cada equipo. Este capítulo se ampliará entonces.</p>
+  <h2>Salir del quiosco en el teléfono</h2>
+  <p>El usuario hace el gesto de 7 toques, o pulsa el botón si es visible, y escribe la contraseña en <span class="ui">Contraseña de salida</span>. Dos errores no tienen consecuencia; al tercero hay una espera de 30 segundos que se duplica con cada fallo, hasta 30 minutos, y se conserva aunque el equipo se reinicie. Cada intento fallido queda en la pestaña <span class="ui">Eventos</span>.</p>
+  <h2>Activar o quitar el quiosco en un equipo</h2>
+  <p>En la ficha, pestaña <span class="ui">Control</span>: <span class="ui">Quitar quiosco</span> lo saca para una tarea de soporte y <span class="ui">Activar quiosco</span> lo devuelve; desde la consola funciona siempre, sin contraseña. <span class="ui">Personalizar…</span> abre <span class="ui">Entrar en quiosco</span>, donde se eligen aplicaciones, botones visibles y <span class="ui">Modo de salida</span>: <span class="ui">Gesto (7 toques en la esquina)</span>, <span class="ui">Botón visible</span> o <span class="ui">Solo remoto (sin salida en el teléfono)</span>. Para salir desde el teléfono se exige <span class="ui">Contraseña de salida (obligatoria)</span>. Para varios equipos: <span class="ui">Acciones</span>, grupo <span class="ui">Kiosco</span>, <span class="ui">Activar modo kiosco…</span>.</p>
+  <h2>Estado del refuerzo</h2>
+  <p>Con el quiosco activo, la ficha muestra bajo el interruptor cómo quedó protegido ese equipo:</p>
+  <table>
+    <thead><tr><th style="width:86mm">Mensaje</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td>Quiosco reforzado: Android bloquea los Ajustes del sistema.</td><td>Android 11 a 15. Nada que hacer.</td></tr>
+      <tr><td>Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco.</td><td>Android 7 a 10 y Android 16, con el permiso de acceso de uso concedido.</td></tr>
+      <tr><td>Refuerzo incompleto: a DallyControl le falta el «acceso de uso» en este teléfono…</td><td>Equipo inscrito por QR en Android 7 a 10 o 16. Pulse <span class="ui">Pedir autorización en el teléfono</span>; quien tenga el equipo da un toque para concederlo.</td></tr>
+    </tbody>
+  </table>
+  <h2>Límites conocidos</h2>
+  <ul class="b">
+    <li>En Android 11 a 15, una aplicación de trabajo que abre otra dentro de su ventana (cámara, selector de archivos, visor de PDF, navegador) la encuentra bloqueada. Agregue esa aplicación a las permitidas; puede ir en <span class="ui">Ocultar del quiosco</span>.</li>
+    <li>En Android 16 el agente usa un quiosco propio, sin el bloqueo del sistema: los Ajustes quedan mitigados, visibles menos de un segundo, y no bloqueados.</li>
+    <li>Ningún sistema de administración impide el apagado forzado ni el borrado con los botones físicos.</li>
+  </ul>
+  <p class="cap">Probado en emulador el 27 de noviembre de 2026: Android 10, 99 de 99 intentos de escape contenidos; Android 15, 98 de 99; Android 16, 100 de 100. El caso restante no es una vía de escape y queda por repetir a mano. Pendiente en teléfono físico: Android 16 en Samsung y las capas de cada fabricante.</p>
 </section>
 
-<section class="sec" id="permisos-app" data-temas="permisos por app, permisos de aplicaciones, conceder permisos, ubicación, cámara">
-  <h2>Permisos de las aplicaciones</h2>
-  <p>Al inscribir un equipo, el agente fija la concesión automática de permisos para las aplicaciones administradas: las aplicaciones que instala la política reciben sus permisos sin que el usuario deba aceptarlos. En esta versión no hay reglas por aplicación ni por permiso.</p>
-  <p class="pend">Llega con la integración de permisos por aplicación</p>
-  <p>La siguiente versión agrega en la política una regla por defecto (conceder, preguntar o denegar) y la sección «Permisos por app» con reglas por permiso y accesos especiales, más una pestaña «Permisos» en la ficha con el estado real y exportación a CSV.</p>
+<section class="sec pb" id="hardware" data-temas="restricciones de hardware, hardware y puertos, cámara, micrófono, USB, depuración USB, bluetooth, NFC, capturas de pantalla, tarjeta SD, modo avión">
+  <p class="k">10 · Hardware, puertos y permisos</p>
+  <h1>La política decide qué funciones del equipo se pueden usar y qué permisos recibe cada aplicación</h1>
+  <h2>Hardware y puertos</h2>
+  <p>En el editor de la política, la sección <span class="ui">Hardware y puertos</span> lista 23 funciones. Cada una admite <span class="ui">Sin gestionar</span> (no la toca), <span class="ui">Permitir</span> (la deja libre y quita un bloqueo anterior) o <span class="ui">Bloquear</span>. El contador de arriba dice cuántas quedan bloqueadas.</p>
+  <div class="fig">
+    <img src="img/p03-politica-hardware.jpg" alt="Sección Hardware y puertos de la política">
+    <p class="cap">Figura 0. Sección «Hardware y puertos». El chip «Desde Android N» indica la versión mínima de cada función.</p>
+  </div>
+  <table class="compact">
+    <thead><tr><th style="width:34mm">Grupo</th><th>Funciones, con su Android mínimo cuando es posterior a Android 6</th></tr></thead>
+    <tbody>
+      <tr><td>Cámara y pantalla</td><td>Cámara · Capturas de pantalla · Captura de contenido y sugerencias (10) · Asistente (leer la pantalla) (15) · Micrófono</td></tr>
+      <tr><td>USB y almacenamiento</td><td>Transferencia de archivos por USB · Depuración USB (ADB) · Datos por USB (12, si el fabricante lo permite) · Tarjeta SD y memorias USB</td></tr>
+      <tr><td>Redes y radios</td><td>Compartir datos (zona Wi‑Fi, USB y Bluetooth) · Bluetooth (8) · Compartir archivos por Bluetooth (8) · Configurar Bluetooth · NFC (15) · Enviar datos por NFC (Beam) · Wi‑Fi Direct (13) · Modo avión (9) · Restablecer ajustes de red</td></tr>
+      <tr><td>Sistema</td><td>Cambiar la ubicación (GPS) (9) · Compartir ubicación · Cambiar fecha y hora · Instalar de orígenes desconocidos · Imprimir (9)</td></tr>
+    </tbody>
+  </table>
+  <p>La consola advierte al bloquear lo que tiene efectos secundarios:</p>
+  <ul class="b">
+    <li><b>Capturas de pantalla:</b> el control remoto tampoco ve la pantalla mientras esté bloqueado.</li>
+    <li><b>Micrófono:</b> las llamadas se establecen, pero la otra persona no escucha.</li>
+    <li><b>Depuración USB (ADB):</b> soporte ya no podrá usar el cable en ese equipo.</li>
+    <li><b>Compartir ubicación:</b> la consola deja de recibir la posición; se pierden el mapa y las geocercas.</li>
+    <li><b>Cámara:</b> si el quiosco de la política tiene la función Cámara, la consola lo señala.</li>
+  </ul>
+  <p><span class="ui">Otras restricciones de Android</span> acepta, por nombre, restricciones adicionales de una lista de 35; <span class="ui">Ver la lista aceptada</span> la muestra. Las que no están en la lista no se envían.</p>
+  <div class="callout"><b>Antes de cerrar el USB.</b> Un equipo sin conexión y con el puerto cerrado solo se recupera dándole red o borrándolo con los botones. Deje una red Wi-Fi de la empresa en la política antes de bloquear la depuración y los datos por USB.</div>
+  <h3>Resultado en cada equipo y excepciones</h3>
+  <div class="fig">
+    <img src="img/d04-restricciones.jpg" alt="Pestaña Restricciones de un dispositivo">
+    <p class="cap">Figura 0. Pestaña «Restricciones» de un dispositivo: política, excepción del equipo y resultado.</p>
+  </div>
+  <p>En la ficha, la pestaña <span class="ui">Restricciones</span> muestra por función lo que pide la política y el <span class="ui">Resultado en el equipo</span>, que el agente lee de vuelta de Android: <span class="ui">Bloqueado en el equipo</span>, <span class="ui">Permitido en el equipo</span>, <span class="ui">Pendiente</span>, <span class="ui">No soportado</span> o <span class="ui">Agente desactualizado</span>. La columna <span class="ui">Este equipo</span> permite una excepción: <span class="ui">Según política</span>, <span class="ui">Permitir</span> o <span class="ui">Bloquear</span>. Uso típico: permitir la depuración USB en un equipo durante una tarea de soporte y volver a <span class="ui">Según política</span> al terminar.</p>
+  <p class="nota">Algunas funciones tienen además un control anterior en otra sección de la política (Bluetooth en Red, Almacenamiento USB y Bloquear capturas en Restricciones, Compartir datos y Depuración USB en Funciones del dispositivo). Use uno solo por función; si dos piden cosas distintas, el resultado «Sigue bloqueado» indica que otra opción mantiene el bloqueo.</p>
 </section>
+
+<section class="sec" id="permisos-app" data-temas="permisos por app, permisos de aplicaciones, conceder permisos, denegar, ubicación, cámara, accesos especiales, accesibilidad">
+  <h2>Permisos de las aplicaciones</h2>
+  <p>Los permisos se definen en tres niveles, y gana el más específico: la regla por defecto de la política, las reglas por aplicación de la política y las reglas de un equipo.</p>
+  <div class="fig">
+    <img src="img/p04-politica-permisos.jpg" alt="Sección Permisos por app de la política">
+    <p class="cap">Figura 0. Sección «Permisos por app» de una política, con una aplicación desplegada.</p>
+  </div>
+  <ol class="steps">
+    <li><b>Regla por defecto.</b> En la política, sección <span class="ui">Seguridad</span>, campo <span class="ui">Permisos de apps</span>: <span class="ui">Conceder todo automáticamente</span>, <span class="ui">Preguntar al usuario</span>, <span class="ui">Denegar todo</span>, <span class="ui">Conceder todo, pero preguntar por la ubicación</span> o <span class="ui">Conceder todo, pero denegar la ubicación</span>.</li>
+    <li><b>Reglas por aplicación.</b> En la sección <span class="ui">Permisos por app</span>, despliegue la aplicación. Elija un preajuste en <span class="ui">Todos los permisos que la app declara</span>, o una regla por permiso: <span class="ui">Conceder</span>, <span class="ui">Denegar</span> o <span class="ui">Preguntar</span>. Para una aplicación que no está en la política, escriba su paquete y pulse <span class="ui">Agregar app</span>.</li>
+    <li><b>Accesos especiales.</b> Marque los que la aplicación necesita: acceso a todos los archivos, mostrar sobre otras apps, sin restricciones de batería, acceso a notificaciones, accesibilidad y otros.</li>
+    <li>Pulse <span class="ui">Guardar</span>. El equipo aplica las reglas al recibir la política, al instalar la aplicación y en cada arranque.</li>
+  </ol>
+  <p>La tabla cubre 13 permisos: ubicación precisa, aproximada y en segundo plano, cámara, micrófono, almacenamiento, contactos, teléfono, SMS, notificaciones, Bluetooth, actividad física y calendario. «Conceder» y «Denegar» quedan fijados: el usuario no puede cambiarlos.</p>
+  <h3>En un equipo</h3>
+  <p>La pestaña <span class="ui">Permisos</span> de la ficha muestra, por aplicación, la regla y el <span class="ui">Estado real en el equipo</span>. <span class="ui">Actualizar estado</span> pide un reporte nuevo, <span class="ui">Descargar CSV</span> lo exporta y <span class="ui">Guardar permisos del equipo</span> aplica reglas solo a ese equipo. <span class="ui">Quitar las reglas del equipo (seguir la política)</span> las retira.</p>
+  <h3>Límites de Android</h3>
+  <ul class="b">
+    <li>Desde Android 12, un equipo puede impedir que el administrador conceda permisos de sensores (ubicación, cámara, micrófono, actividad física). La ficha lo indica en <span class="ui">Permisos de sensores por el administrador</span>. Denegar siempre funciona.</li>
+    <li>Los accesos especiales exigen un toque del usuario en el teléfono. <span class="ui">Abrir en el teléfono</span> lleva a la pantalla correcta; en quiosco esa pantalla se deja pasar 5 minutos.</li>
+    <li>«Preguntar» solo pregunta de verdad cuando la regla por defecto es <span class="ui">Preguntar al usuario</span>.</li>
+    <li>Un agente anterior a esta versión ignora las reglas y sigue concediendo todo; la ficha lo avisa.</li>
+  </ul>
+  <p class="cap">Probado en emulador el 27 de noviembre de 2026: Android 10, 67 de 67 comprobaciones; Android 15 y 16, 76 de 76. Hardware y puertos: Android 9, 57 de 57; Android 15, 58 de 58; Android 16, 57 de 58 (la falla fue de la prueba). Pendiente en teléfono físico: el corte de datos por USB, que depende del fabricante.</p>
+</section>
+
+
 
 <section class="sec pb" id="wifi" data-temas="Wi-Fi corporativo, redes Wi-Fi, SSID, WPA, datos móviles por app, lista negra, lista blanca, límite de datos, VPN local">
   <p class="k">11 · Wi-Fi y datos móviles</p>
   <h1>La política entrega las redes Wi-Fi y decide qué aplicaciones usan datos móviles</h1>
   <h2>Redes Wi-Fi</h2>
+  <div class="fig">
+    <img src="img/p05-politica-wifi.jpg" alt="Campo Redes Wi-Fi de la política">
+    <p class="cap">Figura 0. Campo «Redes Wi‑Fi» de la política, con una red empresarial en edición.</p>
+  </div>
   <ol class="steps">
-    <li>En el editor de la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, vaya a <span class="ui">Redes Wi‑Fi</span>.</li>
-    <li>Pulse <span class="ui">+ Agregar red</span> y complete el nombre de la red (hasta 32 caracteres), la contraseña y la seguridad: <span class="ui">WPA/WPA2</span>, <span class="ui">WEP</span> o <span class="ui">Abierta</span>.</li>
+    <li>En el editor de la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, vaya a <span class="ui">Redes Wi‑Fi</span> y pulse <span class="ui">+ Agregar red</span>.</li>
+    <li>Escriba el <span class="ui">SSID</span> y elija la seguridad: <span class="ui">WPA2‑Personal (contraseña)</span>, <span class="ui">WPA3‑Personal (SAE)</span>, <span class="ui">WPA2/WPA3 (transición)</span>, <span class="ui">WPA2‑Enterprise (802.1X)</span>, <span class="ui">WPA3‑Enterprise (802.1X)</span>, <span class="ui">Abierta cifrada (OWE)</span> o <span class="ui">Abierta</span>.</li>
+    <li>Escriba la contraseña, de 8 a 63 caracteres. Una vez guardada no se vuelve a mostrar: aparece como guardada, con el botón <span class="ui">Cambiar</span>.</li>
+    <li>Opcional: <span class="ui">Opciones</span> abre <span class="ui">Red oculta</span>, <span class="ui">Conectarse automáticamente</span>, <span class="ui">Prioridad</span>, <span class="ui">Dirección MAC</span>, <span class="ui">Uso de datos</span>, <span class="ui">Proxy</span> y <span class="ui">Dirección IP</span>.</li>
     <li>Pulse <span class="ui">Guardar</span>. Los equipos guardan la red y se conectan solos cuando está al alcance.</li>
   </ol>
+  <h3>Red empresarial con 802.1X</h3>
+  <ol class="steps">
+    <li>Despliegue <span class="ui">Certificados Wi‑Fi</span>. Elija <span class="ui">CA del servidor (PEM/DER)</span>, póngale <span class="ui">Nombre</span>, seleccione el archivo y pulse <span class="ui">Subir</span>. Para EAP-TLS suba además el certificado <span class="ui">Cliente (PKCS#12)</span> con su contraseña.</li>
+    <li>En la red, elija el <span class="ui">Método EAP</span> (PEAP, TTLS o TLS), la <span class="ui">Autenticación interna</span>, la <span class="ui">Identidad</span> y la <span class="ui">Contraseña</span>.</li>
+    <li>Escriba el <span class="ui">Dominio del servidor</span> y marque la <span class="ui">CA del servidor</span>. Sin la CA, la consola no guarda: cualquier punto de acceso con el mismo nombre recibiría las credenciales.</li>
+  </ol>
+  <h3>Bloqueos de Wi‑Fi</h3>
+  <table class="compact">
+    <thead><tr><th style="width:74mm">Bloqueo</th><th>Efecto</th></tr></thead>
+    <tbody>
+      <tr><td>Bloquear las redes gestionadas</td><td>El usuario no puede editar ni olvidar las redes de la política.</td></tr>
+      <tr><td>Impedir agregar redes (Android 13)</td><td>Solo existen las redes de la política.</td></tr>
+      <tr><td>Impedir cambiar la configuración de Wi‑Fi</td><td>Cierra los ajustes de Wi-Fi.</td></tr>
+      <tr><td>Impedir encender o apagar el Wi‑Fi (Android 13)</td><td>Fija el interruptor.</td></tr>
+      <tr><td>Redes a las que puede conectarse (Android 13)</td><td>Cualquiera, solo las gestionadas y una lista, o todas menos una lista.</td></tr>
+      <tr><td>Seguridad mínima de la red (Android 13)</td><td>Desde cualquiera hasta empresarial de 192 bits.</td></tr>
+    </tbody>
+  </table>
+  <p>Con un bloqueo que puede dejar un equipo sin red aparece <span class="ui">Salvaguarda: relajar tras</span> N minutos sin ninguna red (10 por defecto). Si el equipo se queda sin Wi-Fi ni datos móviles ese tiempo, levanta por su cuenta los bloqueos que le impiden conectarse, lo reporta en la ficha y los vuelve a aplicar después. La consola rechaza las combinaciones que dejarían los equipos sin red, por ejemplo «solo redes permitidas» sin ninguna red.</p>
+  <p>El encendido del radio es otro ajuste: sección <span class="ui">Red</span>, campo <span class="ui">Wi‑Fi</span>. En la ficha de cada equipo, la tarjeta <span class="ui">Wi‑Fi gestionado</span> muestra el estado de cada red: <span class="ui">Conectada</span>, <span class="ui">Configurada</span>, <span class="ui">Fuera de alcance</span>, <span class="ui">Contraseña incorrecta</span>, <span class="ui">Credenciales rechazadas</span> o <span class="ui">No soportada en esta versión de Android</span>, y los bloqueos en vigor.</p>
+  <p class="cap">Probado en emulador el 27 de noviembre de 2026 como configuración guardada: Android 9, 70 de 70; Android 11, 78 de 78; Android 15, 86 de 86. La autenticación real contra un punto de acceso (WPA2, WPA3 y 802.1X) solo se confirma con un teléfono y un punto de acceso.</p>
   <p class="nota">El Wi-Fi del QR de inscripción solo sirve para la puesta en marcha. Para que la red quede en todos los equipos, agréguela también aquí.</p>
-  <p class="pend">Llega con la integración de Wi-Fi corporativo</p>
-  <p>La siguiente versión agrega WPA3, redes empresariales 802.1X con certificados, red oculta, prioridad, proxy y dirección fija por red, bloqueos de Wi-Fi con salvaguarda para no dejar un equipo sin red, y el estado de cada red en la ficha del equipo.</p>
 
   <h2>Datos móviles por aplicación</h2>
   <p>En la misma tarjeta, sección <span class="ui">Datos móviles</span>:</p>
@@ -589,26 +681,46 @@
       <tr><td>Interrumpen</td><td>Bloquear</td><td>Bloquea la pantalla de inmediato, sin pedir confirmación.</td></tr>
       <tr><td></td><td>Reiniciar</td><td>Reinicia el equipo tras <span class="ui">Confirmar</span>.</td></tr>
       <tr><td></td><td>Cambiar clave del dispositivo</td><td>Fija una clave de desbloqueo de 4 caracteres o más; vacía la quita.</td></tr>
-      <tr><td>Destructivas</td><td>Restablecer de fábrica (borrar todo)</td><td>Borra el equipo por completo. No se puede deshacer.</td></tr>
     </tbody>
   </table>
-  <p class="nota">Los grupos «Interrumpen» y «Destructivas» solo aparecen para quien tiene el permiso de acciones que interrumpen.</p>
-  <h2>Bloquear y localizar un equipo extraviado</h2>
+  <p class="nota">El grupo «Interrumpen» y los botones de modo perdido y borrado remoto solo aparecen para quien tiene el permiso de acciones que interrumpen.</p>
+  <h2>Protección contra restablecimiento y robo</h2>
+  <div class="fig">
+    <img src="img/d01-proteccion.jpg" alt="Sección Protección contra restablecimiento y robo">
+    <p class="cap">Figura 0. Pestaña «Control», sección «Protección contra restablecimiento y robo».</p>
+  </div>
+  <p>Esta sección de la pestaña <span class="ui">Control</span> reúne el estado de la protección del equipo y dos acciones. Muestra el estado de la protección contra restablecimiento (FRP), las <span class="ui">Cuentas que le corresponden</span>, los <span class="ui">Bloqueos de la política</span> con su resultado, el <span class="ui">Borrado por intentos fallidos</span> y el <span class="ui">Modo perdido</span>.</p>
+  <h3>Cuentas de reactivación</h3>
+  <p>Un equipo borrado con los botones físicos pide, al encender, una cuenta de Google autorizada. Sin ella queda inservible. Las cuentas se definen en la política, campo <span class="ui">Restablecimiento de fábrica</span>:</p>
   <ol class="steps">
-    <li>Pulse <span class="ui">Bloquear</span>. La orden no vence: si el equipo está apagado, se bloquea al encender.</li>
-    <li>Envíe <span class="ui">Mensaje en pantalla de bloqueo</span> con el dato de contacto.</li>
-    <li>Envíe <span class="ui">Ubicación: precisa</span> y siga el equipo en la pestaña <span class="ui">Ubicación</span>.</li>
-    <li>Si está cerca, <span class="ui">Hacer sonar</span> ayuda a encontrarlo.</li>
+    <li>Elija <span class="ui">Bloquear desde Ajustes</span> para impedir el restablecimiento desde el menú del teléfono.</li>
+    <li>En <span class="ui">Reactivación tras un restablecimiento por botones (FRP)</span> elija <span class="ui">Las cuentas de la empresa o de la carpeta del equipo</span>, <span class="ui">Cuentas propias de esta política</span> o <span class="ui">Sin protección</span>.</li>
+    <li>Pulse <span class="ui">Administrar cuentas de la empresa y carpetas</span>. En <span class="ui">Nivel</span> elija toda la empresa o una carpeta; escriba el correo y el <span class="ui">ID numérico (21 dígitos)</span> de la cuenta y pulse <span class="ui">Agregar</span> y <span class="ui">Guardar cuentas</span>. El enlace <span class="ui">¿Cómo obtengo el ID de la cuenta?</span> explica los pasos. Se admiten hasta 10 cuentas por nivel.</li>
+    <li>Opcional, en <span class="ui">Otras vías que también se pueden cerrar</span>: <span class="ui">Bloquear el modo seguro</span>, <span class="ui">Bloquear el desbloqueo del bootloader (OEM)</span> y <span class="ui">Borrar tras intentos fallidos de desbloqueo</span> (mínimo 3).</li>
   </ol>
-  <p class="pend">Llega con la integración de protección y borrado remoto</p>
-  <p>La siguiente versión reúne estos pasos en un «Modo perdido» con mensaje y teléfono de contacto, sonido, posición cada minuto y borrado automático opcional; y agrega al borrado remoto opciones para conservar la protección de restablecimiento, borrar la tarjeta SD y las eSIM.</p>
+  <p>Las cuentas se heredan: valen las de la política; si no tiene, las de la carpeta más cercana; si no, las de la empresa. La ficha confirma el resultado con «FRP activa con N cuentas», «FRP pendiente» o «FRP inactiva» y su motivo.</p>
+  <h3>Modo perdido</h3>
+  <ol class="steps">
+    <li>Pulse <span class="ui">Modo perdido</span>.</li>
+    <li>Escriba el <span class="ui">Mensaje en la pantalla de bloqueo</span> y el <span class="ui">Teléfono de contacto</span>. Hace falta al menos uno.</li>
+    <li>Opcional: marque <span class="ui">Hacer sonar durante 1 minuto</span> y defina el borrado automático tras N intentos fallidos de desbloqueo (3 a 100) o si no reporta en N días (1 a 365).</li>
+    <li>Pulse <span class="ui">Activar modo perdido</span>. El equipo se bloquea, muestra el contacto y reporta su posición cada minuto; sígalo en la pestaña <span class="ui">Ubicación</span>.</li>
+    <li>Al recuperarlo, <span class="ui">Modo perdido: cambiar o desactivar</span> y <span class="ui">Desactivar modo perdido</span>.</li>
+  </ol>
+  <p class="nota">La orden no vence: si el equipo está apagado, entra en modo perdido al encender. Los borrados automáticos del modo perdido conservan la protección contra restablecimiento. Requiere un agente de esta versión.</p>
   <h2>Borrar un equipo</h2>
+  <div class="fig m">
+    <img src="img/d03-borrado-remoto.jpg" alt="Diálogo Borrado remoto">
+    <p class="cap">Figura 0. Diálogo «Borrado remoto».</p>
+  </div>
   <ol class="steps">
-    <li>En <span class="ui">Control</span>, grupo <span class="ui">Destructivas</span>, pulse <span class="ui">Restablecer de fábrica (borrar todo)</span>.</li>
-    <li>En el campo <span class="ui">Escribe BORRAR para confirmar</span>, escriba BORRAR en mayúsculas y pulse <span class="ui">Confirmar</span>.</li>
-    <li>La orden no vence y se reentrega hasta que el equipo responda. Tras ejecutarse, la ficha muestra la insignia <span class="ui">Borrado</span> con fecha y autor.</li>
+    <li>En <span class="ui">Control</span>, sección de protección, pulse <span class="ui">Borrado remoto (restablecer de fábrica)</span>.</li>
+    <li>Elija el motivo. <span class="ui">Equipo perdido o robado</span> conserva la protección: tras el borrado el equipo pide una cuenta autorizada. <span class="ui">Preparar para reasignar</span> la quita, para inscribirlo de nuevo sin pedir cuenta.</li>
+    <li>Revise las opciones: <span class="ui">Borrar también la tarjeta SD / almacenamiento externo</span>, <span class="ui">Borrar las eSIM (Android 9 o posterior)</span>, <span class="ui">Borrar sin aviso en pantalla (Android 10 o posterior)</span> y el motivo que se muestra en el teléfono (Android 9 a 13).</li>
+    <li>En <span class="ui">Escribe BORRAR para confirmar</span>, escriba BORRAR en mayúsculas y pulse <span class="ui">Borrar el equipo</span>.</li>
   </ol>
-  <p>El borrado nunca se envía a varios equipos a la vez: se hace equipo por equipo.</p>
+  <p>La orden no vence y se reentrega hasta que el equipo responda. Tras ejecutarse, la ficha muestra la insignia <span class="ui">Borrado</span> con fecha y autor. El borrado nunca se envía a varios equipos a la vez. Si el equipo no tiene la protección activa, el diálogo advierte que quedará libre para quien lo tenga. Un agente anterior borra el equipo pero no aplica las opciones.</p>
+  <p class="cap">Probado en emulador el 27 de noviembre de 2026, Android 10 y 15: protección y modo perdido, borrado con el equipo en línea y sin enlace, y reinscripción. El emulador no ejecuta el borrado físico ni sostiene la protección desde Android 11: el desafío de cuenta tras un borrado con botones solo se confirma en teléfono físico.</p>
   <h2>Estados y cancelación</h2>
   <p>El historial, al final de la pestaña, muestra cada orden con los pasos Creada, Entregada y Completada, la latencia de cada uno, quién la envió y cuántas veces se entregó.</p>
   <table>
@@ -627,33 +739,51 @@
   <p>Desde <span class="ui">Dispositivos</span> (botón <span class="ui">Acciones</span> sobre una selección, o <span class="ui">Acciones en la carpeta</span> con un filtro de carpeta) y desde <span class="ui">Carpetas</span> (<span class="ui">Ejecutar acción</span>) se abre <span class="ui">Ejecutar acción en…</span>. Agrupa las acciones en <span class="ui">Acciones</span>, <span class="ui">Disruptivas</span>, <span class="ui">Aplicaciones</span>, <span class="ui">Actualizaciones</span>, <span class="ui">Control remoto</span> y <span class="ui">Kiosco</span>. Las que llevan parámetros piden marcar la casilla de confirmación antes de <span class="ui">Ejecutar</span>. Los equipos sin enlace reciben la orden al reconectarse; los que están fuera del alcance del usuario se omiten.</p>
 </section>
 
-<section class="sec pb" id="remoto" data-temas="control remoto, ver pantalla, controlar, sesión remota, soporte remoto, voz, chat">
+<section class="sec pb" id="remoto" data-temas="control remoto, soporte remoto, ver pantalla, controlar, sesión remota, voz, llamada, chat, archivos, portapapeles, sesiones de soporte, accesibilidad">
   <p class="k">15 · Control remoto</p>
-  <h1>La pestaña «Remoto» muestra la pantalla del equipo y permite manejarlo</h1>
-  <h2>Preparar el equipo</h2>
-  <p>La primera vez, la pestaña <span class="ui">Remoto</span> ofrece <span class="ui">Instalar soporte remoto</span>: el agente descarga el componente de pantalla remota desde el servidor y lo deja listo, sin cable. Necesita Android 7 o superior. Para varios equipos: <span class="ui">Acciones</span>, grupo <span class="ui">Control remoto</span>, <span class="ui">Instalar soporte remoto</span>.</p>
+  <h1>Una sesión de soporte muestra la pantalla del equipo y permite hablar, escribir y enviar archivos</h1>
+  <h2>Preparar el equipo, una sola vez</h2>
+  <p>El agente necesita que en el teléfono esté activo el servicio de accesibilidad <span class="ui">Soporte remoto DallyControl</span>. El chip de la pestaña <span class="ui">Remoto</span> dice el estado:</p>
   <table>
-    <thead><tr><th style="width:46mm">Nivel</th><th>Qué exige</th></tr></thead>
+    <thead><tr><th style="width:52mm">Chip</th><th>Qué hacer</th></tr></thead>
     <tbody>
-      <tr><td>Solo ver</td><td>El componente instalado. La primera vez, el teléfono pide permiso para compartir la pantalla y quien lo tenga toca «Iniciar ahora».</td></tr>
-      <tr><td>Ver y controlar</td><td>Además, el servicio de accesibilidad del soporte remoto activo en el teléfono. <span class="ui">Abrir el ajuste en el teléfono</span> lleva a esa pantalla. La inscripción con computador lo deja activo sin tocar el equipo.</td></tr>
+      <tr><td>Remoto listo</td><td>Nada. Las sesiones no requieren a nadie en el teléfono.</td></tr>
+      <tr><td>Falta autorización</td><td>Pulse <span class="ui">Pedir autorización en el teléfono</span>. Quien tenga el equipo ve «Activa el soporte remoto», toca «Abrir ajustes», activa el servicio y toca «Permitir». Los equipos inscritos con computador ya quedan autorizados.</td></tr>
+      <tr><td>Remoto apagado por la política</td><td>La política de ese equipo no permite la pantalla. Revise <span class="ui">Soporte remoto</span> en la política.</td></tr>
+      <tr><td>Sin pantalla del agente</td><td>Agente anterior o Android 6. En agentes anteriores, <span class="ui">Instalar soporte remoto</span> usa el componente de pantalla remota previo, sin voz ni chat.</td></tr>
     </tbody>
   </table>
+  <p>La autorización se conserva tras reinicios y actualizaciones. Se pierde si alguien apaga el servicio en Accesibilidad o con un restablecimiento de fábrica.</p>
   <h2>Iniciar una sesión</h2>
   <ol class="steps">
     <li>En la ficha, abra <span class="ui">Remoto</span> y pulse <span class="ui">Ver y controlar</span> o <span class="ui">Solo ver</span>.</li>
-    <li>Espere la conexión. Con el equipo en línea toma segundos; si está bloqueado y en ahorro de batería puede tardar minutos. <span class="ui">Activar Siempre conectado</span> lo evita.</li>
-    <li>Use la pantalla. La barra inferior envía <span class="ui">Atrás</span>, <span class="ui">Inicio</span>, <span class="ui">Recientes</span>, volumen, <span class="ui">Menú de apagado</span> y <span class="ui">Girar pantalla</span>. <span class="ui">Pantalla completa</span> y <span class="ui">Abrir en otra pestaña</span> amplían el visor.</li>
-    <li>Pulse <span class="ui">Terminar sesión</span>. El equipo deja de compartir su pantalla.</li>
+    <li>Espere «Esperando la primera imagen…». Con el equipo en línea toma segundos. Si el equipo está en ahorro de batería y bloqueado, puede tardar minutos: <span class="ui">Activar Siempre conectado</span> lo evita.</li>
+    <li>Use la pantalla con el ratón y el teclado. La barra envía <span class="ui">Atrás</span>, <span class="ui">Inicio</span>, <span class="ui">Recientes</span>, <span class="ui">Notificaciones</span>, <span class="ui">Encender pantalla</span>, <span class="ui">Bloquear</span> y <span class="ui">Reiniciar</span>.</li>
+    <li>Pulse <span class="ui">Terminar sesión</span>.</li>
   </ol>
+  <table>
+    <thead><tr><th style="width:40mm">Herramienta</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>Calidad · Escala</td><td>Baja, Media o Alta; ajustar a la ventana o tamaño real.</td></tr>
+      <tr><td>Captura · Grabar</td><td>Guarda una imagen o un video de la sesión en el computador.</td></tr>
+      <tr><td>Chat</td><td>Lo que se escribe aparece en el teléfono en la pantalla «Soporte técnico», y las respuestas en la consola.</td></tr>
+      <tr><td>Llamar</td><td>Llamada de voz con el usuario. El teléfono muestra «Soporte quiere hablar contigo» con Aceptar y Rechazar. <span class="ui">Silenciar</span> y <span class="ui">Colgar</span> la controlan.</td></tr>
+      <tr><td>Portapapeles</td><td><span class="ui">Enviar texto al teléfono</span> y <span class="ui">Traer del teléfono</span>.</td></tr>
+      <tr><td>Archivos</td><td><span class="ui">Enviar archivo</span> lo deja en Descargas/Soporte del teléfono; <span class="ui">Explorar el teléfono</span> trae archivos del equipo.</td></tr>
+    </tbody>
+  </table>
+  <p>El teléfono muestra el aviso «Soporte está viendo tu pantalla» mientras dura la sesión. La consola debe abrirse por HTTPS para usar el micrófono. Las aplicaciones que protegen su pantalla, como las bancarias, se ven en negro, y la sesión no puede saltar la clave de desbloqueo.</p>
+  <h2>Ajustes en la política</h2>
+  <p>En la política, al final de <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, el bloque <span class="ui">Soporte remoto</span> define el <span class="ui">Motor</span> (<span class="ui">Automático</span>, <span class="ui">Solo el agente</span> o <span class="ui">Solo droidVNC‑NG</span>), el aviso en el teléfono, la <span class="ui">Llamada de voz</span> (<span class="ui">El usuario debe aceptar</span> o <span class="ui">Se contesta sola (desatendida)</span>) y <span class="ui">Pedir la autorización al inscribir</span>.</p>
+  <h2>Historial de sesiones</h2>
+  <p>El menú <span class="ui">Sesiones de soporte</span> lista las sesiones con fecha, dispositivo, usuario, duración, modo, si hubo chat, archivos o voz, y cómo terminó. Cada fila se despliega con el detalle de mensajes, archivos y llamadas. <span class="ui">CSV</span> exporta el rango elegido. En la pestaña <span class="ui">Remoto</span>, <span class="ui">Historial de sesiones</span> muestra las de ese equipo. Cada sesión queda además en la auditoría.</p>
+  <h2>Límites por versión</h2>
   <ul class="b">
-    <li>El chip <span class="ui">Cifrado (TLS)</span> confirma que la pantalla viaja cifrada.</li>
-    <li>La sesión se cierra sola al salir de la pestaña y tras 15 minutos sin actividad.</li>
-    <li>El conmutador de quiosco está en la misma pestaña, para quitarlo durante el soporte y devolverlo al terminar.</li>
-    <li>Cada sesión queda en la auditoría, módulo <span class="ui">Control remoto</span>.</li>
+    <li>Android 11 a 16: pantalla y control sin avisos de permiso, también en quiosco y con el equipo bloqueado, a unas 3 imágenes por segundo.</li>
+    <li>Android 7 a 10: usa la captura de pantalla de Android y no funciona dentro del quiosco; en esas versiones conviene el motor <span class="ui">Solo droidVNC‑NG</span>. Chat, voz y archivos sí funcionan.</li>
+    <li>Android 6: sin pantalla; la sesión abre con chat, llamada y archivos.</li>
   </ul>
-  <p class="pend">Llega con la integración del soporte remoto con voz</p>
-  <p>La siguiente versión agrega la captura desde el propio agente, sin avisos en Android 11 o superior, llamada de voz con el usuario, chat, portapapeles, envío y exploración de archivos, grabación de la sesión y un menú «Sesiones de soporte» con el historial. Este capítulo se ampliará entonces.</p>
+  <p class="cap">Probado en emulador el 27 de noviembre de 2026 con la máquina cargada: Android 11, 35 de 40 comprobaciones; Android 15, 37 de 40; primera imagen entre 0,7 y 2,4 segundos. No pasó: escribir texto a través de la sesión, sin causa confirmada. No se probó en Android 7 a 10, en quiosco ni en teléfono físico; la calidad real de la voz y el comportamiento por fabricante quedan pendientes.</p>
 </section>
 
 <section class="sec pb" id="anuncios" data-temas="anuncios, mensajes, obligatorio, opcional, video, imagen, confirmado, scripts, acción rápida">

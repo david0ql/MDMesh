@@ -202,6 +202,7 @@
       <tr><td>Configuración secreta</td><td><code>.env</code> y la clave de sesión, solo si el cifrado está activo.</td></tr>
     </tbody>
   </table>
+  <p>Si se usan redes Wi-Fi empresariales, el servidor guarda la clave que cifra sus certificados en el archivo <code>wifi-certs.key</code>, junto a sus otras claves y fuera de la base de datos: el respaldo de configuración cifrado lo incluye; sin ese archivo, los certificados guardados no se pueden leer.</p>
   <p>El respaldo previo a cada despliegue se guarda aparte. Cada respaldo debe poder leerse completo; los domingos, además, se restaura de verdad en una base temporal y se valida.</p>
 
   <h2>Activar los respaldos programados</h2>

@@ -9,7 +9,8 @@ Por cada fuente docs/manuales/src/NN-nombre.html:
   3. escribe el pie de página del documento ("EMPRESA · Título") en una hoja adicional, sin tocar la plantilla;
   4. imprime a PDF con Chrome sin interfaz (dos pasadas: la segunda ya conoce la página de cada sección y la
      escribe en el índice);
-  5. revisa el resultado como pide la plantilla: pie en todas las páginas menos la portada, páginas casi vacías,
+  5. revisa el resultado como pide la plantilla: pie en todas las páginas menos la portada, páginas casi vacías
+     (ocupación de cada página medida sobre su imagen: menos del 35 % sin ser final de capítulo es un error),
      marcadores sin resolver, imágenes que faltan y datos sensibles (direcciones IP, correos que no son de ejemplo);
   6. publica: PDF en docs/manuales/ y copia en web/public/manuales/ con indice.json (lo lee la página Ayuda de la
      consola: título, descripción, secciones y página de cada una).
@@ -31,7 +32,8 @@ SRC = os.path.join(AQUI, "src")
 TMP = os.path.join(AQUI, ".build")
 WEB = os.path.normpath(os.path.join(AQUI, "..", "..", "web", "public", "manuales"))
 CHROME = os.environ.get("CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-MIN_TEXTO_PAGINA = 420      # caracteres; por debajo (y sin imagen) la página se considera casi vacía
+MIN_OCUPACION = 0.35        # una página intermedia ocupada por debajo de esto es un defecto de maquetación
+MIN_COLA = 0.12             # una última página de capítulo con menos que esto es una cola suelta: también
 
 
 def marca():
@@ -118,6 +120,19 @@ def anclas_ocultas(secs, todas=False):
         '<a href="#%s" style="color:#fff">.</a>' % s["id"] for s in subs)
 
 
+def compactar(fuente, secs, niveles):
+    """Añade la clase ap1/ap2 a las secciones de los capítulos indicados (y a sus subsecciones)."""
+    if not niveles:
+        return fuente
+    nivel = 0
+    for x in secs:
+        if x["capitulo"]:
+            nivel = niveles.get(x["id"], 0)
+        if nivel:
+            fuente = re.sub(r'(<section class="[^"]*)(" id="%s")' % re.escape(x["id"]), r"\1 ap%d\2" % nivel, fuente, count=1)
+    return fuente
+
+
 def imprimir(html_path, pdf_path):
     perfil = tempfile.mkdtemp(prefix="manuales-chrome-")
     try:
@@ -161,15 +176,41 @@ def imagenes_por_pagina(pdf):
     return pags
 
 
+def ocupacion(pdf):
+    """Fracción ocupada de cada página: hasta dónde llega el contenido (texto, tablas o figuras) dentro del área
+    útil, medido sobre la página dibujada en gris a 24 ppp. No depende de cuánto texto haya: una captura cuenta."""
+    tmp = tempfile.mkdtemp(prefix="manuales-pgm-")
+    try:
+        subprocess.run(["pdftoppm", "-gray", "-r", "24", pdf, os.path.join(tmp, "p")], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        out = []
+        for f in sorted(os.listdir(tmp)):
+            with open(os.path.join(tmp, f), "rb") as fh:
+                data = fh.read()
+            partes = data.split(None, 4)          # P5, ancho, alto, máximo, píxeles
+            w, h = int(partes[1]), int(partes[2])
+            px = partes[4][-w * h:]
+            arriba, abajo = int(h * 0.105), int(h * 0.925)      # bajo el encabezado y sobre el pie
+            ultima = arriba
+            for y in range(abajo - 1, arriba, -1):
+                if min(px[y * w + int(w * 0.08): y * w + int(w * 0.92)]) < 200:
+                    ultima = y
+                    break
+            out.append((ultima - arriba) / float(abajo - arriba))
+        return out
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def sin_tildes(t):
     return "".join(c for c in unicodedata.normalize("NFD", t) if unicodedata.category(c) != "Mn").lower()
 
 
-def revisar(nombre, pdf, fuente_final, pie, con_portada=True):
+def revisar(nombre, pdf, fuente_final, pie, con_portada=True, inicios=()):
     errores, avisos = [], []
     total = n_paginas(pdf)
     pags = texto_paginas(pdf)[:total]
-    imgs = imagenes_por_pagina(pdf)
+    llenos = ocupacion(pdf)
     for i, t in enumerate(pags, start=1):
         if i == 1 and con_portada:
             if re.search(r"Página \d+ de \d+", t):
@@ -179,9 +220,15 @@ def revisar(nombre, pdf, fuente_final, pie, con_portada=True):
             errores.append("página %d sin numeración" % i)
         if pie not in re.sub(r"\s+", " ", t):
             errores.append("página %d sin el pie «%s»" % (i, pie))
-        cuerpo = re.sub(r"\s+", " ", t).replace(pie, "")
-        if len(cuerpo) < MIN_TEXTO_PAGINA and imgs.get(i, 0) <= 1:      # 1 = el logo del encabezado
-            avisos.append("página %d casi vacía (%d caracteres): %s…" % (i, len(cuerpo), cuerpo.strip()[:110]))
+        cuerpo = re.sub(r"\s+", " ", t).replace(pie, "").strip()
+        lleno = llenos[i - 1] if i - 1 < len(llenos) else 1.0
+        fin_capitulo = i == total or (i + 1) in inicios
+        if lleno < MIN_OCUPACION and not fin_capitulo:
+            errores.append("página %d ocupada al %d %% sin ser final de capítulo: %s…" % (i, lleno * 100, cuerpo[:80]))
+        elif lleno < MIN_COLA and fin_capitulo:
+            errores.append("página %d: cola de capítulo de solo %d %% (reacomodar): %s…" % (i, lleno * 100, cuerpo[:80]))
+        elif lleno < MIN_OCUPACION:
+            avisos.append("página %d: final de capítulo ocupado al %d %%" % (i, lleno * 100))
     todo = "\n".join(pags)
     if re.search(r"\{\{[A-Z_]+\}\}", fuente_final + todo):
         errores.append("quedan marcadores {{…}} sin resolver")
@@ -214,6 +261,12 @@ def main():
             fuente = fh.read()
         for k, v in m.items():
             fuente = fuente.replace("{{%s}}" % k, html.escape(v))
+        # Las figuras se numeran solas, en orden de aparición: insertar una no obliga a renumerar el resto.
+        cuenta = [0]
+        def _fig(m_):
+            cuenta[0] += 1
+            return '<p class="cap">Figura %d.' % cuenta[0]
+        fuente = re.sub(r'<p class="cap">Figura \d+\.', _fig, fuente)
         titulo = meta(fuente, "titulo")
         pie = "%s · %s" % (m["EMPRESA"], titulo)
         secs = secciones(fuente)
@@ -233,19 +286,53 @@ def main():
                                       meta(fuente, "etiqueta")))
         salida_html = os.path.join(TMP, nombre + ".html")
         paginas, final = {}, base
-        for _ in range(2):      # la segunda pasada escribe en el índice las páginas que midió la primera
-            final = base.replace("<!--INDICE-->", indice(secs, paginas) + anclas_ocultas(secs))
-            if "<!--INDICE-->" not in base:
-                final = final.replace("</body>", anclas_ocultas(secs, True) + "</body>")
-            with open(salida_html, "w", encoding="utf-8") as fh:
-                fh.write(final)
-            imprimir(salida_html, pdf)
-            nuevas = destinos(pdf)
-            if nuevas == paginas:
-                break
-            paginas = nuevas
+        # Cada capítulo empieza en página nueva, así que su maquetación no depende de los demás. Se arma el documento
+        # con tres niveles de compactación (0 = normal, 1 y 2 = figuras y espacios algo menores) y para cada capítulo
+        # se elige el que ocupa menos páginas; a igualdad, el normal si su última página queda bien ocupada y, si no,
+        # el que deja la última página más llena. Así una cola de pocas líneas vuelve a la página anterior.
+        caps = [x for x in secs if x["capitulo"]]
+
+        def armar_con(niveles):
+            pags, final_ = {}, base
+            for _ in range(3):      # la pasada siguiente escribe en el índice las páginas que midió la anterior
+                final_ = compactar(base, secs, niveles).replace("<!--INDICE-->", indice(secs, pags) + anclas_ocultas(secs))
+                if "<!--INDICE-->" not in base:
+                    final_ = final_.replace("</body>", anclas_ocultas(secs, True) + "</body>")
+                with open(salida_html, "w", encoding="utf-8") as fh:
+                    fh.write(final_)
+                imprimir(salida_html, pdf)
+                nuevas = destinos(pdf)
+                if nuevas == pags:
+                    break
+                pags = nuevas
+            return pags, final_
+
+        def por_capitulo(pags):
+            llenos = ocupacion(pdf)
+            out = {}
+            for k, c in enumerate(caps):
+                ini = pags.get(c["id"])
+                fin = (pags.get(caps[k + 1]["id"]) - 1) if k + 1 < len(caps) and pags.get(caps[k + 1]["id"]) else len(llenos)
+                if ini:
+                    out[c["id"]] = (fin - ini + 1, llenos[fin - 1])
+            return out
+
+        medidas = {}
+        for nivel in (0, 1, 2):
+            pags_n, _f = armar_con({c["id"]: nivel for c in caps} if nivel else {})
+            medidas[nivel] = por_capitulo(pags_n)
+        apretar = {}
+        for c in caps:
+            opciones = [(medidas[n_][c["id"]][0], 0 if (n_ == 0 and medidas[0][c["id"]][1] >= MIN_OCUPACION) else 1,
+                         -medidas[n_][c["id"]][1], n_) for n_ in (0, 1, 2) if c["id"] in medidas[n_]]
+            if opciones:
+                mejor = min(opciones)[3]
+                if mejor:
+                    apretar[c["id"]] = mejor
+        paginas, final = armar_con(apretar)
         faltan = [s["id"] for s in secs if s["id"] not in paginas]
-        total, errores, avisos = revisar(nombre, pdf, final, pie, "<!--PORTADA-->" in fuente)
+        inicios = set(paginas.get(x["id"]) for x in secs if x["capitulo"])
+        total, errores, avisos = revisar(nombre, pdf, final, pie, "<!--PORTADA-->" in fuente, inicios)
         if faltan:
             errores.append("secciones sin destino en el PDF: %s" % ", ".join(faltan))
         print("%-34s %3d páginas  %5.1f MB  pie: «%s»" % (nombre + ".pdf", total, os.path.getsize(pdf) / 1e6, pie))

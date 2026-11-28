@@ -10,8 +10,8 @@
    "titulo": "Manual del administrador",
    "descripcion": "Cómo usar la consola para administrar usuarios, carpetas, políticas, aplicaciones y equipos, pantalla por pantalla.",
    "publico": "Administradores de la consola y mesa de ayuda",
-   "paginas": 35,
-   "kb": 3172,
+   "paginas": 39,
+   "kb": 4078,
    "secciones": [
     {
      "id": "acceso",
@@ -46,91 +46,91 @@
     {
      "id": "dispositivos",
      "titulo": "La lista encuentra y agrupa equipos; la ficha concentra todo sobre uno",
-     "pagina": 12,
+     "pagina": 11,
      "temas": "dispositivos, lista, buscar, filtrar, columnas, exportar, mover a carpeta, cambiar política, eliminar dispositivo, ficha del dispositivo, pestañas"
     },
     {
      "id": "politicas",
      "titulo": "Una política reúne lo que el equipo debe tener y lo que no puede hacer",
-     "pagina": 14,
+     "pagina": 13,
      "temas": "políticas, configuraciones, crear política, copiar política, editor de política, cumplimiento, historial de cambios, asignar a carpetas"
     },
     {
      "id": "aplicaciones",
      "titulo": "La biblioteca guarda las aplicaciones; la política decide dónde se instalan",
-     "pagina": 16,
+     "pagina": 15,
      "temas": "aplicaciones, apps, biblioteca, subir APK, versiones, grupo de versiones, grupos de aplicaciones, desplegar, instalación en la flota, desinstalar, obtener APK"
     },
     {
      "id": "quiosco",
-     "titulo": "El quiosco limita el equipo a las aplicaciones de trabajo",
-     "pagina": 19,
-     "temas": "quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo"
+     "titulo": "El quiosco limita el equipo a las aplicaciones de trabajo y solo se sale con contraseña",
+     "pagina": 18,
+     "temas": "quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo, refuerzo, acceso de uso"
     },
     {
      "id": "hardware",
-     "titulo": "La política controla radios, almacenamiento externo y capturas",
+     "titulo": "La política decide qué funciones del equipo se pueden usar y qué permisos recibe cada aplicación",
      "pagina": 21,
-     "temas": "restricciones de hardware, cámara, USB, bluetooth, capturas de pantalla, compartir datos, puertos"
+     "temas": "restricciones de hardware, hardware y puertos, cámara, micrófono, USB, depuración USB, bluetooth, NFC, capturas de pantalla, tarjeta SD, modo avión"
     },
     {
      "id": "permisos-app",
      "titulo": "Permisos de las aplicaciones",
-     "pagina": 21,
-     "temas": "permisos por app, permisos de aplicaciones, conceder permisos, ubicación, cámara"
+     "pagina": 22,
+     "temas": "permisos por app, permisos de aplicaciones, conceder permisos, denegar, ubicación, cámara, accesos especiales, accesibilidad"
     },
     {
      "id": "wifi",
      "titulo": "La política entrega las redes Wi-Fi y decide qué aplicaciones usan datos móviles",
-     "pagina": 22,
+     "pagina": 24,
      "temas": "Wi-Fi corporativo, redes Wi-Fi, SSID, WPA, datos móviles por app, lista negra, lista blanca, límite de datos, VPN local"
     },
     {
      "id": "ubicacion",
      "titulo": "El mapa muestra dónde está la flota; las geocercas avisan cuando un equipo cruza un límite",
-     "pagina": 23,
+     "pagina": 26,
      "temas": "ubicación, mapa, recorridos, geocercas, zonas, círculo, polígono, horario, precisión"
     },
     {
      "id": "alertas",
      "titulo": "Las alertas se revisan en la consola y, si hay correo configurado, llegan a los destinatarios",
-     "pagina": 25,
+     "pagina": 28,
      "temas": "alertas, correos, notificaciones por correo, desconexión, cambio de SIM, salida de kiosko, destinatarios, umbral de desconexión"
     },
     {
      "id": "comandos",
      "titulo": "Cada orden queda registrada con su estado, su autor y su tiempo de entrega",
-     "pagina": 27,
+     "pagina": 29,
      "temas": "comandos remotos, órdenes, bloquear, hacer sonar, alarma, mensaje, reiniciar, borrar, restablecer de fábrica, modo perdido, cancelar orden, estados de la orden, acciones masivas"
     },
     {
      "id": "remoto",
-     "titulo": "La pestaña «Remoto» muestra la pantalla del equipo y permite manejarlo",
-     "pagina": 29,
-     "temas": "control remoto, ver pantalla, controlar, sesión remota, soporte remoto, voz, chat"
+     "titulo": "Una sesión de soporte muestra la pantalla del equipo y permite hablar, escribir y enviar archivos",
+     "pagina": 32,
+     "temas": "control remoto, soporte remoto, ver pantalla, controlar, sesión remota, voz, llamada, chat, archivos, portapapeles, sesiones de soporte, accesibilidad"
     },
     {
      "id": "anuncios",
      "titulo": "Un anuncio llega a muchos teléfonos; un script repite una secuencia de acciones",
-     "pagina": 30,
+     "pagina": 34,
      "temas": "anuncios, mensajes, obligatorio, opcional, video, imagen, confirmado, scripts, acción rápida"
     },
     {
      "id": "reportes",
      "titulo": "Cada reporte se consulta en pantalla, se exporta y se puede programar por correo",
-     "pagina": 32,
+     "pagina": 36,
      "temas": "reportes, inventario, exportar, Excel, CSV, envíos programados, programar reporte, latencia de comandos, sin conexión"
     },
     {
      "id": "auditoria",
      "titulo": "La auditoría responde quién hizo qué, cuándo y sobre qué equipo",
-     "pagina": 34,
+     "pagina": 38,
      "temas": "auditoría, registro de acciones, quién hizo qué, exportar auditoría, retención, integridad"
     },
     {
      "id": "ajustes",
      "titulo": "Ajustes reúne los parámetros generales y la actualización del agente",
-     "pagina": 35,
+     "pagina": 39,
      "temas": "ajustes, actualizar el agente, despliegue del agente, canario, actualizaciones, política global, apariencia"
     }
    ]
@@ -141,8 +141,8 @@
    "titulo": "Guía de enrolamiento",
    "descripcion": "Todos los métodos para inscribir un equipo Android, qué exige cada versión y qué hacer cuando la inscripción no termina.",
    "publico": "Administradores de la consola y técnicos que preparan los equipos",
-   "paginas": 15,
-   "kb": 902,
+   "paginas": 17,
+   "kb": 950,
    "secciones": [
     {
      "id": "antes",
@@ -196,13 +196,19 @@
      "id": "frp",
      "titulo": "Tras un restablecimiento, el equipo vuelve a su ficha y a su carpeta",
      "pagina": 14,
-     "temas": "FRP, protección contra restablecimiento, cuenta de Google, reinscripción, reset, restablecer de fábrica, re-enrolamiento"
+     "temas": "FRP, protección contra restablecimiento, cuenta de Google, cuentas de reactivación, reinscripción, reset, restablecer de fábrica, re-enrolamiento"
     },
     {
      "id": "versiones",
      "titulo": "El agente funciona desde Android 6; el QR, desde Android 7",
-     "pagina": 15,
+     "pagina": 16,
      "temas": "versiones de Android, requisitos por versión, qué se probó, emulador, teléfono físico, fabricantes"
+    },
+    {
+     "id": "anexo-fisico",
+     "titulo": "Diez minutos por modelo confirman lo que el emulador no puede probar",
+     "pagina": 17,
+     "temas": "protocolo de prueba, teléfono físico, verificación, 10 minutos, anexo, Play Protect"
     }
    ]
   },
@@ -213,7 +219,7 @@
    "descripcion": "Qué componentes tiene el servicio, cómo se comunican con los equipos y qué deben cumplir la red, los dispositivos y el servidor.",
    "publico": "Áreas de TI, redes y seguridad del cliente; equipo que opera el servidor",
    "paginas": 12,
-   "kb": 431,
+   "kb": 468,
    "secciones": [
     {
      "id": "componentes",
@@ -259,8 +265,8 @@
    "titulo": "Solución de problemas",
    "descripcion": "Por cada síntoma: la causa probable, cómo verificarla en la consola y cómo resolverla. Incluye preguntas frecuentes.",
    "publico": "Administradores de la consola, mesa de ayuda y técnicos de campo",
-   "paginas": 16,
-   "kb": 774,
+   "paginas": 18,
+   "kb": 826,
    "secciones": [
     {
      "id": "diagnostico",
@@ -294,9 +300,9 @@
     },
     {
      "id": "quiosco",
-     "titulo": "El quiosco sigue a la política; un cambio se confirma en la ficha del equipo",
+     "titulo": "El quiosco sigue a la política; su estado y sus intentos de salida quedan en la ficha",
      "pagina": 10,
-     "temas": "quiosco, kiosco, no entra, no sale, contraseña de salida, se cerró varias veces, Android 16"
+     "temas": "quiosco, kiosco, no entra, no sale, contraseña de salida, espera, refuerzo incompleto, acceso de uso, Android 16"
     },
     {
      "id": "ubicacion",
@@ -306,26 +312,32 @@
     },
     {
      "id": "remoto",
-     "titulo": "La pestaña «Remoto» indica qué le falta al equipo antes de iniciar",
+     "titulo": "La pestaña «Remoto» dice qué le falta al equipo y por qué terminó cada sesión",
      "pagina": 12,
-     "temas": "control remoto, no conecta, solo ver, pantalla negra, sesión remota, accesibilidad, Xiaomi"
+     "temas": "control remoto, soporte remoto, no conecta, falta autorización, pantalla negra, sesión, llamada, micrófono, chat, archivos"
+    },
+    {
+     "id": "politicas-equipo",
+     "titulo": "La ficha muestra el resultado real de cada regla, no solo lo que pide la política",
+     "pagina": 13,
+     "temas": "permisos, hardware, restricciones, Wi-Fi, red no conecta, credenciales rechazadas, FRP inactiva, modo perdido, borrado remoto, no soportado, pendiente"
     },
     {
      "id": "correo",
      "titulo": "Sin servidor de correo configurado, las alertas se registran pero no se envían",
-     "pagina": 13,
+     "pagina": 15,
      "temas": "correo, SMTP, alertas por correo, no llegan correos, reportes programados, exportar, Excel, CSV"
     },
     {
      "id": "consola",
      "titulo": "Lo que un usuario no ve en el menú depende de su rol y de sus carpetas",
-     "pagina": 14,
+     "pagina": 16,
      "temas": "consola, inicio de sesión, contraseña, bloqueo de cuenta, permisos, no veo el menú, códigos de error"
     },
     {
      "id": "faq",
      "titulo": "Respuestas cortas a las dudas más comunes",
-     "pagina": 15,
+     "pagina": 17,
      "temas": "preguntas frecuentes, FAQ, dudas"
     }
    ]
@@ -337,7 +349,7 @@
    "descripcion": "Cómo se instala, se vigila, se respalda y se actualiza el servicio, qué hacer ante un incidente y qué se compromete con el cliente.",
    "publico": "Equipo de TI que opera el servidor, personal de guardia y gerencia de servicio",
    "paginas": 21,
-   "kb": 646,
+   "kb": 647,
    "secciones": [
     {
      "id": "resumen",
@@ -430,31 +442,31 @@
    "titulo": "Notas de versión",
    "descripcion": "Qué cambia en esta entrega frente a la evaluación, criterio por criterio, y con qué alcance se probó cada cambio.",
    "publico": "Responsables de la evaluación del producto y administradores de la consola",
-   "paginas": 7,
+   "paginas": 6,
    "kb": 243,
    "secciones": [
     {
      "id": "resumen",
-     "titulo": "Esta entrega trae cambios para los 17 criterios, probados en emulador",
+     "titulo": "Los 17 criterios tienen sus cambios integrados; queda por integrar el despertador",
      "pagina": 2,
      "temas": "resumen, qué cambia, entrega, novedades"
     },
     {
      "id": "criterios-integrados",
-     "titulo": "Once criterios tienen cambios en la versión que se entrega",
+     "titulo": "Enrolamiento, conectividad, aplicaciones, permisos, órdenes y soporte remoto",
      "pagina": 3,
-     "temas": "criterios, MDM-01, MDM-02, MDM-04, MDM-05, MDM-07, MDM-09, MDM-11, MDM-14, MDM-15, MDM-16, MDM-17, integrado"
+     "temas": "criterios, MDM-01, MDM-02, MDM-03, MDM-04, MDM-05, MDM-06, MDM-07, MDM-08, MDM-09, integrado"
     },
     {
-     "id": "criterios-por-integrar",
-     "titulo": "Siete criterios tienen el desarrollo terminado y entran en la integración siguiente",
-     "pagina": 5,
-     "temas": "criterios, MDM-03, MDM-06, MDM-08, MDM-10, MDM-12, MDM-13, por integrar, pendiente"
+     "id": "criterios-resto",
+     "titulo": "Quiosco, ubicación, hardware, redes, documentación, auditoría, reportes y servicio",
+     "pagina": 4,
+     "temas": "criterios, MDM-10, MDM-11, MDM-12, MDM-13, MDM-14, MDM-15, MDM-16, MDM-17, despertador, por integrar"
     },
     {
      "id": "alcance-pruebas",
      "titulo": "Lo probado en emulador no reemplaza la prueba en los teléfonos de la flota",
-     "pagina": 7,
+     "pagina": 6,
      "temas": "alcance de las pruebas, emulador, teléfono físico, pendiente de validar, compatibilidad"
     }
    ]

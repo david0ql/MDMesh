@@ -4,6 +4,7 @@ import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
 import { DASH } from '../ui/format';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
+import { errorCode } from '../api/client';
 import {
   downloadAudit,
   getAuditFacets,
@@ -104,7 +105,7 @@ export function AuditPage() {
     } catch (e) {
       setData(null);
       const m = (e as Error).message;
-      setError(m === 'error.permission.denied' ? 'No tienes permiso para ver la auditoría.' : (m || 'No se pudo cargar la auditoría'));
+      setError(errorCode(e) === 'error.permission.denied' ? 'No tienes permiso para ver la auditoría.' : (m || 'No se pudo cargar la auditoría'));
     } finally {
       setLoading(false);
     }

@@ -73,7 +73,7 @@
       <tr><td>Borde web</td><td>Termina TLS en modo directo, sirve la consola, reparte las peticiones y comprueba la salud de las instancias.</td><td>Servidor web con proxy inverso</td></tr>
       <tr><td>Servidor de aplicación</td><td>Interfaz de la consola y de los agentes, cola de órdenes, canal en vivo, tareas programadas, correo.</td><td>Java 17</td></tr>
       <tr><td>Base de datos</td><td>Equipos, políticas, usuarios, órdenes, auditoría, ubicaciones e historial.</td><td>PostgreSQL 17</td></tr>
-      <tr><td>Control remoto</td><td>Une la pantalla del equipo con el visor de la consola.</td><td>Repetidor y visor de pantalla remota</td></tr>
+      <tr><td>Soporte remoto</td><td>Une al equipo y al técnico en una sesión: pantalla, chat, voz y archivos. Un repetidor atiende a los agentes anteriores.</td><td>WebSocket en el servidor de aplicación; repetidor de pantalla remota</td></tr>
       <tr><td>Supervisor</td><td>Publica el agente para los equipos nuevos y aplica versiones firmadas del servicio.</td><td>Servicio auxiliar</td></tr>
       <tr><td>Monitor y respaldos</td><td>Vigilan el servicio y copian los datos. Opcionales, recomendados en producción.</td><td>Servicios auxiliares</td></tr>
     </tbody>
@@ -145,7 +145,7 @@
   </ol>
 
   <h2>Control remoto</h2>
-  <p>La pantalla del equipo viaja dentro de una conexión WebSocket segura hacia el mismo dominio, por el puerto 443. El servidor la une con el visor de la consola, que solo se sirve a un usuario con sesión iniciada. Cada sesión usa un identificador y una clave de un solo uso. No se abre ningún puerto adicional hacia el equipo ni hacia la red del cliente.</p>
+  <p>En una sesión de soporte, el agente captura la pantalla y la envía, junto con el chat, la voz y los archivos, por una conexión WebSocket segura hacia el mismo dominio, por el puerto 443. El servidor la une con la consola del técnico, que entra con un código de un solo uso. No hay conexiones directas entre el técnico y el equipo ni servidores de retransmisión adicionales, y no se abre ningún puerto hacia el equipo ni hacia la red del cliente. La voz usa unos 128 kbit/s por sentido y la pantalla, hasta 1 Mbit/s aproximadamente. Los agentes anteriores usan el componente de pantalla remota previo, por el mismo puerto.</p>
 
   <h2>Despertador por mensajes de Google</h2>
   <p class="pend">Llega con la integración del despertador</p>
@@ -171,13 +171,16 @@
     <tbody>
       <tr><td>Políticas, órdenes, instalación sin intervención</td><td>6</td><td></td></tr>
       <tr><td>Inscripción por QR</td><td>7</td><td>Android 6 se inscribe por cable.</td></tr>
-      <tr><td>Control remoto de pantalla</td><td>7</td><td></td></tr>
+      <tr><td>Soporte remoto: pantalla y control</td><td>7</td><td>De Android 7 a 10 no funciona dentro del quiosco. Chat, voz y archivos funcionan desde Android 6.</td></tr>
       <tr><td>Restricción de datos móviles por aplicación</td><td>7</td><td>En Android 7 y 8 usa una VPN local del agente; desde Android 9, la restricción del sistema.</td></tr>
       <tr><td>Clave para apagar en quiosco</td><td>9</td><td></td></tr>
       <tr><td>Wi-Fi empresarial dentro del QR</td><td>10</td><td></td></tr>
       <tr><td>Borrar caché de las aplicaciones</td><td>11</td><td>Pide un toque de confirmación en el equipo.</td></tr>
       <tr><td>Cuentas que pueden reactivar tras un restablecimiento</td><td>11</td><td></td></tr>
       <tr><td>Quiosco con bloqueo del sistema</td><td>6 a 15</td><td>En Android 16 el agente usa un quiosco propio, sin el bloqueo del sistema.</td></tr>
+      <tr><td>Wi-Fi WPA3 y abierta cifrada</td><td>10</td><td>WPA3 empresarial desde Android 12; bloqueos de Wi-Fi por lista y seguridad mínima desde Android 13.</td></tr>
+      <tr><td>Conceder permisos de sensores</td><td>6</td><td>Desde Android 12 el equipo puede impedirlo; denegar siempre funciona.</td></tr>
+      <tr><td>Bloqueo de NFC y del asistente</td><td>15</td><td>Datos por USB desde Android 12, si el fabricante lo permite.</td></tr>
     </tbody>
   </table>
   <p class="cap">Fuente: código del agente y pruebas en emulador. La prueba funcional completa cubrió Android 6 a 17 en emulador el 28 de septiembre de 2026.</p>
@@ -236,7 +239,7 @@
   <p>La tarjeta <span class="ui">Última falla de conexión</span>, en la ficha de cada equipo, muestra la causa del último corte, la red en la que estaba y, si la falla fue de certificado, quién lo emitió. La guía «Solución de problemas» explica cómo leerla.</p>
 
   <h2>Dirección de respaldo</h2>
-  <p>El servidor puede entregar a los agentes una o más direcciones de respaldo. El agente las prueba cuando la principal falla de forma repetida con red disponible, recuerda la elección y vuelve a intentar la principal cada 15 minutos. Si la red filtra por dominio, permita también el dominio de respaldo con los mismos requisitos. El operador la define con la variable <code>AGENT_BACKUP_URLS</code>.</p>
+  <p>El servidor puede entregar a los agentes una o más direcciones de respaldo. El agente las prueba cuando la principal falla 4 veces seguidas durante al menos 2 minutos con red disponible, recuerda la elección y vuelve a intentar la principal cada 15 minutos. Si la red filtra por dominio, permita también el dominio de respaldo con los mismos requisitos. El operador la define con la variable <code>AGENT_BACKUP_URLS</code>.</p>
   <h2>Comportamiento del agente, para dimensionar la red</h2>
   <ul class="b">
     <li>Mantiene un WebSocket abierto y reporta por HTTPS al menos cada 5 minutos en modo Siempre conectado.</li>
@@ -244,8 +247,10 @@
     <li>Tras 8 minutos sin un reporte exitoso habiendo red, descarta las conexiones abiertas y empieza de nuevo.</li>
     <li>Consumo en reposo: del orden de pocos kilobytes por minuto. La cifra exacta por equipo está pendiente de medir en la flota del cliente.</li>
   </ul>
-  <p class="pend">Llega con integraciones posteriores</p>
-  <p>El despertador por mensajes de Google agrega tráfico saliente del servidor hacia ese servicio y del equipo hacia los servicios de Google. El Wi-Fi empresarial usa el servidor de autenticación de la red del cliente. Estos requisitos se agregarán a este capítulo al integrarse.</p>
+  <h2>Wi-Fi empresarial</h2>
+  <p>Las redes 802.1X que entrega la política se autentican contra el servidor de autenticación de la red del cliente. {{PRODUCTO}} no participa en esa autenticación: solo entrega la configuración y los certificados al equipo.</p>
+  <p class="pend">Llega con la integración del despertador</p>
+  <p>El despertador por mensajes de Google agregará tráfico saliente del servidor hacia ese servicio y del equipo hacia los servicios de Google. Este requisito se agregará aquí al integrarse.</p>
 </section>
 
 <section class="sec pb" id="seguridad" data-temas="seguridad, cifrado, TLS, firma del agente, contraseñas, roles, auditoría, endurecimiento, sesiones">
@@ -255,7 +260,7 @@
   <ul class="b">
     <li>Todo el tráfico entre equipos, consola y servidor viaja por TLS 1.2 o superior. El agente no acepta conexiones sin cifrar.</li>
     <li>El agente solo confía en autoridades certificadoras públicas: un certificado sustituido en el camino se rechaza.</li>
-    <li>La pantalla del control remoto viaja dentro del mismo canal cifrado. La consola muestra el chip <span class="ui">Cifrado (TLS)</span> en cada sesión.</li>
+    <li>La sesión de soporte remoto viaja dentro del mismo canal cifrado. El teléfono muestra el aviso «Soporte está viendo tu pantalla» mientras dura, y cada sesión queda registrada con su técnico, su duración y lo que se hizo.</li>
   </ul>
   <h2>Identidad de los equipos</h2>
   <ul class="b">
@@ -286,6 +291,8 @@
     <li>Los contenedores corren sin privilegios adicionales y con las capacidades mínimas.</li>
     <li>Las versiones del servicio se distribuyen firmadas y con las imágenes fijadas por huella.</li>
     <li>Los respaldos que salen del servidor se cifran con AES-256.</li>
+    <li>Los certificados de Wi-Fi empresarial se guardan cifrados; su clave vive en un archivo del servidor, fuera de la base de datos.</li>
+    <li>La contraseña de salida del quiosco es obligatoria y el equipo limita los intentos con esperas crecientes.</li>
     <li>Al eliminar un equipo se eliminan sus órdenes, eventos, estado y recorrido de ubicación.</li>
   </ul>
   <p>Antes de la salida a producción se hizo una revisión de seguridad en cuatro áreas: superficie sin autenticación, autenticación y autorización, entradas peligrosas y despliegue. Los hallazgos se corrigieron y se dejaron 43 comprobaciones automáticas que se pueden repetir contra cualquier instalación.</p>
