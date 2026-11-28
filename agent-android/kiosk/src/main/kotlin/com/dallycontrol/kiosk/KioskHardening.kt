@@ -128,4 +128,32 @@ object KioskHardening {
         val candidates = if (soft) launchable + settingsPackages else settingsPackages
         return candidates.toSet() - allowed.toSet() - protected.toSet()
     }
+
+    /**
+     * "Closed until authorised": a kiosk whose guard still lacks its one authorisation ([GUARD_MISSING_ACCESS]) opens
+     * NO app at all — the allowed apps are suspended too ([gatePlan]) and the kiosk home shows only the guided step —
+     * so there is never a kiosk in use from which an allowed app can reach the system Settings. Android gives a
+     * Device Owner no way to switch its own screen service on (docs/KIOSK-HARDENING.md), so the one tap cannot be
+     * removed; this makes it impossible to skip instead.
+     *
+     * Not applied ([strict] false) when the policy turned the guided step off (`remoteSupport.setupPrompt = false`:
+     * the administrator accepted the gap) or on a phone that was already working in a kiosk when it received this
+     * agent ([fieldKiosk]): that one keeps working, with the strip and the periodic prompt, until it is authorised or
+     * leaves the kiosk.
+     */
+    fun authGate(guard: String?, strict: Boolean): Boolean = strict && guard == GUARD_MISSING_ACCESS
+
+    /** What the gate suspends on top of the kiosk's own plan: the allowed apps, never what the phone needs. */
+    fun gatePlan(allowed: Collection<String>, protected: Collection<String>): Set<String> =
+        allowed.toSet() - protected.toSet()
+
+    /**
+     * A phone already in a kiosk in the field when this agent arrived as an update: the lock-down had never been
+     * engaged by this agent ([everEngaged] false), the agent is an update and the kiosk is being re-applied right after
+     * it (within [FIELD_KIOSK_WINDOW_MS]). A new enrollment is never one.
+     */
+    fun fieldKiosk(everEngaged: Boolean, firstInstallMs: Long, lastUpdateMs: Long, nowMs: Long): Boolean =
+        !everEngaged && lastUpdateMs > firstInstallMs && nowMs - lastUpdateMs in 0..FIELD_KIOSK_WINDOW_MS
+
+    const val FIELD_KIOSK_WINDOW_MS = 10 * 60_000L
 }

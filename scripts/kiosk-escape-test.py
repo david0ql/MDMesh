@@ -9,7 +9,8 @@ admin API and tries every known way out over adb, in single-app and multi-app mo
         [--summary out.md]
 
 --qr-style: first the phone as a QR enrollment leaves it (no usage access, no screen service): the console must be told
-"needsAuthorization", the kiosk must keep asking on screen, and what stays open is listed; then the one tap of the
+"needsAuthorization", the kiosk must be CLOSED (no app opens, the allowed apps suspended, only the guided step on
+screen: "closed until authorised"), and what stays open is listed; then the one tap of the
 guided screen is simulated (the agent's screen service on) and the whole test runs with only that.
 
 What it tries, per mode: system state (lock task / suspended Settings / kiosk restrictions), `am start` of Settings,
@@ -636,12 +637,37 @@ def t_qr_style(mode):
     info("sin el toque: adb am start SETTINGS", "ABRE Ajustes" if settings_in_front() else "no abre Ajustes (lock task)")
     sh("input keyevent KEYCODE_BACK")
     home()
-    info("sin el toque: app permitida → intent WIFI_SETTINGS",
-         "ABRE Ajustes y nada lo devuelve (vía abierta hasta dar el toque)" if app_opens_settings() else "no abre Ajustes")
+    # Closed until authorised: the kiosk opens no app at all (they are suspended), only the guided step.
+    check("sin el toque: el quiosco está cerrado (pantalla «Autorizar ahora» en vez de las apps)",
+          until(lambda: find(ui(), **{"content-desc": "kiosk-auth-gate"}), 15, 2), top())
+    check("sin el toque: no se muestra ninguna app del quiosco", not find(ui(), **{"content-desc": f"kiosk-app-{APP}"}))
+    check("sin el toque: la app permitida está suspendida (ni el quiosco ni Recientes la abren)", suspended(APP))
+    opened = app_opens_settings()
+    # Android answers a suspended app with its "blocked by your IT admin" notice (hosted by the Settings package):
+    # that is not the app, nor a Settings screen.
+    blocked_notice = "ActionDisabledByAdminDialog" in top()
+    if blocked_notice:
+        info("sin el toque: aviso de Android al abrir la app suspendida", " / ".join(t for t in (n.get("text") or "" for n in ui()) if t)[:200])
+    check("sin el toque: una app permitida NO abre Ajustes (no se abre ninguna app hasta autorizar)",
+          (not opened or blocked_notice) and not top().startswith(APP + "/"), top())
     sh("input keyevent KEYCODE_BACK")
     home()
+    run("kiosk.exit")
+    s, d = enter("single")
+    # (the guided step comes up over the kiosk again when the kiosk is entered: "Ahora no" leaves the gate screen)
+    until(lambda: "RemoteSetupActivity" in top(), 10, 1)
+    if "RemoteSetupActivity" in top():
+        sh("input keyevent KEYCODE_BACK")
+        time.sleep(2)
+    check("sin el toque, una sola app: el quiosco no abre la app, muestra «Autorizar ahora»",
+          s == "done" and until(lambda: find(ui(), **{"content-desc": "kiosk-auth-gate"}), 20, 2) is not None
+          and not top().startswith(APP + "/"), f"{s} {top()}")
     start2 = int(time.time() * 1000) - 3000
     set_touch(True)
+    check("con el toque, una sola app: la app se abre sola", until(lambda: top().startswith(APP + "/"), 40, 1), top())
+    check("con el toque: la app permitida ya no está suspendida", until(lambda: not suspended(APP), 20, 1))
+    run("kiosk.exit")
+    s, d = enter(mode)
     check("con el toque (servicio de pantalla): la consola recibe «guard»", until(lambda: guard_state(start2) == "guard", 150, 5), str(guard_state(start2)))
     opened = app_opens_settings()
     check("con el toque, sin acceso de uso: una app permitida que abre Ajustes vuelve al quiosco",

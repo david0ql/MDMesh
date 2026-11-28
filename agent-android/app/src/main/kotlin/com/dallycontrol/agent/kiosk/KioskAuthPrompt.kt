@@ -20,7 +20,23 @@ object KioskAuthPrompt {
     @Volatile private var lastAsked = 0L
 
     fun pending(context: Context): Boolean =
-        AndroidKioskLockdown.guardState(context) == KioskHardening.GUARD_MISSING_ACCESS
+        AndroidKioskLockdown.gated(context) ||
+            AndroidKioskLockdown.guardState(context) == KioskHardening.GUARD_MISSING_ACCESS
+
+    @Volatile private var gateAsked = false
+
+    /**
+     * The gate closed the kiosk ([KioskHardening.authGate]): the guided step comes up by itself over the kiosk home,
+     * once per closing. After "Ahora no" the person is back on the gate screen, whose button opens it again.
+     */
+    fun askForGate(context: Context): Boolean {
+        if (!AndroidKioskLockdown.gated(context)) {
+            gateAsked = false
+            return false
+        }
+        if (gateAsked) return false
+        return ask(context, force = true)
+    }
 
     /** @return true when the guided step was opened. [force] = the person asked for it (no waiting). */
     fun ask(context: Context, force: Boolean = false): Boolean {
@@ -30,6 +46,8 @@ object KioskAuthPrompt {
         lastAsked = now
         SupportEngine.syncComponent(context)
         TimedAllow.allow(context, "com.android.settings", ASK_WINDOW_MS)
-        return RemoteSetupActivity.open(context)
+        val opened = RemoteSetupActivity.open(context)
+        if (opened && AndroidKioskLockdown.gated(context)) gateAsked = true
+        return opened
     }
 }

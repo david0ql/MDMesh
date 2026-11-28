@@ -113,4 +113,33 @@ class KioskHardeningTest {
         assertFalse("com.android.settings" in plan)
         assertTrue("com.android.settings.intelligence" in plan)
     }
+
+    @Test
+    fun `a kiosk without its authorisation opens nothing unless the gap was accepted`() {
+        assertTrue(KioskHardening.authGate(KioskHardening.GUARD_MISSING_ACCESS, strict = true))
+        assertFalse("policy turned the guided step off", KioskHardening.authGate(KioskHardening.GUARD_MISSING_ACCESS, strict = false))
+        assertFalse(KioskHardening.authGate(KioskHardening.GUARD_WATCHING, strict = true))
+        assertFalse(KioskHardening.authGate(KioskHardening.GUARD_LOCK_TASK, strict = true))
+        assertFalse(KioskHardening.authGate(null, strict = true))
+    }
+
+    @Test
+    fun `the gate suspends the allowed apps but never what the phone needs`() {
+        assertEquals(
+            setOf("com.work.app", "com.android.chrome"),
+            KioskHardening.gatePlan(
+                allowed = listOf("com.work.app", "com.android.chrome", "com.android.settings", "com.dallycontrol.agent"),
+                protected = listOf("com.android.settings", "com.dallycontrol.agent", "com.android.dialer"),
+            ),
+        )
+    }
+
+    @Test
+    fun `only a phone already in a kiosk when the agent was updated keeps the old behaviour`() {
+        val min = 60_000L
+        assertTrue(KioskHardening.fieldKiosk(everEngaged = false, firstInstallMs = 1_000, lastUpdateMs = 50 * min, nowMs = 51 * min))
+        assertFalse("new enrollment", KioskHardening.fieldKiosk(false, 50 * min, 50 * min, 51 * min))
+        assertFalse("kiosk entered long after the update", KioskHardening.fieldKiosk(false, 1_000, 50 * min, 90 * min))
+        assertFalse("this agent had engaged a kiosk before", KioskHardening.fieldKiosk(true, 1_000, 50 * min, 51 * min))
+    }
 }

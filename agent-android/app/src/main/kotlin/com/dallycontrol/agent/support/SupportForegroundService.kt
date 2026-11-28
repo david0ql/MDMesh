@@ -133,6 +133,9 @@ class SupportForegroundService : Service() {
                 )
                 .setOngoing(true)
                 .setContentIntent(open(context))
+                // Android 12+ holds a foreground service's notification back for up to 10 s: the person must see
+                // "Soporte está conectado" the moment the session starts, not after it.
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             if (inCall) {
                 val hangUp = PendingIntent.getService(
                     context, 1, Intent(context, SupportForegroundService::class.java).setAction(ACTION_HANG_UP),

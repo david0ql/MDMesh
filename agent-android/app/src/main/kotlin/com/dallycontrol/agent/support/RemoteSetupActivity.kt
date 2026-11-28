@@ -93,8 +93,24 @@ class RemoteSetupActivity : Activity() {
         addView(Button(context).apply {
             text = getString(R.string.remote_setup_later)
             isAllCaps = false
-            setOnClickListener { finish() }
+            setOnClickListener { leave() }
         })
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() = leave()
+
+    /**
+     * "Not now" / Back. Inside a kiosk with lock task Android may refuse to finish this screen (it can be the first
+     * task of the lock): then the phone goes to its home (the kiosk), which is what leaving means there.
+     */
+    private fun leave() {
+        finish()
+        if (com.dallycontrol.agent.kiosk.AndroidKioskLockdown.engaged(this)) {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
     }
 
     /** Accessibility settings, scrolled to (and highlighting) the agent's service where the phone supports it. */

@@ -149,6 +149,9 @@
     <string name="remote_setup_open">Abrir ajustes</string>
     <string name="remote_setup_later">Ahora no</string>
     <string name="kiosk_auth_banner">Falta una autorización: toca aquí para terminar de configurar este equipo.</string>
+    <string name="kiosk_gate_title">Este equipo aún no está autorizado</string>
+    <string name="kiosk_gate_body">Ninguna aplicación se abre en este equipo hasta autorizar DallyControl. Es un interruptor, una sola vez: toca el botón y sigue los pasos.</string>
+    <string name="kiosk_gate_button">Autorizar ahora</string>
     <!-- Pantalla de estado (MainActivity) y rótulos del lanzador del quiosco. -->
     <string name="main_subtitle">Agente del dispositivo</string>
     <string name="main_label_management">ADMINISTRACIÓN</string>

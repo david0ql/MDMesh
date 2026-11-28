@@ -248,6 +248,48 @@ class SupportAccessibilityService : AccessibilityService() {
         return if (a in 0 until b && b <= text.length) text.substring(a, b) else text
     }
 
+    // --- clipboard -----------------------------------------------------------------------------------------------
+
+    /**
+     * The phone's clipboard, read from the background. Android 10+ hands the clipboard only to the app whose window
+     * has the input focus, so the service puts a one-pixel, invisible, focusable window of its own on screen for a
+     * moment (an accessibility overlay: no "draw over apps" permission involved), reads, and removes it. The app in
+     * front loses the input focus for that moment (its keyboard may close). [done] gets null when Android still
+     * refuses or the clipboard is empty; always called, on the main thread.
+     */
+    fun readClipboard(done: (String?) -> Unit) = main.post {
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        val view = android.view.View(this).apply { isFocusable = true; isFocusableInTouchMode = true }
+        var finished = false
+        fun finish() {
+            if (finished) return
+            finished = true
+            val text = runCatching {
+                (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).primaryClip
+                    ?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this)?.toString()
+            }.getOrNull()
+            runCatching { wm.removeView(view) }
+            done(text)
+        }
+        val params = WindowManager.LayoutParams(
+            1, 1, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+        view.viewTreeObserver.addOnWindowFocusChangeListener { has ->
+            // The clipboard service asks the window manager who is focused: give that a moment to settle.
+            if (has) main.postDelayed({ finish() }, CLIP_SETTLE_MS)
+        }
+        runCatching { wm.addView(view, params) }.onFailure {
+            Log.w(TAG, "could not open the clipboard window", it)
+            finished = true
+            done(null)
+            return@post
+        }
+        main.postDelayed({ finish() }, CLIP_TIMEOUT_MS)
+    }
+
     // --- notice --------------------------------------------------------------------------------------------------
 
     /** A small pill above every app (an accessibility overlay: no "draw over apps" permission involved). */
@@ -297,6 +339,8 @@ class SupportAccessibilityService : AccessibilityService() {
         const val LONG_PRESS_MS = 700L
         private const val MIN_SWIPE_MS = 80L
         private const val MAX_GESTURE_MS = 8_000L
+        private const val CLIP_SETTLE_MS = 80L
+        private const val CLIP_TIMEOUT_MS = 1_200L
         private const val NOTICE_SP = 13f
         private const val NOTICE_PAD_DP = 6
         private const val NOTICE_RADIUS_DP = 16
