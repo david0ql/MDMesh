@@ -849,3 +849,10 @@ The wiped mark: set when the agent announces the wipe (or after 10 minutes of si
 announce); kept while the phone stays silent; removed, with a `wipeNotCompleted` line in the device's history, when
 the phone reports again with its old credentials (a wiped phone has none); cleared without that line when the phone
 enrolls again.
+
+Final repeat (2026-11-27 21:24-21:36, tree = `integration/mobicontrol` with everything merged, own stack with
+`-Xmx420m -XX:+UseSerialGC`, Android 15 / API 35, load 15-22): `frp` + `lost` + `reenroll` 35/36, then 25/25 after the
+fix below; console 34/34 (lost mode really sent and turned off); `wipe-online` 8/8; `wipe-offline` 13/13. The one
+failure was real: a follow-up check-in (it carries no census) stored an empty telemetry, so the device's protection
+status was blank until the next full report; `device_state.telemetry` now keeps the last census when a check-in
+brings none. The emulator booted again after its wipe enrolled onto its own row (same hardware id), as designed.
