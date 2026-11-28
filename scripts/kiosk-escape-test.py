@@ -586,6 +586,9 @@ def t_qr_style(mode):
     sh("input keyevent KEYCODE_BACK")
     time.sleep(2)
     home()
+    if "RemoteSetupActivity" in top():
+        sh("input keyevent KEYCODE_BACK")
+        time.sleep(2)
     check("sin el toque: el quiosco avisa en su pantalla de inicio (franja «Falta una autorización»)",
           until(lambda: find(ui(), **{"content-desc": "kiosk-auth-banner"}), 15, 2), top())
     if SDK >= 36:

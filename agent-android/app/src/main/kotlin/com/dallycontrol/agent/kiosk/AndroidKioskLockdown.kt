@@ -75,6 +75,10 @@ class AndroidKioskLockdown(
             val bar = KioskHardening.statusBarDisabled(payload.features.softStatusBar) || !canWatch
             runCatching { dpm.setStatusBarDisabled(admin, bar) }
         }
+        // Not authorised yet: ask now (and again whenever the kiosk home comes back), never stay quiet about it.
+        if (state == KioskHardening.GUARD_MISSING_ACCESS) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post { runCatching { KioskAuthPrompt.ask(context) } }
+        }
         KioskForegroundGuard.onServiceChange = { reengage() }
         if (guardNeeded) {
             KioskForegroundGuard.guard(context, closed, { it in lifted }) { pkg ->

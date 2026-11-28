@@ -102,23 +102,9 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * A kiosk whose guard still lacks its one authorisation (the agent's screen service, one tap on the phone — a
-     * phone enrolled by QR) is never left quietly half-closed: every time the kiosk home comes back, at most once
-     * every [ASK_EVERY_MS], the guided step is shown again until it is done. Settings is let through for it and
-     * closed again the moment this screen is back.
-     * @return true when the guided step was opened.
-     */
-    private fun askAuthorisation(): Boolean {
-        val pending = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this) ==
-            com.dallycontrol.kiosk.KioskHardening.GUARD_MISSING_ACCESS
-        val now = android.os.SystemClock.elapsedRealtime()
-        if (!pending || (lastAsked != 0L && now - lastAsked < ASK_EVERY_MS)) return false
-        lastAsked = now
-        com.dallycontrol.agent.support.SupportEngine.syncComponent(this)
-        com.dallycontrol.agent.kiosk.TimedAllow.allow(this, "com.android.settings", ASK_WINDOW_MS)
-        return com.dallycontrol.agent.support.RemoteSetupActivity.open(this)
-    }
+    /** The guided authorisation step, while it is pending (see KioskAuthPrompt). */
+    private fun askAuthorisation(force: Boolean = false): Boolean =
+        com.dallycontrol.agent.kiosk.KioskAuthPrompt.ask(this, force)
 
     /**
      * Every automatic (re)launch of the pinned app counts as a bounce — whether HOME resumed or Android recreated
@@ -453,7 +439,7 @@ class KioskLauncherActivity : ComponentActivity() {
                     setPadding(dp(16), dp(10), dp(16), dp(10))
                     setBackgroundColor(Color.parseColor("#B3261E"))
                     isClickable = true
-                    setOnClickListener { lastAsked = 0L; askAuthorisation() }
+                    setOnClickListener { askAuthorisation(force = true) }
                 },
                 LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
             )
@@ -721,11 +707,8 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private companion object {
         const val BOUNCE_DEDUPE_MS = 1_500L
-        /** How often the pending authorisation is asked for again, and how long Settings stays open for it. */
-        const val ASK_EVERY_MS = 10 * 60_000L
-        const val ASK_WINDOW_MS = 5 * 60_000L
         const val BANNER_SP = 13f
-        @Volatile var lastAsked = 0L
+
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"
