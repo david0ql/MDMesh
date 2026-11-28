@@ -165,15 +165,15 @@ Incluido en el agente y activo siempre:
 
 ## 6. Exención de batería y restricciones de segundo plano
 
-Qué obtiene el agente sin diálogo y qué no. Lo marcado "observado" se comprobó en los emuladores API 30 y 35 de las
+Qué obtiene el agente sin diálogo y qué no. Lo marcado "observado" se comprobó en los emuladores API 30, 35 y 36 de las
 mediciones; lo demás es el comportamiento documentado de Android y no se verificó aquí.
 
 | Restricción de Android | Situación del agente |
 |---|---|
-| Ser detenido a la fuerza | **Observado**: `am force-stop` es ignorado (Device Owner); el proceso siguió vivo en API 30 y 35. |
+| Ser detenido a la fuerza | **Observado**: `am force-stop` es ignorado (Device Owner); el proceso siguió vivo en API 30, 35 y 36. |
 | Cubo de App Standby | **Observado**: `am get-standby-bucket` = 5 (exento) en ambos. |
-| Iniciar el servicio en primer plano desde segundo plano (Android 12+) | **Observado** en API 35: 0 rechazos al reiniciarlo desde el push y desde la alarma con el proceso recién muerto. |
-| Alarmas exactas | **Observado**: permitidas sin diálogo (API 30 siempre; API 35 por `USE_EXACT_ALARM`, `exactAllowReason=policy_permission`). |
+| Iniciar el servicio en primer plano desde segundo plano (Android 12+) | **Observado** en API 35 y 36: 0 rechazos al reiniciarlo desde el push y desde la alarma con el proceso recién muerto. |
+| Alarmas exactas | **Observado**: permitidas sin diálogo (API 30 siempre; API 35 y 36 por `USE_EXACT_ALARM`, `exactAllowReason=policy_permission`). |
 | "Uso de batería: Restringido" (segundo plano) | No verificado de forma aislada: `scripts/adb-enroll.sh` ya deja `RUN_ANY_IN_BACKGROUND=allow`. El agente lo reporta (`bgRestricted`) y la consola lo avisa. |
 | Lista de **optimización de batería (Doze)** | **No hay API pública** para que un Device Owner se agregue solo. Vías: (a) el enrolamiento por cable/ADB (`scripts/adb-enroll.sh`) lo agrega sin diálogo (`cmd deviceidle whitelist +paquete`; observado: el agente aparece en la lista); (b) en el enrolamiento por QR el agente abre una vez el diálogo del sistema "¿Permitir que la app se ejecute siempre en segundo plano?" → **Permitir**; (c) en compilaciones firmadas por el fabricante, `setApplicationExemptions` (Android 14+), que el agente ya intenta. |
 
@@ -226,86 +226,103 @@ cada fabricante (§6).
 
 ## 8. Mediciones
 
-Corrida del 27-nov-2026 con `scripts/wake-latency-e2e.py` (agente de depuración 0.9.7 con este canal, stack local,
-emuladores con Google APIs, push simulado entregado por el receptor real de Firebase, `--via c2dm`, con 0,3 s de
-tránsito simulado). Tiempo = "creada en el servidor → ejecutada en el teléfono" según las marcas del propio servidor
-(lo mismo que muestra el historial de órdenes de la consola). 10 repeticiones por orden salvo donde se indica.
+Corridas del 27-nov-2026 con `scripts/wake-latency-e2e.py`: agente de depuración 0.9.7 con este canal, stack local
+construido del mismo árbol, emuladores con Google APIs recién creados y enrolados por `scripts/adb-enroll.sh`, push
+simulado entregado por el receptor real de Firebase (`--via c2dm`) con 0,3 s de tránsito simulado. Tiempo = "creada
+en el servidor → ejecutada en el teléfono" según las marcas del propio servidor (lo que muestra el historial de
+órdenes de la consola). 10 repeticiones por orden; en las condiciones sin despertador, 3 repeticiones de bloqueo
+(cada una tarda minutos). La columna "Carga" es la carga a 1 minuto de la máquina de pruebas durante esa fila.
 
-**Advertencia sobre la carga.** La máquina de pruebas ejecutaba a la vez las compilaciones y emuladores de otros
-trece desarrollos: la carga a 1 minuto estuvo entre 20 y 37 durante todas las mediciones (lo normal para medir es
-menos de 4–8). Las cifras son por tanto **cotas superiores medidas bajo carga**, no la latencia representativa: en la
-primera corrida, con carga ~20, el canal en vivo dio p50 0,2–0,4 s; con carga ~30–35 el mismo canal dio p50 2–9 s.
-Repita la corrida en una máquina libre antes de citar cifras absolutas; lo que sí es válido tal cual es la
-**comparación entre condiciones** y que las órdenes **se ejecutan**.
+### Android 16 (API 36) — carga 3–14
 
-### Android 11 (API 30)
-
-| Condición | Orden | n | Sin ejecutar | p50 (s) | p90 (s) | máx (s) | Canal anunciado por la consola | Carga (1 min) |
+| Condición | Orden | n | Sin ejecutar | p50 (s) | p90 (s) | máx (s) | Canal anunciado | Carga (1 min) |
 |---|---|---|---|---|---|---|---|---|
-| Canal en vivo arriba | Bloqueo | 10 | 0 | 2,5 | 5,4 | 6,0 | en vivo | 30,5 |
-| Canal en vivo arriba | Alarma | 10 | 0 | 2,6 | 3,7 | 4,9 | en vivo | 29,5 |
-| Canal en vivo arriba | Mensaje | 10 | 0 | 1,7 | 2,6 | 3,7 | en vivo | 29,1 |
-| Canal caído + despertador push | Bloqueo | 10 | 0 | 2,3 | 3,2 | 3,2 | push | 22,8 |
-| Canal caído + despertador push | Alarma | 10 | 0 | 2,0 | 4,1 | 4,2 | push | 22,2 |
-| Canal caído + despertador push | Mensaje | 10 | 0 | 2,0 | 2,6 | 2,9 | push | 25,9 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Bloqueo | 10 | 0 | 3,1 | 4,3 | 4,4 | push | 28,0 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Alarma | 10 | 0 | 6,0 | 9,3 | 11,1 | push | 32,7 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Mensaje | 10 | 0 | 2,4 | 3,1 | 3,9 | push | 29,3 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Bloqueo | 10 | 0 | 2,6 | 4,0 | 6,7 | push | 33,6 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Alarma | 10 | 0 | 2,2 | 4,0 | 5,3 | push | 30,4 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Mensaje | 10 | 0 | 1,8 | 3,3 | 3,6 | push | 31,5 |
-| Proceso muerto, **sin** despertador (lo revive Android) | Bloqueo | 3 | 0 | 8,7 | 9,6 | 9,6 | — | 28,5 |
-| Canal caído, **sin** despertador (solo sondeo del agente) | Bloqueo | 3 | 0 | 113,4 | 119,9 | 119,9 | — | 26,6 |
-| Doze forzado, **sin** despertador (agente **sin** exención de batería) | Bloqueo | 2 | 0 | 38,8 | 77,7 | 77,7 | — | 19,6 |
+| Canal en vivo arriba | Bloqueo | 10 | 0 | 0,7 | 1,1 | 1,4 | en vivo | 11,7 |
+| Canal en vivo arriba | Alarma | 10 | 0 | 0,2 | 0,6 | 1,2 | en vivo | 13,5 |
+| Canal en vivo arriba | Mensaje | 10 | 0 | 0,2 | 0,3 | 0,3 | en vivo | 13,9 |
+| Canal caído + despertador push | Bloqueo | 10 | 0 | 1,5 | 1,8 | 1,9 | push | 13,0 |
+| Canal caído + despertador push | Alarma | 10 | 0 | 1,6 | 1,8 | 1,9 | push | 10,0 |
+| Canal caído + despertador push | Mensaje | 10 | 0 | 1,6 | 1,8 | 1,8 | push | 7,0 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Bloqueo | 10 | 0 | 1,6 | 1,8 | 1,9 | push | 5,3 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Alarma | 10 | 0 | 1,6 | 1,8 | 1,8 | push | 4,3 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Mensaje | 10 | 0 | 1,4 | 1,7 | 1,9 | push | 3,5 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Bloqueo | 10 | 0 | 2,0 | 2,2 | 2,3 | push | 4,6 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Alarma | 10 | 0 | 1,5 | 2,0 | 2,0 | push | 5,3 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Mensaje | 10 | 0 | 2,0 | 2,4 | 2,5 | push | 8,6 |
+| Proceso del agente muerto (`kill -9`), sin despertador (reinicio de Android) | Bloqueo | 3 | 0 | 2,5 | 2,9 | 2,9 | — | 6,5 |
 
-(La primera corrida de "canal en vivo arriba" en este mismo emulador, con carga 20: bloqueo p50 0,3 s / p90 0,9 s,
-alarma 0,4 / 0,5 s, mensaje 0,2 / 0,6 s.)
+### Android 11 (API 30) — carga 1–11
 
-### Android 15 (API 35)
-
-| Condición | Orden | n | Sin ejecutar | p50 (s) | p90 (s) | máx (s) | Canal anunciado por la consola | Carga (1 min) |
+| Condición | Orden | n | Sin ejecutar | p50 (s) | p90 (s) | máx (s) | Canal anunciado | Carga (1 min) |
 |---|---|---|---|---|---|---|---|---|
-| Canal en vivo arriba | Bloqueo | 10 | 0 | 8,6 | 19,2 | 23,7 | en vivo | 34,7 |
-| Canal en vivo arriba | Alarma | 9 | 1 | 7,3 | 60,5 | 60,5 | en vivo | 36,4 |
-| Canal en vivo arriba | Mensaje | 10 | 0 | 4,0 | 8,7 | 9,2 | en vivo | 35,2 |
-| Canal caído + despertador push | Bloqueo | 10 | 0 | 1,7 | 4,9 | 6,2 | push | 32,3 |
-| Canal caído + despertador push | Alarma | 10 | 0 | 2,3 | 4,9 | 5,8 | push | 30,0 |
-| Canal caído + despertador push | Mensaje | 10 | 0 | 2,5 | 3,3 | 3,6 | push | 29,2 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Bloqueo | 10 | 0 | 1,2 | 3,5 | 4,1 | push | 28,8 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Alarma | 10 | 0 | 1,7 | 2,0 | 2,1 | push | 22,5 |
-| Doze forzado + despertador push (agente **sin** exención de batería) | Mensaje | 10 | 0 | 2,2 | 3,3 | 3,6 | push | 22,3 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Bloqueo | 9 | 1 | 2,2 | 7,5 | 7,5 | en vivo/push | 20,9 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Alarma | 10 | 0 | 4,5 | 7,7 | 8,7 | en vivo/push | 27,2 |
-| Proceso del agente muerto (`kill -9`) + despertador push | Mensaje | 10 | 0 | 4,6 | 6,2 | 6,8 | push | 30,0 |
+| Canal en vivo arriba | Bloqueo | 10 | 0 | 1,0 | 1,5 | 1,5 | en vivo | 4,2 |
+| Canal en vivo arriba | Alarma | 10 | 0 | 1,1 | 1,5 | 1,5 | en vivo | 3,4 |
+| Canal en vivo arriba | Mensaje | 10 | 0 | 1,5 | 1,5 | 1,5 | en vivo | 2,8 |
+| Canal caído + despertador push | Bloqueo | 10 | 0 | 1,2 | 1,4 | 1,4 | push | 2,4 |
+| Canal caído + despertador push | Alarma | 10 | 0 | 1,4 | 1,7 | 1,7 | push | 2,1 |
+| Canal caído + despertador push | Mensaje | 10 | 0 | 1,6 | 1,8 | 1,8 | push | 2,0 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Bloqueo | 10 | 0 | 1,3 | 1,7 | 7,8 | push | 2,3 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Alarma | 10 | 0 | 1,5 | 1,7 | 1,8 | push | 1,9 |
+| Doze forzado + despertador push (agente **sin** exención de batería) | Mensaje | 10 | 0 | 1,6 | 1,7 | 1,8 | push | 1,4 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Bloqueo | 10 | 0 | 1,7 | 2,0 | 2,0 | push | 1,8 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Alarma | 10 | 0 | 1,5 | 1,8 | 2,0 | push | 2,3 |
+| Proceso del agente muerto (`kill -9`) + despertador push | Mensaje | 10 | 0 | 1,3 | 1,6 | 1,6 | push | 2,5 |
+| Proceso del agente muerto (`kill -9`), sin despertador (reinicio de Android) | Bloqueo | 3 | 0 | 2,5 | 2,5 | 2,5 | — | 2,0 |
+| Canal caído, sin despertador (solo sondeo del agente) | Bloqueo | 3 | 0 | 120,6 | 120,8 | 120,8 | — | 2,0 |
+| Doze forzado, sin despertador (agente **sin** exención de batería) | Bloqueo | 3 | 0 | 118,3 | 120,2 | 120,2 | — | 10,8 |
 
-Las condiciones sin despertador (minutos por repetición) se midieron solo en Android 11.
+**252 órdenes medidas en estas dos corridas, 0 sin ejecutar.**
 
 ### Lectura de los resultados
 
-- **Con el despertador push, canal caído, Doze o proceso muerto dejan de importar**: 2–3 s de mediana y p90 por debajo
-  de 10 s en las tres órdenes, en las dos versiones, incluso con el agente sin exención de batería y bajo carga.
-  Sin él, las mismas situaciones cuestan ~2 min (sondeo rápido) o lo que tarde el siguiente sondeo en reposo.
-- **Dos órdenes de las 240 con canal en vivo o push no se ejecutaron dentro de la espera del script**, ambas en Android 15 y con el emulador más
-  cargado: una alarma con el canal en vivo arriba (entregada, sin respuesta en 60 s; la siguiente tardó 60,5 s) y un
-  bloqueo tras `kill -9` (entregado, sin respuesta en 120 s). No se perdieron: quedan "entregadas" y la cola las
-  reentrega a los 2 minutos (comportamiento ya probado por `scripts/command-reliability-e2e.py`); el script no esperó
-  ese plazo. No se pudo determinar si la causa fue la carga del emulador o el agente; queda anotado como pendiente de
-  repetir en una máquina sin carga.
-- **Doze forzado sin despertador dio 39 y 78 s**, mejor de lo que cabe esperar en un teléfono: el Doze forzado del
-  emulador aplica las restricciones de red y alarmas pero no suspende el procesador, así que el vigilante interno del
-  agente (cada 60 s) siguió corriendo. En un teléfono real en reposo profundo y sin exención de batería cuente con
-  el límite de Android (una alarma "en reposo" cada ~9 min) salvo que se active la "alarma garantizada" de la política.
-- `am force-stop` sobre el agente: **Android lo ignora** por ser Device Owner (el proceso siguió vivo en API 30 y 35).
-  Lo que sí puede pasar es que el sistema mate el proceso: Android lo reinicia solo en ~9 s (servicio persistente) y el
-  push lo reinicia en ~2–3 s.
-- Durante la primera corrida apareció un defecto real, ya corregido y con prueba: una orden urgente enviada menos de
-  3 s después de un push **ya respondido** se quedaba sin su push (antirrebote) y esperaba al sondeo. Ahora el
-  antirrebote solo aplica mientras el push anterior sigue sin respuesta, y en ese caso se envía uno más al cerrar la
+- **Canal en vivo arriba**: 0,2–1,5 s de mediana, p90 ≤ 1,5 s.
+- **Con el despertador push, canal caído, Doze o proceso muerto dejan de importar**: 1,2–2,0 s de mediana y p90 ≤ 2,4 s
+  en las tres órdenes y en las dos versiones, incluso con el agente **sin** exención de batería. De ese tiempo, 0,3 s
+  son el tránsito simulado de Google y ~1 s la entrega por `adb`; con Google real cuente con su tránsito (habitualmente
+  menos de 1 s con el equipo en línea).
+- **Sin despertador** (equipo sin Google o servidor sin proyecto): el canal caído cuesta lo que tarde el siguiente
+  sondeo — 2 min aquí, porque el corte del canal cuenta como actividad y activa el sondeo rápido; 5 min (o lo que diga
+  la política) en reposo sin actividad.
+- **Doze forzado sin despertador dio ~2 min**, igual que fuera de Doze: la alarma exacta "en reposo" sonó a tiempo.
+  Ojo: Android solo garantiza una de esas alarmas cada ~9 min por app en reposo profundo real, y el Doze forzado del
+  emulador no suspende el procesador; en un teléfono real sin exención de batería y sin push cuente con hasta ~9 min,
+  salvo que active la "alarma garantizada" de la política.
+- **Proceso muerto**: `am force-stop` sobre el agente es **ignorado por Android** (es Device Owner; el proceso siguió
+  vivo en API 30, 35 y 36). Tras `kill -9`, Android reinicia el servicio solo (2,5 s en la primera muerte), pero cada
+  muerte seguida multiplica por 4 esa espera (en el registro: 4 s, 16 s, 64 s… hasta más de una hora tras 6–7 muertes
+  en un minuto); el push lo revive siempre en ~2 s, y sin push lo hace la alarma de respaldo.
+- La consola anunció el canal correcto en todas las órdenes (en vivo / push).
+- **Órdenes no urgentes solo por el canal en vivo** (sin push; `device.diagnose`, API 30, carga 27): 0,8–1,3 s hasta la
+  entrega.
+- Consola (`scripts/wake-console-e2e.mjs`, Chromium sin interfaz), sobre el árbol final: **13/13 en Android 11**;
+  12/13 en Android 16 (el paso 13, "el teléfono adoptó el nuevo sondeo", esperaba un solo reporte y hacen falta dos;
+  se corrigió el script y pasó en la corrida siguiente, la de Android 11; no se repitió en Android 16).
+
+### Corridas anteriores, bajo carga alta (misma fecha)
+
+Antes de las corridas de arriba se midió con la máquina ejecutando a la vez las compilaciones y emuladores de otros
+trece desarrollos (carga 20–37). Sirven como peor caso de un servidor/equipo saturado, no como latencia típica:
+
+| Versión | Condición | p50 (s) | p90 (s) | Sin ejecutar |
+|---|---|---|---|---|
+| Android 11 | Canal en vivo arriba | 1,7–2,6 | 2,6–5,4 | 0 de 30 |
+| Android 11 | Canal caído + push | 2,0–2,3 | 2,6–4,1 | 0 de 30 |
+| Android 11 | Doze + push (sin exención) | 2,4–6,0 | 3,1–9,3 | 0 de 30 |
+| Android 11 | Proceso muerto + push | 1,8–2,6 | 3,3–4,0 | 0 de 30 |
+| Android 15 | Canal en vivo arriba | 4,0–8,6 | 8,7–60,5 | 1 de 30 |
+| Android 15 | Canal caído + push | 1,7–2,5 | 3,3–4,9 | 0 de 30 |
+| Android 15 | Doze + push (sin exención) | 1,2–2,2 | 2,0–3,5 | 0 de 30 |
+| Android 15 | Proceso muerto + push | 2,2–4,6 | 6,2–7,7 | 1 de 30 |
+
+- Las dos órdenes "sin ejecutar" (una alarma con canal en vivo, un bloqueo tras `kill -9`, ambas en Android 15 con
+  carga 21–36) quedaron **entregadas y sin respuesta** dentro de la espera del script (60 y 120 s). No se perdieron:
+  la cola las reentrega a los 2 minutos (`scripts/command-reliability-e2e.py`), pero el script no esperó ese plazo.
+  No se determinó si la causa fue la saturación del emulador o el agente; no se reprodujo en las 252 órdenes con
+  carga baja.
+- En la primera de estas corridas apareció un defecto real, **ya corregido y con prueba**: una orden urgente enviada
+  menos de 3 s después de un push ya respondido se quedaba sin su push (antirrebote) y esperaba al sondeo. Ahora el
+  antirrebote solo aplica mientras el push anterior sigue sin respuesta, y en ese caso sale uno más al cerrar la
   ventana.
-- Consola (`scripts/wake-console-e2e.mjs`, Chromium sin interfaz): 13/13 en el equipo Android 11 — Ajustes
-  "Configurado" con equipos y contadores, tarjeta "Canal en vivo" → "Mensaje push (FCM)" al cortar el canal, aviso
-  "despertando al equipo" al enviar una orden, latencia del push registrada, y "Sondeo de respaldo" de la política
-  guardado y adoptado por el teléfono (reportó 3 min).
 
 ## 9. Tamaño del APK y por qué esta integración
 
