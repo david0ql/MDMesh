@@ -50,7 +50,7 @@ class SupportAccessibilityService : AccessibilityService() {
         Log.i(TAG, "screen service connected")
         watchAllWindows(com.dallycontrol.agent.kiosk.KioskForegroundGuard.watching)
         SupportEngine.onServiceChanged()
-        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged(this)
+        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged()
     }
 
     /**
@@ -72,7 +72,7 @@ class SupportAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         if (instance === this) instance = null
         SupportEngine.onServiceChanged()
-        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged(this)
+        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged()
         return super.onUnbind(intent)
     }
 

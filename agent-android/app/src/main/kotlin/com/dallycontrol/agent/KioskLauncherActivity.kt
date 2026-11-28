@@ -83,6 +83,7 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    @Suppress("ReturnCount") // not in kiosk / the guided step is up / paused
     override fun onResume() {
         super.onResume()
         // Back on the kiosk home: any system screen that was let through (sharing data…) is closed again at once.
@@ -447,7 +448,7 @@ class KioskLauncherActivity : ComponentActivity() {
             com.dallycontrol.kiosk.KioskHardening.GUARD_MISSING_ACCESS
         ) {
             page.addView(
-                text(getString(R.string.kiosk_auth_banner), 13f, Color.WHITE, bold = true).apply {
+                text(getString(R.string.kiosk_auth_banner), BANNER_SP, Color.WHITE, bold = true).apply {
                     contentDescription = "kiosk-auth-banner"
                     setPadding(dp(16), dp(10), dp(16), dp(10))
                     setBackgroundColor(Color.parseColor("#B3261E"))
@@ -723,6 +724,7 @@ class KioskLauncherActivity : ComponentActivity() {
         /** How often the pending authorisation is asked for again, and how long Settings stays open for it. */
         const val ASK_EVERY_MS = 10 * 60_000L
         const val ASK_WINDOW_MS = 5 * 60_000L
+        const val BANNER_SP = 13f
         @Volatile var lastAsked = 0L
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"

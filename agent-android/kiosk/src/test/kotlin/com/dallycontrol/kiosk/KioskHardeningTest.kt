@@ -63,8 +63,10 @@ class KioskHardeningTest {
         assertFalse(KioskHardening.nativeLockLooping(emptyList()))
         assertFalse(KioskHardening.nativeLockLooping(listOf(0, 2 * min)))
         assertTrue(KioskHardening.nativeLockLooping(listOf(0, 2 * min, 4 * min)))
-        assertFalse("a restart a day is normal use", KioskHardening.nativeLockLooping(listOf(0, 1440 * min, 2880 * min)))
-        assertTrue("only the latest starts count", KioskHardening.nativeLockLooping(listOf(0, 5000 * min, 5001 * min, 5002 * min)))
+        val daily = listOf(0, 1440 * min, 2880 * min)
+        assertFalse("a restart a day is normal use", KioskHardening.nativeLockLooping(daily))
+        val lateLoop = listOf(0, 5000 * min, 5001 * min, 5002 * min)
+        assertTrue("only the latest starts count", KioskHardening.nativeLockLooping(lateLoop))
     }
 
     @Test

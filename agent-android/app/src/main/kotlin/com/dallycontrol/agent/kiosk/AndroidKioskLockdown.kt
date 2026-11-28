@@ -91,7 +91,8 @@ class AndroidKioskLockdown(
     /** The screen service came or went: re-evaluate the guard with what was engaged last. */
     private fun reengage() {
         val (payload, allowed) = lastEngaged ?: return
-        if (engaged(context)) kotlin.concurrent.thread(name = "kiosk-lockdown") { runCatching { engage(payload, allowed) } }
+        if (!engaged(context)) return
+        kotlin.concurrent.thread(name = "kiosk-lockdown") { runCatching { engage(payload, allowed) } }
     }
 
     /**
@@ -99,11 +100,13 @@ class AndroidKioskLockdown(
      * known failure): then the kiosk goes back to the soft lock by itself and says so.
      */
     @Synchronized
+    @Suppress("ReturnCount") // not asked for / already tripped / tripping now / allowed
     override fun nativeLockAllowed(wanted: Boolean): Boolean {
         if (!wanted || Build.VERSION.SDK_INT < KioskHardening.SOFT_KIOSK_SDK) return wanted
         if (prefs.getBoolean(KEY_NATIVE_TRIPPED, false)) return false
-        val boot = runCatching { android.provider.Settings.Global.getInt(context.contentResolver, "boot_count") }.getOrDefault(-1)
-        if (boot != prefs.getInt(KEY_NATIVE_BOOT, -2)) {
+        val boot = runCatching { android.provider.Settings.Global.getInt(context.contentResolver, "boot_count") }
+            .getOrDefault(NO_BOOT_COUNT)
+        if (boot != prefs.getInt(KEY_NATIVE_BOOT, NO_BOOT_SEEN)) {
             val times = (prefs.getString(KEY_NATIVE_BOOTS, "").orEmpty().split(',').mapNotNull { it.toLongOrNull() } +
                 System.currentTimeMillis()).takeLast(KioskHardening.NATIVE_LOCK_MAX_QUICK_BOOTS)
             prefs.edit().putInt(KEY_NATIVE_BOOT, boot).putString(KEY_NATIVE_BOOTS, times.joinToString(",")).apply()
@@ -132,7 +135,9 @@ class AndroidKioskLockdown(
         prefs.edit().remove(KEY_RESTRICTIONS).remove(KEY_SUSPENDED).remove(KEY_HIDDEN).remove(KEY_GAP).remove(KEY_GUARD)
             .apply()
         lastEngaged = null
-        if (Build.VERSION.SDK_INT >= KioskHardening.SOFT_KIOSK_SDK) runCatching { dpm.setStatusBarDisabled(admin, false) }
+        if (Build.VERSION.SDK_INT >= KioskHardening.SOFT_KIOSK_SDK) {
+            runCatching { dpm.setStatusBarDisabled(admin, false) }
+        }
     }
 
     /** Add the restrictions; remember as "mine" only those that were not already on (someone else owns those). */
@@ -235,8 +240,10 @@ class AndroidKioskLockdown(
         private const val KEY_NATIVE_TRIPPED = "native16_tripped"
         private const val KEY_NATIVE_BOOT = "native16_boot"
         private const val KEY_NATIVE_BOOTS = "native16_boots"
+        private const val NO_BOOT_COUNT = -1
+        private const val NO_BOOT_SEEN = -2
 
-        /** How this kiosk keeps Settings closed, as last reported ([KioskHardening.settingsGuard]); null outside kiosk. */
+        /** How this kiosk keeps Settings closed, as last reported; null when there is no kiosk. */
         fun guardState(context: Context): String? =
             if (!engaged(context)) null
             else context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_GUARD, null)
@@ -296,6 +303,7 @@ class AndroidKioskLockdown(
  * kiosk keeps closed, brings the kiosk home back at once and reports it. A mitigation, not a wall: the screen can
  * show for a moment.
  */
+@Suppress("TooManyFunctions") // two sources (screen service, usage access), each with its start/stop
 internal object KioskForegroundGuard {
     private const val PERIOD_MS = 350L
     private const val BACKSTOP_MS = 600L
@@ -307,7 +315,11 @@ internal object KioskForegroundGuard {
     @Volatile private var last: Pair<String?, String?> = null to null
 
     /** What the running guard watches for (null = no kiosk needs a guard right now). */
-    private class Watch(val closed: (String) -> Boolean, val letThrough: (String) -> Boolean, val onBlocked: (String) -> Unit)
+    private class Watch(
+        val closed: (String) -> Boolean,
+        val letThrough: (String) -> Boolean,
+        val onBlocked: (String) -> Unit,
+    )
 
     @Volatile private var watch: Watch? = null
 
@@ -317,7 +329,7 @@ internal object KioskForegroundGuard {
     /** Asked for after the screen service connected or went away: re-evaluate how the kiosk is guarded. */
     @Volatile var onServiceChange: (() -> Unit)? = null
 
-    fun onScreenServiceChanged(context: Context) {
+    fun onScreenServiceChanged() {
         runCatching { onServiceChange?.invoke() }
     }
 
@@ -336,7 +348,8 @@ internal object KioskForegroundGuard {
         val before = lastWindow
         lastWindow = pkg
         if (!w.closed(pkg) || w.letThrough(pkg)) return
-        if (before != null && before != pkg && before != service.packageName && !w.closed(before)) tainted += before
+        val fromApp = before != null && before != pkg && before != service.packageName
+        if (fromApp && !w.closed(before!!)) tainted += before
         // Home twice over: the global action (instant) and the HOME intent (lock task ignores the first on some
         // releases).
         service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
@@ -353,7 +366,12 @@ internal object KioskForegroundGuard {
 
     /** Start guarding with whatever source there is: the screen service (instant) or usage access (polling). */
     @Synchronized
-    fun guard(context: Context, closed: (String) -> Boolean, letThrough: (String) -> Boolean, onBlocked: (String) -> Unit) {
+    fun guard(
+        context: Context,
+        closed: (String) -> Boolean,
+        letThrough: (String) -> Boolean,
+        onBlocked: (String) -> Unit,
+    ) {
         watch = Watch(closed, letThrough, onBlocked)
         com.dallycontrol.agent.support.SupportAccessibilityService.instance?.watchAllWindows(true)
         if (screenServiceOn()) stopPolling() else start(context, closed, letThrough, onBlocked)
@@ -417,7 +435,12 @@ internal object KioskForegroundGuard {
     }.getOrDefault(false)
 
     @Synchronized
-    private fun start(context: Context, closed: (String) -> Boolean, letThrough: (String) -> Boolean, onBlocked: (String) -> Unit) {
+    private fun start(
+        context: Context,
+        closed: (String) -> Boolean,
+        letThrough: (String) -> Boolean,
+        onBlocked: (String) -> Unit,
+    ) {
         stopPolling()
         val app = context.applicationContext
         val t = android.os.HandlerThread("kiosk-foreground-guard").also { it.start() }
