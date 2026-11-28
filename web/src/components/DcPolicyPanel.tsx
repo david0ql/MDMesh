@@ -660,6 +660,8 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
         <div className="cfg-field-ctl">
           <input type="checkbox" className="dev-check" aria-label="Pedir la autorización de soporte remoto al inscribir" checked={p.remoteSupport?.setupPrompt !== false} disabled={disabled}
             onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, setupPrompt: e.target.checked ? undefined : false } })} />
+        </div>
+      </div>
       <div className="cfg-sec-h" style={{ marginTop: 18 }}>Órdenes sin canal en vivo</div>
       <div className="cfg-field" data-testid="wake-policy">
         <div className="cfg-field-label">
