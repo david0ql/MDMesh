@@ -4078,4 +4078,25 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-app-permissions" author="dallycontrol">
+        <comment>App permissions without the user: a device's own per-app rules (on top of its policy's) and the real
+                 permission state its agent last reported.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_permission_override (
+                deviceId INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                rules TEXT NOT NULL,
+                updatedAt BIGINT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS device_permission_report (
+                deviceId INT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+                report TEXT NOT NULL,
+                updatedAt BIGINT NOT NULL
+            );
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS device_permission_report;
+            DROP TABLE IF EXISTS device_permission_override;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

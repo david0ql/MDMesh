@@ -33,6 +33,8 @@ data class ConfigApplyPayload(
     val device: ConfigDevice? = null,
     /** Mobile-data restriction per app and data limits (absent = not managed; what the agent set before is undone). */
     val mobileData: ConfigMobileData? = null,
+    /** Runtime-permission policy and per-app grants (absent = the agent's baseline: grant on request, no rules). */
+    val permissions: ConfigPermissions? = null,
     /** Hardware and ports rules (absent = not managed; what an earlier document set is then undone). */
     val hardware: ConfigHardware? = null,
     /** Remote support settings (absent = the agent's defaults). */

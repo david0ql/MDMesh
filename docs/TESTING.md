@@ -512,6 +512,65 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
 
+## App permissions without the user (MDM-06, [PERMISOS.md](PERMISOS.md))
+
+```bash
+scripts/build-permtestapp.sh                       # com.dallycontrol.permtest -> scripts/testapp/permtest.apk
+scripts/permissions-e2e.py --api http://localhost:8088 --serial emulator-5600 --device-id <device number>
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/permissions-console-e2e.mjs --api http://localhost:8088
+```
+
+The test app declares location (fine, coarse, background), camera, microphone, storage/media, contacts and
+notifications plus the special accesses, and on every start asks for each runtime permission it does not hold, like
+a real app; it logs what it holds (`adb logcat -s PermTest`).
+
+`permissions-e2e.py` drives a REAL agent (Device Owner) through the console's API and checks the phone itself:
+
+- the three default policies reach the phone (`dumpsys device_policy`: permission policy 0 / 1 / 2) and the console
+  shows the one in force; the `config.apply` result carries the `permissions` outcome;
+- "grant all the app declares" in the policy, then a silent install from the console: `dumpsys package` shows every
+  runtime permission `granted=true` with `POLICY_FIXED` (background location and, on Android 13+,
+  `POST_NOTIFICATIONS` included), the app's own screen is in front (no `GrantPermissionsActivity`) and its log says
+  `missing=0 asked=0`;
+- a per-device rule denies the camera (`granted=false`, `POLICY_FIXED`), "ask" releases it, removing the device
+  rule brings the policy's grant back; "ask" after a grant of the MDM takes the permission back;
+- an app installed by hand BEFORE the rule gets its permissions when the rule arrives; a rule removed while the app
+  is uninstalled does not leave anything fixed when the app comes back (Android 14+ re-applies it on its own);
+- with "grant all" and no rule, the app asks and Android grants with no dialog;
+- special accesses: battery protection through `setUserControlDisabledPackages`, "needs a tap" for all files /
+  overlay / unknown sources, `device.permissionScreen` opens the exact Settings screen, and once the access is turned
+  on (the tap is simulated with `appops set`) the console shows it active;
+- the policy and the grants survive an agent restart.
+
+`permissions-console-e2e.mjs` checks the console in headless Chromium with a scripted phone: the policy editor (no
+dead options, 13 permission rows, 8 special accesses, what is saved and what the phone receives), the device's
+«Permisos» tab (effective policy, real state per app, per-device rules, «Abrir en el teléfono», CSV), the Android 12+
+"this phone does not let the administrator grant sensor permissions" warning, and the "update the agent" notice.
+
+### Results (2026-11-27, isolated dev stack, debug agent built from this branch after merging `integration/mobicontrol`)
+
+| What | Result |
+|---|---|
+| `permissions-e2e.py`, emulator Android 10 (API 29) | 67/67 |
+| `permissions-e2e.py`, emulator Android 15 (API 35) | 76/76 |
+| `permissions-e2e.py`, emulator Android 16 (API 36) | 76/76 |
+| `permissions-console-e2e.mjs`, headless Chromium | 44/44 |
+
+Notes from the runs:
+
+- Android 14+ prints the permission policy in `dumpsys device_policy` (`Permission policy: {0=1}`); Android 10 does
+  not, so there the script reads it from `/data/system/device_policies.xml` through the emulator's root shell (on a
+  phone without root that check is skipped and the agent's own report is used).
+- Android 10 does not let an app read another app's app-ops: overlay / write settings / unknown sources are reported
+  as "Android does not let it be read" there; from Android 11 they are read.
+- Android 14+ keeps a permission fixed by the Device Owner across an uninstall and re-applies it when the app comes
+  back; the agent releases it then if its rule is gone (step 6b).
+- With "grant all", Android 16 on a loaded machine took ~10 s to answer the app's request (its permission activity
+  passes by with no dialog); the script waits for it instead of sampling once.
+- Not covered by an emulator: a phone provisioned with the "administrator may not grant sensor permissions" opt-out
+  (`dpm set-device-owner` cannot set it; covered by the planner's unit tests and the console test with a scripted
+  phone), and Android 7 or older (`setSecureSetting(INSTALL_NON_MARKET_APPS)` for unknown sources).
+
 ## Hardware y puertos (MDM-12)
 
 `scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the

@@ -1,3 +1,4 @@
+import { PolicyPermissionsPanel } from '../components/PolicyPermissionsPanel';
 import { DcPolicyPanel, parseDcPolicy, serializeDcPolicy, type DcPolicy } from '../components/DcPolicyPanel';
 import { HardwarePolicyPanel } from '../components/HardwarePolicyPanel';
 import { listAppVersions, listPolicyDowngrades, listVersionLabels, setPolicyDowngrade, topCode, type LabeledVersion } from '../api/versions';
@@ -714,6 +715,9 @@ function ConfigEditor({
 
       <DcPolicyPanel value={draft.dcPolicy} disabled={readOnly} onChange={(v) => set('dcPolicy', v)}
         apps={allowed.filter((a) => !!a.pkg && a.action !== 2).map((a) => ({ pkg: a.pkg as string, name: a.name }))} />
+
+      <PolicyPermissionsPanel value={draft.dcPolicy} apps={allowed} defaultOption={draft.appPermissions as string | undefined}
+        disabled={readOnly} onChange={(v) => set('dcPolicy', v)} />
 
       <HardwarePolicyPanel draft={draft} disabled={readOnly} set={set} />
 

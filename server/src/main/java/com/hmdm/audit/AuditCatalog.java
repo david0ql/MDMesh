@@ -538,6 +538,8 @@ public final class AuditCatalog {
         COMMAND_LABELS.put("device.openstore", "abrir tienda de aplicaciones");
         COMMAND_LABELS.put("device.systemupdate", "actualización del sistema");
         COMMAND_LABELS.put("device.storageaccess", "acceso al almacenamiento");
+        COMMAND_LABELS.put("device.permissionscreen", "abrir pantalla de acceso especial de una app");
+        COMMAND_LABELS.put("device.permissionscan", "aplicar y reportar permisos de apps");
         COMMAND_LABELS.put("device.storagescan", "análisis de almacenamiento");
         COMMAND_LABELS.put("device.storageclean", "limpieza de almacenamiento");
         COMMAND_LABELS.put("device.clearcache", "borrado de caché");

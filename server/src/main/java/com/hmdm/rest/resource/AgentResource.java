@@ -583,6 +583,18 @@ public class AgentResource {
                     logger.warn("Could not store the app usage of {}: {}", deviceNumber, e.getMessage());
                 }
             }
+            // The permission report (state of every managed app) goes to its own table too.
+            if (dyn != null && dyn.isObject() && dyn.has("permissions")) {
+                JsonNode report = ((com.fasterxml.jackson.databind.node.ObjectNode) dyn).remove("permissions");
+                try {
+                    String json = report == null || !report.isObject() ? null : report.toString();
+                    if (json != null && json.length() <= MAX_TELEMETRY_CHARS && device.getId() != null) {
+                        commandDAO.setDevicePermissionReport(device.getId(), json);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Could not store the permission report of {}: {}", deviceNumber, e.getMessage());
+                }
+            }
             // An authenticated device can still be hostile/buggy: cap the stored blob so a single
             // client can't bloat device_state via the 5s foreground poll.
             String telJson = tel == null ? null : tel.toString();
