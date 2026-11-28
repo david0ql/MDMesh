@@ -38,7 +38,9 @@ import { AuditActivity } from '../components/AuditActivity';
 import { useAuth } from '../auth/AuthContext';
 import { hasPermission } from '../api/auth';
 
-type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'activity' | 'permissions';
+import { HardwarePanel } from '../components/HardwarePanel';
+
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'activity' | 'hardware' | 'permissions';
 
 interface Row {
   k: string;
@@ -525,6 +527,9 @@ export function DeviceDetailPage() {
             <button className={tab === 'permissions' ? 'on' : ''} onClick={() => setTab('permissions')}>
               Permisos
             </button>
+            <button className={tab === 'hardware' ? 'on' : ''} onClick={() => setTab('hardware')} data-testid="tab-hardware">
+              Restricciones
+            </button>
           </div>
 
           <div className="tabbody">
@@ -549,6 +554,7 @@ export function DeviceDetailPage() {
             {tab === 'location' && <LocationPanel device={device} />}
             {tab === 'activity' && canSeeAudit && <AuditActivity device={device.number} />}
             {tab === 'permissions' && <DevicePermissionsPanel device={device} />}
+            {tab === 'hardware' && <HardwarePanel device={device} />}
           </div>
         </section>
       </div>

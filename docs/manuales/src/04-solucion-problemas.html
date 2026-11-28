@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Solución de problemas</title>
+<meta name="doc-titulo" content="Solución de problemas">
+<meta name="doc-subtitulo" content="Por cada síntoma: la causa probable, cómo verificarla en la consola y cómo resolverla. Incluye preguntas frecuentes.">
+<meta name="doc-publico" content="Administradores de la consola, mesa de ayuda y técnicos de campo">
+<meta name="doc-etiqueta" content="Guía de resolución de errores">
+<!--ESTILOS-->
+<style>table.sp td:first-child{font-weight:500;color:var(--ink)} table.sp{font-size:8.2pt;line-height:11pt}</style>
+</head><body>
+<!--PORTADA-->
+
+<section class="sec pb" id="contenido">
+  <p class="k">Contenido</p>
+  <h1>Qué contiene esta guía</h1>
+  <p class="lead">Cada capítulo parte de lo que el administrador ve: un estado, un mensaje o algo que no ocurre. Las tablas dicen dónde mirar en {{PRODUCTO}} para confirmar la causa antes de cambiar nada.</p>
+  <!--INDICE-->
+  <div class="callout"><b>Antes de reportar un caso a soporte.</b> Anote el número del equipo, la hora, el texto exacto del mensaje y lo que muestran la tarjeta <span class="ui">Última falla de conexión</span> y la pestaña <span class="ui">Eventos</span> de ese equipo.</div>
+</section>
+
+<section class="sec pb" id="diagnostico" data-temas="diagnóstico, por dónde empezar, última falla de conexión, eventos, estado de la política, historial de órdenes">
+  <p class="k">1 · Dónde mirar primero</p>
+  <h1>La ficha del equipo responde cuatro preguntas antes de cualquier cambio</h1>
+  <p>Abra <span class="ui">Dispositivos</span>, busque el equipo y entre a su ficha. Estas cuatro zonas cubren la mayoría de los casos.</p>
+  <table>
+    <thead><tr><th style="width:44mm">Pregunta</th><th style="width:60mm">Dónde</th><th>Qué dice</th></tr></thead>
+    <tbody>
+      <tr><td>¿El equipo se comunica?</td><td>Encabezado de la ficha y botón <span class="ui">Actualizar ahora</span></td><td>En línea, En reposo con su motivo, o Sin conexión, y hace cuánto reportó.</td></tr>
+      <tr><td>¿Por qué se cortó?</td><td>Tarjeta <span class="ui">Última falla de conexión</span></td><td>La falla de red, en qué red estaba y la causa del último corte.</td></tr>
+      <tr><td>¿Recibió la política?</td><td>Tarjeta <span class="ui">Estado de la política</span></td><td>Sincronizado, Aplicando…, Falló al aplicar, o Agente desactualizado, con el resultado por sección.</td></tr>
+      <tr><td>¿Qué pasó con la orden?</td><td>Pestaña <span class="ui">Control</span>, historial de órdenes</td><td>Creada, Entregada y Completada, con hora, latencia y número de entregas.</td></tr>
+    </tbody>
+  </table>
+  <div class="fig">
+    <img src="img/a09-dispositivo-detalle.jpg" alt="Ficha de un dispositivo">
+    <p class="cap">Figura 1. Ficha de un dispositivo. A la izquierda, estado, datos del equipo y tarjetas de política y conexión; a la derecha, las pestañas.</p>
+  </div>
+
+  <h2>Cómo leer «Última falla de conexión»</h2>
+  <p>El agente guarda la última falla de red y la envía en su siguiente reporte. La tarjeta muestra estas filas:</p>
+  <table>
+    <thead><tr><th style="width:44mm">Fila</th><th>Qué contiene</th></tr></thead>
+    <tbody>
+      <tr><td><span class="ui">Falla</span></td><td>El tipo de falla, con el texto de la tabla siguiente.</td></tr>
+      <tr><td><span class="ui">Cuándo</span></td><td>Fecha y número de intentos.</td></tr>
+      <tr><td><span class="ui">Red del equipo</span></td><td>Wi-Fi con el nombre de la red, Datos móviles, Sin red u otra.</td></tr>
+      <tr><td><span class="ui">Canal</span></td><td>Canal en vivo (WebSocket) o Reporte (HTTPS), y el servidor al que iba.</td></tr>
+      <tr><td><span class="ui">Emisor del certificado</span></td><td>Quién firmó el certificado que presentó la red, cuando la falla fue de certificado.</td></tr>
+      <tr><td><span class="ui">Último corte</span> y <span class="ui">Desde</span></td><td>La causa del último periodo sin comunicación, cuándo empezó y cuánto duró.</td></tr>
+      <tr><td><span class="ui">Servidor</span></td><td>La dirección en uso, si es la de respaldo, y el número de reconexiones.</td></tr>
+    </tbody>
+  </table>
+  <table class="sp">
+    <thead><tr><th style="width:66mm">Texto de «Falla»</th><th style="width:46mm">Causa habitual</th><th>Qué revisar</th></tr></thead>
+    <tbody>
+      <tr><td>No se pudo resolver el dominio (DNS)</td><td>Filtro de nombres o DNS interno</td><td>Permitir y resolver el dominio del servidor en esa red.</td></tr>
+      <tr><td>Certificado TLS rechazado (posible inspección TLS de la red)</td><td>La red inspecciona el tráfico cifrado</td><td>Mire <span class="ui">Emisor del certificado</span>: si es el firewall, excluya el dominio de la inspección.</td></tr>
+      <tr><td>Tiempo de espera agotado</td><td>Puerto 443 filtrado o Wi-Fi sin salida a internet</td><td>Regla de salida al 443; cobertura del Wi-Fi.</td></tr>
+      <tr><td>No se pudo abrir la conexión (puerto 443 bloqueado o conexión cortada)</td><td>Lo mismo</td><td>Lo mismo. Si ocurre solo en una red, el problema es esa red.</td></tr>
+      <tr><td>WebSocket rechazado (HTTP código)</td><td>Un proxy no permite el paso a WebSocket</td><td>Permitir WebSocket hacia el dominio.</td></tr>
+      <tr><td>El servidor o un intermediario respondió HTTP código</td><td>Código 407: proxy con autenticación. Códigos 5xx: falla del servicio</td><td>Salida directa para el dominio; con 5xx, avise al operador.</td></tr>
+      <tr><td>Error de red</td><td>Corte genérico</td><td>Mire <span class="ui">Último corte</span> y la red del equipo.</td></tr>
+    </tbody>
+  </table>
+  <table class="sp">
+    <thead><tr><th style="width:66mm">Texto de «Último corte»</th><th>Qué significa</th></tr></thead>
+    <tbody>
+      <tr><td>Apagado o reinicio del equipo</td><td>Alguien lo apagó o reinició. Es normal.</td></tr>
+      <tr><td>El equipo se quedó sin energía (batería agotada o apagado forzado)</td><td>Se descargó o lo apagaron manteniendo el botón.</td></tr>
+      <tr><td>El equipo se quedó sin red</td><td>Sin cobertura, sin saldo de datos o Wi-Fi fuera de alcance.</td></tr>
+      <tr><td>El sistema cerró el agente</td><td>Android o el gestor de batería del fabricante cerró el agente.</td></tr>
+      <tr><td>El sistema mantuvo el agente dormido (ahorro de batería)</td><td>El ahorro de batería retrasó los reportes.</td></tr>
+      <tr><td>Había red, pero no se pudo llegar al servidor</td><td>La red filtra el servicio. Revise la fila <span class="ui">Falla</span>.</td></tr>
+      <tr><td>Sin causa identificada</td><td>El agente no pudo determinarla.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Si la tarjeta dice «Sin fallas reportadas», el agente de ese equipo es anterior a esta función: actualícelo. Los mismos datos quedan en la pestaña <span class="ui">Eventos</span> como «Falla de conexión» y «Corte de conexión», con fecha y hora.</p>
+
+  <h2>Cómo leer el diagnóstico del dispositivo</h2>
+  <p>La pestaña <span class="ui">Diagnóstico</span> toma una foto del estado del teléfono. Pulse <span class="ui">Diagnosticar ahora</span>; el resultado tarda hasta 60 segundos y exige que el equipo esté en línea.</p>
+  <table>
+    <thead><tr><th style="width:56mm">Sección</th><th>Para qué sirve</th></tr></thead>
+    <tbody>
+      <tr><td>Tabla de estado</td><td>Qué suena ahora, llamada en curso, modo de sonido, próxima alarma, pantalla, quiosco y si el agente tiene acceso a las notificaciones.</td></tr>
+      <tr><td>Sonidos recientes</td><td>Qué sonó, cuándo y la aplicación probable. Útil cuando «el teléfono suena solo».</td></tr>
+      <tr><td>Notificaciones en el teléfono</td><td>Las notificaciones presentes, con botones para abrirlas o descartarlas a distancia.</td></tr>
+      <tr><td>Cuándo se detuvo {{PRODUCTO}}</td><td>Las veces que Android cerró el agente y por qué. Disponible desde Android 11.</td></tr>
+      <tr><td>Apps que pasaron al frente (últimos 30 min)</td><td>Qué aplicaciones se abrieron.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">El botón <span class="ui">Silenciar 10 min</span> calla el equipo mientras se investiga. Si el diagnóstico responde «El teléfono no respondió en un minuto», el equipo está sin conexión o su agente es muy antiguo; la orden queda en cola.</p>
+</section>
+
+<section class="sec pb" id="enrolamiento" data-temas="enrolamiento, inscripción, QR no funciona, intentos de inscripción, no aparece en la consola">
+  <p class="k">2 · Enrolamiento</p>
+  <h1>Si un equipo no se inscribe, el panel de intentos dice en qué paso se detuvo</h1>
+  <p>El panel <span class="ui">Intentos de inscripción</span>, al pie de <span class="ui">Inscribir</span>, registra la descarga del agente y cada inscripción aceptada o rechazada. La «Guía de enrolamiento» trae la lista completa de motivos.</p>
+  <table class="sp">
+    <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>El lector de QR no abre con 6 toques</td><td>El equipo no está recién formateado, o es Android 6</td><td>Versión de Android del equipo; si ya pasó la bienvenida</td><td>Restablecer de fábrica. Android 6: inscribir por cable.</td></tr>
+      <tr><td>«No se puede configurar el dispositivo» tras escanear</td><td>Wi-Fi sin internet o con portal; fecha de fábrica</td><td>El panel no muestra ni la descarga de ese equipo</td><td>Usar una red sin portal y escanear el QR desde la pantalla de la consola.</td></tr>
+      <tr><td>El panel muestra «Descargó el agente» y nada más</td><td>Android no instaló el agente o no lo dejó como propietario</td><td>Pista del panel a los 5 minutos</td><td>Confirmar equipo recién formateado y sin cuenta previa. En Android 15 y 16, inscribir por cable.</td></tr>
+      <tr><td>«El QR ya lo usó otro equipo» o «El código venció»</td><td>QR de un solo uso consumido o con más de 24 horas</td><td>Columna «Resultado» del panel</td><td><span class="ui">Nuevo código</span>, o un código de carpeta.</td></tr>
+      <tr><td>«Código desconocido o revocado»</td><td>Código revocado o configuración Zero-Touch o KME vieja</td><td>Pestaña <span class="ui">Códigos de carpeta</span></td><td>Crear un código nuevo y actualizar el portal.</td></tr>
+      <tr><td>«Fecha y hora del teléfono incorrectas»</td><td>El equipo arrancó con la fecha de fábrica</td><td>Fecha en el teléfono</td><td>Escanear el QR de la pantalla, que lleva la hora, o corregir la fecha.</td></tr>
+      <tr><td>«Administrado (Device Owner) pero sin código de inscripción»</td><td>El asistente no entregó el código al agente</td><td>El teléfono muestra la notificación «Este equipo aún no está inscrito»</td><td>En el teléfono: app DallyControl, <span class="ui">Escanear el QR de la consola</span>, o escribir un código de carpeta. Sin formatear.</td></tr>
+      <tr><td>El teléfono pide la cuenta de Google anterior</td><td>Protección contra restablecimiento</td><td>Pantalla «Verifica tu cuenta»</td><td>Entrar con esa cuenta, quitarla en Ajustes y restablecer de nuevo.</td></tr>
+      <tr><td>El equipo aparece dos veces</td><td>Se inscribió de nuevo y quedó la ficha antigua</td><td>Chip <span class="ui">⚠ Duplicados</span> en Dispositivos</td><td>Eliminar la fila que ya no reporta.</td></tr>
+      <tr><td>Con cable: «No se pudo poner como Device Owner»</td><td>El equipo tiene una cuenta</td><td>Ajustes, Cuentas</td><td>Quitar todas las cuentas, usuarios secundarios y perfiles de trabajo.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="conexion" data-temas="sin conexión, en reposo, equipo no reporta, desconectado, apagado, ahorro de batería, siempre conectado">
+  <p class="k">3 · Equipo «Sin conexión» o «En reposo»</p>
+  <h1>«En reposo» es normal; «Sin conexión» pide revisar la red o el equipo</h1>
+  <table>
+    <thead><tr><th style="width:30mm">Estado</th><th>Cuándo aparece</th><th style="width:52mm">Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot" style="background:var(--ok)"></span>En línea</td><td>Canal en vivo abierto, o reportó en los últimos 20 minutos.</td><td>Nada.</td></tr>
+      <tr><td><span class="dot" style="background:var(--warn)"></span>En reposo</td><td>Más de 20 minutos sin reportar con causa conocida: «Equipo apagado» (hasta 72 horas), «Batería agotada» o «Pantalla apagada» (hasta 16 horas).</td><td>Esperar al siguiente turno. Las órdenes quedan en cola.</td></tr>
+      <tr><td><span class="dot" style="background:var(--bad)"></span>Sin conexión</td><td>Más de 20 minutos sin reportar y nada lo explica, o se superaron esos plazos.</td><td>Seguir la tabla siguiente.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">En la vista de lista, la columna <span class="ui">Estado</span> escribe «Apagado» para un equipo que no está en línea. El chip <span class="ui">Sin conexión</span> de los filtros cuenta también los equipos en reposo.</p>
+  <table class="sp">
+    <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>Un equipo sin conexión, el resto bien</td><td>Apagado, sin datos, sin cobertura</td><td><span class="ui">Último corte</span> en la tarjeta de conexión</td><td>Contactar al usuario. No es una falla del servicio.</td></tr>
+      <tr><td>Los equipos de una sede aparecen sin conexión mientras están en su Wi-Fi</td><td>La red de la sede filtra o inspecciona el tráfico</td><td><span class="ui">Falla</span> y <span class="ui">Emisor del certificado</span>; coincide la red en varios equipos</td><td>Aplicar los requisitos de red y probar con <code>scripts/prueba-red.sh</code>.</td></tr>
+      <tr><td>El equipo reporta, pero las órdenes tardan minutos</td><td>WebSocket bloqueado; el canal en vivo no abre</td><td><span class="ui">Falla</span>: «WebSocket rechazado»</td><td>Permitir WebSocket hacia el dominio.</td></tr>
+      <tr><td>Muchas reconexiones, sin fallas</td><td>El firewall corta conexiones inactivas</td><td>Fila <span class="ui">Servidor</span>: número de reconexiones</td><td>Tiempo de inactividad de 120 segundos o más para el dominio.</td></tr>
+      <tr><td>Se desconecta con la pantalla apagada</td><td>El ahorro de batería del fabricante duerme el agente</td><td><span class="ui">Último corte</span>: «El sistema mantuvo el agente dormido»; fila <span class="ui">Conectividad</span>: «Ahorro de batería»</td><td>En la pestaña <span class="ui">Remoto</span>, <span class="ui">Activar Siempre conectado</span>. En el teléfono, quitar la restricción de batería del agente.</td></tr>
+      <tr><td>«El sistema cerró el agente» repetido</td><td>El gestor de batería del fabricante cierra aplicaciones</td><td>Pestaña <span class="ui">Diagnóstico</span>, «Cuándo se detuvo»</td><td>En el teléfono, permitir el inicio automático y la batería sin restricciones para el agente.</td></tr>
+      <tr><td>Muchos equipos dejan de reportar a la vez</td><td>Falla del servicio o del acceso</td><td>Página de estado del servicio</td><td>Avisar al operador. Ver «Operación, soporte y nivel de servicio».</td></tr>
+      <tr><td>«Datos de hace…» antiguos con el equipo en línea</td><td>El equipo aún no envía un reporte completo</td><td>Botón <span class="ui">Actualizar ahora</span></td><td>Pulsarlo: el equipo reporta en segundos si tiene el canal en vivo.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="ordenes" data-temas="comandos que no llegan, órdenes, pendiente, vencido, fallido, no soportado, cancelar, bloquear, reiniciar, borrar">
+  <p class="k">4 · Órdenes que no llegan</p>
+  <h1>Una orden en «Pendiente» espera al equipo; no hay que enviarla de nuevo</h1>
+  <p>El historial de la pestaña <span class="ui">Control</span> muestra cada orden con tres pasos: Creada, Entregada y Completada. El estado dice dónde está.</p>
+  <table>
+    <thead><tr><th style="width:30mm">Estado</th><th>Qué significa</th><th style="width:60mm">Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Pendiente</td><td>El servidor la tiene; el equipo aún no la recibe. La consola agrega «En cola: se ejecutará cuando el equipo vuelva a conectarse.»</td><td>Esperar. Si ya no se necesita, <span class="ui">Cancelar</span>.</td></tr>
+      <tr><td>Entregado</td><td>El equipo la recibió y aún no confirma el resultado.</td><td>Esperar. El servidor la reentrega sola si no hay respuesta.</td></tr>
+      <tr><td>Ejecutado</td><td>El equipo confirmó.</td><td>Nada.</td></tr>
+      <tr><td>Fallido</td><td>El equipo intentó y no pudo. El detalle lo escribe el equipo.</td><td>Leer el detalle con «ver más».</td></tr>
+      <tr><td>No soportado</td><td>El agente de ese equipo no conoce esa orden, o la versión de Android no la admite.</td><td>Actualizar el agente.</td></tr>
+      <tr><td>Vencido</td><td>Pasó el plazo de esa orden sin entrega o sin respuesta.</td><td>Enviarla de nuevo con el equipo en línea.</td></tr>
+      <tr><td>Cancelado</td><td>Un usuario la canceló.</td><td>Nada.</td></tr>
+    </tbody>
+  </table>
+  <table class="sp">
+    <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>Aviso «en cola — El equipo no tiene enlace ahora»</td><td>El equipo no tiene el canal en vivo abierto</td><td>Estado del equipo en el encabezado</td><td>La orden se ejecuta al reconectar. Revisar el capítulo 3 si ocurre siempre.</td></tr>
+      <tr><td>La orden se ejecuta minutos después</td><td>Sin canal en vivo, llega con el reporte periódico</td><td>Latencia entre Creada y Entregada</td><td>Permitir WebSocket; usar el modo Siempre conectado.</td></tr>
+      <tr><td>«entregada N veces»</td><td>El equipo la recibió y no respondió a tiempo</td><td>Línea bajo la orden</td><td>Ninguna si terminó en Ejecutado. El equipo no la ejecuta dos veces.</td></tr>
+      <tr><td>Reiniciar termina en Vencido</td><td>El equipo estuvo más de 24 horas sin conexión</td><td>Fechas de la orden</td><td>Reenviar con el equipo en línea.</td></tr>
+      <tr><td>Cambiar clave no surte efecto</td><td>El equipo ya tenía clave antes de inscribirse</td><td>Descripción de la acción</td><td>Desbloquearlo una vez con la clave actual; después el cambio remoto funciona.</td></tr>
+      <tr><td>No aparecen Bloquear, Reiniciar ni Restablecer de fábrica</td><td>Al usuario le falta el permiso de acciones que interrumpen</td><td><span class="ui">Roles</span>, fila «Acciones que interrumpen»</td><td>Asignar un rol con ese permiso.</td></tr>
+      <tr><td>El borrado remoto no se ofrece para varios equipos</td><td>Protección: el borrado nunca se envía en masa</td><td>—</td><td>Enviarlo equipo por equipo desde su pestaña <span class="ui">Control</span>.</td></tr>
+      <tr><td>No se puede cancelar</td><td>La orden ya terminó, venció o se canceló</td><td>Estado de la orden</td><td>Nada: solo se cancelan órdenes en Pendiente o Entregado.</td></tr>
+      <tr><td>El aviso muestra un texto que empieza por «error.»</td><td>El servidor rechazó la petición y la consola muestra su código</td><td>Tabla de códigos al final de esta guía</td><td>Según el código.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Cancelar una orden ya entregada evita que se reenvíe, pero el equipo pudo haberla ejecutado; la consola lo advierte. El reporte <span class="ui">Latencia de comandos</span> resume por tipo de orden cuánto tardan en entregarse y ejecutarse; el reporte <span class="ui">Sin recibir comandos</span> lista los equipos con órdenes antiguas en cola.</p>
+</section>
+
+<section class="sec pb" id="apps" data-temas="instalación de apps, aplicaciones, fallida, retenida, motivo de fallo, firma, espacio, subida por partes, APK">
+  <p class="k">5 · Instalación de aplicaciones</p>
+  <h1>La ventana «Instalación en la flota» da el motivo de cada equipo</h1>
+  <p>En <span class="ui">Aplicaciones</span>, el botón <span class="ui">Instalación</span> de una aplicación abre <span class="ui">Instalación en la flota</span>. Cada equipo aparece como Instalada, Pendiente, Instalando, Retenida, Fallida o Sin orden. Los filtros de arriba aíslan cada grupo y <span class="ui">Exportar CSV</span> entrega la lista.</p>
+  <div class="fig">
+    <img src="img/a15-instalacion-flota.jpg" alt="Ventana Instalación en la flota">
+    <p class="cap">Figura 2. Ventana «Instalación en la flota» de una aplicación, con el estado y el motivo por equipo.</p>
+  </div>
+  <h2>Fallas que el servidor reintenta solo</h2>
+  <p>Reintenta a los 10 minutos, 30 minutos, 2 horas, 6 horas y 24 horas. Después de 5 intentos deja de reintentar y hay que pulsar <span class="ui">Reintentar</span>.</p>
+  <table class="sp">
+    <thead><tr><th style="width:84mm">Motivo que muestra la consola</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>No hay espacio suficiente en el equipo.</td><td>Liberar almacenamiento: pestaña <span class="ui">Almacenamiento</span>, botón <span class="ui">Analizar</span>.</td></tr>
+      <tr><td>El archivo descargado llegó dañado (su SHA-256 no coincide).</td><td>Esperar: se descarga de nuevo. Si se repite en todos los equipos, subir otra vez la versión.</td></tr>
+      <tr><td>El equipo no pudo descargar el APK (sin conexión o conexión inestable).</td><td>Revisar la red del equipo.</td></tr>
+      <tr><td>Android no respondió a la instalación a tiempo. / El sistema del equipo canceló la instalación.</td><td>Esperar el reintento.</td></tr>
+      <tr><td>La orden venció sin que el equipo la recibiera o respondiera.</td><td>El equipo estuvo apagado o sin conexión. Pulsar <span class="ui">Reintentar</span> cuando vuelva.</td></tr>
+    </tbody>
+  </table>
+  <h2>Fallas que exigen corregir la causa</h2>
+  <table class="sp">
+    <thead><tr><th style="width:84mm">Motivo que muestra la consola</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>La firma del APK no coincide con la de la versión instalada en el equipo.</td><td>Subir el archivo firmado con el mismo certificado, o desinstalar la aplicación del equipo antes de instalar esta.</td></tr>
+      <tr><td>La app choca con otra ya instalada en el equipo.</td><td>Desinstalar la existente, o subir el archivo con la firma original.</td></tr>
+      <tr><td>El equipo ya tiene una versión más nueva.</td><td>Subir una versión con código mayor, o elegir en la política volver a la anterior aceptando que se borran los datos de la aplicación.</td></tr>
+      <tr><td>El equipo pidió confirmación del usuario: el agente no es Device Owner.</td><td>Inscribir de nuevo el equipo como propietario del dispositivo.</td></tr>
+      <tr><td>El sistema del equipo (fabricante o Play Protect) bloqueó la instalación desde el MDM.</td><td>Revisar la protección de Google Play en ese equipo; reportar el modelo a soporte.</td></tr>
+      <tr><td>La app no es compatible con este equipo.</td><td>Versión de Android o procesador no admitidos, o faltan partes del paquete. Subir el archivo adecuado.</td></tr>
+      <tr><td>El APK es inválido o está dañado.</td><td>Generarlo y subirlo de nuevo.</td></tr>
+      <tr><td>El equipo no pudo descargar el APK (HTTP 4xx): el archivo ya no está en el servidor.</td><td>Subir de nuevo la versión.</td></tr>
+      <tr><td>El agente del equipo no reconoce la orden de instalación.</td><td>Actualizar el agente.</td></tr>
+    </tbody>
+  </table>
+  <h2>Retenidas y pendientes</h2>
+  <table class="sp">
+    <thead><tr><th style="width:84mm">Motivo que muestra la consola</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>El equipo no es Device Owner: la orden queda retenida y no se instalará.</td><td>Inscribir de nuevo el equipo: por QR tras restablecerlo, o con un computador.</td></tr>
+      <tr><td>El equipo todavía no ha reportado sus capacidades.</td><td>Esperar su primera conexión.</td></tr>
+      <tr><td>En cola: se entrega en la próxima conexión del equipo.</td><td>Esperar. La orden de instalación espera hasta 30 días.</td></tr>
+      <tr><td>La política asigna la app a este equipo, pero aún no se le ha enviado la orden de esta versión.</td><td>Guardar la política, o pulsar <span class="ui">Enviar ahora</span>.</td></tr>
+    </tbody>
+  </table>
+  <h2>Subir el archivo</h2>
+  <table class="sp">
+    <thead><tr><th style="width:52mm">Síntoma</th><th style="width:50mm">Causa probable</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«No se pudo subir la parte… Vuelve a elegir el mismo archivo para continuar desde donde quedó.»</td><td>Se cortó la conexión durante la subida</td><td>Elegir de nuevo el mismo archivo: la subida continúa. La subida incompleta se conserva 24 horas.</td></tr>
+      <tr><td>«El archivo supera el máximo de 4 GB.»</td><td>Límite del producto</td><td>Reducir el archivo.</td></tr>
+      <tr><td>«Los .aab no se pueden instalar»</td><td>Es un paquete para la tienda, no instalable</td><td>Generar un APK universal o un paquete dividido y subir ese.</td></tr>
+      <tr><td>«⚠ La firma del APK cambió»</td><td>La versión nueva está firmada con otro certificado</td><td>Cancelar y subir el archivo con la firma original. Los equipos que ya tienen la aplicación rechazarían la nueva.</td></tr>
+      <tr><td>«Más antigua que la de la Biblioteca»</td><td>El código de versión es menor</td><td>Subir una versión con código mayor.</td></tr>
+      <tr><td>«Esa versión ya está en la Biblioteca»</td><td>El archivo es idéntico al ya alojado</td><td>Elegir esa versión en la política.</td></tr>
+      <tr><td>Chip «Sin APK» y la aplicación no se instala sola</td><td>Es una ficha de la tienda, sin archivo en el servidor</td><td>Botón <span class="ui">Obtener APK</span>, o subir el archivo en <span class="ui">APK propio</span>.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, no entra, no sale, contraseña de salida, se cerró varias veces, Android 16">
+  <p class="k">6 · Quiosco</p>
+  <h1>El quiosco sigue a la política; un cambio se confirma en la ficha del equipo</h1>
+  <table class="sp">
+    <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>El equipo no entra al quiosco</td><td>La política no se ha aplicado</td><td>Tarjeta <span class="ui">Estado de la política</span></td><td><span class="ui">Sincronizar ahora</span>. Si dice «Agente desactualizado», actualizar el agente.</td></tr>
+      <tr><td>«El teléfono aún no confirma»</td><td>El equipo está bloqueado o sin canal en vivo</td><td>Estado del equipo</td><td>Se aplica en su próxima conexión.</td></tr>
+      <tr><td>Muestra una cuadrícula en vez de una sola aplicación</td><td>Hay más de una aplicación visible, un grupo «En quiosco» o una función marcada</td><td>Política: <span class="ui">Apps permitidas</span>, grupos y <span class="ui">Funciones del quiosco</span></td><td>Dejar solo la aplicación principal como visible en quiosco y sin funciones.</td></tr>
+      <tr><td>La aplicación principal no abre; aparece la cuadrícula</td><td>La aplicación fijada no está instalada</td><td>Pestaña <span class="ui">Aplicaciones</span> del equipo</td><td>Agregarla a <span class="ui">Apps permitidas</span> con acción Instalar.</td></tr>
+      <tr><td>Falta una aplicación en el quiosco</td><td>No está marcada «En quiosco», o está en «Ocultar del quiosco»</td><td>Fila de la aplicación en la política</td><td>Marcar la casilla y guardar.</td></tr>
+      <tr><td>«…se cerró varias veces seguidas, así que no se volvió a abrir sola.»</td><td>La aplicación falla al abrir; el agente evita un ciclo</td><td>Mensaje en el teléfono; evento en la ficha</td><td>Tocar «Abrir» en el teléfono; revisar la aplicación con su proveedor.</td></tr>
+      <tr><td>No se puede salir desde el teléfono</td><td>El gesto no se hizo completo, o falta la contraseña</td><td>Política: «Botón Salir del quiosco» y contraseña</td><td>7 toques seguidos en la esquina superior derecha. Desde la consola, <span class="ui">Quitar quiosco</span> funciona siempre.</td></tr>
+      <tr><td>Cualquiera sale del quiosco</td><td>La política no tiene contraseña de salida</td><td>Política, grupo Seguridad</td><td>Definir la contraseña y guardar.</td></tr>
+      <tr><td>En Android 16 los botones de la barra no obedecen a la política</td><td>En esa versión el agente usa un quiosco propio, sin el bloqueo del sistema</td><td>Versión de Android del equipo</td><td>Es el comportamiento previsto en Android 16.</td></tr>
+      <tr><td>No se puede apagar el equipo</td><td>La política tiene clave para apagar</td><td>Política: «Antirrobo: clave para apagar»</td><td>Escribir la clave en el teléfono; el menú de apagado se abre 30 segundos.</td></tr>
+    </tbody>
+  </table>
+  <p class="pend">Llega con la integración del quiosco reforzado</p>
+  <p>La versión que se integra a continuación hace obligatoria la contraseña de salida, agrega una espera creciente tras intentos fallidos y muestra en la ficha el estado del refuerzo. Este capítulo se ampliará entonces.</p>
+</section>
+
+<section class="sec pb" id="ubicacion" data-temas="ubicación, geocercas, mapa, no reporta ubicación, alertas de zona, baja precisión">
+  <p class="k">7 · Ubicación y geocercas</p>
+  <h1>Sin posiciones precisas no hay recorrido ni alertas de zona</h1>
+  <table class="sp">
+    <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«Aún no ha reportado ubicación»</td><td>La política no rastrea, o el equipo no ha fijado posición</td><td>Política: <span class="ui">Reporte de ubicación</span> y <span class="ui">Ubicación cada</span></td><td>Elegir GPS o Red y un intervalo; guardar.</td></tr>
+      <tr><td>«Sin posiciones en este rango»</td><td>El rango no tiene datos, o el equipo estuvo dormido</td><td>Pestaña <span class="ui">Ubicación</span>, rango de fechas</td><td>Ampliar las fechas; enviar <span class="ui">Ubicación: precisa</span> desde Control.</td></tr>
+      <tr><td>Posiciones marcadas «baja precisión»</td><td>El equipo ubica por red, bajo techo o sin satélites</td><td>Precisión «±N m» de cada posición</td><td>Usar reporte por GPS. Ajustar <span class="ui">Precisión máxima aceptada</span> si la operación lo tolera.</td></tr>
+      <tr><td>La geocerca no alerta aunque el equipo salió</td><td>Posiciones imprecisas, fuera del horario de la zona, o zona inactiva</td><td>Chips de la zona en la pestaña <span class="ui">Ubicación</span>: dentro, fuera o sin evaluar</td><td>Revisar <span class="ui">Horario</span>, <span class="ui">Zona activa</span> y a quién aplica.</td></tr>
+      <tr><td>La alerta llega tarde</td><td>Se exigen posiciones de confirmación y el intervalo es largo</td><td><span class="ui">Posiciones de confirmación</span> y frecuencia de ubicación</td><td>Poner menos minutos en <span class="ui">Frecuencia de ubicación</span> de la zona. La alerta llega entre 1 y 2 intervalos después del cruce.</td></tr>
+      <tr><td>Alertas de un equipo parado junto al borde</td><td>Margen del borde pequeño</td><td><span class="ui">Margen del borde</span></td><td>Aumentarlo, o dibujar la zona con holgura.</td></tr>
+      <tr><td>Sin alerta para «Toda la flota» siendo usuario de carpetas</td><td>Solo un administrador completo asigna zonas a toda la flota</td><td>—</td><td>Asignar la zona a sus carpetas.</td></tr>
+      <tr><td>El mapa avisa que el rango tiene más posiciones de las que carga</td><td>Límite de la consulta</td><td>—</td><td>Acortar el rango o filtrar por carpeta.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Las zonas se evalúan en el servidor con cada posición que llega. Al reconectar, el equipo sube las posiciones acumuladas y el servidor las evalúa en orden, con la hora real de cada cruce.</p>
+</section>
+
+<section class="sec pb" id="remoto" data-temas="control remoto, no conecta, solo ver, pantalla negra, sesión remota, accesibilidad, Xiaomi">
+  <p class="k">8 · Control remoto</p>
+  <h1>La pestaña «Remoto» indica qué le falta al equipo antes de iniciar</h1>
+  <table class="sp">
+    <thead><tr><th style="width:52mm">Lo que muestra la consola</th><th style="width:46mm">Causa</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«Este dispositivo aún no tiene el soporte remoto»</td><td>Falta el componente de pantalla remota</td><td><span class="ui">Instalar soporte remoto</span>. Necesita Android 7 o superior.</td></tr>
+      <tr><td>Aviso «Solo ver»</td><td>El servicio de accesibilidad del soporte remoto está apagado en el teléfono</td><td><span class="ui">Abrir el ajuste en el teléfono</span> y que la persona lo active.</td></tr>
+      <tr><td>«Esperando a que el dispositivo se conecte…» por minutos</td><td>Equipo bloqueado y en ahorro de batería</td><td><span class="ui">Activar Siempre conectado</span>.</td></tr>
+      <tr><td>«El dispositivo no respondió en 6 minutos»</td><td>Sin conexión o dormido</td><td>Revisar el capítulo 3 y reintentar con el equipo en línea.</td></tr>
+      <tr><td>«El teléfono no tiene activado el servicio de entrada…»</td><td>Falta el permiso de control o la captura de pantalla</td><td>Pasar de nuevo el inscriptor de Windows por ese teléfono; no borra nada.</td></tr>
+      <tr><td>«…no arrancó a tiempo en el teléfono.»</td><td>El sistema cerró el componente en segundo plano</td><td>Reintentar con el teléfono desbloqueado.</td></tr>
+      <tr><td>«El sistema del teléfono (Xiaomi/HyperOS) cerró el soporte remoto en segundo plano.»</td><td>Gestor de batería del fabricante</td><td>En el teléfono: permitir el inicio automático y la batería sin restricciones para el soporte remoto.</td></tr>
+      <tr><td>«El teléfono no alcanzó el servidor de control remoto»</td><td>La red del equipo bloquea WebSocket</td><td>Revisar los requisitos de red.</td></tr>
+      <tr><td>Chip «Sin cifrar»</td><td>Agente anterior al túnel cifrado</td><td>Actualizar el agente.</td></tr>
+      <tr><td>«Visor no conectado»</td><td>Se pulsó una tecla antes de ver la pantalla</td><td>Esperar a que aparezca la pantalla.</td></tr>
+      <tr><td>«Sesión remota finalizada»</td><td>15 minutos sin actividad</td><td>Iniciar otra sesión.</td></tr>
+      <tr><td>El teléfono pide permiso para compartir la pantalla</td><td>Primera sesión en ese equipo</td><td>Quien lo tenga toca «Iniciar ahora».</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Una aplicación que protege su pantalla, como las bancarias, se ve en negro. El control remoto no puede saltar la clave de desbloqueo del equipo.</p>
+  <p class="pend">Llega con la integración del soporte remoto con voz</p>
+  <p>La versión que se integra a continuación agrega captura desde el propio agente, llamada de voz, chat, portapapeles y archivos, con sus propios mensajes de error. Este capítulo se ampliará entonces.</p>
+</section>
+
+<section class="sec pb" id="correo" data-temas="correo, SMTP, alertas por correo, no llegan correos, reportes programados, exportar, Excel, CSV">
+  <p class="k">9 · Correo y reportes</p>
+  <h1>Sin servidor de correo configurado, las alertas se registran pero no se envían</h1>
+  <p>El correo saliente lo configura el operador del servidor, no la consola. La pestaña <span class="ui">Notificaciones por correo</span> de <span class="ui">Geocercas</span> dice en su primer renglón si está configurado y trae el botón <span class="ui">Enviar prueba</span>.</p>
+  <table class="sp">
+    <thead><tr><th style="width:42mm">Síntoma</th><th style="width:44mm">Causa probable</th><th style="width:40mm">Cómo verificar</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«El servidor no tiene correo saliente (SMTP) configurado»</td><td>Faltan los datos de correo en el servidor</td><td>Aviso en Alertas, Geocercas y Envíos programados</td><td>Pedir al operador que los configure y reinicie el servidor.</td></tr>
+      <tr><td>«El servidor de correo rechazó el mensaje»</td><td>Usuario, clave, puerto o cifrado incorrectos, o remitente no autorizado</td><td><span class="ui">Enviar prueba</span></td><td>El operador revisa los datos de correo.</td></tr>
+      <tr><td>La prueba llega pero las alertas no</td><td>No hay destinatarios para esa carpeta o ese tipo de alerta</td><td>Tabla de destinatarios: columnas Carpeta, Alertas y Activa</td><td>Agregar destinatarios. Una regla sobre una carpeta cubre sus subcarpetas.</td></tr>
+      <tr><td>Llega un solo correo con varias alertas</td><td>Los correos se agrupan por intervalo</td><td><span class="ui">Intervalo de correos</span></td><td>Es lo previsto. Reducir el intervalo si se necesita.</td></tr>
+      <tr><td>No llegó una alerta antigua</td><td>No se envían alertas de más de 24 horas ni las ya revisadas</td><td>Página <span class="ui">Alertas</span></td><td>Consultarla en la consola.</td></tr>
+      <tr><td>Los correos llegan a no deseado</td><td>El dominio remitente no está autorizado</td><td>Cabeceras del correo</td><td>El operador ajusta el remitente y los registros del dominio.</td></tr>
+      <tr><td>Envío programado: «Sin SMTP» o «Falló»</td><td>Correo sin configurar o rechazado</td><td>Columna <span class="ui">Último envío</span></td><td>Corregir el correo y pulsar <span class="ui">Enviar ahora</span>.</td></tr>
+      <tr><td>El envío programado no salió a su hora</td><td>Está en pausa, o el servidor estuvo detenido</td><td>Chip «En pausa»; columna <span class="ui">Próximo</span></td><td><span class="ui">Reanudar</span>. Si el servidor estuvo detenido, lo envía una vez al volver.</td></tr>
+      <tr><td>El CSV se abre en una sola columna</td><td>Separador distinto al de la hoja de cálculo</td><td>—</td><td>Exportar con «Punto y coma», el habitual en español.</td></tr>
+      <tr><td>Celdas vacías en el inventario</td><td>El equipo no ha reportado ese dato o su agente es antiguo</td><td>Columna «Última muestra»</td><td><span class="ui">Actualizar ahora</span> en Dispositivos; actualizar el agente.</td></tr>
+      <tr><td>«Sin resultados para estos filtros.»</td><td>Filtros demasiado estrechos</td><td>Fechas y umbrales del reporte</td><td>Ampliarlos y pulsar <span class="ui">Actualizar</span>.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="consola" data-temas="consola, inicio de sesión, contraseña, bloqueo de cuenta, permisos, no veo el menú, códigos de error">
+  <p class="k">10 · Acceso a la consola</p>
+  <h1>Lo que un usuario no ve en el menú depende de su rol y de sus carpetas</h1>
+  <table class="sp">
+    <thead><tr><th style="width:46mm">Síntoma</th><th style="width:50mm">Causa probable</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«Usuario o contraseña incorrectos» con la clave correcta</td><td>Cuenta bloqueada por 5 intentos fallidos</td><td>Esperar 5 minutos; cada fallo adicional duplica la espera, hasta 30.</td></tr>
+      <tr><td>Olvidó la contraseña</td><td>—</td><td>Un administrador la cambia en <span class="ui">Usuarios</span>, <span class="ui">Editar</span>. El usuario define la suya al entrar.</td></tr>
+      <tr><td>«No se puede conectar con el servidor.»</td><td>El servicio no responde o no hay internet</td><td>Probar otra red; consultar la página de estado.</td></tr>
+      <tr><td>Falta una entrada del menú</td><td>El rol no tiene ese permiso</td><td><span class="ui">Roles</span>, botón <span class="ui">Qué puede hacer</span>.</td></tr>
+      <tr><td>No ve equipos que existen</td><td>Están fuera de sus carpetas</td><td><span class="ui">Usuarios</span>, columna <span class="ui">Carpetas</span>.</td></tr>
+      <tr><td>La consola pide iniciar sesión de nuevo</td><td>Sesión vencida por inactividad, o hubo una actualización del servicio</td><td>Iniciar sesión.</td></tr>
+      <tr><td>Aviso «La nueva consola … ya está disponible»</td><td>Se publicó una versión nueva</td><td><span class="ui">Recargar</span>.</td></tr>
+    </tbody>
+  </table>
+  <h2>Códigos que la consola muestra tal como los envía el servidor</h2>
+  <table class="sp">
+    <thead><tr><th style="width:74mm">Código</th><th>Qué significa</th></tr></thead>
+    <tbody>
+      <tr><td><code>error.permission.denied</code></td><td>El rol del usuario no permite esa acción.</td></tr>
+      <tr><td><code>error.agent.command.bulkForbidden</code></td><td>Esa orden no se puede enviar a varios equipos a la vez.</td></tr>
+      <tr><td><code>error.agent.command.notCancellable</code></td><td>La orden ya terminó, venció o se canceló.</td></tr>
+      <tr><td><code>error.agent.device.unknown</code></td><td>El equipo ya no existe o está fuera del alcance del usuario.</td></tr>
+      <tr><td><code>error.agent.remote.unsupported</code></td><td>El equipo no tiene el soporte remoto o su agente no lo admite.</td></tr>
+      <tr><td><code>error.agent.config.none</code></td><td>El equipo no tiene política con quiosco que reaplicar.</td></tr>
+      <tr><td><code>error.group.name.taken</code></td><td>Ya hay una carpeta con ese nombre en el mismo nivel.</td></tr>
+      <tr><td><code>error.group.parent.invalid</code></td><td>La carpeta superior elegida no es válida para esa carpeta.</td></tr>
+      <tr><td><code>error.announcement.noDevices</code></td><td>El anuncio no tiene destinatarios.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="sec pb" id="faq" data-temas="preguntas frecuentes, FAQ, dudas">
+  <p class="k">11 · Preguntas frecuentes</p>
+  <h1>Respuestas cortas a las dudas más comunes</h1>
+  <h3>¿Qué pasa con los equipos si el servicio se cae?</h3>
+  <p>Siguen funcionando con la última política recibida, incluido el quiosco. Al volver el servicio se ponen al día solos. Las órdenes enviadas antes quedan en cola.</p>
+  <h3>¿Cada cuánto reporta un equipo?</h3>
+  <p>Al menos cada 5 minutos en modo Siempre conectado, que es el predeterminado. Con el canal en vivo abierto, una orden llega en segundos.</p>
+  <h3>¿Puedo enviar una orden a un equipo apagado?</h3>
+  <p>Sí. Queda en Pendiente y se ejecuta cuando el equipo se conecta. Bloquear y borrar no vencen; las demás tienen plazo de 1 hora a 30 días según el tipo.</p>
+  <h3>Eliminé un equipo de la consola y volvió a aparecer. ¿Por qué?</h3>
+  <p>El teléfono sigue inscrito. Para retirarlo de verdad, primero restablézcalo de fábrica desde su pestaña <span class="ui">Control</span> y después elimínelo.</p>
+  <h3>¿Una versión nueva de una aplicación llega sola a los equipos?</h3>
+  <p>Sí, si la aplicación está en la política y no forma un grupo de versiones. Con un grupo de versiones, cada política usa la versión que se le asignó hasta que se cambie.</p>
+  <h3>¿Se puede volver a una versión anterior de una aplicación?</h3>
+  <p>Sí, eligiéndola en el selector de versión de la política. El equipo desinstala la versión nueva e instala la anterior: se borran los datos de esa aplicación en el equipo.</p>
+  <h3>¿Quitar una aplicación de la política la desinstala?</h3>
+  <p>No. Para desinstalarla, déjela en la política con la acción <span class="ui">Desinstalar</span> y guarde, o use <span class="ui">Equipos</span> en la aplicación.</p>
+  <h3>¿Qué política aplica a un equipo?</h3>
+  <p>La fijada en el equipo, si la tiene; si no, la de su carpeta; si no, la de la carpeta superior más cercana que tenga una; y si no, la política global.</p>
+  <h3>¿Qué ve un usuario de carpetas?</h3>
+  <p>Solo los equipos de sus carpetas y subcarpetas, incluidas las que se creen después. Los permisos de su rol deciden qué puede hacer con ellos.</p>
+  <h3>¿Se puede impedir el restablecimiento con los botones del teléfono?</h3>
+  <p>No; ningún sistema de administración puede. Sí se puede dejar el equipo inservible para quien lo haga, indicando en la política las cuentas que pueden reactivarlo (Android 11 o superior).</p>
+  <h3>¿El control remoto funciona con el equipo en quiosco?</h3>
+  <p>Sí. La pestaña <span class="ui">Remoto</span> incluye además el conmutador de quiosco para quitarlo durante el soporte.</p>
+  <h3>¿Dónde queda registrado quién hizo qué?</h3>
+  <p>En <span class="ui">Auditoría</span>, con fecha, usuario, dirección, acción y detalle del cambio. Cada política tiene además su <span class="ui">Historial de cambios</span>.</p>
+  <h3>¿Qué datos del usuario del teléfono ve la consola?</h3>
+  <p>Estado del equipo, aplicaciones instaladas, uso por aplicación, ubicación si la política la pide y la pantalla solo durante una sesión de control remoto. No lee mensajes ni el contenido de las aplicaciones. El diagnóstico muestra las notificaciones presentes en el equipo y el análisis de almacenamiento, los nombres y tamaños de los archivos más pesados.</p>
+  <h3>¿Qué necesito abrir en el firewall?</h3>
+  <p>Salida al puerto 443 hacia el dominio del servicio, con WebSocket permitido y sin inspección TLS. El detalle y la prueba están en «Arquitectura y requisitos técnicos».</p>
+</section>
+</body></html>

@@ -35,6 +35,10 @@ data class ConfigApplyPayload(
     val mobileData: ConfigMobileData? = null,
     /** Runtime-permission policy and per-app grants (absent = the agent's baseline: grant on request, no rules). */
     val permissions: ConfigPermissions? = null,
+    /** Hardware and ports rules (absent = not managed; what an earlier document set is then undone). */
+    val hardware: ConfigHardware? = null,
+    /** Remote support settings (absent = the agent's defaults). */
+    val remoteSupport: ConfigRemoteSupport? = null,
 )
 
 /**
@@ -52,6 +56,14 @@ data class ConfigDevice(
     val frpAccounts: List<String>? = null,
     /** "block" = the user cannot install apps (DISALLOW_INSTALL_APPS); the MDM's silent installs still work. */
     val installApps: String? = null,
+    /** "block" = no safe mode (DISALLOW_SAFE_BOOT). */
+    val safeBoot: String? = null,
+    /** "block" = no USB debugging / developer options (DISALLOW_DEBUGGING_FEATURES). */
+    val debugging: String? = null,
+    /** "block" = the bootloader cannot be unlocked from developer options (no flashing). */
+    val oemUnlock: String? = null,
+    /** Wipe the device after this many wrong unlock attempts in a row (0 / null = never). */
+    val maxFailedPasswordsForWipe: Int? = null,
 )
 
 /** [type]: `automatic`, `windowed` ([fromMinutes]..[toMinutes] of the day) or `postpone`. */
@@ -121,6 +133,7 @@ object ConfigOutcome {
     const val UNSUPPORTED = "unsupported"
     fun failed(reason: String): String = "failed: $reason"
     fun isFailed(outcome: String): Boolean = outcome.startsWith("failed")
+    fun isUnsupported(outcome: String): Boolean = outcome.startsWith(UNSUPPORTED)
 }
 
 /**
@@ -147,3 +160,28 @@ data class ConfigMobileData(
 
 @Serializable
 data class ConfigDataLimit(val pkg: String, val bytes: Long)
+
+/**
+ * Hardware and ports. [rules]: rule key (camera, usbDebug, usbData, nfc, …) → `allow` | `block`. [restrictions]: extra
+ * `UserManager.DISALLOW_*` values (`no_sms`, …) from the server's validated list. Reported per item in
+ * [ConfigApplyResult.outcomes] as `hardware.<rule>` / `restrictions.<key>`: `applied`, `unsupported: <why>` or
+ * `failed: <why>`.
+ */
+@Serializable
+data class ConfigHardware(
+    val rules: Map<String, String> = emptyMap(),
+    val restrictions: List<String> = emptyList(),
+)
+
+/**
+ * Remote support (ADR 0012). [engine]: `auto` (default), `builtin` or `droidvnc`. [notice]: false hides the
+ * "Soporte está viendo tu pantalla" notice. [callAccept]: `ask` (default: the person accepts a voice call) or `auto`.
+ * [setupPrompt]: false = do not ask for the one-time authorisation after enrollment.
+ */
+@Serializable
+data class ConfigRemoteSupport(
+    val engine: String? = null,
+    val notice: Boolean? = null,
+    val callAccept: String? = null,
+    val setupPrompt: Boolean? = null,
+)

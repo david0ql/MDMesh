@@ -73,3 +73,6 @@ Thumbs.db
 
 # scripts/deploy.sh: previous images and .env of the last deployment (for --rollback)
 .deploy-state/
+
+# Manuales: salida intermedia del armado (docs/manuales/build.sh)
+docs/manuales/.build/

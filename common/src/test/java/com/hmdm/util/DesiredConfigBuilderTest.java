@@ -35,6 +35,41 @@ public class DesiredConfigBuilderTest {
     }
 
     @Test
+    public void kiosk_without_exit_password_can_only_be_left_from_the_console() {
+        for (String blank : new String[] {null, "", "   "}) {
+            Configuration c = kioskConfig(); c.setPassword(blank);
+            DesiredConfig d = DesiredConfigBuilder.build(c, Arrays.asList(app(5, 505, "com.acme.pos", 1)));
+            assertEquals("remote", d.getKiosk().getExitMode());
+            assertNull(d.getKiosk().getPassword());
+        }
+        Configuration gesture = kioskConfig(); gesture.setKioskExit(null);
+        assertEquals("gesture", DesiredConfigBuilder.build(gesture, Collections.emptyList()).getKiosk().getExitMode());
+        assertEquals("s3cret", DesiredConfigBuilder.build(gesture, Collections.emptyList()).getKiosk().getPassword());
+    }
+
+    @Test
+    public void soft_kiosk_status_bar_only_when_notifications_are_explicitly_allowed() {
+        Configuration auto = kioskConfig(); auto.setKioskNotifications(null);
+        DesiredConfig a = DesiredConfigBuilder.build(auto, Collections.emptyList());
+        assertEquals("older agents keep the shade on lock-task devices", Boolean.TRUE, a.getKiosk().getFeatures().getNotifications());
+        assertNull(a.getKiosk().getFeatures().getSoftStatusBar());
+        Configuration yes = kioskConfig(); yes.setKioskNotifications(true);
+        assertEquals(Boolean.TRUE, DesiredConfigBuilder.build(yes, Collections.emptyList()).getKiosk().getFeatures().getSoftStatusBar());
+        Configuration no = kioskConfig(); no.setKioskNotifications(false);
+        assertNull(DesiredConfigBuilder.build(no, Collections.emptyList()).getKiosk().getFeatures().getSoftStatusBar());
+    }
+
+    @Test
+    public void debugging_block_reaches_the_device_rules_also_with_the_antitheft_pin() {
+        Configuration c = kioskConfig();
+        c.setDcPolicy("{\"device\":{\"debugging\":\"block\",\"installApps\":\"block\"},\"powerPin\":\"4821\"}");
+        DesiredConfig d = DesiredConfigBuilder.build(c, Collections.emptyList());
+        assertEquals("block", d.getDevice().getDebugging());
+        assertEquals("block", d.getDevice().getInstallApps());
+        assertEquals("block", d.getDevice().getFactoryReset());
+    }
+
+    @Test
     public void tri_state_policies_only_include_managed_keys_and_screenshots_is_inverted() {
         DesiredConfig d = DesiredConfigBuilder.build(kioskConfig(), Collections.emptyList());
         assertEquals(Boolean.TRUE, d.getPolicies().get("wifi"));

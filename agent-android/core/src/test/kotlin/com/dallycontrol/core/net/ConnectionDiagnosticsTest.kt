@@ -171,11 +171,11 @@ class ConnectionDiagnosticsTest {
         now += minute
         val report = diagnostics().pendingReport()
         assertEquals(now, report.lastStop!!.resumedAt)
-        // ...while one the server never heard of is not worth a report.
+        // ...and so is one whose goodbye never went out: a shutdown is certain knowledge.
         val quiet = ConnectionDiagnostics(MemoryKeyValueStore(), clock = { now })
         quiet.recordStop(StopReason.SHUTDOWN)
         now += minute
-        assertNull(quiet.pendingReport().lastStop)
+        assertEquals(StopReason.SHUTDOWN, quiet.pendingReport().lastStop!!.reason)
     }
 
     @Test fun `another boot without a shutdown notice is lost power`() {
@@ -228,7 +228,7 @@ class ConnectionDiagnosticsTest {
     @Test fun `repeated path failures move to the backup, whose use is reported`() {
         val e = endpoints().also { it.saveBackups(listOf("https://direct.example.com")) }
         val d = diagnostics(e)
-        repeat(4) {
+        repeat(5) {
             d.recordFailure(SSLHandshakeException("inspected"), ConnectionDiagnostics.CHANNEL_CHECKIN)
             now += minute
         }
@@ -248,8 +248,8 @@ class ServerEndpointsTest {
         val e = endpoints()
         e.saveBackups(listOf("https://direct.example.com"))
         assertEquals("https://mdm.example.com", e.activeUrl())
-        // Three quick failures (a server restart) are not enough.
-        repeat(3) { assertFalse(e.onUnreachable()) }
+        // Quick failures (a server restart) are not enough.
+        repeat(ServerEndpoints.FAILOVER_FAILURES) { assertFalse(e.onUnreachable()) }
         now += ServerEndpoints.FAILOVER_AFTER_MS
         assertTrue(e.onUnreachable())
         assertEquals("https://direct.example.com", e.activeUrl())
@@ -269,7 +269,7 @@ class ServerEndpointsTest {
     @Test fun `the choice is persistent and the primary is tried again later`() {
         val e = endpoints()
         e.saveBackups(listOf("https://direct.example.com"))
-        e.onUnreachable(); e.onUnreachable()
+        repeat(ServerEndpoints.FAILOVER_FAILURES - 1) { e.onUnreachable() }
         now += ServerEndpoints.FAILOVER_AFTER_MS
         e.onUnreachable()
         assertEquals("https://direct.example.com", endpoints().activeUrl())
@@ -281,7 +281,7 @@ class ServerEndpointsTest {
         val e = endpoints()
         e.saveBackups(listOf("https://direct.example.com"))
         repeat(2) {
-            e.onUnreachable(); e.onUnreachable()
+            repeat(ServerEndpoints.FAILOVER_FAILURES - 1) { e.onUnreachable() }
             now += ServerEndpoints.FAILOVER_AFTER_MS
             e.onUnreachable()
         }
@@ -303,10 +303,23 @@ class ServerEndpointsTest {
         }.backups())
     }
 
+    @Test fun `re-provisioning to another server forgets the previous server's backups`() {
+        var primary = "https://mdm.example.com"
+        val e = ServerEndpoints({ primary }, store, clock = { now })
+        e.saveBackups(listOf("https://direct.example.com"))
+        repeat(ServerEndpoints.FAILOVER_FAILURES - 1) { e.onUnreachable() }
+        now += ServerEndpoints.FAILOVER_AFTER_MS
+        e.onUnreachable()
+        assertTrue(e.usingBackup())
+        primary = "https://otro.example.org"
+        assertEquals("https://otro.example.org", e.activeUrl())
+        assertTrue(e.backups().isEmpty())
+    }
+
     @Test fun `removing the backups returns to the primary`() {
         val e = endpoints()
         e.saveBackups(listOf("https://direct.example.com"))
-        e.onUnreachable(); e.onUnreachable()
+        repeat(ServerEndpoints.FAILOVER_FAILURES - 1) { e.onUnreachable() }
         now += ServerEndpoints.FAILOVER_AFTER_MS
         e.onUnreachable()
         e.saveBackups(emptyList())

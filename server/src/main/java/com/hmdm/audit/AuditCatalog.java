@@ -421,6 +421,11 @@ public final class AuditCatalog {
         sensitive("/private/geofences/v1/devices/{number}/track/export", REPORTS, "export.track", "Exportación del recorrido del dispositivo")
                 .target("device", "path:number");
 
+        // --- protección de restablecimiento de fábrica (FRP) -----------------------------------------------------
+        audit("PUT", "/private/protection/v1/defaults/company", POLICIES, "frp.company", "Cuentas de reactivación (FRP) de la empresa");
+        audit("PUT", "/private/protection/v1/defaults/groups/{groupId}", POLICIES, "frp.group", "Cuentas de reactivación (FRP) de la carpeta")
+                .target("group", "path:groupId");
+
         // --- reportes y alertas ---------------------------------------------------------------------------------
         audit("POST", "/private/reports/v1/schedules", REPORTS, "schedule.create", "Creación de reporte programado");
         audit("PUT", "/private/reports/v1/schedules/{id}", REPORTS, "schedule.update", "Edición de reporte programado")
@@ -452,15 +457,15 @@ public final class AuditCatalog {
         // Named here so that they arrive with a readable label; AuditCatalogCoverageTest does not report an optional
         // rule as stale while its route does not exist. Remove .optional() once the module is merged.
         audit("POST", "/private/support/v1/devices/{deviceId}/start", REMOTE, "remote.session.start",
-                "Inicio de sesión de soporte remoto").target("device", "path:deviceId").optional();
+                "Inicio de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/support/v1/devices/{deviceId}/stop", REMOTE, "remote.session.stop",
-                "Fin de sesión de soporte remoto").target("device", "path:deviceId").optional();
+                "Fin de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/agent/v1/devices/{deviceId}/mobileData", DEVICES, "device.mobileData",
                 "Cambio de datos móviles del dispositivo").target("device", "path:deviceId").optional();
         audit("POST", "/private/agent/v1/devices/{deviceId}/commands/{commandId}/cancel", COMMANDS, "device.command.cancel",
                 "Cancelación de un comando pendiente").target("device", "path:deviceId").optional();
         audit("PUT", "/private/agent/v1/devices/{deviceId}/hardware", DEVICES, "device.hardware",
-                "Restricciones de hardware del dispositivo").target("device", "path:deviceId").optional();
+                "Excepción de hardware y puertos del dispositivo").target("device", "path:deviceId");
         audit("PUT", "/private/agent/v1/devices/{deviceId}/permissions", DEVICES, "device.permissions",
                 "Permisos de aplicaciones del dispositivo").target("device", "path:deviceId").optional();
         audit("POST", "/private/wifi-certificates", POLICIES, "wifi.certificate.upload", "Carga de certificado Wi-Fi").optional();
@@ -519,6 +524,7 @@ public final class AuditCatalog {
     static {
         COMMAND_LABELS.put("device.wipe", "borrado de fábrica (wipe)");
         COMMAND_LABELS.put("device.lock", "bloqueo de pantalla");
+        COMMAND_LABELS.put("device.lostmode", "modo perdido");
         COMMAND_LABELS.put("device.reboot", "reinicio");
         COMMAND_LABELS.put("device.passcodereset", "cambio de clave de desbloqueo");
         COMMAND_LABELS.put("device.ring", "hacer sonar");
@@ -570,6 +576,7 @@ public final class AuditCatalog {
     public static boolean isDisruptive(String type) {
         if (type == null) return false;
         String t = type.trim().toLowerCase(Locale.ROOT);
-        return t.equals("device.wipe") || t.equals("device.lock") || t.equals("device.reboot") || t.equals("device.passcodereset");
+        return t.equals("device.wipe") || t.equals("device.lock") || t.equals("device.reboot") || t.equals("device.passcodereset")
+                || t.equals("device.lostmode");
     }
 }

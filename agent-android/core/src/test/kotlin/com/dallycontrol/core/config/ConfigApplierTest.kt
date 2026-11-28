@@ -236,4 +236,35 @@ class ConfigApplierTest {
         val asked = applier.apply(ConfigApplyPayload(revision = "p5", permissions = ConfigPermissions()))
         assertEquals(ConfigOutcome.UNSUPPORTED, asked.outcomes["permissions"])
     }
+
+    @Test fun `hardware rules are applied last, told what other sections hold, and cleared when the section disappears`() = runTest {
+        val seen = mutableListOf<Pair<com.dallycontrol.proto.ConfigHardware?, Set<String>>>(); val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, hardware = { h, held ->
+            seen += h to held
+            h?.rules.orEmpty().keys.associate { "hardware.$it" to if (it == "usbData") "unsupported: device" else ConfigOutcome.APPLIED }
+        })
+        val hw = com.dallycontrol.proto.ConfigHardware(rules = mapOf("camera" to "block", "usbData" to "block"))
+        val r = applier.apply(ConfigApplyPayload(revision = "h1", policies = mapOf("usbStorage" to false), hardware = hw,
+            device = com.dallycontrol.proto.ConfigDevice(installApps = "block")))
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["hardware.camera"])
+        assertEquals("unsupported: device", r.outcomes["hardware.usbData"])
+        assertEquals("an unsupported rule is final: the document still counts as applied", "h1", store.revision())
+        assertEquals(setOf("no_usb_file_transfer", "no_physical_media", "no_install_apps", "no_install_unknown_sources"), seen[0].second)
+        val r2 = applier.apply(ConfigApplyPayload(revision = "h2"))
+        assertNull("section removed -> undone", seen[1].first)
+        assertTrue(r2.outcomes.keys.none { it.startsWith("hardware.") })
+        applier.apply(ConfigApplyPayload(revision = "h3"))
+        assertEquals("never managed -> not called again", 2, seen.size)
+    }
+
+    @Test fun `hardware rules on an agent build without the enforcer are unsupported, and a failed rule blocks the revision`() = runTest {
+        val hw = com.dallycontrol.proto.ConfigHardware(rules = mapOf("camera" to "block"), restrictions = listOf("no_sms"))
+        val store = InMemoryConfigStateStore()
+        val r = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store).apply(ConfigApplyPayload(revision = "h1", hardware = hw))
+        assertEquals(mapOf("hardware.camera" to ConfigOutcome.UNSUPPORTED, "restrictions.no_sms" to ConfigOutcome.UNSUPPORTED), r.outcomes)
+        val failing = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore(), hardware = { _, _ -> error("boom") })
+        val f = failing.apply(ConfigApplyPayload(revision = "h1", hardware = hw))
+        assertEquals("failed: boom", f.outcomes["hardware.camera"])
+        assertFalse(ConfigApplier.succeeded(f))
+    }
 }

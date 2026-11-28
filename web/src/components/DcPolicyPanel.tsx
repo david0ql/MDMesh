@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MobileDataPolicySection, cleanMobileData, type PolicyAppOption } from './MobileDataPolicySection';
+import { DcResetProtection } from './DcResetProtection';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -42,12 +43,27 @@ export interface DcPolicy {
     accountDomains?: string[];
     factoryReset?: 'block';
     installApps?: 'block';
+    /** 'block' = no USB debugging nor developer options. */
+    debugging?: 'block';
     frpAccounts?: string[];
+    /** 'off' = no reset protection even when the company or the folder has default accounts. */
+    frpMode?: 'off';
+    safeBoot?: 'block';
+    oemUnlock?: 'block';
+    /** Wipe after this many wrong unlock attempts (3-100). */
+    maxFailedPasswordsForWipe?: number;
   };
   /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
   mobileData?: import('../api/mobileData').MobileDataPolicy;
   /** Per-app permission rules by package (see PolicyPermissionsPanel). */
   permissions?: import('../data/permissions').PermissionRulesByApp;
+  /** Hardware and ports: rule key → allow / block (see data/hardwareRules.ts); a missing key is not managed. */
+  hardware?: Record<string, 'allow' | 'block'>;
+  /** Remote support (ADR 0012). Only what differs from the defaults is stored: engine automatic, notice on,
+   *  the person accepts calls, the authorisation is asked for at enrolment. */
+  remoteSupport?: { engine?: 'builtin' | 'droidvnc'; notice?: false; callAccept?: 'auto'; setupPrompt?: false };
+  /** E-mails of the policy's own reset-protection accounts (account id -> e-mail). */
+  frpLabels?: Record<string, string>;
 }
 
 export function parseDcPolicy(raw: unknown): DcPolicy {
@@ -80,6 +96,9 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   const mobileData = cleanMobileData(p.mobileData);
   if (mobileData) out.mobileData = mobileData;
   if (p.permissions && Object.keys(p.permissions).length) out.permissions = p.permissions;
+  if (p.hardware && Object.keys(p.hardware).length) out.hardware = p.hardware;
+  if (p.remoteSupport && Object.values(p.remoteSupport).some((v) => v !== undefined)) out.remoteSupport = p.remoteSupport;
+  if (p.frpLabels && out.device?.frpAccounts?.length && Object.keys(p.frpLabels).length) out.frpLabels = p.frpLabels;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -217,9 +236,11 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
           <label>Compartir datos (zona Wi‑Fi)</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            «Permitir» (por defecto): el quiosco muestra el ícono «Compartir datos», que abre la pantalla de zona Wi‑Fi del teléfono
-            para encenderla o apagarla (Android no deja que el MDM la encienda por su cuenta). «Bloquear»: nadie puede compartir la
-            conexión y el ícono no aparece.
+            «Permitir» (por defecto): el quiosco muestra el ícono «Compartir datos», que abre únicamente la pantalla de zona Wi‑Fi
+            del teléfono para encenderla o apagarla (Android no deja que el MDM la encienda por su cuenta). Esa pantalla se abre
+            sola, sin el resto de Ajustes: «Atrás» vuelve al quiosco y se cierra al volver o a los 2 minutos. Riesgo: bajo; es la
+            única pantalla del sistema que el quiosco deja abrir. «Bloquear»: nadie puede compartir la conexión y el ícono no
+            aparece (lo más seguro).
           </span>
         </div>
         <div className="cfg-field-ctl">
@@ -261,9 +282,9 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
             «Bloquear»: no se puede restablecer desde los Ajustes del teléfono; solo desde esta consola (Control → Restablecer de
-            fábrica). El reseteo por botones (recovery) no lo impide ningún MDM, pero en Android 11+ puedes indicar qué cuentas de
-            Google pueden volver a activar el equipo después: sin una de ellas queda inservible. Van los ID numéricos de la cuenta
-            de Google (no el correo), separados por coma.
+            fábrica). El reseteo por botones (recovery) no lo impide ningún MDM: lo que se logra es que el equipo quede
+            inservible para un tercero. Después del reseteo solo termina su configuración con una cuenta de Google de la
+            empresa (Android 11+ por política; Android 5.1 a 10 a través de los Servicios de Google Play).
           </span>
         </div>
         <div className="cfg-field-ctl" style={{ flexDirection: 'column', gap: 6, alignItems: 'stretch' }}>
@@ -272,12 +293,7 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
             <option value="">Permitido</option>
             <option value="block">Bloquear desde Ajustes</option>
           </select>
-          <input className="input mono" aria-label="Cuentas de reactivación" placeholder="ID de cuentas que pueden reactivar (opcional)" disabled={disabled}
-            value={(p.device?.frpAccounts ?? []).join(', ')}
-            onChange={(e) => {
-              const ids = e.target.value.split(/[\s,]+/).map((x) => x.replace(/[^0-9]/g, '')).filter(Boolean);
-              update({ ...p, device: { ...(p.device ?? {}), frpAccounts: ids.length ? ids : undefined } });
-            }} />
+          <DcResetProtection p={p} update={update} disabled={disabled} />
         </div>
       </div>
 
@@ -301,12 +317,31 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
 
       <div className="cfg-field">
         <div className="cfg-field-label">
+          <label>Depuración USB y opciones de desarrollador</label>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            «Bloquear»: no se puede activar la depuración USB (adb) ni las opciones de desarrollador. Recomendado en un quiosco:
+            con un cable y adb se pueden abrir pantallas o desinstalar apps. Riesgo de bloquear: soporte tampoco podrá usar adb
+            ni el enrolamiento por cable en ese equipo hasta que lo permitas de nuevo aquí.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Depuración USB" disabled={disabled} value={p.device?.debugging ?? ''} data-testid="policy-debugging"
+            onChange={(e) => update({ ...p, device: { ...(p.device ?? {}), debugging: (e.target.value || undefined) as 'block' | undefined } })}>
+            <option value="">Permitida</option>
+            <option value="block">Bloquear</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="cfg-field">
+        <div className="cfg-field-label">
           <label>Antirrobo: clave para apagar</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
             Con una clave (4 a 12 dígitos), en el quiosco el botón de encendido ya no abre el menú de apagado: para apagar o reiniciar
-            hay que escribir esta clave en «Ajustes rápidos». También se bloquean el modo seguro y el restablecimiento de fábrica desde
-            Ajustes. Android no permite impedir el apagado forzado (mantener el botón ~10 segundos); el teléfono vuelve a encender en
+            hay que escribir esta clave en «Ajustes rápidos» (tras 3 intentos fallidos hay una espera creciente). También se bloquea
+            el restablecimiento de fábrica desde Ajustes (el modo seguro ya lo bloquea todo quiosco). Android no permite impedir el apagado forzado (mantener el botón ~10 segundos); el teléfono vuelve a encender en
             el quiosco. Vacío = sin antirrobo.
           </span>
         </div>
@@ -569,6 +604,64 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
       </div>
 
       <MobileDataPolicySection value={p.mobileData} disabled={disabled} apps={apps} onChange={(v) => update({ ...p, mobileData: v })} />
+      <div className="cfg-sec-h" style={{ marginTop: 18 }}>Soporte remoto</div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Motor</label>
+          <span className="cfg-field-help">
+            Con qué se muestra y se controla la pantalla en una sesión de soporte. Automático usa el propio agente y, donde no pueda,
+            droidVNC‑NG si está instalado. El chat, la llamada y los archivos siempre van por el agente.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Motor del soporte remoto" value={p.remoteSupport?.engine ?? 'auto'} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, engine: e.target.value === 'builtin' || e.target.value === 'droidvnc' ? e.target.value : undefined } })}>
+            <option value="auto">Automático</option>
+            <option value="builtin">Solo el agente</option>
+            <option value="droidvnc">Solo droidVNC‑NG</option>
+          </select>
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Aviso en el teléfono «Soporte está viendo tu pantalla»</label>
+          <span className="cfg-field-help">
+            Mientras dura una sesión, el teléfono muestra un aviso visible. Activado por defecto; apágalo solo para equipos desatendidos.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Aviso en el teléfono durante el soporte" checked={p.remoteSupport?.notice !== false} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, notice: e.target.checked ? undefined : false } })} />
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Llamada de voz</label>
+          <span className="cfg-field-help">
+            Qué pasa cuando soporte llama al teléfono durante una sesión: suena y la persona acepta, o se contesta sola (equipos sin nadie al frente).
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <select className="sel" aria-label="Llamada de voz del soporte remoto" value={p.remoteSupport?.callAccept ?? 'ask'} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, callAccept: e.target.value === 'auto' ? 'auto' : undefined } })}>
+            <option value="ask">El usuario debe aceptar</option>
+            <option value="auto">Se contesta sola (desatendida)</option>
+          </select>
+        </div>
+      </div>
+      <div className="cfg-field">
+        <div className="cfg-field-label">
+          <label>Pedir la autorización al inscribir</label>
+          <span className="cfg-field-help">
+            Al inscribir el teléfono, el agente pide activar «Soporte remoto DallyControl» en Accesibilidad (una sola vez). Activado por defecto;
+            si lo apagas, se pide desde la pestaña Remoto del dispositivo cuando haga falta.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          <input type="checkbox" className="dev-check" aria-label="Pedir la autorización de soporte remoto al inscribir" checked={p.remoteSupport?.setupPrompt !== false} disabled={disabled}
+            onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, setupPrompt: e.target.checked ? undefined : false } })} />
+        </div>
+      </div>
     </section>
   );
 }

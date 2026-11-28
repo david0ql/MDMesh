@@ -42,6 +42,7 @@ public final class CommandLabels {
         LABELS.put("remote.vnc.start", "Iniciar remoto");
         LABELS.put("remote.vnc.stop", "Terminar remoto");
         LABELS.put("remote.inputSetup", "Activar control remoto");
+        LABELS.put("device.lostMode", "Modo perdido");
     }
 
     private CommandLabels() {

@@ -77,5 +77,11 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.audit.AuditPurgeTask.class).asEagerSingleton();
         // App permissions of a device (its own rules + the agent's report).
         this.bind(com.hmdm.rest.resource.DevicePermissionsResource.class);
+        this.bind(com.hmdm.rest.resource.HardwareResource.class);
+        // Remote support (ADR 0012): eager so SupportHub.INSTANCE exists before a device or console socket connects.
+        this.bind(com.hmdm.notification.SupportHub.class).asEagerSingleton();
+        this.bind(com.hmdm.rest.resource.SupportResource.class);
+        // Factory-reset protection: default company accounts (company / folder) and the per-device status.
+        this.bind(com.hmdm.rest.resource.ProtectionResource.class);
     }
 }

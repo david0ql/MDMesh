@@ -187,4 +187,48 @@ data class SecurityPosture(
     val unknownSourcesAllowed: Boolean,
     val patchAgeDays: Int?,
     val isDeviceOwner: Boolean,
+    /** Factory-reset protection and anti-tamper rules as they are on the device right now. Null on older agents. */
+    val protection: ProtectionStatus? = null,
+)
+
+/**
+ * What protects this device against a factory reset, read back from the system (not what the policy asked for).
+ * [restrictions]: `factoryReset`, `safeBoot`, `debugging`, `oemUnlock` -> true when blocked. [errors]: what could not
+ * be applied the last time the rules ran (empty = nothing failed).
+ */
+@Serializable
+data class ProtectionStatus(
+    val frp: FrpStatus,
+    val restrictions: Map<String, Boolean> = emptyMap(),
+    val errors: List<String> = emptyList(),
+    /** Wrong unlock attempts in a row before the device wipes itself (0 = never). */
+    val maxFailedPasswordsForWipe: Int = 0,
+    val lostMode: LostModeStatus? = null,
+)
+
+/**
+ * Factory-reset protection (FRP) with company accounts. [mechanism]: `policy` (Android 11+,
+ * setFactoryResetProtectionPolicy), `gms` (Android 5.1-10, Google Play services restrictions) or `none`.
+ * [active]: the device holds [accounts] (Google account ids) and will ask for one of them after a reset from
+ * recovery. [reason] when not active: `noAccounts`, `unsupported`, `gmsMissing`, `androidTooOld`, `notDeviceOwner`
+ * or `error`; [error] carries the platform's message.
+ */
+@Serializable
+data class FrpStatus(
+    val mechanism: String,
+    val active: Boolean,
+    val accounts: List<String> = emptyList(),
+    val reason: String? = null,
+    val error: String? = null,
+)
+
+/** Lost mode as the device holds it. [since]: epoch millis. */
+@Serializable
+data class LostModeStatus(
+    val active: Boolean,
+    val since: Long? = null,
+    val wipeAfterFailedUnlocks: Int? = null,
+    val wipeIfSilentDays: Int? = null,
+    /** Last successful report to the server (epoch millis): what the "silent for N days" wipe counts from. */
+    val lastContactAt: Long? = null,
 )

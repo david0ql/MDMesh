@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Manual del administrador</title>
+<meta name="doc-titulo" content="Manual del administrador">
+<meta name="doc-subtitulo" content="Cómo usar la consola para administrar usuarios, carpetas, políticas, aplicaciones y equipos, pantalla por pantalla.">
+<meta name="doc-publico" content="Administradores de la consola y mesa de ayuda">
+<meta name="doc-etiqueta" content="Manual de uso">
+<!--ESTILOS-->
+</head><body>
+<!--PORTADA-->
+
+<section class="sec pb" id="contenido">
+  <p class="k">Contenido</p>
+  <h1>Qué contiene este manual</h1>
+  <p class="lead">Este manual recorre la consola de {{PRODUCTO}} en el orden en que se prepara una flota: quién entra, cómo se organizan los equipos, qué se les aplica y cómo se opera el día a día.</p>
+  <!--INDICE-->
+  <p class="nota">Los nombres en <span class="ui">negrita sin serifa</span> son los rótulos tal como aparecen en la consola. Las capturas son de un ambiente de demostración con datos ficticios. Las secciones marcadas <span class="pend">Llega con…</span> describen funciones que se integran en la siguiente versión; sus pasos y capturas se completarán entonces.</p>
+</section>
+
+<section class="sec pb" id="acceso" data-temas="acceso, iniciar sesión, login, contraseña, menú, tema, cerrar sesión">
+  <p class="k">1 · Acceso</p>
+  <h1>Cada persona entra con su usuario y ve solo lo que su rol permite</h1>
+  <div class="fig s">
+    <img src="img/a01-login.jpg" alt="Pantalla de inicio de sesión" style="width:28%">
+    <p class="cap">Figura 1. Pantalla de inicio de sesión.</p>
+  </div>
+  <h2>Iniciar sesión</h2>
+  <ol class="steps">
+    <li>Abra la dirección de la consola en un navegador actualizado.</li>
+    <li>Escriba <span class="ui">Usuario</span> y <span class="ui">Contraseña</span> y pulse <span class="ui">Iniciar sesión</span>.</li>
+    <li>Si es su primer ingreso, o un administrador le cambió la contraseña, aparece <span class="ui">Define tu contraseña</span>. Escriba una de 8 caracteres o más en <span class="ui">Nueva contraseña</span> y <span class="ui">Confirmar contraseña</span>, y pulse <span class="ui">Establecer contraseña</span>. La consola vuelve al inicio de sesión para entrar con la nueva.</li>
+  </ol>
+  <p>Tras 5 intentos fallidos la cuenta se bloquea 5 minutos; cada fallo adicional duplica la espera, hasta 30 minutos. Durante el bloqueo la consola responde «Usuario o contraseña incorrectos» aunque la clave sea correcta. No hay enlace de recuperación en la pantalla de inicio: un administrador restablece la contraseña desde <span class="ui">Usuarios</span>.</p>
+  <h2>El menú</h2>
+  <table class="compact">
+    <thead><tr><th style="width:30mm">Entrada</th><th>Para qué sirve</th><th style="width:66mm">Quién la ve</th></tr></thead>
+    <tbody>
+      <tr><td>Resumen, Tablero</td><td>Estado general de la flota</td><td>Todos</td></tr>
+      <tr><td>Carpetas</td><td>Organización de los equipos y su política</td><td>Todos; modificar exige permiso de flota</td></tr>
+      <tr><td>Dispositivos, Mapa</td><td>Lista, ficha y ubicación de los equipos</td><td>Todos, dentro de su alcance</td></tr>
+      <tr><td>Políticas</td><td>Configuración que se aplica a los equipos</td><td>Permiso «Ver y editar políticas»</td></tr>
+      <tr><td>Aplicaciones</td><td>Biblioteca e instalación</td><td>Permiso «Ver aplicaciones»</td></tr>
+      <tr><td>Anuncios</td><td>Mensajes a los teléfonos</td><td>Todos</td></tr>
+      <tr><td>Reportes, Alertas, Geocercas</td><td>Informes, avisos y zonas</td><td>Permiso de flota</td></tr>
+      <tr><td>Scripts</td><td>Acciones reutilizables</td><td>Permiso «Crear, editar y eliminar scripts»</td></tr>
+      <tr><td>Inscribir</td><td>Alta de equipos</td><td>Permiso «Inscribir dispositivos»</td></tr>
+      <tr><td>Usuarios</td><td>Cuentas de la consola</td><td>Permiso «Gestionar usuarios»</td></tr>
+      <tr><td>Roles, Ajustes</td><td>Permisos por rol y parámetros del sistema</td><td>Administradores con permiso de ajustes</td></tr>
+      <tr><td>Auditoría</td><td>Registro de acciones</td><td>Permiso «Ver la auditoría de acciones»</td></tr>
+      <tr><td>Ayuda</td><td>Manuales y búsqueda por tema</td><td>Todos</td></tr>
+    </tbody>
+  </table>
+  <p>Al pie del menú están el nombre del usuario, el cambio de tema <span class="ui">Claro</span> u <span class="ui">Oscuro</span> y <span class="ui">Cerrar sesión</span>. El botón <span class="ui">?</span> de cada pantalla abre la sección de este manual que la explica.</p>
+</section>
+
+<section class="sec pb" id="tablero" data-temas="resumen, tablero, indicadores, en línea, sin conexión, requieren atención">
+  <p class="k">2 · Resumen y Tablero</p>
+  <h1>Dos pantallas muestran el estado de la flota sin abrir ningún equipo</h1>
+  <div class="fig">
+    <img src="img/a02-resumen.jpg" alt="Pantalla Resumen">
+    <p class="cap">Figura 2. Pantalla «Resumen»: barra de estado de la flota, fichas y paneles.</p>
+  </div>
+  <p><span class="ui">Resumen</span> responde «¿hay algo que atender ahora?». <span class="ui">Tablero</span> da la relación de los dispositivos configurados, con gráficas por carpeta, política, estado, versión del agente y versión de Android. Ambas se actualizan solas cada 30 segundos y muestran solo los equipos del alcance del usuario.</p>
+  <h2>Cómo se cuentan los equipos</h2>
+  <table>
+    <thead><tr><th style="width:42mm">Indicador</th><th>Definición</th></tr></thead>
+    <tbody>
+      <tr><td>En línea (Activos en el Tablero)</td><td>Canal en vivo abierto, o último reporte hace 20 minutos o menos.</td></tr>
+      <tr><td>Requieren atención</td><td>Entre 20 minutos y el umbral de «sin conexión», o reportando con una advertencia.</td></tr>
+      <tr><td>Sin conexión</td><td>Sin canal en vivo y sin reportar por más del umbral, que por defecto es 1 día, o nunca reportó.</td></tr>
+      <tr><td>Bloqueados</td><td>Equipos cuyo último reporte indica que están bloqueados.</td></tr>
+    </tbody>
+  </table>
+  <h2>Fichas y paneles del Resumen</h2>
+  <ul class="b">
+    <li><span class="ui">Bloqueados</span>, <span class="ui">Sin conexión</span>, <span class="ui">Movimientos de SIM</span> de los últimos 7 días y <span class="ui">Almacenamiento libre</span>. La ficha de sin conexión abre la lista de dispositivos.</li>
+    <li><span class="ui">Actividad reciente</span>: los últimos eventos de los equipos, como encendidos, instalaciones, cambios de red y retiros de SIM.</li>
+    <li><span class="ui">Requiere atención</span>: hasta 6 equipos que no están en línea, los más antiguos primero.</li>
+    <li><span class="ui">Por política</span>, <span class="ui">Por carpeta</span>, <span class="ui">Por versión de Android</span> y <span class="ui">Estado de apps</span> (Al día, Versión distinta, Con fallos).</li>
+  </ul>
+  <div class="fig">
+    <img src="img/a03-tablero.jpg" alt="Pantalla Tablero">
+    <p class="cap">Figura 3. Pantalla «Tablero»: fichas de equipos enrolados, activos, políticas en uso, quiosco y agente.</p>
+  </div>
+  <p>El Tablero agrega <span class="ui">Enrolados</span>, <span class="ui">Políticas en uso</span>, <span class="ui">En modo kiosco</span>, <span class="ui">Agente desactualizado</span> y <span class="ui">Apps en incumplimiento</span>. El intervalo de actualización y el umbral de sin conexión se cambian en <span class="ui">Ajustes</span>, panel <span class="ui">Resumen (tablero)</span>.</p>
+</section>
+
+<section class="sec pb" id="usuarios" data-temas="usuarios, crear usuario, contraseña, restablecer contraseña, eliminar usuario, tipo, carpetas del usuario">
+  <p class="k">3 · Usuarios</p>
+  <h1>Un usuario se define por su tipo y por las carpetas que maneja</h1>
+  <div class="fig">
+    <img src="img/a04-usuarios.jpg" alt="Pantalla Usuarios">
+    <p class="cap">Figura 4. Pantalla «Usuarios». La columna «Tipo» indica el rol y «Carpetas», el alcance.</p>
+  </div>
+  <h2>Tipos de usuario</h2>
+  <table>
+    <thead><tr><th style="width:66mm">Opción del campo «Tipo»</th><th>Qué puede hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Administrador (todo)</td><td>Ve y maneja toda la flota y todos los ajustes.</td></tr>
+      <tr><td>Carpetas — con edición (modifica políticas y carpetas)</td><td>Maneja los equipos de sus carpetas, sus políticas, aplicaciones y usuarios. No ve Ajustes, Roles ni Auditoría.</td></tr>
+      <tr><td>Carpetas — solo lectura (ver y acciones seguras)</td><td>Ve los equipos de sus carpetas y ejecuta acciones seguras, sin las que interrumpen al usuario.</td></tr>
+      <tr><td>Rol personalizado…</td><td>Lo que defina el rol elegido (capítulo 4), sobre toda la flota o sobre carpetas.</td></tr>
+    </tbody>
+  </table>
+  <h2>Crear un usuario</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Usuarios</span> pulse <span class="ui">Nuevo usuario</span>.</li>
+    <li>Complete <span class="ui">Nombre</span>, <span class="ui">Usuario (para entrar)</span> y, si quiere, <span class="ui">Correo (opcional)</span>. El usuario admite de 3 a 60 caracteres: letras, números, punto, guion o @.</li>
+    <li>Escriba una contraseña temporal de 8 caracteres o más en <span class="ui">Contraseña</span> y <span class="ui">Repite la contraseña</span>.</li>
+    <li>Elija el <span class="ui">Tipo</span>. Con <span class="ui">Rol personalizado…</span> elija además el <span class="ui">Rol</span>; la lista <span class="ui">Qué podrá hacer con este rol</span> lo resume.</li>
+    <li>En <span class="ui">Carpetas que maneja (con todas sus subcarpetas)</span> marque las carpetas. Marcar una cubre sus subcarpetas, también las que se creen después.</li>
+    <li>Pulse <span class="ui">Guardar</span>. La persona deberá definir su propia contraseña en el primer ingreso.</li>
+  </ol>
+  <h2>Otras tareas</h2>
+  <table>
+    <thead><tr><th style="width:46mm">Tarea</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>Restablecer una contraseña</td><td><span class="ui">Editar</span>, escriba la nueva en <span class="ui">Contraseña nueva (vacía = no cambia)</span> y repítala, <span class="ui">Guardar</span>. Se cierran las otras sesiones de ese usuario y debe definir una propia al entrar.</td></tr>
+      <tr><td>Cambiar tipo o carpetas</td><td><span class="ui">Editar</span>, cambie y <span class="ui">Guardar</span>.</td></tr>
+      <tr><td>Ver qué hizo un usuario</td><td><span class="ui">Actividad</span> abre sus acciones registradas. Exige el permiso de auditoría.</td></tr>
+      <tr><td>Retirar el acceso</td><td><span class="ui">Eliminar</span> y confirme. No existe «desactivar»: para un retiro temporal, cambie la contraseña.</td></tr>
+    </tbody>
+  </table>
+  <h2>Reglas que aplica el servidor</h2>
+  <ul class="b">
+    <li>Debe quedar al menos un administrador. Nadie puede eliminar su propio usuario.</li>
+    <li>Nadie puede asignar un rol con más permisos que el suyo.</li>
+    <li>Un usuario de carpetas con permiso de usuarios solo ve y asigna las carpetas que él administra, y no puede crear administradores.</li>
+    <li>Solo un administrador puede dar acceso a toda la flota.</li>
+  </ul>
+</section>
+
+<section class="sec pb" id="roles" data-temas="roles, permisos, matriz de permisos, rol personalizado, plantillas de rol">
+  <p class="k">4 · Roles y permisos</p>
+  <h1>Cada casilla de un rol es un permiso que el servidor comprueba en cada operación</h1>
+  <div class="fig">
+    <img src="img/a06-roles.jpg" alt="Pantalla Roles y permisos">
+    <p class="cap">Figura 5. Pantalla «Roles y permisos»: tarjetas por rol y matriz de permisos.</p>
+  </div>
+  <p>Los permisos no solo ocultan botones: el servidor rechaza la operación si el rol no la permite. El Administrador siempre tiene acceso total y no aparece en esta pantalla. El aislamiento por carpetas es independiente del rol.</p>
+  <h2>Crear un rol</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Roles</span> pulse <span class="ui">Nuevo rol</span>.</li>
+    <li>Escriba el <span class="ui">Nombre</span>, de 3 a 50 caracteres.</li>
+    <li>En <span class="ui">Partir de</span> elija una plantilla (<span class="ui">En blanco</span>, <span class="ui">Solo lectura</span>, <span class="ui">Técnico de soporte</span>, <span class="ui">Operador de flota</span>) o copie un rol existente.</li>
+    <li>Pulse <span class="ui">Crear rol</span>. Ajuste sus casillas en la matriz y pulse <span class="ui">Guardar cambios</span>.</li>
+    <li>Asígnelo en <span class="ui">Usuarios</span> con el tipo <span class="ui">Rol personalizado…</span>.</li>
+  </ol>
+  <p>En cada tarjeta, <span class="ui">Qué puede hacer</span> lista en lenguaje llano lo que el rol permite y lo que no, y avisa si un permiso no tiene efecto sin otro. <span class="ui">Duplicar</span> crea una copia. <span class="ui">Eliminar</span> solo aparece en roles que no son del sistema y exige que ningún usuario lo tenga asignado.</p>
+  <h2>Permisos de la matriz</h2>
+  <table class="compact">
+    <thead><tr><th style="width:26mm">Módulo</th><th>Permiso, tal como aparece</th></tr></thead>
+    <tbody>
+      <tr><td>Dispositivos</td><td>Operar dispositivos (acciones seguras, control remoto, editar y eliminar)</td></tr>
+      <tr><td></td><td>Acciones que interrumpen (bloquear, reiniciar, cambiar clave, borrar). Requiere el anterior.</td></tr>
+      <tr><td></td><td>Editar la descripción del dispositivo · Editar ajustes de app por dispositivo</td></tr>
+      <tr><td>Flota</td><td>Carpetas, asignar políticas, instalar apps, geocercas, reportes y alertas</td></tr>
+      <tr><td>Inscripción</td><td>Inscribir dispositivos (códigos y tokens)</td></tr>
+      <tr><td>Políticas</td><td>Ver y editar políticas · Crear políticas nuevas · Duplicar y eliminar políticas</td></tr>
+      <tr><td>Aplicaciones</td><td>Ver aplicaciones · Agregar, editar y eliminar aplicaciones · Agregar, editar y eliminar versiones</td></tr>
+      <tr><td>Archivos</td><td>Ver archivos · Subir, editar y eliminar archivos y APK</td></tr>
+      <tr><td>Scripts</td><td>Crear, editar y eliminar scripts</td></tr>
+      <tr><td>Usuarios</td><td>Gestionar usuarios (sin dar más permisos que los propios)</td></tr>
+      <tr><td>Auditoría</td><td>Ver la auditoría de acciones</td></tr>
+      <tr><td>Ajustes</td><td>Cambiar los ajustes del sistema</td></tr>
+    </tbody>
+  </table>
+  <p class="cap">Todo rol incluye siempre ver los dispositivos de su alcance: estado, ubicación, eventos y aplicaciones instaladas.</p>
+  <div class="callout"><b>Recomendación.</b> Dé el permiso de acciones que interrumpen solo a quien deba bloquear, reiniciar o borrar equipos. Quien no lo tiene no ve esos botones.</div>
+</section>
+
+<section class="sec pb" id="carpetas" data-temas="carpetas, herencia, política por defecto, política global, subcarpeta, mover carpeta, marca de consola">
+  <p class="k">5 · Carpetas y herencia</p>
+  <h1>La carpeta decide la política del equipo y quién lo administra</h1>
+  <div class="fig">
+    <img src="img/a07-carpetas.jpg" alt="Pantalla Carpetas">
+    <p class="cap">Figura 6. Pantalla «Carpetas». Cada fila muestra sus dispositivos y la política propia o heredada.</p>
+  </div>
+  <p>Las carpetas forman un árbol: por país, cliente, agencia o tipo de equipo. Un equipo está en una sola carpeta. La carpeta sirve para tres cosas: asignar la política, limitar qué ve cada usuario y dirigir acciones, anuncios, geocercas y reportes.</p>
+  <h2>Cómo se decide la política de un equipo</h2>
+  <svg viewBox="0 0 680 92" role="img" aria-label="Orden de herencia de la política">
+    <defs><marker id="fh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5F6B7A"/></marker></defs>
+    <rect x="6" y="20" width="150" height="50" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="81" y="42" font-size="10.5" text-anchor="middle" fill="#1F2933">Política fijada</text><text x="81" y="57" font-size="10.5" text-anchor="middle" fill="#1F2933">en el equipo</text>
+    <rect x="180" y="20" width="150" height="50" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="255" y="42" font-size="10.5" text-anchor="middle" fill="#1F2933">Política de</text><text x="255" y="57" font-size="10.5" text-anchor="middle" fill="#1F2933">su carpeta</text>
+    <rect x="354" y="20" width="150" height="50" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="429" y="42" font-size="10.5" text-anchor="middle" fill="#1F2933">Carpeta superior</text><text x="429" y="57" font-size="10.5" text-anchor="middle" fill="#1F2933">más cercana</text>
+    <rect x="528" y="20" width="146" height="50" fill="#fff" stroke="#1F3A5F" stroke-width="0.75"/>
+    <text x="601" y="50" font-size="10.5" text-anchor="middle" fill="#1F2933">Política global</text>
+    <line x1="156" y1="45" x2="177" y2="45" stroke="#5F6B7A" stroke-width="0.75" marker-end="url(#fh)"/>
+    <line x1="330" y1="45" x2="351" y2="45" stroke="#5F6B7A" stroke-width="0.75" marker-end="url(#fh)"/>
+    <line x1="504" y1="45" x2="525" y2="45" stroke="#5F6B7A" stroke-width="0.75" marker-end="url(#fh)"/>
+    <text x="340" y="86" font-size="9" text-anchor="middle" fill="#5F6B7A">Gana la primera que exista, de izquierda a derecha.</text>
+  </svg>
+  <p class="cap">Figura 7. Orden de herencia. Cambiar la política de una carpeta alcanza a toda su rama.</p>
+  <h2>Tareas</h2>
+  <table>
+    <thead><tr><th style="width:46mm">Tarea</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>Crear una carpeta</td><td><span class="ui">Nueva carpeta</span>: <span class="ui">Nombre</span>, <span class="ui">Dentro de</span> (nivel superior o una carpeta) y <span class="ui">Política</span>. <span class="ui">Crear</span>. En una fila, <span class="ui">+ Subcarpeta</span> crea una hija.</td></tr>
+      <tr><td>Asignar política a una carpeta</td><td>Selector de la columna <span class="ui">Política</span>. La primera opción, <span class="ui">Heredar</span> o <span class="ui">Global</span>, la deja sin política propia. Se aplica al instante.</td></tr>
+      <tr><td>Definir la política global</td><td>Panel <span class="ui">Global</span>, selector <span class="ui">Política por defecto</span>.</td></tr>
+      <tr><td>Renombrar o mover</td><td><span class="ui">Editar</span>. Cambiar <span class="ui">Dentro de</span> mueve la carpeta con su contenido; los equipos toman la política que les corresponda.</td></tr>
+      <tr><td>Eliminar</td><td><span class="ui">Eliminar</span>. Solo si no tiene dispositivos propios; sus subcarpetas suben un nivel.</td></tr>
+      <tr><td>Mover equipos a una carpeta</td><td>Desde <span class="ui">Dispositivos</span> (capítulo 6).</td></tr>
+      <tr><td>Ejecutar una acción en toda la carpeta</td><td><span class="ui">Ejecutar acción</span>. Incluye sus subcarpetas (capítulo 14).</td></tr>
+    </tbody>
+  </table>
+  <h2>Marca por carpeta</h2>
+  <p>El botón <span class="ui">Marca</span> tiene dos pestañas. <span class="ui">Consola</span> define el logo y el nombre que ven en el encabezado los administradores de esa carpeta. <span class="ui">Quiosco</span> define logos, fondo y número de soporte para los equipos de esa carpeta que estén en quiosco. Lo que queda vacío se hereda de la carpeta superior.</p>
+  <div class="callout"><b>Diseñe el árbol antes de inscribir.</b> Un nivel por cliente o país y otro por operación suele bastar. El nombre de una carpeta puede repetirse bajo otra, no entre hermanas.</div>
+</section>
+
+<section class="sec pb" id="dispositivos" data-temas="dispositivos, lista, buscar, filtrar, columnas, exportar, mover a carpeta, cambiar política, eliminar dispositivo, ficha del dispositivo, pestañas">
+  <p class="k">6 · Dispositivos</p>
+  <h1>La lista encuentra y agrupa equipos; la ficha concentra todo sobre uno</h1>
+  <div class="fig">
+    <img src="img/a08-dispositivos-lista.jpg" alt="Pantalla Dispositivos en vista de lista">
+    <p class="cap">Figura 8. Pantalla «Dispositivos» en vista «Lista», con filtros y columnas.</p>
+  </div>
+  <h2>Buscar y filtrar</h2>
+  <ul class="b">
+    <li><span class="ui">Buscar dispositivos</span> busca por número, nombre, IMEI y serie.</li>
+    <li>Los chips <span class="ui">Todos</span>, <span class="ui">En línea</span> y <span class="ui">Sin conexión</span> filtran por estado. <span class="ui">⚠ Duplicados</span> aparece cuando dos filas comparten el identificador de hardware.</li>
+    <li>Los desplegables <span class="ui">Carpeta</span>, <span class="ui">Política</span> y <span class="ui">Android</span> acotan la lista. Una carpeta incluye sus subcarpetas.</li>
+    <li>El conmutador <span class="ui">Cuadrícula</span> o <span class="ui">Lista</span> cambia la vista. En lista, <span class="ui">Columnas</span> elige y ordena las columnas; la elección se guarda por usuario en el navegador.</li>
+  </ul>
+  <h2>Exportar</h2>
+  <p><span class="ui">Exportar</span> abre <span class="ui">Exportar dispositivos</span>. Elija <span class="ui">Qué exportar</span> (todos, lo que muestra la tabla o los seleccionados) y el <span class="ui">Formato</span>: Excel con hojas de resumen, carpetas y conexiones, o CSV con el separador que prefiera. <span class="ui">Descargar</span> genera el archivo.</p>
+  <h2>Acciones sobre una selección</h2>
+  <p>Marque equipos, o use <span class="ui">Seleccionar todo</span>. La barra de selección ofrece:</p>
+  <table>
+    <thead><tr><th style="width:38mm">Botón</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>Acciones</td><td>Abre las acciones masivas (capítulo 14).</td></tr>
+      <tr><td>Actualizar ahora</td><td>Pide a los equipos que reporten de inmediato batería, almacenamiento y red.</td></tr>
+      <tr><td>Mover a carpeta</td><td>Los pone en una carpeta. Toman su política, salvo que tengan una propia.</td></tr>
+      <tr><td>Cambiar política</td><td>Fija una política propia, con prioridad sobre la carpeta. <span class="ui">Heredar de la carpeta / global</span> la quita.</td></tr>
+      <tr><td>Eliminar</td><td>Quita los equipos de la consola. Si el teléfono sigue inscrito, reaparece solo: para retirarlo de verdad, restablézcalo de fábrica antes.</td></tr>
+    </tbody>
+  </table>
+  <h2>La ficha del dispositivo</h2>
+  <div class="fig m">
+    <img src="img/a09-dispositivo-detalle.jpg" alt="Ficha de un dispositivo">
+    <p class="cap">Figura 9. Ficha de un dispositivo.</p>
+  </div>
+  <p>La columna izquierda muestra el estado de conexión, el botón <span class="ui">Actualizar ahora</span>, el nombre editable, los botones rápidos (<span class="ui">Sincronizar ahora</span>, <span class="ui">Remoto</span>, <span class="ui">Bloquear</span>, <span class="ui">Instalar apps de la política</span>) y los grupos <span class="ui">Estado</span>, <span class="ui">Ubicación</span>, <span class="ui">Hardware</span>, <span class="ui">Red</span> y <span class="ui">Gestión</span>. Debajo están las tarjetas <span class="ui">Carpeta y política</span>, <span class="ui">Estado de la política</span> y <span class="ui">Última falla de conexión</span>.</p>
+  <table class="compact">
+    <thead><tr><th style="width:32mm">Pestaña</th><th>Contenido</th></tr></thead>
+    <tbody>
+      <tr><td>Control</td><td>Órdenes remotas, quiosco, compartir datos, acciones rápidas, script e historial de órdenes.</td></tr>
+      <tr><td>Remoto</td><td>Ver y controlar la pantalla.</td></tr>
+      <tr><td>Diagnóstico</td><td>Foto del estado del teléfono: sonidos, notificaciones, alarmas, cierres del agente.</td></tr>
+      <tr><td>Aplicaciones</td><td>Aplicaciones instaladas; desinstalar; mostrar una aplicación en el quiosco de ese equipo.</td></tr>
+      <tr><td>Actualizaciones</td><td>Android, parche de seguridad, y la línea de tiempo de instalaciones.</td></tr>
+      <tr><td>Historial</td><td>Gráficas de conexión, batería, señal y almacenamiento de 7 o 30 días.</td></tr>
+      <tr><td>Uso de apps</td><td>Tiempo de uso por aplicación y consumo de datos móviles.</td></tr>
+      <tr><td>Almacenamiento</td><td>Qué ocupa el espacio; liberar espacio.</td></tr>
+      <tr><td>Telemetría</td><td>Datos técnicos de hardware, red, batería y seguridad.</td></tr>
+      <tr><td>Eventos</td><td>Encendidos, cambios de red, SIM, salidas de quiosco, fallas y cortes de conexión.</td></tr>
+      <tr><td>Ubicación</td><td>Historial de posiciones y estado frente a las geocercas.</td></tr>
+      <tr><td>Actividad</td><td>Acciones de los administradores sobre ese equipo. Exige permiso de auditoría.</td></tr>
+    </tbody>
+  </table>
+  <p>En <span class="ui">Carpeta y política</span>, el chip junto a la política dice de dónde viene: <span class="ui">Dispositivo</span>, <span class="ui">Carpeta</span> o <span class="ui">Global</span>. <span class="ui">Fijar en el dispositivo</span> le da una política propia. En <span class="ui">Estado de la política</span>, <span class="ui">Sincronizado</span> confirma que el equipo aplicó la última versión.</p>
+</section>
+
+<section class="sec pb" id="politicas" data-temas="políticas, configuraciones, crear política, copiar política, editor de política, cumplimiento, historial de cambios, asignar a carpetas">
+  <p class="k">7 · Políticas</p>
+  <h1>Una política reúne lo que el equipo debe tener y lo que no puede hacer</h1>
+  <div class="fig">
+    <img src="img/a11-politicas.jpg" alt="Pantalla Políticas">
+    <p class="cap">Figura 10. Pantalla «Políticas». La barra de cada tarjeta indica cuántos equipos ya aplicaron la última versión.</p>
+  </div>
+  <h2>Crear, copiar y eliminar</h2>
+  <table>
+    <thead><tr><th style="width:34mm">Tarea</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>Crear</td><td><span class="ui">Nueva política</span>. Elija <span class="ui">Política en blanco</span> o una plantilla predeterminada, complete el editor y pulse <span class="ui">Guardar</span>.</td></tr>
+      <tr><td>Copiar</td><td><span class="ui">Copiar</span> en la tarjeta, escriba el <span class="ui">Nombre nuevo</span>, <span class="ui">Copiar</span>.</td></tr>
+      <tr><td>Editar</td><td><span class="ui">Editar</span>. Las plantillas predeterminadas son de solo lectura: use <span class="ui">Usar como plantilla</span>.</td></tr>
+      <tr><td>Eliminar</td><td><span class="ui">Eliminar</span>. El servidor lo rechaza mientras haya equipos que la usen.</td></tr>
+    </tbody>
+  </table>
+  <div class="fig">
+    <img src="img/a12-politica-editor.jpg" alt="Editor de una política">
+    <p class="cap">Figura 11. Editor de una política. El chip «Aplicado» marca los ajustes que el agente hace cumplir.</p>
+  </div>
+  <h2>Secciones del editor</h2>
+  <table class="compact">
+    <thead><tr><th style="width:52mm">Sección</th><th>Qué define</th></tr></thead>
+    <tbody>
+      <tr><td>Identidad</td><td>Nombre único y descripción.</td></tr>
+      <tr><td>Apps</td><td><span class="ui">App principal</span>: la que abre el quiosco.</td></tr>
+      <tr><td>Quiosco</td><td>Modo quiosco y sus botones (capítulo 9).</td></tr>
+      <tr><td>Red</td><td>Wi-Fi, Bluetooth y <span class="ui">Reporte de ubicación</span>.</td></tr>
+      <tr><td>Seguridad</td><td>Contraseña para salir del quiosco.</td></tr>
+      <tr><td>Restricciones</td><td>Almacenamiento USB y capturas de pantalla (capítulo 10).</td></tr>
+      <tr><td>Pantalla</td><td>Colores y tamaño de íconos del quiosco.</td></tr>
+      <tr><td>Actualizaciones</td><td>Actualizaciones de Android: predeterminado, de inmediato, programadas en una franja, o aplazadas 30 días.</td></tr>
+      <tr><td>Apps permitidas</td><td>Aplicaciones que la política instala y mantiene (capítulo 8).</td></tr>
+      <tr><td>Marca del quiosco</td><td>Logos, fondo, serial y botón de soporte. Solo con quiosco.</td></tr>
+      <tr><td>Grupos de aplicaciones</td><td>Grupos cuyas aplicaciones se instalan con esta política.</td></tr>
+      <tr><td>Funciones del dispositivo, navegador, apps y ubicación</td><td>Funciones del quiosco, compartir datos, cuentas de Google, restablecimiento, instalación por el usuario, navegador, política de apps, redes Wi-Fi, nombre del dispositivo, frecuencia de ubicación y datos móviles.</td></tr>
+      <tr><td>Carpetas que usan esta política</td><td>Las carpetas a las que se aplica.</td></tr>
+    </tbody>
+  </table>
+  <p>Los controles con tres estados ofrecen <span class="ui">Auto</span>, <span class="ui">Sí</span> y <span class="ui">No</span>; Auto deja el valor por defecto. El enlace <span class="ui">Campos heredados</span>, al final, agrupa campos que se guardan pero que el agente no aplica: no los use para configurar.</p>
+  <h2>Asignar la política</h2>
+  <ul class="b">
+    <li><b>A carpetas:</b> en el editor, <span class="ui">Carpetas que usan esta política</span>; marque y guarde. O desde <span class="ui">Carpetas</span>.</li>
+    <li><b>A un equipo:</b> en su ficha, <span class="ui">Fijar en el dispositivo</span>; o desde la lista, <span class="ui">Cambiar política</span>.</li>
+    <li><b>A toda la flota sin carpeta:</b> política global, en <span class="ui">Carpetas</span> o <span class="ui">Ajustes</span>.</li>
+  </ul>
+  <h2>Cómo llega a los equipos y cómo se comprueba</h2>
+  <p>Al guardar, cada equipo aplica la política en su próximo reporte, normalmente en segundos si está en línea. Si el cambio toca el quiosco, la consola pide confirmación con <span class="ui">Guardar y aplicar</span>. La tarjeta de cumplimiento, arriba del editor, dice <span class="ui">Al día</span> o <span class="ui">Fuera de cumplimiento</span>, y <span class="ui">Ver equipos</span> lista los que faltan y por qué. El reporte <span class="ui">Incumplimiento</span> da la misma información para toda la flota.</p>
+  <p>La pestaña <span class="ui">Historial de cambios</span> registra quién guardó la política, cuándo y qué cambió, campo por campo.</p>
+</section>
+
+<section class="sec pb" id="aplicaciones" data-temas="aplicaciones, apps, biblioteca, subir APK, versiones, grupo de versiones, grupos de aplicaciones, desplegar, instalación en la flota, desinstalar, obtener APK">
+  <p class="k">8 · Aplicaciones</p>
+  <h1>La biblioteca guarda las aplicaciones; la política decide dónde se instalan</h1>
+  <div class="fig">
+    <img src="img/a13-apps-biblioteca.jpg" alt="Pantalla Apps, pestaña Biblioteca">
+    <p class="cap">Figura 12. Menú «Aplicaciones», pestaña «Biblioteca».</p>
+  </div>
+  <p>La pantalla tiene cinco pestañas de origen: <span class="ui">Biblioteca</span>, <span class="ui">APK propio</span>, <span class="ui">En el teléfono</span>, <span class="ui">F-Droid</span> y <span class="ui">Play Store</span>.</p>
+  <h2>Subir una aplicación propia</h2>
+  <ol class="steps">
+    <li>Abra la pestaña <span class="ui">APK propio</span>.</li>
+    <li>Opcional: escriba un nombre en <span class="ui">Nombre de esta versión (opcional)</span>.</li>
+    <li>Suelte el archivo en la zona de arrastre o haga clic para buscarlo. Se aceptan archivos .apk y paquetes divididos .xapk, .apks, .apkm o .zip. La consola completa sola el paquete y la versión.</li>
+    <li>Los archivos de 50 MB o más se suben por partes: la consola muestra «Parte 3 de 7» con el avance. Si se corta la conexión, elija de nuevo el mismo archivo y la subida continúa donde quedó.</li>
+    <li>Pulse <span class="ui">Agregar a la Biblioteca</span>, o <span class="ui">Desplegar…</span> para instalarla de una vez.</li>
+  </ol>
+  <div class="fig m">
+    <img src="img/a14-apps-subir.jpg" alt="Pestaña APK propio">
+    <p class="cap">Figura 13. Pestaña «APK propio» con la zona de arrastre.</p>
+  </div>
+  <p>El tamaño máximo es 4 GB. Los archivos .aab no se pueden instalar: genere un APK universal. Si la firma de una versión nueva difiere de la anterior, la consola lo advierte antes de agregarla; los equipos que ya tienen la aplicación rechazarían esa versión.</p>
+  <h2>Versiones</h2>
+  <ul class="b">
+    <li>Una versión con código mayor reemplaza a la anterior: las políticas que usan la aplicación instalan la nueva sola.</li>
+    <li><span class="ui">Hacer grupo</span> convierte la aplicación en un grupo de versiones. Cada política usa la versión que se le asigne con <span class="ui">Asignar a políticas</span>, y subir otra ya no cambia las políticas solas. Sirve para mantener una versión por cliente.</li>
+    <li>Asignar una versión más vieja hace que los equipos desinstalen la nueva e instalen esa: se borran los datos de la aplicación en esos equipos. La consola pide confirmarlo.</li>
+  </ul>
+  <h2>Otras fuentes</h2>
+  <table>
+    <thead><tr><th style="width:34mm">Pestaña</th><th>Para qué</th></tr></thead>
+    <tbody>
+      <tr><td>En el teléfono</td><td>Registrar una aplicación que el equipo ya trae, para permitirla en el quiosco. No instala nada.</td></tr>
+      <tr><td>Play Store</td><td>Agregar una ficha de la tienda. Queda con el chip <span class="ui">Sin APK</span> hasta que <span class="ui">Obtener APK</span> descargue el archivo público al servidor.</td></tr>
+      <tr><td>F-Droid</td><td>Buscar aplicaciones de ese catálogo; el equipo las descarga de allí.</td></tr>
+    </tbody>
+  </table>
+  <h2>Instalar en la flota</h2>
+  <table>
+    <thead><tr><th style="width:50mm">Objetivo</th><th>Cómo</th></tr></thead>
+    <tbody>
+      <tr><td>Que quede siempre, también en equipos nuevos</td><td>En la política, <span class="ui">Apps permitidas</span>, <span class="ui">Agregar desde la biblioteca</span> o <span class="ui">Subir APK</span>, acción <span class="ui">Instalar</span>, y <span class="ui">Guardar</span>.</td></tr>
+      <tr><td>Instalarla ahora en equipos o carpetas</td><td>En la biblioteca, <span class="ui">Desplegar</span>: pestañas <span class="ui">Instalar en dispositivos</span>, <span class="ui">Carpetas</span> o <span class="ui">Agregar a una política</span>.</td></tr>
+      <tr><td>Un conjunto de aplicaciones para varias políticas o carpetas</td><td><span class="ui">Políticas</span>, pestaña <span class="ui">Grupos de aplicaciones</span>, <span class="ui">Nuevo grupo</span>. Asígnelo a carpetas o políticas.</td></tr>
+    </tbody>
+  </table>
+  <h2>Seguir la instalación</h2>
+  <div class="fig">
+    <img src="img/a15-instalacion-flota.jpg" alt="Ventana Instalación en la flota">
+    <p class="cap">Figura 14. Ventana «Instalación en la flota».</p>
+  </div>
+  <p>El botón <span class="ui">Instalación</span> abre <span class="ui">Instalación en la flota</span>. Muestra cuántos equipos están en la versión objetivo, pendientes, retenidos y fallidos, y el motivo de cada falla. El servidor reintenta solo las fallas temporales; <span class="ui">Reintentar</span> reenvía las demás cuando se corrige la causa. <span class="ui">Exportar CSV</span> entrega la lista. Los motivos se explican en «Solución de problemas».</p>
+  <h2>Quitar una aplicación</h2>
+  <table>
+    <thead><tr><th style="width:62mm">Acción</th><th>Efecto</th></tr></thead>
+    <tbody>
+      <tr><td>En la política, acción <span class="ui">Desinstalar</span> y <span class="ui">Guardar</span></td><td>La desinstala en los equipos de esa política.</td></tr>
+      <tr><td><span class="ui">✕</span> en la política, o <span class="ui">Quitar de políticas</span></td><td>Deja de gestionarla. No la desinstala.</td></tr>
+      <tr><td><span class="ui">Equipos</span>, seleccionar y <span class="ui">Desinstalar en N</span></td><td>La desinstala en los equipos elegidos. Pide escribir DESINSTALAR.</td></tr>
+      <tr><td>Ficha del equipo, pestaña <span class="ui">Aplicaciones</span>, <span class="ui">Desinstalar</span></td><td>La desinstala en ese equipo.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Si una política todavía incluye la aplicación para instalar, la próxima sincronización la vuelve a instalar.</p>
+</section>
+
+<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, modo quiosco, una sola app, varias apps, contraseña de salida, configuración recomendada, marca del quiosco, antirrobo">
+  <p class="k">9 · Quiosco</p>
+  <h1>El quiosco limita el equipo a las aplicaciones de trabajo</h1>
+  <p>Con <span class="ui">Modo quiosco</span> activo, el equipo solo muestra las aplicaciones que la política permite. Se configura en la política y se puede activar o quitar por equipo.</p>
+  <h2>Una aplicación o varias</h2>
+  <table>
+    <thead><tr><th style="width:36mm">Resultado</th><th>Cuándo ocurre</th></tr></thead>
+    <tbody>
+      <tr><td>Una sola aplicación</td><td>Hay <span class="ui">App principal</span>, es la única aplicación visible en quiosco y no hay <span class="ui">Funciones del quiosco</span> marcadas.</td></tr>
+      <tr><td>Varias aplicaciones, en una pantalla de inicio propia</td><td>En cualquier otro caso: más de una aplicación con <span class="ui">En quiosco</span>, un grupo de aplicaciones en quiosco, o alguna función marcada (Teléfono, Contactos, Mensajes, Navegador, Cámara, Mapas).</td></tr>
+    </tbody>
+  </table>
+  <h2>Configurar el quiosco en la política</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Apps permitidas</span>, agregue las aplicaciones con acción <span class="ui">Instalar</span>. La casilla <span class="ui">En quiosco</span> decide si cada una aparece en la pantalla del quiosco.</li>
+    <li>En <span class="ui">App principal</span> elija la aplicación que se abre al entrar.</li>
+    <li>Marque <span class="ui">Modo quiosco</span>.</li>
+    <li>En <span class="ui">Seguridad</span>, escriba la contraseña para salir del quiosco.</li>
+    <li>Ajuste los botones visibles (tabla siguiente) y, si quiere, la <span class="ui">Marca del quiosco</span>.</li>
+    <li>Pulse <span class="ui">Guardar</span> y confirme con <span class="ui">Guardar y aplicar</span>.</li>
+  </ol>
+  <table>
+    <thead><tr><th style="width:56mm">Ajuste</th><th>En Auto</th></tr></thead>
+    <tbody>
+      <tr><td>Botón Salir del quiosco</td><td>Oculto. Se sale con 7 toques seguidos en la esquina superior derecha. «Sí» muestra un botón.</td></tr>
+      <tr><td>Botones Atrás e Inicio</td><td>Visibles.</td></tr>
+      <tr><td>Botón Recientes y pantalla dividida</td><td>Visible. Requiere el botón Inicio.</td></tr>
+      <tr><td>Notificaciones</td><td>Permitidas.</td></tr>
+      <tr><td>Hora, batería y señal</td><td>Visible.</td></tr>
+      <tr><td>Pantalla de bloqueo</td><td>Sin pantalla de bloqueo en el quiosco.</td></tr>
+      <tr><td>Ajustes rápidos del quiosco</td><td>Activos: brillo, volumen, Wi-Fi y Bluetooth.</td></tr>
+    </tbody>
+  </table>
+  <h2>Configuración recomendada</h2>
+  <ul class="chk">
+    <li><b>Defina siempre la contraseña de salida.</b> Sin ella, el gesto o el botón sacan del quiosco sin pedir nada.</li>
+    <li>Deje <span class="ui">Botón Salir del quiosco</span> en Auto: el gesto de 7 toques no es visible para el usuario.</li>
+    <li>Ponga un <span class="ui">Número de soporte</span> en la marca: el quiosco muestra un botón para llamar sin habilitar el teléfono completo.</li>
+    <li>En equipos expuestos a robo, defina <span class="ui">Antirrobo: clave para apagar</span> (Android 9 o superior). Bloquea además el restablecimiento desde Ajustes.</li>
+    <li>Bloquee <span class="ui">Instalación de apps por el usuario</span> y, si el equipo no debe compartir internet, <span class="ui">Compartir datos (zona Wi‑Fi)</span>.</li>
+    <li>Pruebe la política en un equipo de cada versión de Android antes de aplicarla a toda una carpeta.</li>
+  </ul>
+  <h2>Activar o quitar el quiosco en un equipo</h2>
+  <p>En la ficha, pestaña <span class="ui">Control</span>: <span class="ui">Quitar quiosco</span> lo saca para una tarea de soporte y <span class="ui">Activar quiosco</span> lo devuelve. <span class="ui">Personalizar…</span> abre <span class="ui">Entrar en quiosco</span>, donde se eligen aplicaciones, botones visibles, <span class="ui">Modo de salida</span> (Gesto, Botón visible o Solo remoto) y <span class="ui">Contraseña de salida</span> solo para ese equipo. Para varios equipos: <span class="ui">Acciones</span>, grupo <span class="ui">Kiosco</span>, <span class="ui">Activar modo kiosco…</span>. La casilla <span class="ui">En el kiosco</span> de la pestaña <span class="ui">Aplicaciones</span> muestra una aplicación solo en ese equipo.</p>
+  <h2>Límites conocidos</h2>
+  <ul class="b">
+    <li>En Android 16 el agente usa un quiosco propio, sin el bloqueo del sistema: los interruptores de botones no se aplican en esa versión.</li>
+    <li>Ningún sistema de administración impide el apagado forzado ni el restablecimiento con los botones físicos.</li>
+    <li>Si la aplicación principal se cierra más de 3 veces en un minuto, el agente no la reabre sola y muestra un botón para abrirla.</li>
+  </ul>
+  <p class="pend">Llega con la integración del quiosco reforzado</p>
+  <p>La siguiente versión hace obligatoria la contraseña de salida y la genera en las políticas que no la tengan, agrega una espera creciente tras intentos fallidos, bloquea los Ajustes del sistema dentro del quiosco y muestra el estado del refuerzo en la ficha. Este capítulo se actualizará entonces.</p>
+</section>
+
+<section class="sec pb" id="hardware" data-temas="restricciones de hardware, cámara, USB, bluetooth, capturas de pantalla, compartir datos, puertos">
+  <p class="k">10 · Restricciones de hardware</p>
+  <h1>La política controla radios, almacenamiento externo y capturas</h1>
+  <p>Estas restricciones se definen en el editor de la política y se aplican a todos sus equipos.</p>
+  <table>
+    <thead><tr><th style="width:60mm">Ajuste</th><th style="width:46mm">Dónde</th><th>Opciones</th></tr></thead>
+    <tbody>
+      <tr><td>Wi‑Fi</td><td>Sección Red</td><td>Auto, Sí, No</td></tr>
+      <tr><td>Bluetooth</td><td>Sección Red</td><td>Auto, Sí, No</td></tr>
+      <tr><td>Almacenamiento USB</td><td>Sección Restricciones</td><td>Auto, Sí, No</td></tr>
+      <tr><td>Bloquear capturas de pantalla</td><td>Sección Restricciones</td><td>Auto, Sí, No</td></tr>
+      <tr><td>Compartir datos (zona Wi‑Fi)</td><td>Funciones del dispositivo</td><td>Permitir (ícono en el quiosco), Bloquear</td></tr>
+      <tr><td>Instalación de apps por el usuario</td><td>Funciones del dispositivo</td><td>Permitida, Bloquear (solo la consola instala)</td></tr>
+      <tr><td>Cuentas de Google</td><td>Funciones del dispositivo</td><td>Se pueden agregar, No permitir agregar; dominios permitidos</td></tr>
+      <tr><td>Restablecimiento de fábrica</td><td>Funciones del dispositivo</td><td>Permitido, Bloquear desde Ajustes</td></tr>
+    </tbody>
+  </table>
+  <p>Compartir datos se puede cambiar para un equipo desde su pestaña <span class="ui">Control</span>: <span class="ui">Permitir</span>, <span class="ui">Bloquear</span> o <span class="ui">Según política</span>. Con capturas bloqueadas, el control remoto tampoco ve la pantalla.</p>
+  <p class="pend">Llega con la integración de hardware y puertos</p>
+  <p>La siguiente versión agrega la sección «Hardware y puertos» con 23 funciones (entre ellas cámara, micrófono, depuración USB, datos por USB, tarjeta SD, NFC, modo avión, fecha y hora), cada una con «Sin gestionar», «Permitir» o «Bloquear», y una pestaña «Restricciones» en la ficha con el resultado real en cada equipo. Este capítulo se ampliará entonces.</p>
+</section>
+
+<section class="sec" id="permisos-app" data-temas="permisos por app, permisos de aplicaciones, conceder permisos, ubicación, cámara">
+  <h2>Permisos de las aplicaciones</h2>
+  <p>Al inscribir un equipo, el agente fija la concesión automática de permisos para las aplicaciones administradas: las aplicaciones que instala la política reciben sus permisos sin que el usuario deba aceptarlos. En esta versión no hay reglas por aplicación ni por permiso.</p>
+  <p class="pend">Llega con la integración de permisos por aplicación</p>
+  <p>La siguiente versión agrega en la política una regla por defecto (conceder, preguntar o denegar) y la sección «Permisos por app» con reglas por permiso y accesos especiales, más una pestaña «Permisos» en la ficha con el estado real y exportación a CSV.</p>
+</section>
+
+<section class="sec pb" id="wifi" data-temas="Wi-Fi corporativo, redes Wi-Fi, SSID, WPA, datos móviles por app, lista negra, lista blanca, límite de datos, VPN local">
+  <p class="k">11 · Wi-Fi y datos móviles</p>
+  <h1>La política entrega las redes Wi-Fi y decide qué aplicaciones usan datos móviles</h1>
+  <h2>Redes Wi-Fi</h2>
+  <ol class="steps">
+    <li>En el editor de la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, vaya a <span class="ui">Redes Wi‑Fi</span>.</li>
+    <li>Pulse <span class="ui">+ Agregar red</span> y complete el nombre de la red (hasta 32 caracteres), la contraseña y la seguridad: <span class="ui">WPA/WPA2</span>, <span class="ui">WEP</span> o <span class="ui">Abierta</span>.</li>
+    <li>Pulse <span class="ui">Guardar</span>. Los equipos guardan la red y se conectan solos cuando está al alcance.</li>
+  </ol>
+  <p class="nota">El Wi-Fi del QR de inscripción solo sirve para la puesta en marcha. Para que la red quede en todos los equipos, agréguela también aquí.</p>
+  <p class="pend">Llega con la integración de Wi-Fi corporativo</p>
+  <p>La siguiente versión agrega WPA3, redes empresariales 802.1X con certificados, red oculta, prioridad, proxy y dirección fija por red, bloqueos de Wi-Fi con salvaguarda para no dejar un equipo sin red, y el estado de cada red en la ficha del equipo.</p>
+
+  <h2>Datos móviles por aplicación</h2>
+  <p>En la misma tarjeta, sección <span class="ui">Datos móviles</span>:</p>
+  <table>
+    <thead><tr><th style="width:56mm">Ajuste</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>Datos móviles por aplicación</td><td><span class="ui">Sin restricción por app</span>; <span class="ui">Lista negra: solo Wi‑Fi</span> (las aplicaciones listadas no usan datos móviles); o <span class="ui">Lista blanca: solo estas apps</span> (solo las listadas los usan).</td></tr>
+      <tr><td>Límite de datos del equipo</td><td>Tope en MB para todo el equipo en el periodo.</td></tr>
+      <tr><td>Límite de datos por app</td><td>Tope por aplicación, con <span class="ui">+ Agregar límite</span>.</td></tr>
+      <tr><td>Periodo de los límites</td><td><span class="ui">Mensual</span>, con día de corte del 1 al 28, o <span class="ui">Diario</span>.</td></tr>
+      <tr><td>Umbral de aviso</td><td>Porcentaje del límite que genera la alerta «cerca del límite». Vacío equivale a 80 %.</td></tr>
+      <tr><td>Apps esenciales</td><td>Aplicaciones que nunca pierden los datos móviles.</td></tr>
+      <tr><td>Mecanismo de bloqueo</td><td><span class="ui">Automático (recomendado)</span>: desde Android 9 usa la restricción del sistema; en Android 7 y 8, una VPN local del agente. Android 6 no es compatible.</td></tr>
+    </tbody>
+  </table>
+  <p>En la ficha del equipo, pestaña <span class="ui">Uso de apps</span>, la tarjeta de datos móviles muestra la política vigente, el mecanismo en uso, el consumo frente al límite y las aplicaciones sin datos móviles con su motivo. <span class="ui">Ajustar en este equipo</span> permite excepciones para ese equipo y <span class="ui">Volver a la política</span> las quita.</p>
+  <p>Los reportes <span class="ui">Datos móviles</span> y <span class="ui">Datos móviles: uso vs. límite</span> resumen el consumo de la flota. Las alertas «Datos móviles: cerca del límite» y «Datos móviles: límite superado» se pueden enviar por correo (capítulo 13).</p>
+</section>
+
+<section class="sec pb" id="ubicacion" data-temas="ubicación, mapa, recorridos, geocercas, zonas, círculo, polígono, horario, precisión">
+  <p class="k">12 · Ubicación y geocercas</p>
+  <h1>El mapa muestra dónde está la flota; las geocercas avisan cuando un equipo cruza un límite</h1>
+  <h2>Activar la ubicación</h2>
+  <p>En la política: <span class="ui">Reporte de ubicación</span> en <span class="ui">GPS</span> o <span class="ui">Red (Wi‑Fi/celular)</span>, y <span class="ui">Ubicación cada</span> con el intervalo en minutos, de 1 a 1.440. GPS es más preciso y gasta más batería. Para un equipo, las órdenes <span class="ui">Ubicación: precisa</span> y <span class="ui">Ubicación: ahorro de batería</span> cambian el modo desde su pestaña <span class="ui">Control</span>.</p>
+  <div class="fig">
+    <img src="img/a16-mapa.jpg" alt="Pantalla Mapa">
+    <p class="cap">Figura 15. Pantalla «Mapa» con las posiciones de la flota en el rango elegido.</p>
+  </div>
+  <h2>Mapa de la flota</h2>
+  <ul class="b">
+    <li>Rangos rápidos: <span class="ui">Última hora</span>, <span class="ui">Hoy</span>, <span class="ui">Ayer</span>, <span class="ui">Últimas 24 h</span>, <span class="ui">Últimos 7 días</span>, o fechas en <span class="ui">Desde</span> y <span class="ui">Hasta</span>. El rango máximo es de 31 días.</li>
+    <li><span class="ui">Recorridos</span> dibuja el trayecto de cada equipo y <span class="ui">Zonas</span>, las geocercas.</li>
+    <li>El deslizador de hora coloca cada equipo donde estaba en ese momento.</li>
+    <li>En el lateral, <span class="ui">Filtrar dispositivos</span> y el selector de carpeta acotan la lista y el mapa. <span class="ui">Acercar</span> centra un equipo y <span class="ui">Abrir</span> va a su ficha.</li>
+  </ul>
+  <p>En la ficha de un equipo, la pestaña <span class="ui">Ubicación</span> guarda su historial, con rangos de hasta 90 días, exportación a <span class="ui">Excel</span> o <span class="ui">CSV</span> y la casilla para ocultar posiciones de baja precisión.</p>
+  <h2>Crear una geocerca</h2>
+  <div class="fig">
+    <img src="img/a17-geocercas.jpg" alt="Pantalla Geocercas">
+    <p class="cap">Figura 16. Pantalla «Geocercas», pestaña «Zonas». Línea continua: debe permanecer dentro; punteada: no debe entrar.</p>
+  </div>
+  <ol class="steps">
+    <li>En <span class="ui">Geocercas</span>, pestaña <span class="ui">Zonas</span>, pulse <span class="ui">Nuevo círculo</span> o <span class="ui">Nuevo polígono</span>.</li>
+    <li>Dibuje en el mapa: un clic para el centro del círculo, o un clic por vértice del polígono, mínimo 3. El radio admite de 20 metros a 500 kilómetros.</li>
+    <li>Escriba el <span class="ui">Nombre</span> y elija la <span class="ui">Regla</span>: <span class="ui">Debe permanecer dentro (alerta al salir)</span> o <span class="ui">No debe entrar (alerta al entrar)</span>.</li>
+    <li>En <span class="ui">Aplica a</span>, marque <span class="ui">Toda la flota</span>, carpetas (incluyen sus subcarpetas) o equipos sueltos.</li>
+    <li>Opcional: desmarque <span class="ui">Siempre</span> en <span class="ui">Horario</span> y elija días y horas; fuera del horario no se alerta.</li>
+    <li>Opcional: <span class="ui">Frecuencia de ubicación</span> hace que los equipos de la zona reporten al menos con ese intervalo; <span class="ui">Avisar por correo a</span> agrega destinatarios propios de la zona.</li>
+    <li>Pulse <span class="ui">Guardar zona</span>.</li>
+  </ol>
+  <h2>Cómo se evalúan</h2>
+  <p>El servidor evalúa cada posición que llega, así que funciona con cualquier versión del agente. Un cruce se da por cierto cuando la posición es precisa, queda más allá del borde con su margen y lo confirman varias posiciones seguidas. Con la confirmación de 2 posiciones, la alerta llega entre 1 y 2 intervalos después del cruce. Si el equipo ya incumple al crear la zona, la alerta sale en ese momento.</p>
+  <p>La pestaña <span class="ui">Precisión e historial</span> ajusta esos criterios: <span class="ui">Precisión máxima aceptada</span> (100 metros por defecto), <span class="ui">Margen del borde</span> (15 metros), <span class="ui">Posiciones de confirmación</span> (2) y <span class="ui">Retención del historial de ubicación</span>. Solo un administrador completo puede cambiarlos.</p>
+</section>
+
+<section class="sec pb" id="alertas" data-temas="alertas, correos, notificaciones por correo, desconexión, cambio de SIM, salida de kiosko, destinatarios, umbral de desconexión">
+  <p class="k">13 · Alertas y correos</p>
+  <h1>Las alertas se revisan en la consola y, si hay correo configurado, llegan a los destinatarios</h1>
+  <div class="fig">
+    <img src="img/a18-alertas.jpg" alt="Pantalla Alertas">
+    <p class="cap">Figura 17. Pantalla «Alertas» con filtros por tipo, estado y fechas.</p>
+  </div>
+  <h2>Tipos de alerta</h2>
+  <table>
+    <thead><tr><th style="width:58mm">Tipo</th><th>Cuándo se genera</th></tr></thead>
+    <tbody>
+      <tr><td>Desconexión</td><td>El equipo no reporta por más del <span class="ui">Umbral de desconexión</span>, 20 minutos por defecto.</td></tr>
+      <tr><td>Salida de kiosko</td><td>El equipo salió del quiosco.</td></tr>
+      <tr><td>Cambio de SIM</td><td>La SIM se retiró, se insertó o se cambió.</td></tr>
+      <tr><td>Salida de zona · Entrada a zona</td><td>El equipo cruzó el límite de una geocerca.</td></tr>
+      <tr><td>Datos móviles: cerca del límite · límite superado</td><td>El consumo alcanzó el umbral de aviso o el límite de la política.</td></tr>
+    </tbody>
+  </table>
+  <h2>Revisar las alertas</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Alertas</span>, elija <span class="ui">Tipo</span>, <span class="ui">Estado</span> (<span class="ui">Pendientes</span> o <span class="ui">Revisadas</span>) y fechas, y pulse <span class="ui">Actualizar</span>. Los filtros solo se aplican al pulsarlo.</li>
+    <li>Abra el equipo desde la columna <span class="ui">Equipo</span> para ver el contexto.</li>
+    <li>Marque la casilla <span class="ui">Revisada</span> al atenderla. Quedan registrados quién la revisó y cuándo.</li>
+    <li><span class="ui">Excel</span> o <span class="ui">CSV</span> exportan el resultado.</li>
+  </ol>
+  <h2>Enviar las alertas por correo</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Geocercas</span>, abra la pestaña <span class="ui">Notificaciones por correo</span>. El primer renglón dice si el servidor tiene correo saliente configurado.</li>
+    <li>Elija la <span class="ui">Carpeta</span> (o toda la flota), escriba los <span class="ui">Correos (separados por coma)</span> y marque los tipos en <span class="ui">Alertas (ninguna marcada = todas)</span>.</li>
+    <li>Pulse <span class="ui">Agregar destinatarios</span>. Una regla sobre una carpeta cubre sus subcarpetas.</li>
+    <li>Compruebe con <span class="ui">Probar el correo</span> y <span class="ui">Enviar prueba</span>.</li>
+  </ol>
+  <p>Cada destinatario recibe como máximo un correo por intervalo, 10 minutos por defecto, con todas las alertas ocurridas desde el anterior; las repetidas del mismo equipo se agrupan en una línea. Un destinatario nuevo solo recibe lo ocurrido desde que se agregó. El intervalo se cambia en <span class="ui">Precisión e historial</span>.</p>
+  <div class="callout"><b>El correo saliente lo configura el operador del servidor.</b> Sin él, las alertas se registran y se ven en la consola, pero no se envía ningún correo. Ver «Operación, soporte y nivel de servicio».</div>
+</section>
+
+<section class="sec pb" id="comandos" data-temas="comandos remotos, órdenes, bloquear, hacer sonar, alarma, mensaje, reiniciar, borrar, restablecer de fábrica, modo perdido, cancelar orden, estados de la orden, acciones masivas">
+  <p class="k">14 · Comandos remotos</p>
+  <h1>Cada orden queda registrada con su estado, su autor y su tiempo de entrega</h1>
+  <div class="fig">
+    <img src="img/a10-control.jpg" alt="Pestaña Control de un dispositivo">
+    <p class="cap">Figura 18. Pestaña «Control» de un dispositivo: historial de órdenes con su estado y el botón «Cancelar».</p>
+  </div>
+  <p>Las órdenes se envían desde la pestaña <span class="ui">Control</span> de la ficha. Están agrupadas por su efecto sobre el usuario del equipo.</p>
+  <table>
+    <thead><tr><th style="width:24mm">Grupo</th><th style="width:54mm">Acción</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>Seguras</td><td>Mensaje en pantalla de bloqueo</td><td>Deja un texto en la pantalla de bloqueo. Vacío lo borra.</td></tr>
+      <tr><td></td><td>Enviar mensaje</td><td>Muestra un mensaje con título en el equipo.</td></tr>
+      <tr><td></td><td>Hacer sonar · Dejar de sonar</td><td>Suena 30 segundos para ubicarlo; la segunda lo calla.</td></tr>
+      <tr><td></td><td>Tamaño de letra · zoom</td><td>Ajusta la letra o el tamaño de pantalla.</td></tr>
+      <tr><td></td><td>Abrir app</td><td>Abre la aplicación del paquete indicado.</td></tr>
+      <tr><td></td><td>Borrar caché de las apps</td><td>Android 11 o superior; la persona toca Aceptar.</td></tr>
+      <tr><td></td><td>Ubicación: precisa · ahorro de batería</td><td>Cambia el modo de ubicación.</td></tr>
+      <tr><td>Interrumpen</td><td>Bloquear</td><td>Bloquea la pantalla de inmediato, sin pedir confirmación.</td></tr>
+      <tr><td></td><td>Reiniciar</td><td>Reinicia el equipo tras <span class="ui">Confirmar</span>.</td></tr>
+      <tr><td></td><td>Cambiar clave del dispositivo</td><td>Fija una clave de desbloqueo de 4 caracteres o más; vacía la quita.</td></tr>
+      <tr><td>Destructivas</td><td>Restablecer de fábrica (borrar todo)</td><td>Borra el equipo por completo. No se puede deshacer.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Los grupos «Interrumpen» y «Destructivas» solo aparecen para quien tiene el permiso de acciones que interrumpen.</p>
+  <h2>Bloquear y localizar un equipo extraviado</h2>
+  <ol class="steps">
+    <li>Pulse <span class="ui">Bloquear</span>. La orden no vence: si el equipo está apagado, se bloquea al encender.</li>
+    <li>Envíe <span class="ui">Mensaje en pantalla de bloqueo</span> con el dato de contacto.</li>
+    <li>Envíe <span class="ui">Ubicación: precisa</span> y siga el equipo en la pestaña <span class="ui">Ubicación</span>.</li>
+    <li>Si está cerca, <span class="ui">Hacer sonar</span> ayuda a encontrarlo.</li>
+  </ol>
+  <p class="pend">Llega con la integración de protección y borrado remoto</p>
+  <p>La siguiente versión reúne estos pasos en un «Modo perdido» con mensaje y teléfono de contacto, sonido, posición cada minuto y borrado automático opcional; y agrega al borrado remoto opciones para conservar la protección de restablecimiento, borrar la tarjeta SD y las eSIM.</p>
+  <h2>Borrar un equipo</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Control</span>, grupo <span class="ui">Destructivas</span>, pulse <span class="ui">Restablecer de fábrica (borrar todo)</span>.</li>
+    <li>En el campo <span class="ui">Escribe BORRAR para confirmar</span>, escriba BORRAR en mayúsculas y pulse <span class="ui">Confirmar</span>.</li>
+    <li>La orden no vence y se reentrega hasta que el equipo responda. Tras ejecutarse, la ficha muestra la insignia <span class="ui">Borrado</span> con fecha y autor.</li>
+  </ol>
+  <p>El borrado nunca se envía a varios equipos a la vez: se hace equipo por equipo.</p>
+  <h2>Estados y cancelación</h2>
+  <p>El historial, al final de la pestaña, muestra cada orden con los pasos Creada, Entregada y Completada, la latencia de cada uno, quién la envió y cuántas veces se entregó.</p>
+  <table>
+    <thead><tr><th style="width:30mm">Estado</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td>Pendiente</td><td>En cola; se ejecutará cuando el equipo vuelva a conectarse.</td></tr>
+      <tr><td>Entregado</td><td>El equipo la recibió y aún no confirma.</td></tr>
+      <tr><td>Ejecutado</td><td>El equipo confirmó el resultado.</td></tr>
+      <tr><td>Fallido · No soportado</td><td>El equipo no pudo, o su agente no conoce la orden.</td></tr>
+      <tr><td>Vencido</td><td>Pasó el plazo de esa orden.</td></tr>
+      <tr><td>Cancelado</td><td>Un usuario la canceló.</td></tr>
+    </tbody>
+  </table>
+  <p><span class="ui">Cancelar</span> aparece en las órdenes Pendiente y Entregado. Si la orden ya se entregó, la consola advierte que cancelarla evita que se reenvíe, pero que el equipo pudo haberla ejecutado.</p>
+  <h2>Acciones masivas</h2>
+  <p>Desde <span class="ui">Dispositivos</span> (botón <span class="ui">Acciones</span> sobre una selección, o <span class="ui">Acciones en la carpeta</span> con un filtro de carpeta) y desde <span class="ui">Carpetas</span> (<span class="ui">Ejecutar acción</span>) se abre <span class="ui">Ejecutar acción en…</span>. Agrupa las acciones en <span class="ui">Acciones</span>, <span class="ui">Disruptivas</span>, <span class="ui">Aplicaciones</span>, <span class="ui">Actualizaciones</span>, <span class="ui">Control remoto</span> y <span class="ui">Kiosco</span>. Las que llevan parámetros piden marcar la casilla de confirmación antes de <span class="ui">Ejecutar</span>. Los equipos sin enlace reciben la orden al reconectarse; los que están fuera del alcance del usuario se omiten.</p>
+</section>
+
+<section class="sec pb" id="remoto" data-temas="control remoto, ver pantalla, controlar, sesión remota, soporte remoto, voz, chat">
+  <p class="k">15 · Control remoto</p>
+  <h1>La pestaña «Remoto» muestra la pantalla del equipo y permite manejarlo</h1>
+  <h2>Preparar el equipo</h2>
+  <p>La primera vez, la pestaña <span class="ui">Remoto</span> ofrece <span class="ui">Instalar soporte remoto</span>: el agente descarga el componente de pantalla remota desde el servidor y lo deja listo, sin cable. Necesita Android 7 o superior. Para varios equipos: <span class="ui">Acciones</span>, grupo <span class="ui">Control remoto</span>, <span class="ui">Instalar soporte remoto</span>.</p>
+  <table>
+    <thead><tr><th style="width:46mm">Nivel</th><th>Qué exige</th></tr></thead>
+    <tbody>
+      <tr><td>Solo ver</td><td>El componente instalado. La primera vez, el teléfono pide permiso para compartir la pantalla y quien lo tenga toca «Iniciar ahora».</td></tr>
+      <tr><td>Ver y controlar</td><td>Además, el servicio de accesibilidad del soporte remoto activo en el teléfono. <span class="ui">Abrir el ajuste en el teléfono</span> lleva a esa pantalla. La inscripción con computador lo deja activo sin tocar el equipo.</td></tr>
+    </tbody>
+  </table>
+  <h2>Iniciar una sesión</h2>
+  <ol class="steps">
+    <li>En la ficha, abra <span class="ui">Remoto</span> y pulse <span class="ui">Ver y controlar</span> o <span class="ui">Solo ver</span>.</li>
+    <li>Espere la conexión. Con el equipo en línea toma segundos; si está bloqueado y en ahorro de batería puede tardar minutos. <span class="ui">Activar Siempre conectado</span> lo evita.</li>
+    <li>Use la pantalla. La barra inferior envía <span class="ui">Atrás</span>, <span class="ui">Inicio</span>, <span class="ui">Recientes</span>, volumen, <span class="ui">Menú de apagado</span> y <span class="ui">Girar pantalla</span>. <span class="ui">Pantalla completa</span> y <span class="ui">Abrir en otra pestaña</span> amplían el visor.</li>
+    <li>Pulse <span class="ui">Terminar sesión</span>. El equipo deja de compartir su pantalla.</li>
+  </ol>
+  <ul class="b">
+    <li>El chip <span class="ui">Cifrado (TLS)</span> confirma que la pantalla viaja cifrada.</li>
+    <li>La sesión se cierra sola al salir de la pestaña y tras 15 minutos sin actividad.</li>
+    <li>El conmutador de quiosco está en la misma pestaña, para quitarlo durante el soporte y devolverlo al terminar.</li>
+    <li>Cada sesión queda en la auditoría, módulo <span class="ui">Control remoto</span>.</li>
+  </ul>
+  <p class="pend">Llega con la integración del soporte remoto con voz</p>
+  <p>La siguiente versión agrega la captura desde el propio agente, sin avisos en Android 11 o superior, llamada de voz con el usuario, chat, portapapeles, envío y exploración de archivos, grabación de la sesión y un menú «Sesiones de soporte» con el historial. Este capítulo se ampliará entonces.</p>
+</section>
+
+<section class="sec pb" id="anuncios" data-temas="anuncios, mensajes, obligatorio, opcional, video, imagen, confirmado, scripts, acción rápida">
+  <p class="k">16 · Anuncios y scripts</p>
+  <h1>Un anuncio llega a muchos teléfonos; un script repite una secuencia de acciones</h1>
+  <h2>Enviar un anuncio</h2>
+  <div class="fig">
+    <img src="img/a23-anuncios.jpg" alt="Pantalla Anuncios">
+    <p class="cap">Figura 19. Pantalla «Anuncios» con el avance de recibido, visto y confirmado.</p>
+  </div>
+  <ol class="steps">
+    <li>En <span class="ui">Anuncios</span> pulse <span class="ui">Nuevo anuncio</span>.</li>
+    <li>Escriba <span class="ui">Título</span> y <span class="ui">Mensaje</span>. Opcional: adjunte una imagen o un video de hasta 95 MB.</li>
+    <li>Elija el modo. <span class="ui">Opcional</span>: llega como notificación y queda en la bandeja «Anuncios» del teléfono. <span class="ui">Obligatorio</span>: se abre en pantalla completa y no se cierra hasta tocar «Entendido»; con video, al terminar de verlo.</li>
+    <li>Elija la <span class="ui">Vigencia</span> y, en <span class="ui">Para quién</span>, <span class="ui">Carpetas</span>, <span class="ui">Dispositivos</span> o <span class="ui">Todos</span>.</li>
+    <li>Pulse <span class="ui">Enviar a N</span>. Los equipos apagados lo reciben al conectarse.</li>
+  </ol>
+  <p>Al abrir un anuncio enviado se ve, por equipo, si está <span class="ui">Pendiente</span>, <span class="ui">Recibido</span>, <span class="ui">Visto</span> o <span class="ui">Confirmado</span>. <span class="ui">Retirar anuncio</span> lo quita de los teléfonos que ya lo tenían.</p>
+  <h2>Scripts y acciones rápidas</h2>
+  <div class="fig">
+    <img src="img/a24-scripts.jpg" alt="Pantalla Scripts">
+    <p class="cap">Figura 20. Pantalla «Scripts».</p>
+  </div>
+  <p>Un script es una lista de acciones, una por línea, que se ejecuta sobre un equipo desde su pestaña <span class="ui">Control</span>. Marcado como <span class="ui">Acción rápida</span>, aparece ahí como un botón de un clic.</p>
+  <ol class="steps">
+    <li>En <span class="ui">Scripts</span> pulse <span class="ui">Nuevo script</span> y escriba <span class="ui">Nombre</span> y, si quiere, <span class="ui">Descripción (opcional)</span>.</li>
+    <li>En <span class="ui">Acciones</span> escriba una acción por línea (tabla siguiente).</li>
+    <li>Para pedir un dato al ejecutar, use <code>{{clave}}</code> en una acción y defínalo con <span class="ui">Añadir parámetro</span>.</li>
+    <li>Marque <span class="ui">Acción rápida (botón de un clic en el equipo)</span> si corresponde y pulse <span class="ui">Guardar</span>.</li>
+  </ol>
+  <table class="compact">
+    <thead><tr><th style="width:56mm">Acción</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td><code>open &lt;paquete&gt;</code></td><td>Abre una aplicación.</td></tr>
+      <tr><td><code>cleardata &lt;paquete&gt;</code></td><td>Borra los datos de una aplicación.</td></tr>
+      <tr><td><code>message &lt;texto&gt;</code> · <code>lockscreen &lt;texto&gt;</code></td><td>Muestra un mensaje, o lo deja en la pantalla de bloqueo.</td></tr>
+      <tr><td><code>ring [segundos]</code> · <code>stop ring</code></td><td>Hace sonar el equipo, o lo calla.</td></tr>
+      <tr><td><code>lock</code> · <code>reboot</code></td><td>Bloquea o reinicia. Exigen el permiso de acciones que interrumpen.</td></tr>
+      <tr><td><code>location accurate|battery</code></td><td>Cambia el modo de ubicación.</td></tr>
+    </tbody>
+  </table>
+  <p>En la ficha, el panel <span class="ui">Acciones rápidas</span> lista los scripts guardados y el panel <span class="ui">Script</span> permite escribir uno sin guardarlo, con <code>wait &lt;segundos&gt;</code> para pausar entre pasos.</p>
+</section>
+
+<section class="sec pb" id="reportes" data-temas="reportes, inventario, exportar, Excel, CSV, envíos programados, programar reporte, latencia de comandos, sin conexión">
+  <p class="k">17 · Reportes e inventario</p>
+  <h1>Cada reporte se consulta en pantalla, se exporta y se puede programar por correo</h1>
+  <div class="fig">
+    <img src="img/a19-reportes-inventario.jpg" alt="Reporte Inventario de la flota">
+    <p class="cap">Figura 21. Menú «Reportes», pestaña «Inventario de la flota».</p>
+  </div>
+  <p>En <span class="ui">Reportes</span>, cada pestaña es un reporte. Ajuste sus filtros, pulse <span class="ui">Actualizar</span> y exporte con <span class="ui">Excel</span> o <span class="ui">CSV</span>.</p>
+  <table class="compact">
+    <thead><tr><th style="width:52mm">Reporte</th><th>Qué lista</th></tr></thead>
+    <tbody>
+      <tr><td>Inventario de la flota</td><td>Estado de cada equipo con su último reporte: conexión, batería, almacenamiento, Android y red.</td></tr>
+      <tr><td>Sin conexión</td><td>Equipos cuya última conexión supera los días indicados.</td></tr>
+      <tr><td>Retiro de SIM · SIM no coincide</td><td>Eventos de SIM en un rango; equipos cuyo número real difiere del esperado.</td></tr>
+      <tr><td>Apps desplegadas · Por app instalada</td><td>Despliegues por aplicación con éxitos y fallas; equipos que tienen ciertas aplicaciones.</td></tr>
+      <tr><td>Apps desactualizadas · Agentes desactualizados</td><td>Equipos con versiones distintas de la última.</td></tr>
+      <tr><td>Sin recibir comandos · Latencia de comandos</td><td>Equipos con órdenes antiguas en cola; tiempos de entrega y ejecución por tipo de orden.</td></tr>
+      <tr><td>Datos móviles · uso vs. límite</td><td>Mayores consumidores y consumo frente a los límites de la política.</td></tr>
+      <tr><td>Incumplimiento</td><td>Equipos que no han aplicado la versión actual de su política.</td></tr>
+      <tr><td>Dados de baja</td><td>Equipos eliminados en un rango de fechas.</td></tr>
+    </tbody>
+  </table>
+  <h2>Inventario de la flota</h2>
+  <ul class="b">
+    <li>Filtros: <span class="ui">Carpeta</span>, <span class="ui">Batería baja</span>, <span class="ui">Almacenamiento casi lleno</span> y <span class="ui">Sin conexión por más de</span>.</li>
+    <li>Las fichas (<span class="ui">Dispositivos</span>, <span class="ui">En línea</span>, <span class="ui">Sin conexión</span>, batería, almacenamiento, <span class="ui">Agente desactualizado</span>) filtran la tabla con un clic.</li>
+    <li>El Excel trae cuatro hojas: Resumen, Dispositivos, Carpetas y Conexiones de los últimos 30 días. El CSV trae la hoja de dispositivos, con el separador elegido.</li>
+    <li>Los datos son los del último reporte de cada equipo; la columna «Última muestra» dice de cuándo.</li>
+  </ul>
+  <h2>Programar un envío por correo</h2>
+  <div class="fig">
+    <img src="img/a20-envios-programados.jpg" alt="Pestaña Envíos programados">
+    <p class="cap">Figura 22. Pestaña «Envíos programados».</p>
+  </div>
+  <ol class="steps">
+    <li>En <span class="ui">Reportes</span>, pestaña <span class="ui">Envíos programados</span>, pulse <span class="ui">Nuevo envío</span>.</li>
+    <li>Escriba el <span class="ui">Nombre</span> y elija el <span class="ui">Reporte</span> y la <span class="ui">Carpeta</span>.</li>
+    <li>Elija la <span class="ui">Frecuencia</span> (<span class="ui">Diaria</span>, <span class="ui">Semanal</span> o <span class="ui">Mensual</span>), el día si aplica y la <span class="ui">Hora</span>.</li>
+    <li>Elija el <span class="ui">Formato</span> y escriba los <span class="ui">Destinatarios (correos separados por coma)</span>, hasta 20.</li>
+    <li>Pulse <span class="ui">Guardar</span>. <span class="ui">Enviar ahora</span> lo prueba sin mover el horario.</li>
+  </ol>
+  <p>La tabla muestra <span class="ui">Próximo</span> y <span class="ui">Último envío</span> con su resultado. <span class="ui">Pausar</span> lo detiene sin borrarlo. Si el servidor estuvo detenido a la hora de un envío, lo manda una vez al volver. Requiere correo saliente configurado en el servidor.</p>
+</section>
+
+<section class="sec pb" id="auditoria" data-temas="auditoría, registro de acciones, quién hizo qué, exportar auditoría, retención, integridad">
+  <p class="k">18 · Auditoría</p>
+  <h1>La auditoría responde quién hizo qué, cuándo y sobre qué equipo</h1>
+  <div class="fig">
+    <img src="img/a21-auditoria.jpg" alt="Pantalla Auditoría">
+    <p class="cap">Figura 23. Pantalla «Auditoría» con sus filtros y la lista de registros.</p>
+  </div>
+  <p>Se registran los inicios de sesión, las órdenes a los equipos, los cambios de políticas, carpetas, aplicaciones, usuarios y roles, las exportaciones y los accesos denegados. Los registros no se pueden editar ni borrar. Las contraseñas y claves nunca se guardan en el registro.</p>
+  <h2>Consultar</h2>
+  <ol class="steps">
+    <li>En <span class="ui">Auditoría</span>, combine los filtros: <span class="ui">Técnico</span>, <span class="ui">Módulo</span>, <span class="ui">Acción</span>, <span class="ui">Tipo de objetivo</span>, <span class="ui">Dispositivo (número)</span>, <span class="ui">Carpeta</span>, <span class="ui">Resultado</span> (<span class="ui">Éxito</span>, <span class="ui">Denegado</span>, <span class="ui">Error</span>) y fechas. Por defecto muestra los últimos 7 días.</li>
+    <li>Pulse <span class="ui">Buscar</span>. <span class="ui">Limpiar</span> restablece los filtros.</li>
+    <li>Pulse <span class="ui">Detalle</span> en una fila: muestra qué cambió, con el valor de antes y el de después, los datos de la acción y su origen.</li>
+    <li><span class="ui">Excel</span> o <span class="ui">CSV</span> exportan con los filtros aplicados, hasta 50.000 filas. La exportación también queda registrada.</li>
+  </ol>
+  <p>Hay dos vistas parciales: <span class="ui">Actividad</span>, en la ficha de un equipo, y <span class="ui">Actividad</span>, en cada fila de <span class="ui">Usuarios</span>. Un usuario de carpetas con permiso de auditoría ve solo la actividad de sus carpetas y de sus usuarios.</p>
+  <h2>Conservación e integridad</h2>
+  <ul class="b">
+    <li><span class="ui">Retención</span>: los registros más antiguos que el plazo se eliminan una vez al día. Por defecto 365 días; se puede fijar entre 30 y 3.650.</li>
+    <li><span class="ui">Verificar integridad</span>: cada registro guarda la huella del anterior. La verificación recorre la cadena y responde «Cadena íntegra» o señala el registro alterado.</li>
+  </ul>
+</section>
+
+<section class="sec pb" id="ajustes" data-temas="ajustes, actualizar el agente, despliegue del agente, canario, actualizaciones, política global, apariencia">
+  <p class="k">19 · Ajustes</p>
+  <h1>Ajustes reúne los parámetros generales y la actualización del agente</h1>
+  <div class="fig m">
+    <img src="img/a22-ajustes.jpg" alt="Pantalla Ajustes">
+    <p class="cap">Figura 24. Pantalla «Ajustes».</p>
+  </div>
+  <table class="compact">
+    <thead><tr><th style="width:56mm">Panel</th><th>Qué contiene</th></tr></thead>
+    <tbody>
+      <tr><td>Cuenta</td><td>Usuario, correo y rol de la sesión.</td></tr>
+      <tr><td>Columnas de la lista de dispositivos</td><td>Columnas visibles y su orden, por usuario.</td></tr>
+      <tr><td>Servidor y conexión</td><td>Estado de la conexión y versión de la consola.</td></tr>
+      <tr><td>Actualizaciones</td><td>Versión en ejecución y última disponible del servicio.</td></tr>
+      <tr><td>Despliegue del agente</td><td>Envío de una versión nueva del agente por etapas.</td></tr>
+      <tr><td>Política global</td><td>Política por defecto para equipos sin carpeta ni política propia.</td></tr>
+      <tr><td>Resumen (tablero)</td><td>Intervalo de actualización y umbral de «sin conexión».</td></tr>
+      <tr><td>Apariencia</td><td>Tema claro u oscuro y densidad.</td></tr>
+    </tbody>
+  </table>
+  <h2>Actualizar el agente por etapas</h2>
+  <ol class="steps">
+    <li>Cuando hay una versión nueva, el panel <span class="ui">Despliegue del agente</span> muestra «Agente vX disponible». Pulse <span class="ui">Desplegar…</span>.</li>
+    <li>Elija unos pocos equipos de prueba y pulse <span class="ui">Iniciar canario</span>.</li>
+    <li>Siga las barras <span class="ui">Canario</span> y <span class="ui">Flota</span>: actualizados, instalando y en cola.</li>
+    <li>Cuando los equipos de prueba estén actualizados y funcionen bien, pulse <span class="ui">Extender a la flota</span> y confirme.</li>
+    <li>Pulse <span class="ui">Finalizar</span> al terminar. <span class="ui">Cancelar</span> detiene el despliegue en la etapa de prueba.</li>
+  </ol>
+  <p>Para un equipo suelto: ficha, pestaña <span class="ui">Actualizaciones</span>, <span class="ui">Actualizar agente</span>. Para una selección: <span class="ui">Acciones</span>, grupo <span class="ui">Actualizaciones</span>, <span class="ui">Actualizar agente DallyControl</span>. El reporte <span class="ui">Agentes desactualizados</span> lista los que faltan.</p>
+  <div class="callout"><b>Dónde seguir.</b> «Guía de enrolamiento» para inscribir equipos, «Solución de problemas» para cada mensaje de error y «Arquitectura y requisitos técnicos» para los permisos de red. Todos están en el menú <span class="ui">Ayuda</span>.</div>
+</section>
+</body></html>
