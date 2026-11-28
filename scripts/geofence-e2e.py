@@ -601,26 +601,35 @@ def emulator(api, args, clean):
     adb(serial, "shell", "svc", "wifi", "disable")
     adb(serial, "shell", "svc", "data", "disable")
     time.sleep(5)
-    geo(out_lat, out_lon)
-    time.sleep(190)                       # three positions outside, kept on the phone
-    geo(in_lat, in_lon)
-    time.sleep(190)                       # three positions inside
-    _, mid_total = latest()
-    chk("nothing reached the server while offline", mid_total, before_total)
-    chk("no alert while offline", len([a for a in alerts(api, number) if a["createdat"] >= t_off]), 0)
-    t_on = int(time.time() * 1000)
-    adb(serial, "shell", "svc", "wifi", "enable")
-    adb(serial, "shell", "svc", "data", "enable")
-    back = wait_for(300, lambda: latest()[1] > before_total, every=5)
-    ok("the buffered positions arrived", back)
-    _, after_total = latest()
-    ok(f"several positions in the batch ({after_total - before_total})", after_total - before_total >= 4)
-    ex = wait_for(120, lambda: [a for a in alerts(api, number, "geofenceExit") if t_off <= a["createdat"] < t_on], every=5)
-    en = wait_for(120, lambda: [a for a in alerts(api, number, "geofenceEnter") if t_off <= a["createdat"] < t_on], every=5)
-    ok("exit alert dated while the phone was offline", len(ex) == 1, str(ex))
-    ok("return alert dated while the phone was offline", len(en) == 1, str(en))
-    if ex and en:
-        ok("in order: left, then came back", ex[0]["createdat"] < en[0]["createdat"])
+    # Some emulator images (Android 16) reach the host over an emulated Ethernet that `svc` cannot switch off:
+    # there the phone never goes offline, so this section cannot run (it is covered on the images that do).
+    ping = adb(serial, "shell", "ping", "-c", "1", "-W", "2", "10.0.2.2")
+    offline = "1 received" not in ping and "1 packets received" not in ping
+    if not offline:
+        adb(serial, "shell", "svc", "wifi", "enable")
+        adb(serial, "shell", "svc", "data", "enable")
+        print("    SKIP: this image stays online with Wi-Fi and data off (emulated Ethernet); offline batch not exercised here")
+    else:
+        geo(out_lat, out_lon)
+        time.sleep(190)                       # three positions outside, kept on the phone
+        geo(in_lat, in_lon)
+        time.sleep(190)                       # three positions inside
+        _, mid_total = latest()
+        chk("nothing reached the server while offline", mid_total, before_total)
+        chk("no alert while offline", len([a for a in alerts(api, number) if a["createdat"] >= t_off]), 0)
+        t_on = int(time.time() * 1000)
+        adb(serial, "shell", "svc", "wifi", "enable")
+        adb(serial, "shell", "svc", "data", "enable")
+        back = wait_for(300, lambda: latest()[1] > before_total, every=5)
+        ok("the buffered positions arrived", back)
+        _, after_total = latest()
+        ok(f"several positions in the batch ({after_total - before_total})", after_total - before_total >= 4)
+        ex = wait_for(120, lambda: [a for a in alerts(api, number, "geofenceExit") if t_off <= a["createdat"] < t_on], every=5)
+        en = wait_for(120, lambda: [a for a in alerts(api, number, "geofenceEnter") if t_off <= a["createdat"] < t_on], every=5)
+        ok("exit alert dated while the phone was offline", len(ex) == 1, str(ex))
+        ok("return alert dated while the phone was offline", len(en) == 1, str(en))
+        if ex and en:
+            ok("in order: left, then came back", ex[0]["createdat"] < en[0]["createdat"])
 
     print("== zone created while the phone is already outside it ==")
     oname = f"e2e-emulador-fuera-{random.randint(1000, 9999)}"
@@ -665,6 +674,7 @@ def emulator(api, args, clean):
     ok(f"route has the trip ({tr['total']} positions)", tr["total"] >= 8)
     ok("route visits both places", any(near(f, out_lat, out_lon) for f in tr["fixes"]) and any(near(f, in_lat, in_lon) for f in tr["fixes"]))
     status, raw, _ = api.raw("GET", f"/rest/private/geofences/v1/devices/{number}/track/export?format=csv&from={t_a - 600_000}&to={now}")
+    # Same closed range as the track above, so a position arriving in between does not change the count.
     chk("CSV export rows", len([ln for ln in raw.decode('utf-8-sig').splitlines() if ln.strip()]) - 1, tr["total"])
     ev = api.data(f"/agent/v1/devices/{number}/events?since={t_a}") or []
     ok("device history has zone events", sum(1 for e in ev if e["type"].startswith("geofence")) >= 4)
