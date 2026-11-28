@@ -14,7 +14,9 @@ import com.dallycontrol.proto.ConfigApplyPayload
 import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigTracking
 import com.dallycontrol.proto.ConfigLocation
+import com.dallycontrol.proto.ConfigAppPermissions
 import com.dallycontrol.proto.ConfigOutcome
+import com.dallycontrol.proto.ConfigPermissions
 import com.dallycontrol.proto.KioskApplyPayload
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -225,6 +227,49 @@ class ConfigApplierTest {
         val none = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store)
         val r2 = none.apply(ConfigApplyPayload(revision = "f2", mobileData = section))
         assertEquals(ConfigOutcome.UNSUPPORTED, r2.outcomes["mobileData"])
+    }
+
+    private class FakePermissions(private val outcome: String = ConfigOutcome.APPLIED) : PermissionEnforcer {
+        val applied = mutableListOf<ConfigPermissions>()
+        override fun apply(policy: ConfigPermissions): String {
+            applied += policy
+            return outcome
+        }
+        override fun reenforce(packageName: String?): String = outcome
+    }
+
+    private fun permissionApplier(perms: PermissionEnforcer?, store: InMemoryConfigStateStore) =
+        ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, permissions = perms)
+
+    @Test fun `permissions are enforced and reported on every apply, with or without the section`() = runTest {
+        val perms = FakePermissions()
+        val store = InMemoryConfigStateStore()
+        val applier = permissionApplier(perms, store)
+        val rules = ConfigPermissions("prompt", listOf(ConfigAppPermissions("com.acme.app", all = "grant")))
+        val r1 = applier.apply(ConfigApplyPayload(revision = "p1", permissions = rules))
+        assertEquals(ConfigOutcome.APPLIED, r1.outcomes["permissions"])
+        assertEquals("prompt", perms.applied.single().defaultPolicy)
+        // The section goes away (or an older server never sends it): back to the baseline, still enforced.
+        val r2 = applier.apply(ConfigApplyPayload(revision = "p2"))
+        assertEquals(ConfigOutcome.APPLIED, r2.outcomes["permissions"])
+        assertEquals("grant", perms.applied.last().defaultPolicy)
+        assertTrue(perms.applied.last().apps.isEmpty())
+        assertEquals("p2", store.revision())
+    }
+
+    @Test fun `a failed permission policy keeps the revision unapplied so the server retries`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val r = permissionApplier(FakePermissions(ConfigOutcome.failed("boom")), store)
+            .apply(ConfigApplyPayload(revision = "p3"))
+        assertTrue(ConfigOutcome.isFailed(r.outcomes.getValue("permissions")))
+        assertNull(store.revision())
+    }
+
+    @Test fun `no permission enforcer reports unsupported only when the section was sent`() = runTest {
+        val applier = permissionApplier(null, InMemoryConfigStateStore())
+        assertFalse(applier.apply(ConfigApplyPayload(revision = "p4")).outcomes.containsKey("permissions"))
+        val asked = applier.apply(ConfigApplyPayload(revision = "p5", permissions = ConfigPermissions()))
+        assertEquals(ConfigOutcome.UNSUPPORTED, asked.outcomes["permissions"])
     }
 
     @Test fun `hardware rules are applied last, told what other sections hold, and cleared when the section disappears`() = runTest {

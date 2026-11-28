@@ -129,4 +129,29 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("PUT", "/rest/private/geofences/v1/settings", 1));
         assertFalse(f.allowed("POST", "/rest/private/geofences/v1/mail/test", 1));
     }
+
+    /** App permissions of a device (its own rules and the agent's report): only for the devices of their folders. */
+    @Test
+    public void devicePermissionsAreScoped() {
+        assertTrue(f.allowed("GET", "/rest/private/agent/v1/devices/mine-1/permissions", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/agent/v1/devices/mine-1/permissions", 1));
+        assertFalse(f.allowed("GET", "/rest/private/agent/v1/devices/other-2/permissions", 1));
+        assertFalse(f.allowed("PUT", "/rest/private/agent/v1/devices/other-2/permissions", 1));
+    }
+
+    /** Remote support: a folder administrator starts, ends and reads sessions of their own devices only. */
+    @Test
+    public void remoteSupportIsScopedToTheirDevices() {
+        assertTrue(f.allowed("GET", "/rest/private/support/v1/devices/mine-1", 1));
+        assertTrue(f.allowed("POST", "/rest/private/support/v1/devices/mine-1/start", 1));
+        assertTrue(f.allowed("POST", "/rest/private/support/v1/devices/mine-1/stop", 1));
+        assertTrue(f.allowed("GET", "/rest/private/support/v1/devices/mine-1/sessions", 1));
+        assertFalse(f.allowed("GET", "/rest/private/support/v1/devices/other-2", 1));
+        assertFalse(f.allowed("POST", "/rest/private/support/v1/devices/other-2/start", 1));
+        assertFalse(f.allowed("GET", "/rest/private/support/v1/devices/other-2/sessions", 1));
+        // The fleet log and a session's events reach the resource, which filters them by the user's devices.
+        assertTrue(f.allowed("GET", "/rest/private/support/v1/sessions", 1));
+        assertTrue(f.allowed("GET", "/rest/private/support/v1/sessions/15/events", 1));
+        assertFalse(f.allowed("DELETE", "/rest/private/support/v1/sessions/15", 1));
+    }
 }

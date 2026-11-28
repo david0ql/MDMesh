@@ -1,4 +1,6 @@
 import type { DeviceConnection } from '../ui/connection';
+import { HelpLink } from './HelpLink';
+import { MANUAL_TROUBLE } from '../data/help';
 import { fmtDateTime, fmtRelative } from '../ui/format';
 
 function duration(ms: number): string {
@@ -17,7 +19,10 @@ export function ConnectionCard({ connection }: { connection?: DeviceConnection }
   const s = connection?.lastStop;
   return (
     <div>
-      <div className="grp">Última falla de conexión</div>
+      <div className="grp">
+        Última falla de conexión{' '}
+        <HelpLink manual={MANUAL_TROUBLE} seccion="diagnostico" tema="última falla de conexión">¿Cómo leerla?</HelpLink>
+      </div>
       {!connection || (!f && !s) ? (
         <p className="muted">
           Sin fallas reportadas. El agente informa la causa de cada corte en las versiones posteriores a la 0.9.8.

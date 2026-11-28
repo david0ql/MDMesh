@@ -20,7 +20,7 @@
         "mode": { "enum": ["single", "launcher"] },
         "allowedPackages": { "type": "array", "items": { "type": "string" } },
         "pinPackage": { "type": "string" },
-        "features": { "type": "object", "properties": { "home": {"type":"boolean"}, "recents": {"type":"boolean"}, "notifications": {"type":"boolean"}, "systemInfo": {"type":"boolean"}, "keyguard": {"type":"boolean"}, "lockButtons": {"type":"boolean"} } },
+        "features": { "type": "object", "properties": { "home": {"type":"boolean"}, "recents": {"type":"boolean"}, "notifications": {"type":"boolean"}, "systemInfo": {"type":"boolean"}, "keyguard": {"type":"boolean"}, "lockButtons": {"type":"boolean"}, "softStatusBar": {"type":"boolean"} } },
         "exitMode": { "enum": ["gesture", "visible", "remote"] },
         "password": { "type": "string" },
         "theme": { "type": "object", "properties": { "backgroundColor": {"type":"string"}, "textColor": {"type":"string"}, "iconSize": {"type":"string"} } }
@@ -42,6 +42,26 @@
         "essential": { "type": "array", "items": { "type": "string" } }
       }
     },
+    "permissions": {
+      "description": "App permissions without the user. Absent = the agent's baseline (grant on request, no per-app rule). defaultPolicy: what Android answers to any runtime-permission request (setPermissionPolicy). apps: per-app rules (setPermissionGrantState) — 'all' is the preset for every runtime permission the app declares, 'permissions' maps a group (locationFine, locationCoarse, locationBackground, camera, microphone, storage, contacts, phone, sms, notifications, nearbyDevices, activity, calendar) to a rule and wins over 'all'; 'special' lists special accesses the app should have.",
+      "type": "object",
+      "properties": {
+        "defaultPolicy": { "enum": ["grant", "prompt", "deny"] },
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["packageName"],
+            "properties": {
+              "packageName": { "type": "string" },
+              "all": { "enum": ["grant", "deny", "prompt"] },
+              "permissions": { "type": "object", "additionalProperties": { "enum": ["grant", "deny", "prompt"] } },
+              "special": { "type": "array", "items": { "enum": ["allFiles", "overlay", "writeSettings", "unknownSources", "battery", "unrestrictedData", "notificationAccess", "accessibility"] } }
+            }
+          }
+        }
+      }
+    },
     "hardware": {
       "type": "object", "additionalProperties": true,
       "description": "Hardware and ports. Absent = not managed (the agent undoes what an earlier document set). Agents before this section ignore it; the camera is also sent as policies.camera for them.",
@@ -52,6 +72,11 @@
         },
         "restrictions": { "type": "array", "items": { "type": "string", "pattern": "^no_[a-z0-9_]+$" }, "description": "Extra UserManager.DISALLOW_* values from the validated list." }
       }
+    },
+    "remoteSupport": {
+      "type": "object", "additionalProperties": true,
+      "description": "Remote support through the agent (ADR 0012). Absent = the agent's defaults (engine auto, notice shown, calls accepted by the person, authorisation asked after enrollment).",
+      "properties": { "engine": { "enum": ["builtin", "droidvnc"] }, "notice": {"type":"boolean"}, "callAccept": { "enum": ["auto"] }, "setupPrompt": {"type":"boolean"} }
     }
   }
 }

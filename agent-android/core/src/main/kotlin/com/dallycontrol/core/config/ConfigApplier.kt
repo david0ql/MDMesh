@@ -10,6 +10,7 @@ import com.dallycontrol.proto.ConfigApplyPayload
 import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigApplyResult
 import com.dallycontrol.proto.ConfigOutcome
+import com.dallycontrol.proto.ConfigPermissions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -36,10 +37,14 @@ class ConfigApplier(
     private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     /** Apply (or clear, with null) the device security rules; returns a ConfigOutcome. Runs after the browser section. */
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
+    /** App permissions: default policy and per-app grants. Always enforced (an absent section = the default: grant). */
+    private val permissions: PermissionEnforcer? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
     /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
     private val mobileData: ((com.dallycontrol.proto.ConfigMobileData?) -> String)? = null,
+    /** Remote-support settings of the configuration (null = defaults). */
+    private val setRemoteSupport: (com.dallycontrol.proto.ConfigRemoteSupport?) -> Unit = {},
     /**
      * Apply the hardware and ports rules (null = clear what an earlier document set). Receives the restrictions other
      * sections of the document keep on; returns one outcome per rule (`hardware.<key>` / `restrictions.<key>`).
@@ -106,11 +111,21 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.device != null) outcomes["device"] = o
         }
+        applyPermissions(doc)?.let { outcomes["permissions"] = it }
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
         applyMobileData(doc, previous)?.let { outcomes["mobileData"] = it }
+        runCatching { setRemoteSupport(doc.remoteSupport) }
+            .onSuccess { if (doc.remoteSupport != null) outcomes["remoteSupport"] = ConfigOutcome.APPLIED }
+            .onFailure {
+                val reason = ConfigOutcome.failed(it.message ?: "remote support")
+                if (doc.remoteSupport != null) outcomes["remoteSupport"] = reason
+            }
         outcomes.putAll(applyHardware(doc, previous))
+        // The app policy just un-suspended everything it allows; a kiosk keeps closed what is allowed on the phone
+        // but not in the kiosk, so its lock-down has the last word (a no-op when the device is not in kiosk).
+        runCatching { kiosk.reassert() }
         val result = ConfigApplyResult(doc.revision, outcomes)
         if (succeeded(result)) store.save(doc)
         return result
@@ -126,6 +141,22 @@ class ConfigApplier(
             runCatching { set(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") }
         } ?: ConfigOutcome.UNSUPPORTED
         return outcome.takeIf { doc.mobileData != null }
+    }
+
+    /**
+     * Permissions are re-asserted on EVERY apply, section or not: without one the agent keeps its baseline (grant on
+     * request, no per-app rules), so a rule that was removed is released and the policy never drifts.
+     *
+     * @return the outcome, or null when there is no enforcer and nothing was asked (the key is then omitted).
+     */
+    private fun applyPermissions(doc: ConfigApplyPayload): String? {
+        val enforcer = permissions
+        return when {
+            enforcer != null -> runCatching { enforcer.apply(doc.permissions ?: ConfigPermissions()) }
+                .getOrElse { e -> ConfigOutcome.failed(e.message ?: "permissions") }
+            doc.permissions != null -> ConfigOutcome.UNSUPPORTED
+            else -> null
+        }
     }
 
     /** Hardware and ports: applied when the document has the section, undone when only the previous one had it. */

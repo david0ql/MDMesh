@@ -46,6 +46,15 @@ public class ConfigReconciler {
 
     /** The desired-state document for the device's configuration, or null when it has none. */
     public DesiredConfig currentDocument(Device device) {
+        return document(device, true);
+    }
+
+    /** The same document WITHOUT the device's own permission rules: what its policy alone asks for (console view). */
+    public DesiredConfig policyDocument(Device device) {
+        return document(device, false);
+    }
+
+    private DesiredConfig document(Device device, boolean withDevicePermissions) {
         if (device == null || device.getConfigurationId() == null) return null;
         Configuration cfg = unsecureDAO.getConfigurationById(device.getConfigurationId());
         if (cfg == null) return null;
@@ -59,7 +68,13 @@ public class ConfigReconciler {
         // Per-device hardware and ports override: wins over the policy's rules.
         java.util.Map<String, String> hardware = device.getId() == null ? null
                 : com.hmdm.util.HardwarePolicy.parseOverride(commandDAO.getDeviceHardwareOverride(device.getId()));
-        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing, hardware);
+        DesiredConfig doc = DesiredConfigBuilder.build(cfg, r.apps, r.notInKiosk, folderBrands(device, cfg), extraKioskApps, dataSharing, hardware,
+                inheritedFrpAccounts(device));
+        // Per-device permission rules: on top of the policy's, for this phone only.
+        if (withDevicePermissions && device.getId() != null) {
+            doc = com.hmdm.util.DesiredPermissionsBuilder.withDeviceOverrides(doc, cfg, r.apps,
+                    com.hmdm.util.AppPermissionRules.parseMap(commandDAO.getDevicePermissionOverride(device.getId())));
+        }
         return withWifiCertificates(cfg, withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc)));
     }
 
@@ -112,6 +127,27 @@ public class ConfigReconciler {
             logger.warn("Geofence tracking interval of {} not applied: {}", device.getNumber(), e.getMessage());
         }
         return doc;
+    }
+
+    /** Reset-protection defaults (field-injected so the constructor other code calls stays as it is). */
+    @Inject
+    private com.hmdm.persistence.ProtectionDAO protectionDAO;
+
+    /**
+     * The Google account ids the device's folder chain (nearest folder first) or the company gives it for
+     * factory-reset protection. Never fails the document: without them the policy's own accounts still apply.
+     */
+    private List<String> inheritedFrpAccounts(Device device) {
+        if (protectionDAO == null || device.getId() == null) return null;
+        try {
+            com.hmdm.util.FrpAccounts.Effective e = com.hmdm.util.FrpAccounts.resolve(null, null,
+                    protectionDAO.deviceFolderDefaults(device.getCustomerId(), device.getId()),
+                    protectionDAO.companyDefault(device.getCustomerId()));
+            return e.ids();
+        } catch (Exception e) {
+            logger.warn("Reset-protection accounts of device {} not read: {}", device.getNumber(), e.getMessage());
+            return null;
+        }
     }
 
     /** The folder chain's kiosk branding (nearest first); only read for kiosk policies. Never fails the document. */

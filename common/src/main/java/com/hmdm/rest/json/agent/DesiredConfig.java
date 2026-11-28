@@ -60,8 +60,12 @@ public class DesiredConfig {
     private DesiredDevice device;
     /** Mobile data per app and data limits; null = not managed (the agent lifts what an earlier document set). */
     private DesiredMobileData mobileData;
+    /** App permissions: default policy and per-app grants; null = the agent's baseline (grant on request). */
+    private DesiredPermissions permissions;
     /** Hardware and ports rules (absent = not managed). */
     private DesiredHardware hardware;
+    /** Remote support settings (engine, notice, call acceptance); null = the agent's defaults. */
+    private DesiredRemoteSupport remoteSupport;
     /**
      * Wi-Fi networks whose security an agent older than the Wi-Fi rework cannot save (WPA3, OWE, Enterprise): kept out
      * of {@link #wifi} so those agents ignore them instead of saving a broken network.

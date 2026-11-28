@@ -28,6 +28,8 @@ class CacheClearActivity : Activity() {
         if (requestCode == REQUEST && resultCode == RESULT_OK) {
             Toast.makeText(this, R.string.cache_done, Toast.LENGTH_LONG).show()
         }
+        // The person answered: the system screen that was let through the kiosk is closed again at once.
+        com.dallycontrol.agent.kiosk.TimedAllow.revokeAll(this)
         finish()
     }
 

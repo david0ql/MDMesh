@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fmtDateTime } from '../ui/format';
+import { HelpLink } from './HelpLink';
+import { MANUAL_ENROLL } from '../data/help';
 import {
   attemptHint, attemptReason, getEnrollAttemptsSummary, listEnrollAttempts, pathLabel,
   type EnrollAttempt, type EnrollAttemptsSummary,
@@ -33,6 +35,7 @@ export function EnrollAttemptsPanel() {
     <section className="panel" data-testid="enroll-attempts" style={{ marginTop: 20 }}>
       <div className="panel-head">
         <h2 className="panel-title">Intentos de inscripción</h2>
+        <HelpLink manual={MANUAL_ENROLL} seccion="si-falla" tema="intentos de inscripción">¿Qué significa cada motivo?</HelpLink>
         <label className="muted" style={{ fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center' }}>
           <input type="checkbox" checked={onlyProblems} onChange={(e) => setOnlyProblems(e.target.checked)} />
           Solo con problemas

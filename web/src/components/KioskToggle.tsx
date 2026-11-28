@@ -5,6 +5,7 @@ import { getConfigurations, type Configuration } from '../api/configurations';
 import { useToast } from '../ui/toast';
 import { KioskEnterModal } from './KioskEnterModal';
 import { useAuth } from '../auth/AuthContext';
+import { getKioskGuard, type KioskGuardState } from '../api/events';
 
 type Device = { number: string };
 
@@ -102,6 +103,15 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
     return () => { on = false; clearTimeout(t); };
   }, [read, target, toast]);
 
+  // How the phone keeps Settings closed (reported by the agent): shown under the switch, with the way to fix it.
+  const [guard, setGuard] = useState<KioskGuardState | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => { getKioskGuard(device.number).then((g) => { if (live) setGuard(g); }).catch(() => {}); };
+    load();
+    const t = window.setInterval(load, 30000);
+    return () => { live = false; window.clearInterval(t); };
+  }, [device.number]);
   const policyKiosk = !!policy?.kioskMode;
   useEffect(() => { policyKioskRef.current = policyKiosk; }, [policyKiosk]);
 
@@ -135,6 +145,14 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
 
   if (!canOperate) return null;
   const pending = target != null;
+  const askUsageAccess = async () => {
+    try {
+      await queueCommand(device.number, { type: 'device.storageAccess', requiresCapability: 'device.storageAccess', payload: JSON.stringify({ kind: 'usage' }) });
+      toast.push('ok', 'Se abrió la autorización en el teléfono', 'Quien tenga el equipo debe activar «Acceso de uso» para DallyControl (un toque). El quiosco vuelve solo.');
+    } catch (e) {
+      toast.push('err', 'No se pudo pedir la autorización', e instanceof Error ? e.message : '');
+    }
+  };
   return (
     <div className={`kt ${compact ? 'kt-compact' : ''}`} data-testid="kiosk-toggle">
       <span className={`kt-state ${active ? 'on' : 'off'}`}>
@@ -160,6 +178,18 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
       )}
       {!compact && !pending && active === false && policyKiosk && (
         <span className="muted small">Usa el quiosco de la política «{policy?.name}».</span>
+      )}
+      {!compact && active && guard === 'needsUsageAccess' && (
+        <span className="field-error" data-testid="kiosk-guard" style={{ display: 'block' }}>
+          Refuerzo incompleto: a DallyControl le falta el «acceso de uso» en este teléfono (lo da el enrolamiento por cable, o un
+          toque en el equipo). Hasta autorizarlo, en esta versión de Android una app permitida puede abrir los Ajustes del sistema.{' '}
+          <button className="btn btn-sm" onClick={() => void askUsageAccess()}>Pedir autorización en el teléfono</button>
+        </span>
+      )}
+      {!compact && active && (guard === 'guard' || guard === 'lockTask') && (
+        <span className="muted small" data-testid="kiosk-guard">
+          {guard === 'lockTask' ? 'Quiosco reforzado: Android bloquea los Ajustes del sistema.' : 'Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco.'}
+        </span>
       )}
       {custom && (
         <KioskEnterModal

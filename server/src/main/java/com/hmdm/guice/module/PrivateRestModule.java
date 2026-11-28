@@ -75,7 +75,14 @@ public class PrivateRestModule extends ServletModule {
         // Audit trail: the read-only API, and the retention purge eager so it schedules itself at boot.
         this.bind(com.hmdm.rest.resource.AuditTrailResource.class);
         this.bind(com.hmdm.audit.AuditPurgeTask.class).asEagerSingleton();
+        // App permissions of a device (its own rules + the agent's report).
+        this.bind(com.hmdm.rest.resource.DevicePermissionsResource.class);
         this.bind(com.hmdm.rest.resource.HardwareResource.class);
+        // Remote support (ADR 0012): eager so SupportHub.INSTANCE exists before a device or console socket connects.
+        this.bind(com.hmdm.notification.SupportHub.class).asEagerSingleton();
+        this.bind(com.hmdm.rest.resource.SupportResource.class);
+        // Factory-reset protection: default company accounts (company / folder) and the per-device status.
+        this.bind(com.hmdm.rest.resource.ProtectionResource.class);
         // Certificates of enterprise Wi-Fi networks (uploaded sealed, sent to phones inside their policy).
         this.bind(com.hmdm.rest.resource.WifiCertificateResource.class);
     }

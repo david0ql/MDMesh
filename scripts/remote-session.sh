@@ -13,9 +13,17 @@
 #
 # The device must be awake or in always-on power mode: a locked phone on battery (adaptive mode) only
 # checks in every few minutes, so the command waits until then.
+#
+# Remote support through the agent itself (ADR 0012), no droidVNC-NG:
+#   scripts/remote-session.sh --api … --device … --support [--view-only]   status + start; prints the session as JSON
+#                                                                          { id, sessionKey, token, socket, … }
+#   scripts/remote-session.sh --api … --device … --support --status        what the device offers (readiness, voice…)
+#   scripts/remote-session.sh --api … --device … --support --stop          end the open session
+#   scripts/remote-session.sh --api … --device … --support --log           the device's session log
+# The console's Remote tab opens the socket for you; scripts/remote-support-e2e.mjs is an operator on that socket.
 set -euo pipefail
 
-API=""; DEVICE=""; VIEW_ONLY=false; ADMIN_USER="admin"; STOP=0
+API=""; DEVICE=""; VIEW_ONLY=false; ADMIN_USER="admin"; STOP=0; SUPPORT=0; STATUS=0; LOG=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --api) API="${2%/}"; shift 2 ;;
@@ -23,7 +31,10 @@ while [ $# -gt 0 ]; do
     --view-only) VIEW_ONLY=true; shift ;;
     --admin-user) ADMIN_USER="$2"; shift 2 ;;
     --stop) STOP=1; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    --support) SUPPORT=1; shift ;;
+    --status) STATUS=1; shift ;;
+    --log) LOG=1; shift ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -36,6 +47,21 @@ if command -v md5sum >/dev/null 2>&1; then MD5=$(printf '%s' "$PW" | md5sum | aw
 else MD5=$(printf '%s' "$PW" | md5 | tr 'a-f' 'A-F'); fi
 curl -fsS -c "$CJ" -H 'Content-Type: application/json' -d "{\"login\":\"$ADMIN_USER\",\"password\":\"$MD5\"}" \
   "$API/rest/public/auth/login" | grep -q '"status":"OK"' || { echo "login rejected" >&2; exit 1; }
+
+if [ "$SUPPORT" = 1 ]; then
+  S="$API/rest/private/support/v1/devices/$DEVICE"
+  data() { python3 -c 'import sys,json
+d=json.load(sys.stdin)
+if d.get("status")!="OK": sys.exit(d.get("message") or "refused")
+print(json.dumps(d.get("data"), indent=2, ensure_ascii=False))'; }
+  if [ "$STATUS" = 1 ]; then curl -fsS -b "$CJ" "$S" | data; exit 0; fi
+  if [ "$LOG" = 1 ]; then curl -fsS -b "$CJ" "$S/sessions?limit=50" | data; exit 0; fi
+  if [ "$STOP" = 1 ]; then curl -fsS -b "$CJ" -X POST "$S/stop" | data; exit 0; fi
+  BODY=$(python3 -c 'import json,sys; print(json.dumps({"viewOnly": sys.argv[1]=="true"}))' "$VIEW_ONLY")
+  curl -fsS -b "$CJ" -X POST -H 'Content-Type: application/json' -d "$BODY" "$S/start" | data
+  echo "socket: ${API/http/ws}/agent/ws/support/console/<sessionKey>; first message {\"t\":\"auth\",\"token\":…}" >&2
+  exit 0
+fi
 
 queue() { # queue <json body>; prints the command id
   curl -fsS -b "$CJ" -X POST -H 'Content-Type: application/json' -d "$1" \

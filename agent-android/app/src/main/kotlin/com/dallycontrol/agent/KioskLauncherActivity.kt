@@ -59,6 +59,7 @@ class KioskLauncherActivity : ComponentActivity() {
     @Inject lateinit var controller: KioskController
     @Inject lateinit var events: EventSink
     @Inject lateinit var crashGuard: CrashLoopGuard
+    @Inject lateinit var applier: com.dallycontrol.core.kiosk.KioskApplier
 
     /** Last applied non-null kiosk state, so [onResume] can recover a bounced single-app pin. */
     private var active: KioskApplyPayload? = null
@@ -84,6 +85,8 @@ class KioskLauncherActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Back on the kiosk home: any system screen that was let through (sharing data…) is closed again at once.
+        com.dallycontrol.agent.kiosk.TimedAllow.revokeAll(this)
         // A single-app pin that returned us to HOME means the pinned app exited or crashed — re-pin
         // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
         // handled by the flow collector, not here.
@@ -137,9 +140,19 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The app's launch intent. Android 7–10 and 16+ (where a guard sends Settings back): when the app had opened a screen the kiosk keeps closed
+     * inside its own task (Settings), that task is started clean once, or returning to the app would land on that
+     * screen again and be sent back here forever.
+     */
+    private fun cleanLaunchIntent(pkg: String): Intent? = packageManager.getLaunchIntentForPackage(pkg)?.apply {
+        val clean = com.dallycontrol.agent.kiosk.KioskForegroundGuard.consumeTainted(pkg)
+        if (clean) addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    }
+
     /** Launch + show the pinned app (single mode), with a themed splash behind it. */
     private fun launchPinned(p: KioskApplyPayload) {
-        val intent = p.pinPackage?.let { packageManager.getLaunchIntentForPackage(it) }
+        val intent = p.pinPackage?.let { cleanLaunchIntent(it) }
         if (intent == null) {
             setContentView(launcherGrid(p)) // unknown package → fall back to the grid
             return
@@ -164,9 +177,10 @@ class KioskLauncherActivity : ComponentActivity() {
      *  lock task (confirmed on Samsung A17: NullPointerException on DisplayContent.executeAppTransition), which
      *  crashes the whole system → a reboot loop, most visibly on opening the pinned app. There is no way to catch
      *  a system_server crash from the app, so on Android 16 we do NOT enter lock task: we run a "soft" kiosk — this
-     *  activity is already the persistent HOME launcher, and we disable the status bar — so the device stays locked
-     *  without the buggy pin. Older Android uses the real lock task as before. */
-    private val softKiosk get() = android.os.Build.VERSION.SDK_INT >= 36
+     *  activity is the persistent HOME launcher, and what lock task would have enforced is enforced by the kiosk
+     *  lock-down instead (AndroidKioskLockdown: status bar off, Settings and every app outside the kiosk suspended,
+     *  kiosk restrictions). Older Android uses the real lock task as before. */
+    private val softKiosk get() = com.dallycontrol.kiosk.KioskHardening.softKiosk(android.os.Build.VERSION.SDK_INT)
 
     private fun setStatusBarDisabled(disabled: Boolean) = runCatching {
         getSystemService(android.app.admin.DevicePolicyManager::class.java)
@@ -175,10 +189,13 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun startLockTaskSafely() {
         val p = active
-        // Soft kiosk (Android 16+): keep the status bar — and therefore notifications and the pull-down — unless the
-        // policy explicitly turns notifications off. Hiding it unconditionally left Android 16 devices with no
-        // notifications at all. The device stays locked as the persistent HOME launcher regardless.
-        if (softKiosk) { setStatusBarDisabled(p?.features?.notifications == false); return }
+        // Soft kiosk (Android 16+): the status bar — and with it the system quick settings and their gear to
+        // Settings — is disabled unless the policy explicitly allows notifications (safe by default). Settings and
+        // the apps outside the kiosk are suspended anyway, so even then the gear leads nowhere.
+        if (softKiosk) {
+            setStatusBarDisabled(com.dallycontrol.kiosk.KioskHardening.statusBarDisabled(p?.features?.softStatusBar))
+            return
+        }
         runCatching {
             val am = getSystemService(ActivityManager::class.java)
             if (am?.lockTaskModeState == android.app.ActivityManager.LOCK_TASK_MODE_NONE) startLockTask()
@@ -210,49 +227,67 @@ class KioskLauncherActivity : ComponentActivity() {
 
     // --- Exit flow ---------------------------------------------------------------------------
 
+    /**
+     * Leaving the kiosk on the device ALWAYS needs the policy's exit password. A kiosk without one (an older
+     * policy, or a kiosk.enter sent without it) cannot be left here at all — only from the console (kiosk.exit).
+     * Wrong attempts are limited (growing wait, see PinGate) and every outcome is reported to the server.
+     */
     private fun promptExit(p: KioskApplyPayload) {
-        val pw = p.password
-        if (pw.isNullOrBlank()) {
-            doExit()
+        val gate = com.dallycontrol.agent.kiosk.PinGates.exit(this)
+        val waitMs = gate.remainingLockMs()
+        if (p.password.isNullOrBlank() || waitMs > 0) {
+            val refused = if (p.password.isNullOrBlank()) com.dallycontrol.kiosk.PinResult.NoSecret
+            else com.dallycontrol.kiosk.PinResult.Locked(waitMs)
+            reportExitAttempt(refused)
+            AlertDialog.Builder(this)
+                .setTitle(R.string.kiosk_exit_title)
+                .setMessage(com.dallycontrol.agent.kiosk.PinGates.message(this, refused))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
             return
         }
         val input = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            hint = "Admin password"
+            hint = getString(R.string.kiosk_exit_password)
+            contentDescription = "kiosk-exit-password"
         }
         AlertDialog.Builder(this)
-            .setTitle("Exit kiosk")
+            .setTitle(R.string.kiosk_exit_title)
             .setView(input)
-            .setPositiveButton("Exit") { _, _ ->
-                if (input.text.toString() == pw) doExit()
+            .setPositiveButton(R.string.kiosk_exit_confirm) { _, _ ->
+                val result = gate.verify(p.password, input.text.toString())
+                reportExitAttempt(result)
+                if (result == com.dallycontrol.kiosk.PinResult.Ok) {
+                    doExit()
+                } else {
+                    val why = com.dallycontrol.agent.kiosk.PinGates.message(this, result)
+                    android.widget.Toast.makeText(this, why, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    private fun doExit() {
-        if (softKiosk) setStatusBarDisabled(false) else runCatching { if (isFinishing.not()) stopLockTask() }
-        controller.exit()
-        events.record("kioskExit", "exited on-device")
-        // Drop our HOME claim and hand off to the OEM launcher so the device returns to normal
-        // (mirrors KioskExitHandler for the remote-exit path).
-        runCatching {
-            packageManager.setComponentEnabledSetting(
-                ComponentName(this, HOME_ALIAS),
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP,
-            )
+    /** Every exit attempt reaches the console: the exit itself, a wrong password, a refused attempt. */
+    private fun reportExitAttempt(result: com.dallycontrol.kiosk.PinResult) {
+        val type = when (result) {
+            com.dallycontrol.kiosk.PinResult.Ok -> com.dallycontrol.proto.EventType.KIOSK_EXIT
+            is com.dallycontrol.kiosk.PinResult.Wrong -> com.dallycontrol.proto.EventType.KIOSK_EXIT_FAILED
+            else -> com.dallycontrol.proto.EventType.KIOSK_EXIT_DENIED
         }
+        val detail = if (result == com.dallycontrol.kiosk.PinResult.Ok) "salida en el dispositivo con la contraseña"
+        else com.dallycontrol.agent.kiosk.PinGates.eventDetail(result)
+        runCatching { events.record(type, detail) }
+        runCatching { com.dallycontrol.core.sync.CheckInWorker.scheduleNow(applicationContext) }
+    }
+
+    private fun doExit() {
+        runCatching { if (!softKiosk && !isFinishing) stopLockTask() }
         lifecycleScope.launch {
-            store.save(null)
-            runCatching {
-                startActivity(
-                    Intent(Intent.ACTION_MAIN)
-                        .addCategory(Intent.CATEGORY_HOME)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
+            // The one exit path, shared with the console's kiosk.exit: lock-task allowlist, HOME claim, kiosk
+            // lock-down (restrictions, suspended apps, status bar) and the persisted state, then the OEM launcher.
+            applier.exit()
             finish()
         }
     }
@@ -351,8 +386,8 @@ class KioskLauncherActivity : ComponentActivity() {
                 ),
             )
         }
-        // Sharing data (hotspot): unless the policy blocks it, an icon that opens the phone's hotspot screen for a few
-        // minutes (turn it on or off there; Android does not let the MDM switch it on by itself).
+        // Sharing data (hotspot): unless the policy blocks it, an icon that opens ONLY the phone's hotspot screen (turn
+        // it on or off there; Android does not let the MDM switch it on by itself) — see the tile's click handler.
         if (com.dallycontrol.agent.policy.DeviceRules.tetheringOffered(this)) {
             grid.addView(
                 appCell(TETHER_TILE, getString(R.string.tether_tile), ContextCompat.getDrawable(this, R.drawable.ic_kiosk_hotspot)!!, cell, fg),
@@ -477,12 +512,17 @@ class KioskLauncherActivity : ComponentActivity() {
                 } else if (pkg == ANNOUNCEMENTS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.announce.AnnouncementsActivity::class.java))
                 } else if (pkg == TETHER_TILE) {
-                    com.dallycontrol.agent.kiosk.TimedAllow.open(this@KioskLauncherActivity, Intent("android.settings.TETHER_SETTINGS"))
+                    // Only the hotspot screen, alone in its task (Back returns here, there is no way "up" into the
+                    // rest of Settings), for a short window that ends the moment the kiosk home is back in front.
+                    com.dallycontrol.agent.kiosk.TimedAllow.open(
+                        this@KioskLauncherActivity, Intent("android.settings.TETHER_SETTINGS"),
+                        windowMs = com.dallycontrol.agent.kiosk.TimedAllow.CONFINED_WINDOW_MS, confined = true,
+                    )
                         ?.let { android.widget.Toast.makeText(this@KioskLauncherActivity, it, android.widget.Toast.LENGTH_LONG).show() }
                 } else if (pkg == QUICK_SETTINGS_TILE) {
                     startActivity(Intent(this@KioskLauncherActivity, com.dallycontrol.agent.kiosk.QuickSettingsActivity::class.java))
                 } else {
-                    packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+                    cleanLaunchIntent(pkg)?.let { startActivity(it) }
                 }
             }
         }
@@ -533,7 +573,8 @@ class KioskLauncherActivity : ComponentActivity() {
         when (p.exitMode) {
             "visible" -> {
                 val btn = Button(this).apply {
-                    text = "Exit kiosk"
+                    text = getString(R.string.kiosk_exit_title)
+                    contentDescription = "kiosk-exit-button"
                     setOnClickListener { promptExit(p) }
                 }
                 parent.addView(
@@ -543,6 +584,7 @@ class KioskLauncherActivity : ComponentActivity() {
             "gesture" -> {
                 // Invisible top-right corner target; 7 taps within the window opens the prompt.
                 val target = View(this).apply {
+                    contentDescription = "kiosk-exit-gesture"
                     var taps = 0
                     var first = 0L
                     setOnClickListener {

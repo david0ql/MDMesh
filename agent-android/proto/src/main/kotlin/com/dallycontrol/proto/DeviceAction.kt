@@ -82,6 +82,15 @@ object DeviceAction {
      */
     const val APP_INSTALL_FORCE = "device.appInstallForce"
 
+    /**
+     * Open on the phone the exact Android screen where the person turns on a special access for an app (all
+     * files, overlay, unknown sources...): `{ "packageName": "...", "access": "<PermissionCatalog.SPECIAL>" }`.
+     */
+    const val PERMISSION_SCREEN = "device.permissionScreen"
+
+    /** Re-enforce the permission rules now and send a fresh permission report with the next check-in. */
+    const val PERMISSION_SCAN = "device.permissionScan"
+
     /** Desired-state document push (see ConfigApplyPayload). Advertised as device key [CONFIG_APPLY_KEY]. */
     const val CONFIG_APPLY = "config.apply"
     const val CONFIG_APPLY_KEY = "configApply"
@@ -92,6 +101,15 @@ object DeviceAction {
      */
     const val COMMAND_LEDGER_KEY = "commandLedger"
 
+    /**
+     * Lost mode: lock now with a message and a contact phone on the lock screen, ring, report the position often,
+     * and optionally wipe after N wrong unlocks or N days without reaching the server. Payload: see LostModePayload.
+     */
+    const val LOST_MODE = "device.lostMode"
+
+    /** Not a command: this agent honours the options of `device.wipe` (see WipePayload) and acks before wiping. */
+    const val WIPE_OPTIONS_KEY = "wipeOptions"
+
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
@@ -99,5 +117,8 @@ object DeviceAction {
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
         COMMAND_LEDGER_KEY,
+        "supportSession",
+        "lostMode", WIPE_OPTIONS_KEY,
+        "permissionScreen", "permissionScan",
     )
 }

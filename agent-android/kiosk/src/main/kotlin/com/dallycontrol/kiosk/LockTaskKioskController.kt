@@ -44,8 +44,9 @@ class LockTaskKioskController(
             // a reboot loop on opening the kiosk app. Any lock-task packages at all trigger it — not only
             // startLockTask — so on Android 16 we whitelist NONE: Android never attempts lock task, and
             // setting it empty also exits any lock task left over from an older agent version. The kiosk still
-            // works as the persistent HOME launcher (KioskLauncherActivity disables the status bar there).
-            val softKiosk = Build.VERSION.SDK_INT >= 36
+            // works as the persistent HOME launcher; what lock task no longer enforces is enforced by the kiosk
+            // lock-down instead (status bar off, apps outside the kiosk suspended — see KioskHardening).
+            val softKiosk = KioskHardening.softKiosk(Build.VERSION.SDK_INT)
             val allowlist = if (softKiosk) emptyArray()
             else (allowedPackages + ownPackage + supportPackages).distinct().toTypedArray()
             dpm.setLockTaskPackages(admin, allowlist)
@@ -99,7 +100,7 @@ class LockTaskKioskController(
 
     override fun currentFeatures(): Int {
         // Android 16+ runs the soft kiosk (no lock task), so there is no feature mask to self-heal.
-        if (Build.VERSION.SDK_INT >= 36) return -1
+        if (KioskHardening.softKiosk(Build.VERSION.SDK_INT)) return -1
         if (!dpm.isDeviceOwnerApp(admin.packageName)) return -1
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return -1 // getLockTaskFeatures is API 28+
         return try {

@@ -62,8 +62,37 @@ public class AgentCommandDAO {
      */
     public void insert(AgentCommand command) {
         stampIssuer(command);
+        String type = command.getType();
+        boolean wipe = com.hmdm.util.ProtectionCommands.WIPE.equals(type);
+        boolean lost = com.hmdm.util.ProtectionCommands.LOST_MODE.equals(type);
+        // Anti-theft orders keep only known, bounded options (a wipe without options keeps the reset protection).
+        if (wipe) command.setPayload(com.hmdm.util.ProtectionCommands.normalizeWipe(command.getPayload()));
+        if (lost) command.setPayload(com.hmdm.util.ProtectionCommands.normalizeLostMode(command.getPayload()));
         mapper.insert(command);
+        if (wipe || lost) recordProtectionOrder(command, wipe);
     }
+
+    /** Who ordered a wipe or lost mode, from where and with which options: kept in the device's events. */
+    private void recordProtectionOrder(AgentCommand command, boolean wipe) {
+        try {
+            String what = wipe ? com.hmdm.util.ProtectionCommands.describeWipe(command.getPayload())
+                    : com.hmdm.util.ProtectionCommands.describeLostMode(command.getPayload());
+            String who = command.getIssuerName() + (command.getIssuerIp() == null ? "" : " (" + command.getIssuerIp() + ")");
+            insertEvent(command.getDeviceNumber(), wipe ? EVENT_WIPE_ORDERED : EVENT_LOST_MODE_ORDERED,
+                    command.getCreatedAt() == null ? System.currentTimeMillis() : command.getCreatedAt(),
+                    "Orden " + command.getId() + " de " + who + ": " + what);
+        } catch (Exception e) {
+            // The order itself is queued; a missing history line must not fail it.
+        }
+    }
+
+    public static final String EVENT_WIPE_ORDERED = "wipeOrdered";
+    public static final String EVENT_WIPE_STARTED = "wipeStarted";
+    public static final String EVENT_WIPE_FAILED = "wipeFailed";
+    public static final String EVENT_LOST_MODE_ORDERED = "lostModeOrdered";
+    public static final String EVENT_REENROLLED = "reenrolled";
+    public static final String DETAIL_WIPE_ANNOUNCED =
+            "Borrado ejecutado: el equipo confirmó que iniciaba el borrado y no volvió a reportar";
 
     static void stampIssuer(AgentCommand command) {
         if (command.getIssuerName() != null) return;
@@ -168,6 +197,7 @@ public class AgentCommandDAO {
         mapper.unmarkReportingDevices(customerId, WIPE_SLACK_MS);
         mapper.markWipedDevices(customerId, now - WIPE_SILENCE_MS, WIPE_SLACK_MS);
         mapper.closeWipesOfWipedDevices(customerId, DETAIL_WIPE_INFERRED);
+        mapper.closeAnnouncedWipes(customerId, now - WIPE_SILENCE_MS, WIPE_SLACK_MS, DETAIL_WIPE_ANNOUNCED);
         return mapper.listWipedDevices(customerId);
     }
 
@@ -272,6 +302,30 @@ public class AgentCommandDAO {
 
     public void clearDeviceDataSharing(int deviceId) {
         deviceMapper.clearDeviceDataSharing(deviceId);
+    }
+
+    /** Per-device app-permission rules (JSON { package: rules }), or null when the device follows its policy. */
+    public String getDevicePermissionOverride(int deviceId) {
+        return deviceMapper.getDevicePermissionOverride(deviceId);
+    }
+
+    /** Stores (or, with null/blank, removes) the device's own app-permission rules. */
+    public void setDevicePermissionOverride(int deviceId, String rules) {
+        if (rules == null || rules.trim().isEmpty()) deviceMapper.clearDevicePermissionOverride(deviceId);
+        else deviceMapper.setDevicePermissionOverride(deviceId, rules, System.currentTimeMillis());
+    }
+
+    /** The agent's last permission report (JSON), or null. */
+    public String getDevicePermissionReport(int deviceId) {
+        return deviceMapper.getDevicePermissionReport(deviceId);
+    }
+
+    public Long getDevicePermissionReportAt(int deviceId) {
+        return deviceMapper.getDevicePermissionReportAt(deviceId);
+    }
+
+    public void setDevicePermissionReport(int deviceId, String report) {
+        deviceMapper.setDevicePermissionReport(deviceId, report, System.currentTimeMillis());
     }
 
     /** The device's hardware and ports override (JSON), or null when it follows its policy. */

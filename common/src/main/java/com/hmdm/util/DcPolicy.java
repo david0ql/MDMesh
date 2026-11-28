@@ -98,8 +98,15 @@ public class DcPolicy {
         private String pkg;
         private Long limitMb;
     }
+    /** Per-app permission rules by package: preset, per-permission grant/deny/prompt and special accesses. */
+    private java.util.Map<String, AppPermissionRules> permissions;
     /** Hardware and ports: rule key → allow / block (see {@link HardwarePolicy}); a missing key is not managed. */
     private java.util.Map<String, String> hardware;
+    /** E-mails of the policy's own reset-protection accounts (account id -> e-mail), so people recognise them. */
+    private java.util.Map<String, String> frpLabels;
+
+    /** Remote support: who shows the screen, the on-phone notice, how voice calls are answered (ADR 0012). */
+    private com.hmdm.rest.json.agent.DesiredRemoteSupport remoteSupport;
     /** Wi-Fi lock-down: what the user may change and which networks the phones may join (see {@link DcWifi}). */
     private WifiRules wifiRules;
 
@@ -271,6 +278,7 @@ public class DcPolicy {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
                 && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
+                && remoteSupport == null && permissions == null
                 && wifiRules == null;
     }
 
@@ -342,6 +350,7 @@ public class DcPolicy {
             d.setAccountDomain(doms.size() == 1 ? doms.get(0) : null);
             d.setFactoryReset("block".equals(lower(device.getFactoryReset())) ? "block" : null);
             d.setInstallApps("block".equals(lower(device.getInstallApps())) ? "block" : null);
+            d.setDebugging("block".equals(lower(device.getDebugging())) ? "block" : null);
             if (device.getFrpAccounts() != null) {
                 List<String> ids = new ArrayList<String>();
                 for (String a : device.getFrpAccounts()) {
@@ -349,11 +358,25 @@ public class DcPolicy {
                 }
                 d.setFrpAccounts(ids.isEmpty() ? null : ids);
             }
-            c.device = d.getTethering() == null && d.getGoogleAccounts() == null && d.getAccountDomains() == null
-                    && d.getFactoryReset() == null && d.getFrpAccounts() == null && d.getInstallApps() == null ? null : d;
+            d.setSafeBoot("block".equals(lower(device.getSafeBoot())) ? "block" : null);
+            d.setOemUnlock("block".equals(lower(device.getOemUnlock())) ? "block" : null);
+            Integer attempts = device.getMaxFailedPasswordsForWipe();
+            d.setMaxFailedPasswordsForWipe(attempts != null && attempts >= 3 && attempts <= 100 ? attempts : null);
+            d.setFrpMode(FrpAccounts.MODE_OFF.equals(lower(device.getFrpMode())) ? FrpAccounts.MODE_OFF : null);
+            c.device = d.isBlank() ? null : d;
+        }
+        if (frpLabels != null && c.device != null && c.device.getFrpAccounts() != null) {
+            java.util.Map<String, String> labels = new java.util.TreeMap<String, String>();
+            for (String id : c.device.getFrpAccounts()) {
+                String email = frpLabels.get(id);
+                if (FrpAccounts.validEmail(email)) labels.put(id, email.trim().toLowerCase(Locale.ROOT));
+            }
+            c.frpLabels = labels.isEmpty() ? null : labels;
         }
         c.mobileData = MobileDataPolicy.clean(mobileData);
+        c.permissions = AppPermissionRules.cleaned(permissions);
         c.hardware = HardwarePolicy.clean(hardware, true);
+        c.remoteSupport = remoteSupport == null ? null : remoteSupport.cleaned();
         return c;
     }
 
