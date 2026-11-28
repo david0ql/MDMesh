@@ -444,7 +444,7 @@ timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over 
 | Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
 | Console in headless Chromium | 37/37 |
 | Emulator API 30 (Android 11) | 94/95 — the one miss was a check of this script (it looked for the metered list in `dumpsys device_policy`, which Android 11 does not print); fixed |
-| Emulator API 35 (Android 15) | 93/95 — both misses were checks of this script, not of the product: it read a stale state while the phone switched from the VPN to the system restriction, and it looked for `no_config_vpn` in `dumpsys device_policy`, where Android 15 keeps an empty entry after the restriction is lifted (`dumpsys user` showed it gone); both fixed |
+| Emulator API 35 (Android 15) | first run 93/95 (two checks of this script: a stale state read while the phone switched mechanism, and `no_config_vpn` looked up in `dumpsys device_policy`, where Android 15 keeps an empty entry; both fixed). Final run after merging `integration/mobicontrol`, stack and APK built from that tree, droidVNC-NG installed: **107/107** in 7 min, console 37/37 |
 
 On both emulators, with both mechanisms: the blocked app failed on mobile data and worked on Wi-Fi, the allowed app
 and the agent's check-in kept working on mobile data, and switching Wi-Fi ↔ mobile changed the outcome each time. With
@@ -849,3 +849,9 @@ The wiped mark: set when the agent announces the wipe (or after 10 minutes of si
 announce); kept while the phone stays silent; removed, with a `wipeNotCompleted` line in the device's history, when
 the phone reports again with its old credentials (a wiped phone has none); cleared without that line when the phone
 enrolls again.
+
+Living with the rest of the agent (final run, API 35): with the local VPN up and capturing on mobile data — blocklist
+and allowlist — the wake channel stayed connected and a command sent from the console ran on the phone in 2.3–2.5 s
+(load average ~30); the agent and remote support (droidVNC-NG) were never in the captured list and the console kept
+reporting the remote tier `control`. A full remote session through the repeater with the VPN up was not run here (the
+stack was started without the `remote` profile).
