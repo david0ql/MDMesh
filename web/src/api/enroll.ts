@@ -187,7 +187,7 @@ export function attemptHint(a: EnrollAttempt, all: EnrollAttempt[], now: number)
     case 'token.used': return 'Genera un QR nuevo para este equipo, o usa un código de carpeta (sirve para varios).';
     case 'token.expired': return 'El QR de un solo uso vale 24 horas. Genera uno nuevo o usa un código de carpeta.';
     case 'token.invalid': return 'El equipo trae un código que no existe o fue revocado (QR viejo o configuración Zero‑Touch/KME desactualizada).';
-    case 'device.clock': return 'El equipo arrancó con la fecha de fábrica. Escanea el QR desde la pantalla (lleva la hora) o corrige la fecha.';
+    case 'device.clock': return 'El equipo tenía la fecha de fábrica. El agente la corrige solo (Android 9 o superior); si se repite, revisa que el Wi‑Fi permita la hora de red (NTP) o corrige la fecha.';
     case 'device.no-token': return 'El asistente de configuración no entregó el QR al agente (se abandonó o el fabricante no finaliza el aprovisionamiento). En el teléfono: abre DallyControl → «Escanear el QR de la consola», o escribe un código de carpeta. No hace falta formatear.';
     case 'device.captive-portal': return 'Usa una red sin página de inicio de sesión para inscribir.';
     default: return null;

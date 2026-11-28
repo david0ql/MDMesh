@@ -323,12 +323,16 @@ export function EnrollPage() {
                       Descargar el agente sin HTTPS en este QR
                     </label>
                     <p className="note">
-                      Un teléfono con la fecha años atrás rechaza cualquier certificado HTTPS y no puede descargar el agente; desde
-                      Android 12 la hora del QR se aplica después de la descarga, así que no lo evita. Sin HTTPS no hay certificado
-                      que rechazar, y Android igual solo instala el agente si está firmado con el certificado de este QR. El agente
-                      corrige luego la fecha por su cuenta (Android 9 o superior). Requiere que el servidor entregue
-                      <span className="mono"> /files/…apk </span> por HTTP sin redirigir a HTTPS (en Cloudflare: una regla que
-                      excluya esa ruta de «Always Use HTTPS»). Incluir el Wi‑Fi en el QR también ayuda en Android 7–11.
+                      Un teléfono con la fecha años atrás rechaza cualquier certificado HTTPS. Lo normal es que se corrija solo
+                      en segundos al entrar al Wi‑Fi (hora de red) y este QR funcione sin tocar nada: para eso el Wi‑Fi debe
+                      dejar salir la hora de red (NTP, UDP 123 hacia <span className="mono">time.android.com</span>) o el equipo
+                      debe tener una SIM con señal. Si la red no da la hora, Android marca el Wi‑Fi como «conexión limitada» y no
+                      descarga el agente con ningún QR (Android 10 o superior): corrige la fecha a mano, o inscribe por cable.
+                      Esta opción cubre el caso restante: el equipo sí descarga pero su fecha sigue mal para el certificado del
+                      servidor. Sin HTTPS no hay certificado que rechazar, y Android igual solo instala el agente si está firmado
+                      con el certificado de este QR; el agente corrige luego la fecha por su cuenta (Android 9 o superior).
+                      Requiere que el servidor entregue <span className="mono"> /files/…apk </span> por HTTP sin redirigir a
+                      HTTPS (en Cloudflare: una regla que excluya esa ruta de «Always Use HTTPS»).
                     </p>
                   </div>
                 </details>
@@ -435,7 +439,7 @@ export function EnrollPage() {
             <div className="panel-head"><h2 className="panel-title">Si el QR no funciona</h2></div>
             <ul className="note" style={{ padding: '4px 20px 16px 38px', lineHeight: 1.65, margin: 0 }}>
               <li><b>No abre el lector al tocar 6 veces:</b> el equipo no está recién formateado, o es Android 6 o anterior (sin QR: usa «Por cable» o «Sin formatear»). En Android 7–8 primero pide Wi‑Fi para descargar el lector.</li>
-              <li><b>«No se puede configurar el dispositivo» antes de descargar:</b> el Wi‑Fi no tiene internet, pide iniciar sesión, o el teléfono trae la fecha de fábrica. Escanea el QR desde esta pantalla (lleva la hora) y usa una red sin portal.</li>
+              <li><b>«No se puede configurar el dispositivo» antes de descargar:</b> el Wi‑Fi no tiene internet, pide iniciar sesión, o el teléfono trae la fecha de fábrica y la red no le da la hora (aparece «conexión limitada» o vuelve a pedir Wi‑Fi). Usa una red sin portal que permita la hora de red (NTP, UDP 123) o pon una SIM con señal.</li>
               <li><b>Pide la cuenta de Google anterior:</b> el equipo tiene protección contra restablecimiento (FRP). Hay que quitar la cuenta antes de formatear, o entrar con ella.</li>
               <li><b>Samsung:</b> si tiene Knox Mobile Enrollment asignado a otro MDM, ese perfil gana; pide al revendedor que lo libere o usa «Exportar Zero‑Touch / KME» en Códigos de carpeta.</li>
               <li><b>Xiaomi / HyperOS y otros sin el lector integrado:</b> si no aparece el lector, conecta Wi‑Fi cuando lo pida; si aun así no aparece, usa «Por cable (USB)».</li>

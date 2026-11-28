@@ -39,8 +39,8 @@ class NetworkClockTest {
     fun `fetch returns null when nothing answers`() {
         val free = ServerSocket(0).use { it.localPort }
         // Port 80 of localhost is normally closed on a build machine; either way this must not throw.
-        NetworkClock.fetch("https://127.0.0.1:$free")
-        assertNull(NetworkClock.fetch("not a url"))
+        NetworkClock.fetch("https://127.0.0.1:$free", emptyList())
+        assertNull(NetworkClock.fetch("not a url", emptyList()))
     }
 
     @Test
@@ -60,5 +60,50 @@ class NetworkClockTest {
             }
             t.join()
         }
+    }
+
+    private fun dateServer(answers: Int = 1): Pair<ServerSocket, Thread> {
+        val server = ServerSocket(0)
+        val t = thread {
+            repeat(answers) {
+                runCatching {
+                    server.accept().use { s ->
+                        s.getInputStream().read(ByteArray(512))
+                        s.getOutputStream().write(head.toByteArray())
+                    }
+                }
+            }
+        }
+        return server to t
+    }
+
+    @Test
+    fun `where the clock is asked - the server's port 80, its own plain-HTTP port, then the fallback`() {
+        assertEquals(
+            listOf("mdm.example.com" to 80, "connectivitycheck.gstatic.com" to 80),
+            NetworkClock.sources("https://mdm.example.com"),
+        )
+        assertEquals(
+            listOf("10.0.2.2" to 8088, "10.0.2.2" to 80, "connectivitycheck.gstatic.com" to 80),
+            NetworkClock.sources("http://10.0.2.2:8088"),
+        )
+        // An HTTPS port never answers plain HTTP: it is not asked.
+        assertEquals(
+            listOf("mdm.example.com" to 80, "connectivitycheck.gstatic.com" to 80),
+            NetworkClock.sources("https://mdm.example.com:8443/"),
+        )
+        assertEquals(listOf("time.example" to 80), NetworkClock.sources("not a url", listOf("time.example")))
+    }
+
+    @Test
+    fun `fetch reads the time from the first source that answers`() {
+        val closed = ServerSocket(0).use { it.localPort }
+        val (server, t) = dateServer()
+        server.use {
+            val got = NetworkClock.fetchFrom(listOf("127.0.0.1" to closed, "127.0.0.1" to server.localPort))
+            assertEquals(1_795_800_005_000L, got)
+        }
+        t.join()
+        assertNull(NetworkClock.fetchFrom(listOf("127.0.0.1" to closed)))
     }
 }

@@ -217,6 +217,62 @@ def unprovision(serial):
     raise SystemExit("RESULT HARNESS-FAILED could not return the emulator to the pre-setup state")
 
 
+def validated(serial):
+    """Is the Wi-Fi a validated network? (The emulator's mobile network does not count: provisioning uses Wi-Fi.)"""
+    return "IS_VALIDATED" in sh(serial, "dumpsys connectivity | grep 'NetworkAgentInfo{' | grep 'ni{WIFI'", timeout=30)
+
+
+def stale_clock(serial, a):
+    """A phone straight out of the box with a dead clock.
+
+    Default: automatic time off (a network that gives no time: NTP blocked, no SIM) and the Wi-Fi left as it was.
+    --clock-at-join: the Wi-Fi is joined again AFTER the clock went back, as on a phone that boots with that clock:
+    Android's connectivity check then fails its HTTPS probe ("partial connectivity") and the network is not validated.
+    --clock-auto: automatic time stays on (the factory setting) with the radio off, so only the Wi-Fi can give the
+    time (NTP), and what Android knew about the time before is forgotten.
+    """
+    past = time.localtime(time.time() - a.clock_back_years * 365 * 86400)
+    stamp = time.strftime("%m%d%H%M%Y.%S", past)
+    if a.clock_auto:
+        sh(serial, "cmd connectivity airplane-mode enable")   # no SIM time (NITZ) from now on
+        # ...and the SIM time the emulator already got at boot must not count: only network time (NTP) does.
+        sh(serial, "device_config put system_time time_detector_origin_priorities_override network")
+        time.sleep(3)
+    if a.clock_at_join or a.clock_auto:
+        sh(serial, "svc wifi disable")
+        time.sleep(4)
+    sh(serial, "settings put global auto_time 0")
+    print("clock set back:", sh(serial, f"date {stamp}").strip(), flush=True)
+    if a.clock_auto:
+        for cmd in ("cmd network_time_update_service clear_time", "cmd time_detector clear_network_time",
+                    "cmd time_detector clear_latest_network_time"):
+            sh(serial, cmd + " >/dev/null 2>&1")
+        sh(serial, "settings put global auto_time 1")
+        time.sleep(5)
+        print("automatic time on, before the Wi-Fi is back:", sh(serial, "date").strip(), flush=True)
+    if a.clock_at_join or a.clock_auto:
+        sh(serial, "svc wifi enable")
+        began = time.time()
+        fixed = None
+        year = time.strftime("%Y")
+        while time.time() - began < a.clock_wait:
+            time.sleep(4)
+            now = sh(serial, "date +%Y").strip()
+            ok = validated(serial)
+            if now == year and fixed is None:
+                fixed = int(time.time() - began)
+            if ok or (not a.clock_auto and time.time() - began > 45):
+                break
+        print(f"Wi-Fi joined with that clock: device date {sh(serial, 'date').strip()}; "
+              f"clock corrected by the network after {fixed if fixed is not None else '-'} s; "
+              f"network validated: {'yes' if validated(serial) else 'NO (partial connectivity)'} "
+              f"after {int(time.time() - began)} s", flush=True)
+        probes = [x for x in adb(serial, "logcat", "-d", "-t", "400", timeout=60).splitlines()
+                  if "NetworkMonitor/" in x and ("PROBE_HTTPS" in x or "isCaptivePortal" in x)][-2:]
+        for x in probes:
+            print("  " + x[:230], flush=True)
+
+
 def device_owner(serial):
     out = sh(serial, "dumpsys device_policy", timeout=40)
     m = re.search(r"Device Owner:\s*\n?\s*admin=ComponentInfo\{([^}]+)\}", out)
@@ -257,11 +313,7 @@ def run(a):
     if a.preinstall:
         print(adb(serial, "install", "-r", "-t", a.preinstall, timeout=180).strip().splitlines()[-1], flush=True)
     if a.clock_back_years:
-        # A phone straight out of the box with a dead clock and no network time: the case the QR's local time covers.
-        sh(serial, "settings put global auto_time 0")
-        past = time.localtime(time.time() - a.clock_back_years * 365 * 86400)
-        stamp = time.strftime("%m%d%H%M%Y.%S", past)
-        print("clock set back:", sh(serial, f"date {stamp}").strip(), flush=True)
+        stale_clock(serial, a)
     adb(serial, "push", dex, "/data/local/tmp/provision.dex")
     unprovision(serial)
     wait_network(serial)
@@ -436,7 +488,7 @@ def wait_enrolled(a, serial, payload):
     jwt = None
     started = time.time()
     end = started + a.enroll_timeout
-    last, finalized = "", False
+    last, finalized, shown = "", False, ""
     while time.time() < end:
         try:
             if jwt is None:   # the server may be down on purpose (outage scenario): keep trying to sign in
@@ -457,6 +509,12 @@ def wait_enrolled(a, serial, payload):
             finish_setup_wizard(serial)
             finalized = True
         # The agent's own status screen (Android 12+ shows it inside the wizard): leave it running, never skip it.
+        if a.pause_cmd:
+            # Outage scenario: what the person holding the phone sees meanwhile, and what the agent tried.
+            joined = " | ".join(screen(serial)[0])
+            if joined and joined != shown:
+                shown = joined
+                print(f"  [{int(time.time() - started):4d}s after Device Owner] {joined[:260]}", flush=True)
         time.sleep(4)
     return "ENROLL-TIMEOUT", "last=" + last[:200]
 
@@ -605,6 +663,11 @@ def main():
     r.add_argument("--serial", required=True); r.add_argument("--payload", required=True)
     r.add_argument("--out", required=True); r.add_argument("--preinstall")
     r.add_argument("--clock-back-years", type=int, default=0)
+    r.add_argument("--clock-at-join", action="store_true",
+                   help="join the Wi-Fi again after the clock went back (a phone that boots with that clock)")
+    r.add_argument("--clock-auto", action="store_true",
+                   help="leave automatic time on, radio off: only the Wi-Fi's network time can correct the clock")
+    r.add_argument("--clock-wait", type=int, default=150, help="seconds to wait for the network after the rejoin")
     r.add_argument("--timeout", type=int, default=420); r.add_argument("--settle", type=int, default=25)
     r.add_argument("--wait-enrolled"); r.add_argument("--admin", default="admin:admin")
     r.add_argument("--enroll-timeout", type=int, default=170)

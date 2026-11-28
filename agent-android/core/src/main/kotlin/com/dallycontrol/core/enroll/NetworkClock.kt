@@ -20,11 +20,40 @@ object NetworkClock {
     private const val HTTP_PORT = 80
     private const val MAX_HEADER_BYTES = 4_096
 
-    /** Epoch millis from the server's `Date` header, or null when it cannot be read. */
-    fun fetch(serverUrl: String): Long? = runCatching {
-        val host = URI(serverUrl).host ?: return null
+    /**
+     * A host that answers plain HTTP from any network that has internet: the one Android itself asks on every Wi-Fi
+     * it joins (its connectivity check). Used when the server has nothing listening on port 80.
+     */
+    val FALLBACK_HOSTS = listOf("connectivitycheck.gstatic.com")
+
+    /** Epoch millis from the `Date` header of the first of [sources] that answers, or null when none does. */
+    fun fetch(serverUrl: String, fallbackHosts: List<String> = FALLBACK_HOSTS): Long? =
+        fetchFrom(sources(serverUrl, fallbackHosts))
+
+    /**
+     * Where the time is asked, in order: the server's own port when the server is plain HTTP on another port, the
+     * server's port 80 (an HTTPS server normally answers there with a redirect), then [fallbackHosts].
+     */
+    fun sources(serverUrl: String, fallbackHosts: List<String> = FALLBACK_HOSTS): List<Pair<String, Int>> {
+        val uri = runCatching { URI(serverUrl.trim()) }.getOrNull()
+        val host = uri?.host
+        val own = buildList {
+            if (host != null) {
+                if (uri.scheme.equals("http", ignoreCase = true) && uri.port > 0 && uri.port != HTTP_PORT) {
+                    add(host to uri.port)
+                }
+                add(host to HTTP_PORT)
+            }
+        }
+        return (own + fallbackHosts.map { it to HTTP_PORT }).distinct()
+    }
+
+    fun fetchFrom(sources: List<Pair<String, Int>>): Long? =
+        sources.firstNotNullOfOrNull { (host, port) -> fetchOne(host, port) }
+
+    private fun fetchOne(host: String, port: Int): Long? = runCatching {
         Socket().use { socket ->
-            socket.connect(InetSocketAddress(host, HTTP_PORT), TIMEOUT_MS)
+            socket.connect(InetSocketAddress(host, port), TIMEOUT_MS)
             socket.soTimeout = TIMEOUT_MS
             socket.getOutputStream().apply {
                 write("HEAD / HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
