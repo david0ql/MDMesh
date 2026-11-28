@@ -527,3 +527,27 @@ dead options, 13 permission rows, 8 special accesses, what is saved and what the
 «Permisos» tab (effective policy, real state per app, per-device rules, «Abrir en el teléfono», CSV), the Android 12+
 "this phone does not let the administrator grant sensor permissions" warning, and the "update the agent" notice.
 
+### Results (2026-11-27, isolated dev stack, debug agent built from this branch after merging `integration/mobicontrol`)
+
+| What | Result |
+|---|---|
+| `permissions-e2e.py`, emulator Android 10 (API 29) | 67/67 |
+| `permissions-e2e.py`, emulator Android 15 (API 35) | 76/76 |
+| `permissions-e2e.py`, emulator Android 16 (API 36) | 76/76 |
+| `permissions-console-e2e.mjs`, headless Chromium | 44/44 |
+
+Notes from the runs:
+
+- Android 14+ prints the permission policy in `dumpsys device_policy` (`Permission policy: {0=1}`); Android 10 does
+  not, so there the script reads it from `/data/system/device_policies.xml` through the emulator's root shell (on a
+  phone without root that check is skipped and the agent's own report is used).
+- Android 10 does not let an app read another app's app-ops: overlay / write settings / unknown sources are reported
+  as "Android does not let it be read" there; from Android 11 they are read.
+- Android 14+ keeps a permission fixed by the Device Owner across an uninstall and re-applies it when the app comes
+  back; the agent releases it then if its rule is gone (step 6b).
+- With "grant all", Android 16 on a loaded machine took ~10 s to answer the app's request (its permission activity
+  passes by with no dialog); the script waits for it instead of sampling once.
+- Not covered by an emulator: a phone provisioned with the "administrator may not grant sensor permissions" opt-out
+  (`dpm set-device-owner` cannot set it; covered by the planner's unit tests and the console test with a scripted
+  phone), and Android 7 or older (`setSecureSetting(INSTALL_NON_MARKET_APPS)` for unknown sources).
+
