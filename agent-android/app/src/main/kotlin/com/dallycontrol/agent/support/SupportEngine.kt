@@ -79,7 +79,9 @@ object SupportEngine {
 
     /** The screen service exists (listed in Accessibility) only while the policy allows the built-in engine. */
     fun syncComponent(context: Context) {
-        val wanted = if (settings(context).builtinAllowed) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
+        // Also while a kiosk is on: the same service is the kiosk's guard (docs/KIOSK-HARDENING.md).
+        val kiosk = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.engaged(context)
+        val wanted = if (settings(context).builtinAllowed || kiosk) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
         else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         runCatching {
             val pm = context.packageManager

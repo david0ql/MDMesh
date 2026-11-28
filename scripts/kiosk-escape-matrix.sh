@@ -11,6 +11,7 @@
 #   OUT        where logs and the per-release result tables go (default /tmp/dallycontrol-kiosk)
 #   LEGACY_PSQL  psql command of the stack (e.g. "docker compose --env-file docker/dev.env exec -T postgres psql -U dallycontrol
 #              -d dallycontrol"): also sends the kiosk an old server would have sent (see --legacy-psql)
+#   QR_STYLE=1 run with --qr-style: the phone as a QR enrollment leaves it (see kiosk-escape-test.py)
 #   TEST_ARGS  extra (space-separated) arguments for kiosk-escape-test.py, e.g. "--modes single"
 # Needs scripts/testapp/escapetest.apk (scripts/build-escapeapp.sh) and the dev stack seeded (admin/admin).
 set -uo pipefail
@@ -45,6 +46,7 @@ for AVD in "$@"; do
     echo "device id $DID" >>"$LOG"
     sleep 8
     LEGACY=(); [ -n "${LEGACY_PSQL:-}" ] && LEGACY=(--legacy-psql "$LEGACY_PSQL")
+    [ "${QR_STYLE:-0}" = 1 ] && LEGACY+=(--qr-style)
     # shellcheck disable=SC2086
     python3 -u "$HERE/kiosk-escape-test.py" --serial "$SER" --device-id "$DID" --api "$API" \
         --reboot --summary "$OUT/$AVD.md" ${LEGACY[@]+"${LEGACY[@]}"} ${TEST_ARGS:-} >>"$LOG" 2>&1

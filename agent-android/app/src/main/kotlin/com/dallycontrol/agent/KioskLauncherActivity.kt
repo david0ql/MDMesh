@@ -91,10 +91,29 @@ class KioskLauncherActivity : ComponentActivity() {
         // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
         // handled by the flow collector, not here.
         val p = active ?: return
+        if (askAuthorisation()) return // the guided step is up; this screen resumes again when it closes
         if (p.mode == "single") {
             if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
             autoLaunch(p)
         }
+    }
+
+    /**
+     * A kiosk whose guard still lacks its one authorisation (the agent's screen service, one tap on the phone — a
+     * phone enrolled by QR) is never left quietly half-closed: every time the kiosk home comes back, at most once
+     * every [ASK_EVERY_MS], the guided step is shown again until it is done. Settings is let through for it and
+     * closed again the moment this screen is back.
+     * @return true when the guided step was opened.
+     */
+    private fun askAuthorisation(): Boolean {
+        val pending = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this) ==
+            com.dallycontrol.kiosk.KioskHardening.GUARD_MISSING_ACCESS
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!pending || (lastAsked != 0L && now - lastAsked < ASK_EVERY_MS)) return false
+        lastAsked = now
+        com.dallycontrol.agent.support.SupportEngine.syncComponent(this)
+        com.dallycontrol.agent.kiosk.TimedAllow.allow(this, "com.android.settings", ASK_WINDOW_MS)
+        return com.dallycontrol.agent.support.RemoteSetupActivity.open(this)
     }
 
     /**
@@ -112,6 +131,7 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private fun applyState(p: KioskApplyPayload?) {
         active = p
+        applier.syncNativeLock(p)
         com.dallycontrol.agent.kiosk.QuickSettingsNotice.update(this, p?.quickSettings == true)
         // Anti-theft follows the kiosk: on with the policy's PIN, off (and its restrictions lifted) without it.
         runCatching {
@@ -416,6 +436,20 @@ class KioskLauncherActivity : ComponentActivity() {
                 LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
             )
         }
+        if (com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this) ==
+            com.dallycontrol.kiosk.KioskHardening.GUARD_MISSING_ACCESS
+        ) {
+            page.addView(
+                text(getString(R.string.kiosk_auth_banner), 13f, Color.WHITE, bold = true).apply {
+                    contentDescription = "kiosk-auth-banner"
+                    setPadding(dp(16), dp(10), dp(16), dp(10))
+                    setBackgroundColor(Color.parseColor("#B3261E"))
+                    isClickable = true
+                    setOnClickListener { lastAsked = 0L; askAuthorisation() }
+                },
+                LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
         page.addView(ScrollView(this).apply { addView(column) }, LinearLayout.LayoutParams(MATCH, 0, 1f))
         val footLogo = p.theme.footerLogoUrl?.takeIf { it.isNotBlank() }
         val showSerial = p.theme.showSerial == true
@@ -679,6 +713,10 @@ class KioskLauncherActivity : ComponentActivity() {
 
     private companion object {
         const val BOUNCE_DEDUPE_MS = 1_500L
+        /** How often the pending authorisation is asked for again, and how long Settings stays open for it. */
+        const val ASK_EVERY_MS = 10 * 60_000L
+        const val ASK_WINDOW_MS = 5 * 60_000L
+        @Volatile var lastAsked = 0L
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"
         const val ANNOUNCEMENTS_TILE = "dallycontrol.announcements"

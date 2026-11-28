@@ -21,7 +21,15 @@ class KioskApplier(
     private val roles: RoleResolver = NoRoles,
     private val lockdown: KioskLockdown = NoLockdown,
 ) {
+    /** Applies the policy's Android 16+ native-lock switch for [p] (null = not in kiosk) before anything reads it. */
+    fun syncNativeLock(p: KioskApplyPayload?) {
+        val wanted = p?.nativeLock16 == true
+        com.dallycontrol.kiosk.KioskHardening.nativeLock16 =
+            wanted && runCatching { lockdown.nativeLockAllowed(true) }.getOrDefault(false)
+    }
+
     suspend fun enter(p: KioskApplyPayload): KioskResult {
+        syncNativeLock(p)
         val features = lockTaskFeatures(
             KioskToggles(
                 home = p.features.home, recents = p.features.recents, notifications = p.features.notifications,
@@ -61,6 +69,7 @@ class KioskApplier(
      */
     suspend fun reassert() {
         val p = store.load() ?: return
+        syncNativeLock(p)
         // The lock-down (kiosk restrictions, suspended apps, status bar) is re-asserted on every cycle and on every
         // kind of kiosk: an app installed since, or a restriction cleared out-of-band, is covered again.
         runCatching { lockdown.engage(p, allowedFor(p)) }

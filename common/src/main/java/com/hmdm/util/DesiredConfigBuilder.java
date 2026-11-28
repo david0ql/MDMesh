@@ -125,6 +125,7 @@ public final class DesiredConfigBuilder {
             d.getKiosk().setQuickSettings(Boolean.TRUE);
         }
         if (d.getKiosk() != null) d.getKiosk().setHidden(dc.getKioskHidden());
+        if (d.getKiosk() != null) d.getKiosk().setNativeLock16(dc.getKioskNativeLock16());
         if (d.getKiosk() != null) {
             KioskBrand brand = KioskBrand.effective(dc.getKioskBrand(), folderBrands);
             if (brand != null) {

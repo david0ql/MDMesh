@@ -48,12 +48,31 @@ class SupportAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         Log.i(TAG, "screen service connected")
+        watchAllWindows(com.dallycontrol.agent.kiosk.KioskForegroundGuard.watching)
         SupportEngine.onServiceChanged()
+        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged(this)
+    }
+
+    /**
+     * The kiosk's guard (docs/KIOSK-HARDENING.md): while a kiosk needs it, window changes of every app are
+     * delivered so a window of an app the kiosk keeps closed is sent back at once; otherwise only System UI's, as
+     * declared. Only the package name of the event is read.
+     */
+    fun watchAllWindows(all: Boolean) {
+        runCatching {
+            val info = serviceInfo ?: return
+            val wanted = if (all) null else arrayOf("com.android.systemui")
+            if (!(info.packageNames ?: emptyArray()).contentEquals(wanted ?: emptyArray())) {
+                info.packageNames = wanted
+                serviceInfo = info
+            }
+        }.onFailure { Log.w(TAG, "could not change the watched packages", it) }
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         if (instance === this) instance = null
         SupportEngine.onServiceChanged()
+        com.dallycontrol.agent.kiosk.KioskForegroundGuard.onScreenServiceChanged(this)
         return super.onUnbind(intent)
     }
 
@@ -66,6 +85,7 @@ class SupportAccessibilityService : AccessibilityService() {
         // Only System UI events arrive (see res/xml/support_screen_service.xml): the screen-capture consent.
         if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             ProjectionCapture.onSystemWindow(this, event)
+            event.packageName?.toString()?.let { com.dallycontrol.agent.kiosk.KioskForegroundGuard.onWindow(this, it) }
         }
     }
 

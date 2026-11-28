@@ -43,10 +43,28 @@ class KioskHardeningTest {
         assertEquals("lockTask", KioskHardening.settingsGuard(sdk = 33, guardNeeded = false, canWatch = false))
         assertEquals("lockTask", KioskHardening.settingsGuard(sdk = 35, guardNeeded = false, canWatch = true))
         assertEquals("guard", KioskHardening.settingsGuard(sdk = 29, guardNeeded = true, canWatch = true))
-        assertEquals("needsUsageAccess", KioskHardening.settingsGuard(sdk = 29, guardNeeded = true, canWatch = false))
+        assertEquals("needsAuthorization", KioskHardening.settingsGuard(sdk = 29, guardNeeded = true, canWatch = false))
         assertEquals("guard", KioskHardening.settingsGuard(sdk = 36, guardNeeded = true, canWatch = true))
-        assertEquals("needsUsageAccess", KioskHardening.settingsGuard(sdk = 36, guardNeeded = true, canWatch = false))
+        assertEquals("needsAuthorization", KioskHardening.settingsGuard(sdk = 36, guardNeeded = true, canWatch = false))
         assertEquals("the policy allows Settings itself", "lockTask", KioskHardening.settingsGuard(36, false, false))
+    }
+
+    @Test
+    fun `the native lock on Android 16 is a policy switch, off by default`() {
+        assertTrue(KioskHardening.softKiosk(36, nativeLock = false))
+        assertFalse(KioskHardening.softKiosk(36, nativeLock = true))
+        assertFalse("irrelevant below Android 16", KioskHardening.softKiosk(35, nativeLock = true))
+        assertFalse(KioskHardening.softKiosk(35, nativeLock = false))
+    }
+
+    @Test
+    fun `three starts within ten minutes with the native lock on mean a restart loop`() {
+        val min = 60_000L
+        assertFalse(KioskHardening.nativeLockLooping(emptyList()))
+        assertFalse(KioskHardening.nativeLockLooping(listOf(0, 2 * min)))
+        assertTrue(KioskHardening.nativeLockLooping(listOf(0, 2 * min, 4 * min)))
+        assertFalse("a restart a day is normal use", KioskHardening.nativeLockLooping(listOf(0, 1440 * min, 2880 * min)))
+        assertTrue("only the latest starts count", KioskHardening.nativeLockLooping(listOf(0, 5000 * min, 5001 * min, 5002 * min)))
     }
 
     @Test

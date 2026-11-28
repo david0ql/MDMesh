@@ -34,6 +34,11 @@ data class KioskApplyPayload(
     val powerPin: String? = null,
     /** Allowed but never shown as icons on the kiosk home (e.g. the Google app a function brings along). */
     val hidden: List<String> = emptyList(),
+    /**
+     * Android 16+: use the native lock (lock task) instead of the soft kiosk. Off unless the policy turns it on:
+     * lock task restarts some Android 16 phones in a loop (see docs/KIOSK-HARDENING.md).
+     */
+    val nativeLock16: Boolean? = null,
 )
 
 /** Device functions a configuration can allow by name instead of by package (resolved on the device). */

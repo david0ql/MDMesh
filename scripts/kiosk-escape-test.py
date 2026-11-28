@@ -8,6 +8,10 @@ admin API and tries every known way out over adb, in single-app and multi-app mo
         [--modes single,launcher] [--reboot] [--legacy-psql "docker compose ... exec -T postgres psql -U dallycontrol -d dallycontrol"]
         [--summary out.md]
 
+--qr-style: first the phone as a QR enrollment leaves it (no usage access, no screen service): the console must be told
+"needsAuthorization", the kiosk must keep asking on screen, and what stays open is listed; then the one tap of the
+guided screen is simulated (the agent's screen service on) and the whole test runs with only that.
+
 What it tries, per mode: system state (lock task / suspended Settings / kiosk restrictions), `am start` of Settings,
 an allowed app opening Settings by intent, the status bar and its quick-settings gear, Home, Recents, the power menu
 (open by default, closed with "lock buttons"), the "share data" screen (multi-app), the 7-tap exit with wrong
@@ -44,6 +48,9 @@ P.add_argument("--modes", default="single,launcher")
 P.add_argument("--reboot", action="store_true")
 P.add_argument("--legacy-psql", default="")
 P.add_argument("--summary", default="")
+P.add_argument("--qr-style", action="store_true",
+               help="the phone as a QR enrollment leaves it: no usage access, no WRITE_SECURE_SETTINGS, the agent's screen "
+                    "service off. The run first checks the kiosk WITHOUT the one tap, then simulates the tap and goes on")
 A = P.parse_args()
 
 APP = "com.dallycontrol.escapetest"
@@ -308,8 +315,10 @@ def t_state(mode):
     if 30 <= SDK < 36:
         check_mask("Android 11–15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK)", lambda f: f & 64)
     else:
-        ops = sh(f"appops get {A.pkg} GET_USAGE_STATS")
-        check("Android 7–10 / 16+: el agente tiene acceso de uso (vigilante de primer plano)", "allow" in ops, ops.strip()[-60:])
+        on = SERVICE in sh("settings get secure enabled_accessibility_services")
+        ops = "allow" in sh(f"appops get {A.pkg} GET_USAGE_STATS")
+        check("Android 7–10 / 16+: vigilante activo (servicio de pantalla del agente, o acceso de uso)", on or ops,
+              f"servicio={on} accesoDeUso={ops}")
     check("la app de trabajo no está suspendida", not suspended(APP))
     want = APP if mode == "single" else A.pkg
     check("en primer plano: " + ("la app fijada" if mode == "single" else "el inicio del quiosco"),
@@ -535,41 +544,74 @@ def guard_state(since):
     return ev[-1].get("detail") if ev else None
 
 
-def t_usage_access(mode):
-    """What a phone enrolled WITHOUT the cable has (no usage access for the agent), and what the console is told."""
-    start = int(time.time() * 1000) - 3000
-    if 30 <= SDK < 36:
-        s0 = until(lambda: guard_state(0), 150, 5)
-        check("la consola recibe el estado del refuerzo: «lockTask» (no necesita acceso de uso)", s0 == "lockTask", str(s0))
-        return
-    sh(f"appops set {A.pkg} GET_USAGE_STATS ignore")
-    run("kiosk.exit")
-    s, d = enter(mode)
-    check("sin acceso de uso: el quiosco se aplica igual", s == "done", f"{s} {d}")
-    check("sin acceso de uso: la consola recibe «needsUsageAccess»", until(lambda: guard_state(start) == "needsUsageAccess", 150, 5), str(guard_state(start)))
-    out = sh("am start -a android.settings.SETTINGS")
+SERVICE = "com.dallycontrol.agent.support.SupportAccessibilityService"
+
+
+def set_touch(on):
+    """The one tap of the guided screen: the agent's screen service switched on (or off) in Accessibility."""
+    if on:
+        sh(f"settings put secure enabled_accessibility_services {A.pkg}/{SERVICE}; settings put secure accessibility_enabled 1")
+    else:
+        sh("settings delete secure enabled_accessibility_services; settings put secure accessibility_enabled 0")
     time.sleep(3)
-    info("sin acceso de uso: adb am start SETTINGS", "ABRE Ajustes" if settings_in_front() else "no abre Ajustes (lock task)")
-    sh("input keyevent KEYCODE_BACK")
-    home()
+
+
+def app_opens_settings():
     sh(f"am start -n {APP}/.Main")
     time.sleep(2)
     sh(f"am start -n {APP}/.Main --es action android.settings.WIFI_SETTINGS")
     time.sleep(4)
-    opened = settings_in_front()
-    info("sin acceso de uso: app permitida → intent WIFI_SETTINGS", "ABRE Ajustes y nada lo devuelve (vía abierta hasta autorizar)" if opened else "no abre Ajustes")
+    return settings_in_front()
+
+
+def t_qr_style(mode):
+    """A phone enrolled by QR: nothing adb-enroll.sh grants. First without the one tap, then with it."""
+    sh(f"pm revoke {A.pkg} android.permission.WRITE_SECURE_SETTINGS")
+    sh(f"appops set {A.pkg} GET_USAGE_STATS default")
+    set_touch(False)
+    start = int(time.time() * 1000) - 3000
+    run("kiosk.exit")
+    s, d = enter(mode)
+    check("estilo QR, sin el toque: el quiosco se aplica", s == "done", f"{s} {d}")
+    if 30 <= SDK < 36:
+        check("Android 11–15: la consola recibe «lockTask» (no necesita autorización)", until(lambda: guard_state(0) == "lockTask", 150, 5), str(guard_state(0)))
+        check("Android 11–15: no se pide ninguna autorización para el quiosco", "RemoteSetupActivity" not in top(), top())
+        check("Android 11–15 sin el toque: una app permitida NO abre Ajustes", not app_opens_settings(), top())
+        sh("input keyevent KEYCODE_BACK")
+        home()
+        set_touch(True)
+        return
+    check("sin el toque: la consola recibe «needsAuthorization»", until(lambda: guard_state(start) == "needsAuthorization", 150, 5), str(guard_state(start)))
+    home()
+    check("sin el toque: el quiosco muestra la pantalla de autorización", until(lambda: "RemoteSetupActivity" in top(), 30), top())
+    sh("input keyevent KEYCODE_BACK")
+    home()
+    check("sin el toque: el quiosco avisa en su pantalla de inicio (franja «Falta una autorización»)",
+          until(lambda: find(ui(), **{"content-desc": "kiosk-auth-banner"}), 15, 2), top())
+    if SDK >= 36:
+        sh("cmd statusbar expand-settings")
+        time.sleep(2)
+        nodes = ui()
+        check("sin el toque (Android 16+): la barra de estado no se despliega",
+              not any("com.android.systemui" == (n.get("package") or "") and "quick" in (n.get("resource-id") or "").lower() for n in nodes))
+        sh("cmd statusbar collapse")
+    sh("am start -a android.settings.SETTINGS")
+    time.sleep(3)
+    info("sin el toque: adb am start SETTINGS", "ABRE Ajustes" if settings_in_front() else "no abre Ajustes (lock task)")
+    sh("input keyevent KEYCODE_BACK")
+    home()
+    info("sin el toque: app permitida → intent WIFI_SETTINGS",
+         "ABRE Ajustes y nada lo devuelve (vía abierta hasta dar el toque)" if app_opens_settings() else "no abre Ajustes")
     sh("input keyevent KEYCODE_BACK")
     home()
     start2 = int(time.time() * 1000) - 3000
-    sh(f"appops set {A.pkg} GET_USAGE_STATS allow")
-    run("kiosk.exit")
-    s, d = enter(mode)
-    check("al autorizar el acceso de uso la consola recibe «guard»", until(lambda: guard_state(start2) == "guard", 150, 5), str(guard_state(start2)))
-    sh(f"am start -n {APP}/.Main")
-    time.sleep(2)
-    sh(f"am start -n {APP}/.Main --es action android.settings.WIFI_SETTINGS")
-    check("con acceso de uso: el vigilante devuelve al quiosco", until(lambda: not settings_in_front(), 8, 0.5), top())
+    set_touch(True)
+    check("con el toque (servicio de pantalla): la consola recibe «guard»", until(lambda: guard_state(start2) == "guard", 150, 5), str(guard_state(start2)))
+    opened = app_opens_settings()
+    check("con el toque, sin acceso de uso: una app permitida que abre Ajustes vuelve al quiosco",
+          not opened or until(lambda: not settings_in_front(), 5, 0.5), top())
     home()
+    check("con el toque: ya no aparece la franja de autorización", not find(ui(), **{"content-desc": "kiosk-auth-banner"}))
     run("kiosk.exit")
 
 
@@ -630,6 +672,10 @@ def main():
     POWER_DETECTABLE = power_menu_shown()
     print(f"   (menú de encendido detectable fuera del quiosco: {'sí' if POWER_DETECTABLE else 'no'})")
     try:
+        if A.qr_style:
+            MODE = "QR"
+            print("== enrolamiento estilo QR: sin el toque y con el toque")
+            t_qr_style("launcher")
         for mode in modes:
             MODE = mode
             print(f"== modo {mode}")
@@ -649,10 +695,6 @@ def main():
                 t_legacy(mode)
             s, d = run("kiosk.exit")
             check("salida desde la consola (kiosk.exit)", s == "done" and until(lambda: lock_task() == "NONE" and not suspended("com.android.settings"), 20), f"{s} {d}")
-        if modes:
-            MODE = modes[-1] + "+acceso"
-            print("== refuerzo de Ajustes y acceso de uso")
-            t_usage_access(modes[-1])
         if A.reboot and modes:
             MODE = modes[0] + "+reboot"
             print("== reinicio")
