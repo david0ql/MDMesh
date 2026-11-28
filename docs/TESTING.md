@@ -855,3 +855,10 @@ and allowlist — the wake channel stayed connected and a command sent from the 
 (load average ~30); the agent and remote support (droidVNC-NG) were never in the captured list and the console kept
 reporting the remote tier `control`. A full remote session through the repeater with the VPN up was not run here (the
 stack was started without the `remote` profile).
+
+Final repeat (2026-11-27 21:24-21:36, tree = `integration/mobicontrol` with everything merged, own stack with
+`-Xmx420m -XX:+UseSerialGC`, Android 15 / API 35, load 15-22): `frp` + `lost` + `reenroll` 35/36, then 25/25 after the
+fix below; console 34/34 (lost mode really sent and turned off); `wipe-online` 8/8; `wipe-offline` 13/13. The one
+failure was real: a follow-up check-in (it carries no census) stored an empty telemetry, so the device's protection
+status was blank until the next full report; `device_state.telemetry` now keeps the last census when a check-in
+brings none. The emulator booted again after its wipe enrolled onto its own row (same hardware id), as designed.
