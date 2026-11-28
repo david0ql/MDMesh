@@ -135,6 +135,42 @@ class RemoteSetupActivity : Activity() {
         fun intent(context: Context): Intent =
             Intent(context, RemoteSetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        fun open(context: Context): Boolean = runCatching { context.startActivity(intent(context)) }.isSuccess
+        fun open(context: Context): Boolean {
+            val app = context.applicationContext
+            // The console queues this right after enrollment, and a QR / zero-touch phone enrolls while Android's
+            // setup wizard is still on screen: opening now would cover the wizard (and the enrollment status the
+            // agent shows inside it) with a screen the person cannot make sense of yet. Wait for the wizard to end.
+            if (com.dallycontrol.agent.service.BatteryExemption.setupComplete(app)) {
+                return runCatching { app.startActivity(intent(app)) }.isSuccess
+            }
+            if (waiting.compareAndSet(false, true)) {
+                Thread { openAfterSetup(app) }.start()
+            }
+            return true
+        }
+
+        private fun openAfterSetup(app: Context) {
+            try {
+                val until = System.currentTimeMillis() + WAIT_FOR_SETUP_MS
+                var ready = false
+                while (!ready && System.currentTimeMillis() < until) {
+                    Thread.sleep(SETUP_POLL_MS)
+                    ready = com.dallycontrol.agent.service.BatteryExemption.setupComplete(app)
+                }
+                if (ready) {
+                    Thread.sleep(SETUP_SETTLE_MS) // let the wizard's last screen leave first
+                    runCatching { app.startActivity(intent(app)) }
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                waiting.set(false)
+            }
+        }
+
+        private val waiting = java.util.concurrent.atomic.AtomicBoolean(false)
+        private const val WAIT_FOR_SETUP_MS = 30L * 60L * 1000L
+        private const val SETUP_POLL_MS = 3_000L
+        private const val SETUP_SETTLE_MS = 4_000L
     }
 }

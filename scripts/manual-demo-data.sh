@@ -28,6 +28,28 @@ UPDATE devices d SET lastUpdate = v.t FROM vivos v WHERE d.number = v.number;
 UPDATE device_state s SET updatedAt = v.t FROM vivos v WHERE s.deviceNumber = v.number;
 UPDATE device_connection c SET lastSeenAt = v.t FROM vivos v
   WHERE c.deviceNumber = v.number AND c.lastSeenAt = (SELECT max(lastSeenAt) FROM device_connection x WHERE x.deviceNumber = v.number);
+-- Actividad reciente en toda la flota (el Resumen la toma de los equipos con reporte más reciente).
+DELETE FROM device_event WHERE deviceNumber LIKE 'dc-%' AND deviceNumber <> 'dc-000101' AND detail IS NULL;
+INSERT INTO device_event (deviceNumber, type, ts, detail)
+  SELECT d.number, (ARRAY['boot', 'connectivityChange', 'appInstalled', 'lowBattery', 'simInserted', 'appUpdated'])[1 + (d.id % 6)::int],
+         (extract(epoch FROM now()) * 1000)::bigint - (7 + (d.id * 13) % 170) * 60000, NULL
+  FROM devices d WHERE d.number LIKE 'dc-%' AND d.number <> 'dc-000101';
+-- Tres equipos sin conexión con causa conocida (apagado ordenado hace 3 h): la consola los muestra «En reposo».
+INSERT INTO device_conn_diag (deviceNumber, updatedAt, reconnects, stopReason, stopAt, stopBattery)
+  SELECT d.number, t - 3 * 3600000, 0, 'shutdown', t - 3 * 3600000, 41
+  FROM devices d, (SELECT (extract(epoch FROM now()) * 1000)::bigint AS t) x
+  WHERE d.number IN (SELECT number FROM devices WHERE number LIKE 'dc-%'
+                     AND lastUpdate < (extract(epoch FROM now()) * 1000)::bigint - 3600000 ORDER BY lastUpdate DESC LIMIT 3)
+  ON CONFLICT (deviceNumber) DO UPDATE SET stopReason = 'shutdown', stopAt = EXCLUDED.stopAt, stopResumedAt = NULL;
+UPDATE devices SET lastUpdate = (extract(epoch FROM now()) * 1000)::bigint - 3 * 3600000 - 60000
+  WHERE number IN (SELECT deviceNumber FROM device_conn_diag WHERE stopReason = 'shutdown');
+UPDATE device_state SET updatedAt = (extract(epoch FROM now()) * 1000)::bigint - 3 * 3600000 - 60000
+  WHERE deviceNumber IN (SELECT deviceNumber FROM device_conn_diag WHERE stopReason = 'shutdown');
+-- La lista y el Tablero leen el quiosco del último dato del equipo.
+UPDATE devices d SET infojson = jsonb_set(coalesce(d.infojson::jsonb, '{}'::jsonb), '{kioskMode}', to_jsonb(coalesce(st.kioskActive, FALSE)))
+  FROM device_state st WHERE st.deviceNumber = d.number AND d.number LIKE 'dc-%';
+-- La política de preventa (la crea scripts/manual-capturas.mjs) es de quiosco, con su contraseña de salida.
+UPDATE configurations SET kioskMode = TRUE, password = '48213907' WHERE name = 'Preventa · Quiosco';
 -- El APK de prueba que sube scripts/manual-capturas.mjs (--apk) aparece con un nombre de aplicación de negocio.
 UPDATE applications SET name = 'Preventa Móvil' WHERE pkg = 'com.dallycontrol.testapp';
 -- Restos de la siembra de desarrollo que no deben salir en una captura: el equipo de ejemplo y la versión sin rellenar.

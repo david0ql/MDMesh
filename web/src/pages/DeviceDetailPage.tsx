@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
 import { connectionLabel, useConnectionStates } from '../ui/connection';
 import { ConnectionCard } from '../components/ConnectionCard';
+import { ReachCard } from '../components/ReachCard';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from '../ui/AppShell';
 import { DeviceStatusIcon } from '../ui/DeviceGlyph';
@@ -484,6 +485,8 @@ export function DeviceDetailPage() {
           <ConnectionCard connection={connection} />
 
           <ManagedWifiCard report={dyn.managedWifi} />
+
+          <ReachCard deviceNumber={device.number} />
         </aside>
 
         {/* RIGHT: work */}

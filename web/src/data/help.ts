@@ -58,6 +58,7 @@ const BY_ROUTE: [string, HelpTopic][] = [
   ['/settings', { manual: MANUAL_ADMIN, seccion: 'ajustes', tema: 'ajustes' }],
   ['/geofences', { manual: MANUAL_ADMIN, seccion: 'ubicacion', tema: 'geocercas' }],
   ['/audit', { manual: MANUAL_ADMIN, seccion: 'auditoria', tema: 'auditoría' }],
+  ['/soporte', { manual: MANUAL_ADMIN, seccion: 'remoto', tema: 'soporte remoto' }],
 ];
 
 export function topicForPath(pathname: string): HelpTopic | undefined {

@@ -52,6 +52,7 @@ BLOCKED = "com.dallycontrol.netprobe.blocked"
 ALLOWED = "com.dallycontrol.netprobe.allowed"
 ESSENTIAL = "com.dallycontrol.netprobe.essential"
 ACTIVITY = "com.dallycontrol.netprobe.ProbeActivity"
+REMOTE = "net.christianbeier.droidvnc_ng"  # remote support (droidVNC-NG): protected, never restricted
 
 
 def chk(name, got, want):
@@ -525,6 +526,27 @@ def emulator(api, args):
     def blocked_of(status):
         return {b["pkg"]: b["reason"] for b in (status or {}).get("blocked", [])}
 
+    def wake_channel(label):
+        """The console's wake channel still reaches the phone: it is listed as live and runs a command at once."""
+        live = wait_for(60, lambda: number in (api.data("/agent/v1/live") or []), every=3)
+        ok(f"{label}: the wake channel is connected", live)
+        t0 = time.time()
+        r = api.post(f"/agent/v1/devices/{number}/commands", {"type": "config.sync"})
+        cmd = (r.get("data") or {}).get("id")
+        def done():
+            for c in api.data(f"/agent/v1/devices/{number}/commands?limit=50") or []:
+                if str(c.get("id")) == str(cmd):
+                    return c.get("status") in ("done", "failed", "unsupported", "expired") and c.get("status")
+            return None
+        status = wait_for(90, done, every=1)
+        took = time.time() - t0
+        chk(f"{label}: a command sent from the console runs on the phone", status, "done")
+        print(f"    command round trip: {took:.1f} s")
+        return took
+
+    remote_installed = REMOTE in emu.sh(f"pm list packages {REMOTE}")
+    print(f"    remote support (droidVNC-NG) installed: {remote_installed}")
+
     def agent_checks_in():
         before = (api.data(f"/agent/v1/devices/{number}/state") or {}).get("updatedAt") or 0
         def newer():
@@ -576,6 +598,7 @@ def emulator(api, args):
             good, line = emu.works(ALLOWED)
             ok("allowed-app works on mobile data", good, line)
             ok("the agent still reaches the console on mobile data", agent_checks_in())
+            wake_channel(f"{expect}, mobile data")
             emu.network("wifi")
             good, line = emu.works(BLOCKED)
             ok("blocked-app works on Wi-Fi", good, line)
@@ -589,6 +612,26 @@ def emulator(api, args):
             good, line = emu.works(ALLOWED)
             ok("back on mobile data: allowed-app still works", good, line)
 
+        if sdk >= 24:
+            section("local VPN with an allowlist: remote support and the wake channel are left alone")
+            policy.save({"mode": "allowlist", "apps": [ALLOWED], "mechanism": "vpn"})
+            v = wait_state("VPN capturing every app outside the list",
+                           lambda s: s is not None and s.get("mode") == "allowlist" and s.get("mechanism") == "vpn"
+                           and s.get("vpnActive") is True and BLOCKED in blocked_of(s), 300)
+            st = v.get("status") or {}
+            ok("the agent is not captured by the VPN", agent not in blocked_of(st))
+            if remote_installed:
+                ok("remote support (droidVNC-NG) is not captured by the VPN", REMOTE not in blocked_of(st))
+                remote = (api.data(f"/agent/v1/devices/{number}/remote") or {})
+                print(f"    remote capability as the console sees it: {json.dumps(remote)[:200]}")
+            good, line = emu.fails(BLOCKED)
+            ok("app outside the list fails on mobile data (VPN)", good, line)
+            good, line = emu.works(ALLOWED)
+            ok("listed app works on mobile data (VPN)", good, line)
+            wake_channel("VPN allowlist, mobile data")
+            ok("the agent's own traffic does not use the VPN network",
+               "VPN" not in emu.transport())
+
         section("allowlist: only the listed apps use mobile data")
         policy.save({"mode": "allowlist", "apps": [ALLOWED]})
         v = wait_state("phone blocks the apps outside the list",
@@ -596,6 +639,8 @@ def emulator(api, args):
                        and ALLOWED not in blocked_of(s))
         ok("the agent is never in the blocked list", agent not in blocked_of(v.get("status")))
         ok("Google Play services are not in the blocked list", "com.google.android.gms" not in blocked_of(v.get("status")))
+        if remote_installed:
+            ok("remote support (droidVNC-NG) is not in the blocked list", REMOTE not in blocked_of(v.get("status")))
         if (v.get("status") or {}).get("mechanism") == "vpn":
             wait_state("VPN capturing on mobile data", lambda s: s is not None and s.get("vpnActive") is True, 60)
         good, line = emu.fails(BLOCKED)

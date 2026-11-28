@@ -4127,4 +4127,47 @@
         </rollback>
     </changeSet>
 
+    <!-- Second wake channel (push): the device's push token and what its agent reports about how it can be woken. -->
+    <changeSet id="26.11.27-device-push-wake" author="dallycontrol">
+        <sql>
+            CREATE TABLE IF NOT EXISTS device_push (
+                deviceNumber    VARCHAR(100) PRIMARY KEY,
+                updatedAt       BIGINT NOT NULL,
+                provider        VARCHAR(16),
+                token           VARCHAR(4096),
+                tokenAt         BIGINT,
+                state           VARCHAR(24),
+                error           VARCHAR(400),
+                batteryExempt   BOOLEAN,
+                exactAlarms     BOOLEAN,
+                bgRestricted    BOOLEAN,
+                pollMinutes     INT,
+                lastWokenBy     VARCHAR(24),
+                lastSentAt      BIGINT,
+                lastSentOk      BOOLEAN,
+                lastSendError   VARCHAR(400),
+                lastAnsweredAt  BIGINT,
+                lastWakeMs      BIGINT
+            );
+        </sql>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION dallycontrol_delete_device_push() RETURNS trigger AS $$
+            BEGIN
+                DELETE FROM device_push WHERE deviceNumber = OLD.number;
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <sql>
+            DROP TRIGGER IF EXISTS devices_delete_push ON devices;
+            CREATE TRIGGER devices_delete_push AFTER DELETE ON devices
+                FOR EACH ROW EXECUTE PROCEDURE dallycontrol_delete_device_push();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS devices_delete_push ON devices;
+            DROP FUNCTION IF EXISTS dallycontrol_delete_device_push();
+            DROP TABLE IF EXISTS device_push;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

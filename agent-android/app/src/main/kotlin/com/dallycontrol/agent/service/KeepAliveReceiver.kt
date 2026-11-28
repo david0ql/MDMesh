@@ -33,6 +33,7 @@ import javax.inject.Inject
 class KeepAliveReceiver : BroadcastReceiver() {
 
     @Inject lateinit var coordinator: CheckInCoordinator
+    @Inject lateinit var wake: com.dallycontrol.agent.wake.WakeChannel
 
     override fun onReceive(context: Context, intent: Intent) {
         // Re-arm the next alarm BEFORE the check-in (FLAG_UPDATE_CURRENT makes it idempotent):
@@ -47,6 +48,7 @@ class KeepAliveReceiver : BroadcastReceiver() {
         // Another cycle is already running (service, WebSocket wake, worker): it reports for us.
         if (coordinator.isBusy) return
 
+        wake.mark(com.dallycontrol.proto.WakeTrigger.ALARM)
         val pending = goAsync()
         val released = AtomicBoolean(false)
         val release = { if (released.compareAndSet(false, true)) pending.finish() }

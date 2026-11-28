@@ -22,7 +22,9 @@ public interface DeviceConnectionMapper {
             "#{failureKind}, #{failureAt}, #{failureDetail}, #{failureHttpCode}, #{failureChannel}, #{failureNetwork}, #{failureSsid}, #{failureHost}, #{failureIssuer}, #{failureCount}, " +
             "#{stopReason}, #{stopAt}, #{stopResumedAt}, #{stopBattery}) " +
             "ON CONFLICT (deviceNumber) DO UPDATE SET " +
-            "updatedAt = EXCLUDED.updatedAt, screenOn = EXCLUDED.screenOn, network = EXCLUDED.network, " +
+            // A check-in without a census (an ack round, the goodbye) must not blank what the last census said.
+            "updatedAt = EXCLUDED.updatedAt, screenOn = COALESCE(EXCLUDED.screenOn, device_conn_diag.screenOn), " +
+            "network = COALESCE(EXCLUDED.network, device_conn_diag.network), " +
             "serverHost = COALESCE(EXCLUDED.serverHost, device_conn_diag.serverHost), " +
             "usingBackup = COALESCE(EXCLUDED.usingBackup, device_conn_diag.usingBackup), " +
             "reconnects = device_conn_diag.reconnects + EXCLUDED.reconnects, " +

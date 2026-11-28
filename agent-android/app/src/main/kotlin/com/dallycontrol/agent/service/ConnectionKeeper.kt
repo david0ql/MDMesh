@@ -40,6 +40,7 @@ class ConnectionKeeper @Inject constructor(
     private val coordinator: CheckInCoordinator,
     private val transport: TransportManager,
     private val connection: ConnectionDiagnostics,
+    private val wake: com.dallycontrol.agent.wake.WakeChannel,
 ) {
     private val watchdog = ConnectionWatchdog()
     private val networkChanges = NetworkChangeTracker()
@@ -101,6 +102,9 @@ class ConnectionKeeper @Inject constructor(
 
     private fun onNetworkRecovered() {
         Log.i(TAG, "network changed or came back: reconnecting now")
+        // Back on a network: the backup alarm runs at its fast pace for a while, and this check-in says why it came.
+        wake.noteActivity()
+        wake.mark(com.dallycontrol.proto.WakeTrigger.NETWORK)
         // restart(), not just reconnectNow(): connections pooled on the previous network are dead too, and a
         // check-in written into one hangs until the read timeout (20 s) before it is retried on a fresh one.
         transport.restart()

@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { DASH } from '../ui/format';
+import { errorCode } from '../api/client';
 import {
   getDeviceActivity,
   getUserActivity,
@@ -178,7 +179,7 @@ export function AuditActivity({ device, userId, pageSize = 20 }: { device?: stri
       setPage(p);
     } catch (e) {
       setData(null);
-      setError((e as Error).message === 'error.permission.denied' ? 'No tienes permiso para ver esta actividad.' : ((e as Error).message || 'No se pudo cargar la actividad'));
+      setError(errorCode(e) === 'error.permission.denied' ? 'No tienes permiso para ver esta actividad.' : ((e as Error).message || 'No se pudo cargar la actividad'));
     }
   }, [device, userId, pageSize]);
 

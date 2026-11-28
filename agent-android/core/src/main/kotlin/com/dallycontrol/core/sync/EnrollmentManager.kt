@@ -54,7 +54,11 @@ class EnrollmentManager @Inject constructor(
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
-        runCatching { journal.failed(com.dallycontrol.core.enroll.EnrollFailure.classify(t)) }
+        // "No token yet" is the normal state between the agent's first start and the provisioning callback that
+        // hands the token over: journaling it would report a failure for every phone that enrolls a second later.
+        // A phone that really never gets one is handled (and reported) by the agent's own watch for that state.
+        val failure = com.dallycontrol.core.enroll.EnrollFailure.classify(t)
+        if (failure.code != com.dallycontrol.core.enroll.EnrollFailure.NO_TOKEN) runCatching { journal.failed(failure) }
         throw t
     }
 

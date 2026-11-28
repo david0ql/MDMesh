@@ -170,6 +170,17 @@ export function trackedApkUrl(apkUrl: string, serverUrl: string, token: string):
   return `${origin}/rest/public/agent/v1/apk?t=${ref}&p=${encodeURIComponent(path)}`;
 }
 
+/**
+ * The same address over plain HTTP. For a phone whose clock is years off: with that clock every HTTPS certificate
+ * looks "not valid yet", so Android cannot download the agent over HTTPS at all - and from Android 12 on it only
+ * applies the QR's time AFTER the download. Over HTTP there is no certificate to reject, and nothing is lost in
+ * integrity: Android installs the file only if it is signed with the certificate whose checksum the QR carries.
+ * (The server must answer that path over HTTP without redirecting to HTTPS.)
+ */
+export function plainHttpUrl(url: string): string {
+  return url.replace(/^https:\/\//i, 'http://');
+}
+
 // --- QR density -------------------------------------------------------------------------------------------------
 
 // Byte capacity of QR versions 1..40 in byte mode, per error-correction level (ISO/IEC 18004).

@@ -100,7 +100,7 @@
     <tbody>
       <tr><td>El lector de QR no abre con 6 toques</td><td>El equipo no está recién formateado, o es Android 6</td><td>Versión de Android del equipo; si ya pasó la bienvenida</td><td>Restablecer de fábrica. Android 6: inscribir por cable.</td></tr>
       <tr><td>«No se puede configurar el dispositivo» tras escanear</td><td>Wi-Fi sin internet o con portal; fecha de fábrica</td><td>El panel no muestra ni la descarga de ese equipo</td><td>Usar una red sin portal y escanear el QR desde la pantalla de la consola.</td></tr>
-      <tr><td>El panel muestra «Descargó el agente» y nada más</td><td>Android no instaló el agente o no lo dejó como propietario</td><td>Pista del panel a los 5 minutos</td><td>Confirmar equipo recién formateado y sin cuenta previa. En Android 15 y 16, inscribir por cable.</td></tr>
+      <tr><td>El panel muestra «Descargó el agente» y nada más</td><td>Android no instaló el agente o no lo dejó como propietario</td><td>Pista del panel a los 5 minutos</td><td>Confirmar equipo recién formateado y sin cuenta previa. En Android 15 y 16 el QR puede requerir el cable; no está verificado.</td></tr>
       <tr><td>«El QR ya lo usó otro equipo» o «El código venció»</td><td>QR de un solo uso consumido o con más de 24 horas</td><td>Columna «Resultado» del panel</td><td><span class="ui">Nuevo código</span>, o un código de carpeta.</td></tr>
       <tr><td>«Código desconocido o revocado»</td><td>Código revocado o configuración Zero-Touch o KME vieja</td><td>Pestaña <span class="ui">Códigos de carpeta</span></td><td>Crear un código nuevo y actualizar el portal.</td></tr>
       <tr><td>«Fecha y hora del teléfono incorrectas»</td><td>El equipo arrancó con la fecha de fábrica</td><td>Fecha en el teléfono</td><td>Escanear el QR de la pantalla, que lleva la hora, o corregir la fecha.</td></tr>
@@ -163,10 +163,10 @@
       <tr><td>«entregada N veces»</td><td>El equipo la recibió y no respondió a tiempo</td><td>Línea bajo la orden</td><td>Ninguna si terminó en Ejecutado. El equipo no la ejecuta dos veces.</td></tr>
       <tr><td>Reiniciar termina en Vencido</td><td>El equipo estuvo más de 24 horas sin conexión</td><td>Fechas de la orden</td><td>Reenviar con el equipo en línea.</td></tr>
       <tr><td>Cambiar clave no surte efecto</td><td>El equipo ya tenía clave antes de inscribirse</td><td>Descripción de la acción</td><td>Desbloquearlo una vez con la clave actual; después el cambio remoto funciona.</td></tr>
-      <tr><td>No aparecen Bloquear, Reiniciar ni Restablecer de fábrica</td><td>Al usuario le falta el permiso de acciones que interrumpen</td><td><span class="ui">Roles</span>, fila «Acciones que interrumpen»</td><td>Asignar un rol con ese permiso.</td></tr>
+      <tr><td>No aparecen Bloquear, Reiniciar, Modo perdido ni Borrado remoto</td><td>Al usuario le falta el permiso de acciones que interrumpen</td><td><span class="ui">Roles</span>, fila «Acciones que interrumpen»</td><td>Asignar un rol con ese permiso.</td></tr>
       <tr><td>El borrado remoto no se ofrece para varios equipos</td><td>Protección: el borrado nunca se envía en masa</td><td>—</td><td>Enviarlo equipo por equipo desde su pestaña <span class="ui">Control</span>.</td></tr>
       <tr><td>No se puede cancelar</td><td>La orden ya terminó, venció o se canceló</td><td>Estado de la orden</td><td>Nada: solo se cancelan órdenes en Pendiente o Entregado.</td></tr>
-      <tr><td>El aviso muestra un texto que empieza por «error.»</td><td>El servidor rechazó la petición y la consola muestra su código</td><td>Tabla de códigos al final de esta guía</td><td>Según el código.</td></tr>
+      <tr><td>Aviso «El servidor rechazó la operación (error…)»</td><td>Un rechazo del servidor sin texto propio</td><td>El código entre paréntesis</td><td>Reportarlo a soporte con ese código.</td></tr>
     </tbody>
   </table>
   <p class="nota">Cancelar una orden ya entregada evita que se reenvíe, pero el equipo pudo haberla ejecutado; la consola lo advierte. El reporte <span class="ui">Latencia de comandos</span> resume por tipo de orden cuánto tardan en entregarse y ejecutarse; el reporte <span class="ui">Sin recibir comandos</span> lista los equipos con órdenes antiguas en cola.</p>
@@ -232,26 +232,28 @@
   </table>
 </section>
 
-<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, no entra, no sale, contraseña de salida, se cerró varias veces, Android 16">
+<section class="sec pb" id="quiosco" data-temas="quiosco, kiosco, no entra, no sale, contraseña de salida, espera, refuerzo incompleto, acceso de uso, Android 16">
   <p class="k">6 · Quiosco</p>
-  <h1>El quiosco sigue a la política; un cambio se confirma en la ficha del equipo</h1>
+  <h1>El quiosco sigue a la política; su estado y sus intentos de salida quedan en la ficha</h1>
   <table class="sp">
     <thead><tr><th style="width:38mm">Síntoma</th><th style="width:40mm">Causa probable</th><th style="width:42mm">Cómo verificar</th><th>Solución</th></tr></thead>
     <tbody>
+      <tr><td>Al guardar: «Falta la contraseña de salida del quiosco»</td><td>La política tiene quiosco y no tiene contraseña</td><td>Sección Seguridad</td><td>Pulsar <span class="ui">Generar</span>, o escribir una de 4 caracteres o más.</td></tr>
+      <tr><td>Nadie conoce la contraseña de salida</td><td>Se generó sola al actualizar, o la puso otra persona</td><td>Política, campo <span class="ui">Contraseña de salida del quiosco</span>, botón <span class="ui">Ver</span></td><td>Consultarla ahí. Desde la consola, <span class="ui">Quitar quiosco</span> no la pide.</td></tr>
+      <tr><td>El teléfono dice «Espera… antes de intentar de nuevo»</td><td>Tres o más contraseñas erróneas</td><td>Pestaña Eventos: «Intento fallido de salir del quiosco»</td><td>Esperar el tiempo indicado (de 30 segundos a 30 minutos) o quitar el quiosco desde la consola.</td></tr>
+      <tr><td>«De este quiosco solo se sale desde la consola»</td><td>El quiosco se envió como «Solo remoto», o sin contraseña</td><td>Diálogo Entrar en quiosco</td><td><span class="ui">Quitar quiosco</span> desde la consola.</td></tr>
+      <tr><td>«Refuerzo incompleto» en la ficha</td><td>Al agente le falta el acceso de uso (equipo inscrito por QR, Android 7 a 10 o 16)</td><td>Aviso bajo el interruptor del quiosco</td><td><span class="ui">Pedir autorización en el teléfono</span>; quien lo tenga da un toque.</td></tr>
+      <tr><td>Una aplicación de trabajo no puede abrir la cámara, un archivo o un PDF</td><td>En Android 11 a 15 el quiosco bloquea la aplicación auxiliar</td><td>El teléfono dice que la aplicación no está disponible</td><td>Agregar esa aplicación a las permitidas; puede ir en <span class="ui">Ocultar del quiosco</span>.</td></tr>
       <tr><td>El equipo no entra al quiosco</td><td>La política no se ha aplicado</td><td>Tarjeta <span class="ui">Estado de la política</span></td><td><span class="ui">Sincronizar ahora</span>. Si dice «Agente desactualizado», actualizar el agente.</td></tr>
       <tr><td>«El teléfono aún no confirma»</td><td>El equipo está bloqueado o sin canal en vivo</td><td>Estado del equipo</td><td>Se aplica en su próxima conexión.</td></tr>
-      <tr><td>Muestra una cuadrícula en vez de una sola aplicación</td><td>Hay más de una aplicación visible, un grupo «En quiosco» o una función marcada</td><td>Política: <span class="ui">Apps permitidas</span>, grupos y <span class="ui">Funciones del quiosco</span></td><td>Dejar solo la aplicación principal como visible en quiosco y sin funciones.</td></tr>
-      <tr><td>La aplicación principal no abre; aparece la cuadrícula</td><td>La aplicación fijada no está instalada</td><td>Pestaña <span class="ui">Aplicaciones</span> del equipo</td><td>Agregarla a <span class="ui">Apps permitidas</span> con acción Instalar.</td></tr>
+      <tr><td>Muestra una cuadrícula en vez de una sola aplicación</td><td>Hay más de una aplicación visible, un grupo «En quiosco» o una función marcada</td><td>Política: <span class="ui">Apps permitidas</span>, grupos y <span class="ui">Funciones del quiosco</span></td><td>Dejar solo la aplicación principal como visible y sin funciones.</td></tr>
       <tr><td>Falta una aplicación en el quiosco</td><td>No está marcada «En quiosco», o está en «Ocultar del quiosco»</td><td>Fila de la aplicación en la política</td><td>Marcar la casilla y guardar.</td></tr>
-      <tr><td>«…se cerró varias veces seguidas, así que no se volvió a abrir sola.»</td><td>La aplicación falla al abrir; el agente evita un ciclo</td><td>Mensaje en el teléfono; evento en la ficha</td><td>Tocar «Abrir» en el teléfono; revisar la aplicación con su proveedor.</td></tr>
-      <tr><td>No se puede salir desde el teléfono</td><td>El gesto no se hizo completo, o falta la contraseña</td><td>Política: «Botón Salir del quiosco» y contraseña</td><td>7 toques seguidos en la esquina superior derecha. Desde la consola, <span class="ui">Quitar quiosco</span> funciona siempre.</td></tr>
-      <tr><td>Cualquiera sale del quiosco</td><td>La política no tiene contraseña de salida</td><td>Política, grupo Seguridad</td><td>Definir la contraseña y guardar.</td></tr>
-      <tr><td>En Android 16 los botones de la barra no obedecen a la política</td><td>En esa versión el agente usa un quiosco propio, sin el bloqueo del sistema</td><td>Versión de Android del equipo</td><td>Es el comportamiento previsto en Android 16.</td></tr>
+      <tr><td>«…se cerró varias veces seguidas, así que no se volvió a abrir sola.»</td><td>La aplicación falla al abrir; el agente evita un ciclo</td><td>Mensaje en el teléfono</td><td>Tocar «Abrir» en el teléfono; revisar la aplicación con su proveedor.</td></tr>
+      <tr><td>Evento «Quiosco: algo no quedó bloqueado»</td><td>Android o el fabricante rechazó una parte del cierre</td><td>Detalle del evento</td><td>Reportarlo a soporte con modelo y versión.</td></tr>
+      <tr><td>En Android 16 se alcanzan a ver los Ajustes un instante</td><td>En esa versión el agente usa un quiosco propio y devuelve al usuario</td><td>Evento «se abrió Ajustes y el equipo se devolvió al quiosco»</td><td>Es el comportamiento previsto en Android 16.</td></tr>
       <tr><td>No se puede apagar el equipo</td><td>La política tiene clave para apagar</td><td>Política: «Antirrobo: clave para apagar»</td><td>Escribir la clave en el teléfono; el menú de apagado se abre 30 segundos.</td></tr>
     </tbody>
   </table>
-  <p class="pend">Llega con la integración del quiosco reforzado</p>
-  <p>La versión que se integra a continuación hace obligatoria la contraseña de salida, agrega una espera creciente tras intentos fallidos y muestra en la ficha el estado del refuerzo. Este capítulo se ampliará entonces.</p>
 </section>
 
 <section class="sec pb" id="ubicacion" data-temas="ubicación, geocercas, mapa, no reporta ubicación, alertas de zona, baja precisión">
@@ -273,33 +275,92 @@
   <p class="nota">Las zonas se evalúan en el servidor con cada posición que llega. Al reconectar, el equipo sube las posiciones acumuladas y el servidor las evalúa en orden, con la hora real de cada cruce.</p>
 </section>
 
-<section class="sec pb" id="remoto" data-temas="control remoto, no conecta, solo ver, pantalla negra, sesión remota, accesibilidad, Xiaomi">
-  <p class="k">8 · Control remoto</p>
-  <h1>La pestaña «Remoto» indica qué le falta al equipo antes de iniciar</h1>
+<section class="sec pb" id="remoto" data-temas="control remoto, soporte remoto, no conecta, falta autorización, pantalla negra, sesión, llamada, micrófono, chat, archivos">
+  <p class="k">8 · Soporte remoto</p>
+  <h1>La pestaña «Remoto» dice qué le falta al equipo y por qué terminó cada sesión</h1>
   <table class="sp">
-    <thead><tr><th style="width:52mm">Lo que muestra la consola</th><th style="width:46mm">Causa</th><th>Solución</th></tr></thead>
+    <thead><tr><th style="width:56mm">Lo que muestra la consola</th><th style="width:46mm">Causa</th><th>Solución</th></tr></thead>
     <tbody>
-      <tr><td>«Este dispositivo aún no tiene el soporte remoto»</td><td>Falta el componente de pantalla remota</td><td><span class="ui">Instalar soporte remoto</span>. Necesita Android 7 o superior.</td></tr>
-      <tr><td>Aviso «Solo ver»</td><td>El servicio de accesibilidad del soporte remoto está apagado en el teléfono</td><td><span class="ui">Abrir el ajuste en el teléfono</span> y que la persona lo active.</td></tr>
-      <tr><td>«Esperando a que el dispositivo se conecte…» por minutos</td><td>Equipo bloqueado y en ahorro de batería</td><td><span class="ui">Activar Siempre conectado</span>.</td></tr>
-      <tr><td>«El dispositivo no respondió en 6 minutos»</td><td>Sin conexión o dormido</td><td>Revisar el capítulo 3 y reintentar con el equipo en línea.</td></tr>
-      <tr><td>«El teléfono no tiene activado el servicio de entrada…»</td><td>Falta el permiso de control o la captura de pantalla</td><td>Pasar de nuevo el inscriptor de Windows por ese teléfono; no borra nada.</td></tr>
-      <tr><td>«…no arrancó a tiempo en el teléfono.»</td><td>El sistema cerró el componente en segundo plano</td><td>Reintentar con el teléfono desbloqueado.</td></tr>
-      <tr><td>«El sistema del teléfono (Xiaomi/HyperOS) cerró el soporte remoto en segundo plano.»</td><td>Gestor de batería del fabricante</td><td>En el teléfono: permitir el inicio automático y la batería sin restricciones para el soporte remoto.</td></tr>
-      <tr><td>«El teléfono no alcanzó el servidor de control remoto»</td><td>La red del equipo bloquea WebSocket</td><td>Revisar los requisitos de red.</td></tr>
-      <tr><td>Chip «Sin cifrar»</td><td>Agente anterior al túnel cifrado</td><td>Actualizar el agente.</td></tr>
-      <tr><td>«Visor no conectado»</td><td>Se pulsó una tecla antes de ver la pantalla</td><td>Esperar a que aparezca la pantalla.</td></tr>
-      <tr><td>«Sesión remota finalizada»</td><td>15 minutos sin actividad</td><td>Iniciar otra sesión.</td></tr>
-      <tr><td>El teléfono pide permiso para compartir la pantalla</td><td>Primera sesión en ese equipo</td><td>Quien lo tenga toca «Iniciar ahora».</td></tr>
+      <tr><td>Chip «Falta autorización»</td><td>El servicio de accesibilidad «Soporte remoto DallyControl» no está activo en el teléfono</td><td><span class="ui">Pedir autorización en el teléfono</span>; quien lo tenga lo activa una sola vez.</td></tr>
+      <tr><td>Chip «Remoto apagado por la política» o «Pantalla apagada por la política»</td><td>La política no permite la pantalla</td><td>Revisar <span class="ui">Soporte remoto</span> en la política.</td></tr>
+      <tr><td>«Este teléfono no puede mostrar su pantalla»</td><td>Android 6</td><td>La sesión funciona con chat, llamada y archivos.</td></tr>
+      <tr><td>«Sin pantalla del agente» y botón <span class="ui">Instalar soporte remoto</span></td><td>Agente anterior a esta versión</td><td>Actualizar el agente, o instalar el componente previo, sin voz ni chat.</td></tr>
+      <tr><td>«Esperando a que el teléfono se conecte…» por minutos</td><td>Equipo bloqueado y en ahorro de batería, o sin conexión</td><td><span class="ui">Activar Siempre conectado</span>; revisar el capítulo 3.</td></tr>
+      <tr><td>«El teléfono no se conectó a tiempo»</td><td>Apagado, sin internet o dormido</td><td>Reintentar con el equipo en línea.</td></tr>
+      <tr><td>«El usuario terminó la sesión en el teléfono, o el teléfono dejó de responder.»</td><td>Corte del lado del equipo</td><td>Iniciar otra sesión.</td></tr>
+      <tr><td>«Otra sesión de soporte reemplazó a esta»</td><td>Otro técnico abrió una sesión en el mismo equipo</td><td>Coordinar; solo hay una sesión por equipo.</td></tr>
+      <tr><td>«Se perdió la conexión con el servidor.»</td><td>Red del técnico o actualización del servicio</td><td>Iniciar otra sesión.</td></tr>
+      <tr><td>La pantalla se ve en negro en una aplicación</td><td>La aplicación protege su pantalla, o la política bloquea las capturas</td><td>No se puede ver esa aplicación; revisar «Capturas de pantalla» en Hardware y puertos.</td></tr>
+      <tr><td>«El usuario rechazó la llamada.» o «Nadie contestó en el teléfono.»</td><td>La llamada exige que el usuario acepte</td><td>Avisar por chat; o definir en la política la llamada que se contesta sola.</td></tr>
+      <tr><td>«El teléfono no tiene el permiso de micrófono para DallyControl.»</td><td>Permiso de micrófono sin conceder</td><td>Concederlo en el teléfono: Ajustes, Apps, DallyControl, Permisos.</td></tr>
+      <tr><td>El navegador no pide el micrófono</td><td>La consola no se abrió por HTTPS, o el navegador lo tiene bloqueado</td><td>Abrir la consola por HTTPS y permitir el micrófono.</td></tr>
+      <tr><td>«Sin acceso a todos los archivos: solo fotos, videos, audio y la carpeta Soporte»</td><td>Al agente le falta ese acceso especial</td><td>Concederlo en el teléfono si se necesita explorar todo.</td></tr>
+      <tr><td>Chip «Sin cifrar»</td><td>Agente anterior al canal cifrado</td><td>Actualizar el agente.</td></tr>
     </tbody>
   </table>
-  <p class="nota">Una aplicación que protege su pantalla, como las bancarias, se ve en negro. El control remoto no puede saltar la clave de desbloqueo del equipo.</p>
-  <p class="pend">Llega con la integración del soporte remoto con voz</p>
-  <p>La versión que se integra a continuación agrega captura desde el propio agente, llamada de voz, chat, portapapeles y archivos, con sus propios mensajes de error. Este capítulo se ampliará entonces.</p>
+  <p class="nota">La sesión no puede saltar la clave de desbloqueo del equipo. De Android 7 a 10 la pantalla no funciona dentro del quiosco: quite el quiosco durante el soporte o use el motor «Solo droidVNC‑NG».</p>
+</section>
+
+<section class="sec pb" id="politicas-equipo" data-temas="permisos, hardware, restricciones, Wi-Fi, red no conecta, credenciales rechazadas, FRP inactiva, modo perdido, borrado remoto, no soportado, pendiente">
+  <p class="k">9 · Permisos, hardware, Wi-Fi y protección</p>
+  <h1>La ficha muestra el resultado real de cada regla, no solo lo que pide la política</h1>
+  <h2>Hardware y puertos (pestaña Restricciones)</h2>
+  <table class="sp">
+    <thead><tr><th style="width:52mm">Resultado en el equipo</th><th>Qué significa y qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Pendiente</td><td>El equipo aún no ha aplicado la política actual. Esperar su reporte o pulsar <span class="ui">Sincronizar ahora</span>.</td></tr>
+      <tr><td>No soportado</td><td>La función requiere una versión de Android posterior, o el agente no es propietario del dispositivo.</td></tr>
+      <tr><td>No soportado por el equipo</td><td>El fabricante no permite esa restricción; ocurre con «Datos por USB».</td></tr>
+      <tr><td>No soportado por este Android</td><td>Esa compilación la rechaza; ocurre con NFC en algunas compilaciones de Android 15.</td></tr>
+      <tr><td>Agente desactualizado</td><td>Actualizar el agente. Los agentes anteriores solo aplican cámara, capturas, almacenamiento USB, Bluetooth y compartir datos.</td></tr>
+      <tr><td>Sigue bloqueado</td><td>Otra opción de la política mantiene el bloqueo. Revisar los controles duplicados de la política.</td></tr>
+      <tr><td>No se aplicó</td><td>Android aceptó la orden pero la restricción no quedó activa. Reportar el modelo a soporte.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Si se bloqueó la depuración USB y hace falta el cable para soporte: pestaña <span class="ui">Restricciones</span>, «Depuración USB (ADB)», <span class="ui">Permitir</span> en ese equipo. Un equipo sin conexión y con el puerto cerrado solo se recupera dándole red.</p>
+  <h2>Permisos de las aplicaciones (pestaña Permisos)</h2>
+  <table class="sp">
+    <thead><tr><th style="width:62mm">Lo que muestra la consola</th><th>Qué significa y qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>«Este equipo no permite que el administrador conceda permisos de sensores…»</td><td>Android 12 o superior inscrito con esa opción desactivada. El usuario debe aceptar ubicación, cámara y micrófono en el teléfono. Denegar sí funciona.</td></tr>
+      <tr><td>«Requiere un toque del usuario»</td><td>Es un acceso especial: Android no deja concederlo a distancia. <span class="ui">Abrir en el teléfono</span> muestra la pantalla a quien tenga el equipo.</td></tr>
+      <tr><td>«El agente de este equipo todavía no aplica ni reporta permisos por app.»</td><td>Agente anterior: sigue concediendo todo. Actualizar el agente.</td></tr>
+      <tr><td>«La política pide «…»: aún no se aplica.»</td><td>El equipo no ha recibido la política. Esperar o sincronizar.</td></tr>
+      <tr><td>«Sin reporte»</td><td>El equipo no ha enviado su inventario de permisos. <span class="ui">Actualizar estado</span> con el equipo en línea.</td></tr>
+      <tr><td>La aplicación pregunta aunque la regla es «Conceder»</td><td>La aplicación es muy antigua y Android no deja fijarle el permiso, o el permiso es de sensores en un equipo que lo impide.</td></tr>
+    </tbody>
+  </table>
+  <h2>Wi-Fi (tarjeta «Wi‑Fi gestionado»)</h2>
+  <table class="sp">
+    <thead><tr><th style="width:62mm">Estado de la red</th><th>Qué significa y qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>Fuera de alcance</td><td>El equipo no ve esa red donde está. Normal fuera de la sede.</td></tr>
+      <tr><td>Contraseña incorrecta</td><td>Corregir la contraseña en la política con <span class="ui">Cambiar</span>.</td></tr>
+      <tr><td>Credenciales rechazadas</td><td>Identidad o contraseña EAP erróneas, o el dominio o la CA no coinciden con el certificado del servidor.</td></tr>
+      <tr><td>Certificado rechazado, vencido o ilegible</td><td>Subir un certificado vigente en <span class="ui">Certificados Wi‑Fi</span>. La lista avisa 30 días antes del vencimiento.</td></tr>
+      <tr><td>La red está cerca pero con otra seguridad</td><td>La seguridad elegida no coincide con la del punto de acceso.</td></tr>
+      <tr><td>No soportada en esta versión de Android</td><td>WPA3 exige Android 10; WPA3 empresarial, Android 12.</td></tr>
+      <tr><td>«Bloqueo de Wi‑Fi relajado por el equipo»</td><td>El equipo se quedó sin ninguna red y levantó los bloqueos para poder conectarse. Revisar las redes y contraseñas de la política.</td></tr>
+    </tbody>
+  </table>
+  <h2>Protección, modo perdido y borrado</h2>
+  <table class="sp">
+    <thead><tr><th style="width:62mm">Lo que muestra la consola</th><th>Qué significa y qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>«FRP inactiva: no hay cuentas configuradas»</td><td>Definir las cuentas de reactivación en la política, la carpeta o la empresa. Sin ellas, un equipo borrado con botones queda libre.</td></tr>
+      <tr><td>«FRP inactiva: este equipo no admite la protección…»</td><td>El equipo no la ofrece. En Android 10 o anterior exige servicios de Google.</td></tr>
+      <tr><td>«FRP pendiente»</td><td>El equipo aún no aplica las cuentas. Esperar su sincronización.</td></tr>
+      <tr><td>«Eso es un correo. En este campo va el ID numérico de la cuenta»</td><td>El identificador es un número de unos 21 dígitos; el enlace del diálogo explica cómo obtenerlo.</td></tr>
+      <tr><td>«El modo perdido necesita un agente más reciente en este equipo.»</td><td>Actualizar el agente. Mientras tanto: Bloquear, mensaje en pantalla de bloqueo y ubicación precisa.</td></tr>
+      <tr><td>«El agente de este equipo es anterior: borra el equipo pero no aplica estas opciones»</td><td>El borrado funciona, sin las opciones de tarjeta SD, eSIM ni protección.</td></tr>
+      <tr><td>Borrado remoto «en cola»</td><td>El equipo no tiene enlace. La orden no vence: se ejecuta cuando se conecte.</td></tr>
+      <tr><td>El equipo borrado pide una cuenta al encender</td><td>Es la protección. Ingresar con una cuenta de reactivación de la empresa y reinscribir.</td></tr>
+    </tbody>
+  </table>
 </section>
 
 <section class="sec pb" id="correo" data-temas="correo, SMTP, alertas por correo, no llegan correos, reportes programados, exportar, Excel, CSV">
-  <p class="k">9 · Correo y reportes</p>
+  <p class="k">10 · Correo y reportes</p>
   <h1>Sin servidor de correo configurado, las alertas se registran pero no se envían</h1>
   <p>El correo saliente lo configura el operador del servidor, no la consola. La pestaña <span class="ui">Notificaciones por correo</span> de <span class="ui">Geocercas</span> dice en su primer renglón si está configurado y trae el botón <span class="ui">Enviar prueba</span>.</p>
   <table class="sp">
@@ -321,7 +382,7 @@
 </section>
 
 <section class="sec pb" id="consola" data-temas="consola, inicio de sesión, contraseña, bloqueo de cuenta, permisos, no veo el menú, códigos de error">
-  <p class="k">10 · Acceso a la consola</p>
+  <p class="k">11 · Acceso a la consola</p>
   <h1>Lo que un usuario no ve en el menú depende de su rol y de sus carpetas</h1>
   <table class="sp">
     <thead><tr><th style="width:46mm">Síntoma</th><th style="width:50mm">Causa probable</th><th>Solución</th></tr></thead>
@@ -335,25 +396,10 @@
       <tr><td>Aviso «La nueva consola … ya está disponible»</td><td>Se publicó una versión nueva</td><td><span class="ui">Recargar</span>.</td></tr>
     </tbody>
   </table>
-  <h2>Códigos que la consola muestra tal como los envía el servidor</h2>
-  <table class="sp">
-    <thead><tr><th style="width:74mm">Código</th><th>Qué significa</th></tr></thead>
-    <tbody>
-      <tr><td><code>error.permission.denied</code></td><td>El rol del usuario no permite esa acción.</td></tr>
-      <tr><td><code>error.agent.command.bulkForbidden</code></td><td>Esa orden no se puede enviar a varios equipos a la vez.</td></tr>
-      <tr><td><code>error.agent.command.notCancellable</code></td><td>La orden ya terminó, venció o se canceló.</td></tr>
-      <tr><td><code>error.agent.device.unknown</code></td><td>El equipo ya no existe o está fuera del alcance del usuario.</td></tr>
-      <tr><td><code>error.agent.remote.unsupported</code></td><td>El equipo no tiene el soporte remoto o su agente no lo admite.</td></tr>
-      <tr><td><code>error.agent.config.none</code></td><td>El equipo no tiene política con quiosco que reaplicar.</td></tr>
-      <tr><td><code>error.group.name.taken</code></td><td>Ya hay una carpeta con ese nombre en el mismo nivel.</td></tr>
-      <tr><td><code>error.group.parent.invalid</code></td><td>La carpeta superior elegida no es válida para esa carpeta.</td></tr>
-      <tr><td><code>error.announcement.noDevices</code></td><td>El anuncio no tiene destinatarios.</td></tr>
-    </tbody>
-  </table>
 </section>
 
 <section class="sec pb" id="faq" data-temas="preguntas frecuentes, FAQ, dudas">
-  <p class="k">11 · Preguntas frecuentes</p>
+  <p class="k">12 · Preguntas frecuentes</p>
   <h1>Respuestas cortas a las dudas más comunes</h1>
   <h3>¿Qué pasa con los equipos si el servicio se cae?</h3>
   <p>Siguen funcionando con la última política recibida, incluido el quiosco. Al volver el servicio se ponen al día solos. Las órdenes enviadas antes quedan en cola.</p>
@@ -362,7 +408,7 @@
   <h3>¿Puedo enviar una orden a un equipo apagado?</h3>
   <p>Sí. Queda en Pendiente y se ejecuta cuando el equipo se conecta. Bloquear y borrar no vencen; las demás tienen plazo de 1 hora a 30 días según el tipo.</p>
   <h3>Eliminé un equipo de la consola y volvió a aparecer. ¿Por qué?</h3>
-  <p>El teléfono sigue inscrito. Para retirarlo de verdad, primero restablézcalo de fábrica desde su pestaña <span class="ui">Control</span> y después elimínelo.</p>
+  <p>El teléfono sigue inscrito. Para retirarlo de verdad, primero use <span class="ui">Borrado remoto</span> en su pestaña <span class="ui">Control</span> y después elimínelo.</p>
   <h3>¿Una versión nueva de una aplicación llega sola a los equipos?</h3>
   <p>Sí, si la aplicación está en la política y no forma un grupo de versiones. Con un grupo de versiones, cada política usa la versión que se le asignó hasta que se cambie.</p>
   <h3>¿Se puede volver a una versión anterior de una aplicación?</h3>
@@ -374,9 +420,9 @@
   <h3>¿Qué ve un usuario de carpetas?</h3>
   <p>Solo los equipos de sus carpetas y subcarpetas, incluidas las que se creen después. Los permisos de su rol deciden qué puede hacer con ellos.</p>
   <h3>¿Se puede impedir el restablecimiento con los botones del teléfono?</h3>
-  <p>No; ningún sistema de administración puede. Sí se puede dejar el equipo inservible para quien lo haga, indicando en la política las cuentas que pueden reactivarlo (Android 11 o superior).</p>
+  <p>No; ningún sistema de administración puede. Sí se puede dejar el equipo inservible para quien lo haga, definiendo las cuentas de reactivación de la empresa, la carpeta o la política.</p>
   <h3>¿El control remoto funciona con el equipo en quiosco?</h3>
-  <p>Sí. La pestaña <span class="ui">Remoto</span> incluye además el conmutador de quiosco para quitarlo durante el soporte.</p>
+  <p>Sí desde Android 11. De Android 7 a 10 la pantalla no funciona dentro del quiosco: quítelo durante el soporte desde la misma pestaña <span class="ui">Remoto</span>.</p>
   <h3>¿Dónde queda registrado quién hizo qué?</h3>
   <p>En <span class="ui">Auditoría</span>, con fecha, usuario, dirección, acción y detalle del cambio. Cada política tiene además su <span class="ui">Historial de cambios</span>.</p>
   <h3>¿Qué datos del usuario del teléfono ve la consola?</h3>

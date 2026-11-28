@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  androidLocale, buildAgentQrJson, buildKmeJson, buildProvisioningExtras, buildProvisioningJson, buildZeroTouchJson, qrDensity,
+  androidLocale, buildAgentQrJson, buildKmeJson, plainHttpUrl, buildProvisioningExtras, buildProvisioningJson, buildZeroTouchJson, qrDensity,
   trackedApkUrl, type ProvisioningOptions,
 } from '../src/enroll/payload.ts';
 
@@ -120,6 +120,12 @@ test('the QR the agent scans carries only token and server, and is a coarse QR',
   });
   // Version 6 or below: no version-information blocks, the size the agent's scanner reads without effort.
   assert.ok(qrDensity(text, 'L').version <= 6, `version ${qrDensity(text, 'L').version}`);
+});
+
+test('the plain-HTTP download address only changes the scheme', () => {
+  assert.equal(plainHttpUrl('https://mdm.example.com/files/dallycontrol-agent.apk'), 'http://mdm.example.com/files/dallycontrol-agent.apk');
+  assert.equal(plainHttpUrl('http://10.0.2.2:8088/files/agent.apk'), 'http://10.0.2.2:8088/files/agent.apk');
+  assert.equal(plainHttpUrl('HTTPS://mdm.example.com/a.apk'), 'http://mdm.example.com/a.apk');
 });
 
 test('the tracked download keeps a short token reference and only same-origin APK paths', () => {

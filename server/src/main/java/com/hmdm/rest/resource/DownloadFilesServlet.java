@@ -124,8 +124,21 @@ public class DownloadFilesServlet extends HttpServlet {
                 return;
             }
 
+            // A validator on every answer. Android's own downloader (the one that fetches the agent during QR /
+            // zero-touch provisioning) refuses to resume a cut download from a server that sent no ETag: the
+            // provisioning then ends with "Couldn't download the admin app" on any hiccup of the Wi-Fi.
+            String etag = etagOf(file);
+            resp.setHeader("ETag", etag);
+            resp.setDateHeader("Last-Modified", file.lastModified());
+            resp.setHeader("Accept-Ranges", "bytes");
+            if (!matches(req.getHeader("If-Match"), etag)) {
+                resp.setStatus(412); // the file was replaced since the client got its first part
+                return;
+            }
+
             String range = req.getHeader("Range");
-            if (range != null && range.startsWith("bytes=")) {
+            // If-Range with another version of the file: the whole (new) file, not a part of it.
+            if (range != null && range.startsWith("bytes=") && matches(req.getHeader("If-Range"), etag)) {
                 sendPartialContent(range.substring(6), file, resp);
                 return;
             }
@@ -154,6 +167,32 @@ public class DownloadFilesServlet extends HttpServlet {
             resp.sendError(404);
         }
 
+    }
+
+    /** The file's validator: changes whenever the file is replaced (size or modification time). */
+    static String etagOf(File file) {
+        return "\"" + Long.toHexString(file.length()) + "-" + Long.toHexString(file.lastModified()) + "\"";
+    }
+
+    /**
+     * Whether a conditional header (If-Match / If-Range) allows the request for the file with [etag]: true when the
+     * header is absent, is {@code *}, or lists this validator (weak prefix and several values accepted). An If-Range
+     * that carries a date instead of a validator does not match: the whole file is sent, which is always correct.
+     */
+    static boolean matches(String header, String etag) {
+        if (header == null || header.trim().isEmpty()) {
+            return true;
+        }
+        for (String part : header.split(",")) {
+            String v = part.trim();
+            if (v.startsWith("W/")) {
+                v = v.substring(2);
+            }
+            if (v.equals("*") || v.equals(etag)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -144,12 +144,25 @@ public interface AgentCommandMapper {
      * A phone that enrolls again must not get the wipe that was meant for its previous life: the delivered one is
      * what wiped it (done), a still pending one is withdrawn.
      */
-    @Update({"UPDATE agentCommand SET completedAt = CASE WHEN status = 'delivered' THEN deliveredAt ELSE #{now} END, " +
-            "detail = CASE WHEN status = 'delivered' THEN #{doneDetail} ELSE #{cancelDetail} END, " +
-            "status = CASE WHEN status = 'delivered' THEN 'done' ELSE 'cancelled' END " +
-            "WHERE deviceNumber = #{deviceNumber} AND lower(type) = 'device.wipe' AND status IN ('pending','delivered')"})
+    @Update({"UPDATE agentCommand SET completedAt = CASE WHEN status = 'pending' THEN #{now} ELSE COALESCE(completedAt, deliveredAt) END, " +
+            "detail = CASE WHEN status = 'pending' THEN #{cancelDetail} ELSE #{doneDetail} END, " +
+            "status = CASE WHEN status = 'pending' THEN 'cancelled' ELSE 'done' END " +
+            "WHERE deviceNumber = #{deviceNumber} AND lower(type) = 'device.wipe' AND status IN ('pending','delivered','accepted')"})
     int closeWipesOnReenroll(@Param("deviceNumber") String deviceNumber, @Param("now") long now,
                              @Param("doneDetail") String doneDetail, @Param("cancelDetail") String cancelDetail);
+
+    /** The phone is back in service under the same row: it is no longer "wiped". */
+    @Update({"UPDATE devices SET wipedAt = NULL, wipedBy = NULL WHERE number = #{deviceNumber} AND wipedAt IS NOT NULL"})
+    int clearWipedMark(@Param("deviceNumber") String deviceNumber);
+
+    /**
+     * A marked device that reports again with its old credentials (a wiped phone has none: it must enroll again)
+     * was not wiped. Leave that in its history before {@link #unmarkReportingDevices} takes the mark away.
+     */
+    @Insert({"INSERT INTO device_event (deviceNumber, type, ts, detail) SELECT number, #{type}, #{now}, #{detail} " +
+            "FROM devices WHERE customerId = #{customerId} AND wipedAt IS NOT NULL AND lastUpdate > wipedAt + #{slack}"})
+    int noteWipesNotCompleted(@Param("customerId") int customerId, @Param("slack") long slack, @Param("now") long now,
+                              @Param("type") String type, @Param("detail") String detail);
 
     @Select({"SELECT * FROM agentCommand WHERE deviceNumber = #{deviceNumber} AND createdAt >= #{since} " +
             "ORDER BY id DESC LIMIT #{limit}"})

@@ -18,6 +18,9 @@ export interface QueuedCommand {
   status?: string;
   /** Whether the device's live channel was open when the command was queued; false = it waits for the device. */
   deviceOnline?: boolean;
+  /** How the device will learn of the command (live socket, push message, or its own next check-in) and the usual wait. */
+  wakeChannel?: 'live' | 'push' | 'poll';
+  wakeExpectedSeconds?: number;
   [key: string]: unknown;
 }
 

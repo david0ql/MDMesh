@@ -4,6 +4,7 @@ import {
   type RemoteSession, type RemoteStatus,
 } from '../api/remote';
 import { listCommandHistory, queueCommand, setupRemoteSupport } from '../api/commands';
+import { errorCode } from '../api/client';
 import {
   getSupportStatus, listDeviceSupportSessions, startSupportSession,
   type SupportSessionRow, type SupportStart, type SupportStatus,
@@ -245,7 +246,7 @@ export function RemotePanel({ device }: { device: Device }) {
     } catch (e) {
       const m = e instanceof Error ? e.message : '';
       toast.push('err', 'No se pudo iniciar la sesión',
-        m === 'error.agent.remote.unsupported' ? 'El agente de este teléfono no admite sesiones de soporte: actualízalo.' : m);
+        errorCode(e) === 'error.agent.remote.unsupported' ? 'El agente de este teléfono no admite sesiones de soporte: actualízalo.' : m);
     } finally {
       setBusy(false);
     }

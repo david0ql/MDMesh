@@ -346,7 +346,7 @@ def t_lost():
     sync()
     done = wait_closed(c["id"])
     check("lost mode off: executed", done.get("status") == "done", str(done))
-    p = until(lambda: (lambda x: x if not ((x.get("reported") or {}).get("lostMode") or {}).get("active") else None)(protection()), 60, 3) or protection()
+    p = until(lambda: (lambda x: x if x.get("reported") and not (x["reported"].get("lostMode") or {}).get("active") else None)(protection()), 60, 3) or protection()
     check("console shows lost mode inactive", not ((p.get("reported") or {}).get("lostMode") or {}).get("active"))
     prefs = sh(f"run-as {A.agent_package} cat shared_prefs/mdm_trail.xml")
     check("tracking back to what the policy had", 'name="interval_min" value="1"' not in prefs, prefs[:200])

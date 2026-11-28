@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { VersionGroupCard, type PolicyRef } from '../components/VersionGroupCard';
 import { listAppVersions, listVersionGroups, setVersionLabel, type VersionGroup } from '../api/versions';
 import { getConfigurations } from '../api/configurations';
+import { errorCode } from '../api/client';
 import { hasApk, obtainApk } from '../api/apkFetch';
 import { AppShell } from '../ui/AppShell';
 import { useToast } from '../ui/toast';
@@ -961,7 +962,7 @@ function PlayStoreSource() {
     try {
       setFound(await lookupPlayApp(q.trim()));
     } catch (e) {
-      const m = e instanceof Error ? e.message : '';
+      const m = errorCode(e);
       setErr(/invalid/.test(m) ? 'Escribe el paquete (com.whatsapp) o pega el enlace de la Play Store.'
         : /not\.found/.test(m) ? 'Esa app no existe en la Play Store.' : 'No se pudo consultar la Play Store. Intenta de nuevo.');
     } finally {

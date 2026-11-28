@@ -231,7 +231,7 @@ def api(base, path, token=None, body=None, method=None):
     req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
                                  method=method or ("POST" if body is not None else "GET"))
     req.add_header("Content-Type", "application/json")
-    with _COOKIES.open(req, timeout=120) as r:
+    with _COOKIES.open(req, timeout=25) as r:
         return json.loads(r.read().decode() or "{}")
 
 
@@ -312,6 +312,8 @@ def run(a):
             print("  server down: " + subprocess.run(a.pause_cmd, shell=True, capture_output=True, text=True).stdout.strip(), flush=True)
             subprocess.Popen(f"sleep {a.resume_after}; {a.resume_cmd}", shell=True, start_new_session=True)
         status, enrolled = wait_enrolled(a, serial, payload)
+        if status == "ENROLLED" and not a.replay_token and not a.pause_cmd:
+            enrolled += " " + settle_wizard(serial, seen, started)
         if status == "ENROLLED" and a.replay_token:
             status, more = replay_token(a, serial, payload, package)
             enrolled += " " + more
@@ -356,6 +358,45 @@ def finish_setup_wizard(serial):
     sh(serial, "settings put global device_provisioned 1")
 
 
+GUIDE = re.compile(r"turn on remote support|activa el soporte remoto|soporte remoto", re.I)
+
+
+def settle_wizard(serial, seen, started):
+    """After the enrollment: walk the rest of Android's wizard and watch for the agent's "turn on remote support"
+    guide. It must not come up while the wizard (or the agent's own enrollment status inside it) is on screen."""
+    during = after = False
+    status_screen = False
+    end = time.time() + 70
+    while time.time() < end:
+        texts, clicks = screen(serial)
+        joined = " | ".join(texts)
+        if joined and (not seen or seen[-1] != joined):
+            seen.append(joined)
+            print(f"  [{int(time.time() - started):4d}s] {joined[:200]}", flush=True)
+        in_wizard = setup_state(serial) != "11"
+        if re.search(r"device enrolled|equipo inscrito|enrolling this device|inscribiendo este equipo", joined, re.I):
+            status_screen = True
+        if GUIDE.search(joined):
+            if in_wizard:
+                during = True
+            else:
+                after = True
+                break
+        target = next((c for c in clicks if ADVANCE.match(c[0])), None)
+        if target and not GUIDE.search(joined):
+            sh(serial, f"input tap {target[1]} {target[2]}")
+            time.sleep(2)
+            continue
+        if not in_wizard and not target:
+            time.sleep(3)
+        else:
+            time.sleep(2)
+        if in_wizard and time.time() > end - 35:
+            finish_setup_wizard(serial)   # nothing left to tap: the wizard would end here on a phone
+    return (f"guide_during_wizard={'yes' if during else 'no'} guide_after_wizard={'yes' if after else 'no'} "
+            f"status_screen_seen={'yes' if status_screen else 'no'}")
+
+
 def replay_token(a, serial, payload, package):
     """The answer to the enroll call never reached the phone: the server consumed the single-use token and created
     the device, the agent kept nothing. Reproduced by deleting the agent's stored identity (debug build) and
@@ -364,8 +405,13 @@ def replay_token(a, serial, payload, package):
     before = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token).get("data") or {}
     oks = len([x for x in before.get("attempts", []) if x.get("outcome") == "ok"]) \
         + sum(x.get("count", 1) - 1 for x in before.get("attempts", []) if x.get("outcome") == "ok")
-    sh(serial, f"am force-stop {package}")
-    print("  identity removed: " + sh(serial, f"run-as {package} rm -f files/datastore/mdm_identity.preferences_pb; echo done").strip(), flush=True)
+    # Android does not force-stop a Device Owner: remove the file and kill the process (as root), so the agent comes
+    # back without credentials but with the token it was provisioned with.
+    rm = f"run-as {package} rm -f files/datastore/mdm_identity.preferences_pb"
+    sh(serial, rm)
+    sh(serial, f"kill -9 $(pidof {package})")
+    left = sh(serial, rm + f"; run-as {package} ls files/datastore/").split()
+    print("  identity removed; files left: " + " ".join(left), flush=True)
     sh(serial, f"am start -n {package}/com.dallycontrol.agent.MainActivity")
     end = time.time() + 120
     while time.time() < end:
@@ -387,18 +433,21 @@ def replay_token(a, serial, payload, package):
 def wait_enrolled(a, serial, payload):
     """The device must appear in the console. Returns (status, details)."""
     token = payload["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]["com.dallycontrol.ENROLL_TOKEN"]
-    jwt = login(a.wait_enrolled, a.admin)
+    jwt = None
     started = time.time()
     end = started + a.enroll_timeout
     last, finalized = "", False
     while time.time() < end:
         try:
+            if jwt is None:   # the server may be down on purpose (outage scenario): keep trying to sign in
+                jwt = login(a.wait_enrolled, a.admin)
             st = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token, token=jwt).get("data") or {}
             last = json.dumps(st)
             if st.get("deviceNumber"):
                 ok = [x for x in st.get("attempts", []) if x.get("outcome") == "ok"]
                 return "ENROLLED", (f"device={st['deviceNumber']} configuration={st.get('configurationName')} "
                                     f"via={ok[0].get('path') if ok else '?'} tries={ok[0].get('tries') if ok else '?'} "
+                                    f"earlier_failures={[x.get('reason') for x in st.get('attempts', []) if x.get('outcome') in ('note', 'failed')]} "
                                     f"wizard_finished_first={'yes' if finalized else 'no'} "
                                     f"seconds={int(time.time() - started)}")
         except Exception as e:  # the server may be down on purpose in a retry scenario
@@ -454,7 +503,7 @@ def run_callbacks(a):
 
 
 SLOTS = "/private/tmp/mdm-emu-slots"
-SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630}
+SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630, 5: 5640}
 # QR_MATRIX_SLOTS=4 keeps a run on a reserved turn; the default is the three shared ones.
 SLOTS_USED = [int(x) for x in os.environ.get("QR_MATRIX_SLOTS", "1,2,3").split(",") if x.strip()]
 

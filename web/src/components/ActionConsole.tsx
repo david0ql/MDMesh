@@ -1,3 +1,4 @@
+import { queuedNote } from '../api/wake';
 import { ScriptPanel } from './ScriptPanel';
 import { SavedScriptsPanel } from './SavedScriptsPanel';
 import { useCallback, useEffect, useState } from 'react';
@@ -75,7 +76,11 @@ export function ActionConsole({ device }: { device: Device }) {
       const req = t.build ? t.build(values) : t.request;
       const res = await queueCommand(device.number, req);
       const id = (res?.id as number | string | undefined) ?? '';
-      if (res?.deviceOnline === false) {
+      const how = queuedNote(res?.wakeChannel, res?.wakeExpectedSeconds);
+      if (how) {
+        // No live channel: say how the device will be woken (push) or that it waits for its next report.
+        toast.push('ok', `${t.label}: ${res?.wakeChannel === 'push' ? 'despertando al equipo' : 'en cola'}`, how);
+      } else if (res?.deviceOnline === false) {
         toast.push('ok', `${t.label}: en cola`, OFFLINE_QUEUED_NOTE);
       } else {
         toast.push('ok', `${t.label}: enviado`, id ? `Orden ${id}` : '');

@@ -315,7 +315,7 @@ class KioskLauncherActivity : ComponentActivity() {
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         return frame(bg).apply {
-            addView(centeredText("Loading…", 18f, fg))
+            addView(centeredText(getString(R.string.kiosk_loading), 18f, fg))
             addExitAffordance(p, this)
         }
     }
@@ -369,12 +369,12 @@ class KioskLauncherActivity : ComponentActivity() {
                 },
             )
         } else {
-            column.addView(text("DallyControl Kiosk", 20f, fg, bold = true))
+            column.addView(text(getString(R.string.kiosk_default_title), 20f, fg, bold = true))
         }
         if (rendered == 0) {
             column.addView(
                 text(
-                    "No available apps. Add installed app packages to this kiosk's allowed list.",
+                    getString(R.string.kiosk_no_apps),
                     14f,
                     MUTED,
                 ).apply { setPadding(0, dp(10), 0, 0) },
@@ -464,7 +464,7 @@ class KioskLauncherActivity : ComponentActivity() {
                     setPadding(dp(20), dp(6), dp(20), if (p.exitMode == "visible") dp(76) else dp(24))
                     if (showSerial) {
                         addView(
-                            text("Serial: ${deviceSerial()}", 12f, fg).apply { contentDescription = "kiosk-serial" },
+                            text(getString(R.string.kiosk_serial, deviceSerial()), 12f, fg).apply { contentDescription = "kiosk-serial" },
                             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
                         )
                     } else {
@@ -570,7 +570,7 @@ class KioskLauncherActivity : ComponentActivity() {
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
         col.addView(centeredText("DallyControl", 28f, SIGNAL, bold = true))
-        col.addView(centeredText("Managed device", 14f, MUTED))
+        col.addView(centeredText(getString(R.string.kiosk_idle_subtitle), 14f, MUTED))
         addView(col)
     }
 

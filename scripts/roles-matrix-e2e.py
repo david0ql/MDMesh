@@ -20,8 +20,9 @@ yes, lock / reboot / change passcode / wipe no).
 
 Usage:  scripts/roles-matrix-e2e.py --api http://localhost:8080 [--admin admin] [--password admin]
                                     [--device <number of an enrolled device>]
-  --device  an enrolled device to try the device-level probes on (it only receives a "sync now" wake-up and has its
-            description rewritten with the same text). Without it a device record is created and removed.
+  --device  an enrolled device to try the device-level probes on. Prefer running WITHOUT it (a device record is created
+            and removed): on a real device the probes send a "sync now" wake-up, rewrite its description with the same
+            text, and send empty mobile-data / hardware / app-permission settings and a remote-support start + stop.
 Exit code 0 = every permission restricts what it says. Standard library only.
 """
 import argparse
@@ -167,6 +168,13 @@ def main():
             ("POST", "/private/devices/deleteBulk", {"ids": [NO]}, "fleet"),  # a folder user is refused an id outside their folders
             ("DELETE", "/private/devices/%d" % NO, None, "fleet"),
             ("POST", "/private/agent/v1/rollout", {}, "fleet"),
+            # modules merged later: mobile data, hardware and ports, app permissions, remote support, cancel a command
+            ("POST", "/private/agent/v1/devices/%s/mobileData" % dev, {}, "fleet"),
+            ("PUT", "/private/agent/v1/devices/%s/hardware" % dev, {}, "fleet"),
+            ("PUT", "/private/agent/v1/devices/%s/permissions" % dev, {}, "fleet"),
+            ("POST", "/private/agent/v1/devices/no-existe/commands/%d/cancel" % NO, None, "fleet"),
+            ("POST", "/private/support/v1/devices/%s/start" % dev, {}, "fleet"),
+            ("POST", "/private/support/v1/devices/%s/stop" % dev, {}, "fleet"),
             ("POST", "/private/fleet/v1/groups/%d/commands" % empty_folder["id"], {"command": {"type": "device.ring"}}, "both"),
         ],
         "disruptive_actions": [
@@ -210,6 +218,8 @@ def main():
             ("GET", "/private/alerts/v1/list", None, "both"),
             ("GET", "/private/alerts/v1/export?format=csv", None, "both"),
             ("POST", "/private/alerts/v1/review", {"id": NO, "reviewed": True}, "both"),
+            # factory-reset protection (FRP) defaults of a folder
+            ("PUT", "/private/protection/v1/defaults/groups/%d" % empty_folder["id"], {}, "fleet"),
         ],
         "enroll_devices": [
             ("POST", "/private/agent/v1/codes", {}, "both"),
@@ -223,6 +233,7 @@ def main():
             ("GET", "/private/configurations/%d/history" % config["id"], None, "both"),
             ("POST", "/private/app-groups", {}, "fleet"),
             ("DELETE", "/private/app-groups/%d" % NO, None, "fleet"),
+            ("DELETE", "/private/wifi-certificates/%d" % NO, None, "fleet"),  # corporate Wi-Fi certificates
         ],
         "add_config": [
             ("PUT", "/private/configurations", lambda: {"name": "matriz-nueva-%s-%d" % (stamp, int(time.time() * 1000) % 100000)}, "both"),

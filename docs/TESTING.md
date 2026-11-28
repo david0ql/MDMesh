@@ -159,6 +159,13 @@ DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api ht
 | SMTP modes through *Enviar prueba*: STARTTLS + auth, implicit SSL + auth → delivered; wrong password, no TLS against a STARTTLS-only server → refused cleanly (`error.geofence.smtp.failed`) | as expected |
 | server/common unit tests · agent `lintDebug` + unit tests | all green |
 
+Final pass on the fully merged tree (2026-11-27, Android 16 / API 36 Google APIs, `--mock-provider`, mobile-data
+policy active, heap `-Xmx420m`, host load 22–42): trip inside → outside → inside, zone created with the phone already
+outside, diagnosis and e-mail passed (36/39). The three misses were the test's, not the product's: that image keeps an
+emulated Ethernet up, so `svc wifi/data disable` does not take it offline (the offline batch is covered on API 29 and
+33; the script now detects this and skips the section), and one row-count race. With lost mode on (W9, a position per
+minute) positions kept arriving and a new zone was evaluated. `geofence-console-e2e.mjs`: 29/29.
+
 Location providers on the API 33 Google APIs emulator (agent log `fresh fix: …`): `fused` is present and enabled but
 gave nothing within its 8 s cap, then `gps` answered in 4.7–7.3 s; on the next request `fused` was skipped and `gps`
 answered in 4.0 s. Fed through the test provider, positions arrive as `provider=fused` ±6 m.
@@ -444,7 +451,7 @@ timed. Emulators: fresh AVDs with the `google_apis` images, agent enrolled over 
 | Server, simulated device, with `--mailpit` | 55/55 (one e-mail with both alerts, linked to the device) |
 | Console in headless Chromium | 37/37 |
 | Emulator API 30 (Android 11) | 94/95 — the one miss was a check of this script (it looked for the metered list in `dumpsys device_policy`, which Android 11 does not print); fixed |
-| Emulator API 35 (Android 15) | 93/95 — both misses were checks of this script, not of the product: it read a stale state while the phone switched from the VPN to the system restriction, and it looked for `no_config_vpn` in `dumpsys device_policy`, where Android 15 keeps an empty entry after the restriction is lifted (`dumpsys user` showed it gone); both fixed |
+| Emulator API 35 (Android 15) | first run 93/95 (two checks of this script: a stale state read while the phone switched mechanism, and `no_config_vpn` looked up in `dumpsys device_policy`, where Android 15 keeps an empty entry; both fixed). Final run after merging `integration/mobicontrol`, stack and APK built from that tree, droidVNC-NG installed: **107/107** in 7 min, console 37/37 |
 
 On both emulators, with both mechanisms: the blocked app failed on mobile data and worked on Wi-Fi, the allowed app
 and the agent's check-in kept working on mobile data, and switching Wi-Fi ↔ mobile changed the outcome each time. With
@@ -793,3 +800,72 @@ Android 13+ a static IP dropped the proxy; a network saved while the radio was s
 (Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
 earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
 ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
+
+## Second wake channel (push FCM, backup polling) — MDM-07
+
+Full description, the steps to load a real Firebase project and the measured latencies: [DESPERTADOR-FCM.md](DESPERTADOR-FCM.md).
+No Firebase credentials are needed to test: Google's side is simulated.
+
+```bash
+# unit: fake FCM v1 service (when a push goes out, to which token, retries, debounce) and the agent's schedule
+mvn -q -pl common,server -am test -Dtest='FcmClientTest,PushWakerTest' -Dsurefire.failIfNoSpecifiedTests=false
+(cd agent-android && ./gradlew :core:testDebugUnitTest --tests '*Wake*')
+
+# end to end on an emulator: point the stack at the simulator, enroll THROUGH its gate, measure
+scripts/wake-latency-e2e.py env --port 8126 > /tmp/fcm-sim.env          # export these before `docker compose up`
+scripts/wake-latency-e2e.py sim --port 8126 --upstream 127.0.0.1:8088 &
+scripts/adb-enroll.sh --server http://10.0.2.2:8126 --api-url http://localhost:8088 --apk app-debug.apk --debug-build --admin-user admin
+scripts/wake-latency-e2e.py run --api http://localhost:8088 --sim http://127.0.0.1:8126 --serial emulator-5554 \
+    --device-id <device number> --md-out /tmp/latencias.md
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wake-console-e2e.mjs --api http://localhost:8088 \
+    --device-id <numeric id> --device <device number> --config <configuration id> --sim http://127.0.0.1:8126
+```
+
+Closing run on the merged tree (2026-11-27, no emulator; own light stack started from existing images with this
+tree's WAR and web build, a device record as fixture): `roles-matrix-e2e.py` 19 permissions, 290 calls, 324/324 (now
+also mobile data, hardware and ports, app permissions, remote support, cancel a command, FRP defaults and Wi-Fi
+certificates); `audit-console-e2e.mjs` 56/56 (adds: no user answer carries a password hash or token, the retention
+panel stays hidden while the viewer's scope is unknown, the "Campo" column keeps a field name on one line, opening a
+role card does not stretch the others, one matrix row per permission the server checks). `UserSecretsJsonTest`
+guards the JSON of every answer that carries a user.
+
+Final runs of `scripts/command-reliability-e2e.py` (2026-11-27 evening, tree merged with `integration/mobicontrol`,
+debug agent built from it, dev stack behind Caddy with `-Xmx420m -XX:+UseSerialGC`; all phases, wipe included):
+
+| Android | API | Result | Host load during the run |
+|---|---|---|---|
+| 11 | 30 | 56 pass, 3 fail: only the latency thresholds (measured with the agent before the faster result report); every functional phase clean | 37–40 |
+| 15 | 35 | 57 pass, 2 fail: only the latency threshold of lock and alarm; every functional phase clean | 29–40 |
+| 16 | 36 | 59/59 | 16–30 |
+| 11 | 30 | latency only, final agent: 9/9 | 20–23 |
+
+Latency measured by the server (created → delivered → completed), 10 repetitions each, device online with its live
+channel, final agent:
+
+| Command | Android 11 (load ≈ 21): delivery p50 / p90 · executed p50 / p90 / max | Android 16 (load 18–30): delivery p50 / p90 · executed p50 / p90 / max |
+|---|---|---|
+| Lock | 0.27 / 0.64 s · 0.41 / 0.92 / 1.99 s | 0.20 / 0.43 s · 0.30 / 0.59 / 1.17 s |
+| Alarm (ring) | 0.12 / 0.24 s · 0.33 / 0.50 / 1.72 s | 0.45 / 1.37 s · 0.90 / 3.88 / 5.87 s |
+| Message (alert) | 0.11 / 0.19 s · 0.16 / 0.28 / 0.49 s | 0.55 / 1.00 s · 0.87 / 1.50 / 3.70 s |
+| Lock-screen message | 0.12 / 0.35 s · 0.18 / 0.43 / 0.59 s | 0.64 / 1.41 s · 1.29 / 2.03 / 2.81 s |
+
+What made "executed" late before: the agent took the whole device census again (it can wait on a location fix) in the
+round that only reports a result. That round now carries just the result. `scripts/command-console-e2e.mjs`: 16/16.
+
+The wiped mark: set when the agent announces the wipe (or after 10 minutes of silence for an agent that cannot
+announce); kept while the phone stays silent; removed, with a `wipeNotCompleted` line in the device's history, when
+the phone reports again with its old credentials (a wiped phone has none); cleared without that line when the phone
+enrolls again.
+
+Living with the rest of the agent (final run, API 35): with the local VPN up and capturing on mobile data — blocklist
+and allowlist — the wake channel stayed connected and a command sent from the console ran on the phone in 2.3–2.5 s
+(load average ~30); the agent and remote support (droidVNC-NG) were never in the captured list and the console kept
+reporting the remote tier `control`. A full remote session through the repeater with the VPN up was not run here (the
+stack was started without the `remote` profile).
+
+Final repeat (2026-11-27 21:24-21:36, tree = `integration/mobicontrol` with everything merged, own stack with
+`-Xmx420m -XX:+UseSerialGC`, Android 15 / API 35, load 15-22): `frp` + `lost` + `reenroll` 35/36, then 25/25 after the
+fix below; console 34/34 (lost mode really sent and turned off); `wipe-online` 8/8; `wipe-offline` 13/13. The one
+failure was real: a follow-up check-in (it carries no census) stored an empty telemetry, so the device's protection
+status was blank until the next full report; `device_state.telemetry` now keeps the last census when a check-in
+brings none. The emulator booted again after its wipe enrolled onto its own row (same hardware id), as designed.

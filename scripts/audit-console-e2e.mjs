@@ -57,6 +57,13 @@ try {
   // --- setup: a folder, a limited role, a technician; the technician does one allowed and one refused thing --------
   await uiLogin(page, 'admin', password);
   check('inicio de sesión del administrador en la consola', true);
+  // No answer that carries a user may carry its secrets (password hash, session token, two-factor secret…).
+  const secretsIn = (o) => JSON.stringify(o ?? {}).match(/"(password|oldPassword|newPassword|authToken|authData|twoFactorSecret)"\s*:/g) ?? [];
+  const meRaw = await api('GET', '/private/users/current');
+  const allRaw = await api('GET', '/private/users/all');
+  const dcRaw = await api('GET', '/private/dc/users');
+  const leaked = [...secretsIn(meRaw), ...secretsIn(allRaw), ...secretsIn(dcRaw)];
+  check('las respuestas con usuarios no traen hash de contraseña, token de sesión ni secretos', meRaw.status === 'OK' && leaked.length === 0, leaked.join(' '));
   const dev = (await api('GET', `/private/devices/number/${encodeURIComponent(device)}`)).data;
   const scope = (await api('GET', `/private/fleet/v1/devices/${dev.id}/scope`)).data ?? {};
   const folder = (await api('POST', '/private/fleet/v1/groups', { name: `aud-ui-${stamp}` })).data;
@@ -110,7 +117,8 @@ try {
   await page.goto(`${web}/dashboard`);
   await page.locator('nav.nav .nav-item').first().waitFor({ timeout: 20000 });
   const labels = await navLabels(page);
-  check('«Auditoría» está en el menú, al final', labels[labels.length - 1] === 'Auditoría', labels.join(' | '));
+  const menuModules = labels.filter((l) => l !== 'Ayuda'); // the help entry is not a module; it stays last
+  check('«Auditoría» está en el menú, al final de los módulos', menuModules[menuModules.length - 1] === 'Auditoría', labels.join(' | '));
   await page.locator('nav.nav .nav-item', { hasText: 'Auditoría' }).click();
   await page.waitForURL(/\/audit$/);
   await page.getByTestId('audit-table').waitFor({ timeout: 20000 });
@@ -179,6 +187,14 @@ try {
   await detail.waitFor();
   const detailText = (await detail.textContent()) ?? '';
   check('detalle expandible: «Qué cambió» con antes y después', detailText.includes('Qué cambió') && detailText.includes('permisos') && detailText.includes('files'), detailText.slice(0, 200));
+  const campo = await detail.locator('.audit-diff tbody td:first-child').first().evaluate((td) => {
+    // Lines of the TEXT (the cell itself is as tall as its row, which grows with the before / after values).
+    const range = document.createRange();
+    range.selectNodeContents(td);
+    const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+    return { nowrap: getComputedStyle(td).whiteSpace, lines: tops.size };
+  });
+  check('detalle: la columna «Campo» no parte el nombre del campo en varias líneas', campo.nowrap === 'nowrap' && campo.lines <= 1, JSON.stringify(campo));
   check('detalle: origen con IP, navegador y huella', detailText.includes('Dirección IP') && detailText.includes('Navegador') && detailText.includes('huella'), detailText.slice(-300));
   await page.screenshot({ path: `${shots}/audit-detail.png`, fullPage: true });
 
@@ -223,6 +239,8 @@ try {
 
   // Retention + integrity.
   const admin = page.getByTestId('audit-admin');
+  await admin.waitFor({ timeout: 20000 });
+  check('panel de retención visible para el administrador (alcance completo)', await admin.isVisible());
   await admin.scrollIntoViewIfNeeded();
   const before = await page.getByTestId('audit-retention').inputValue();
   check('retención visible (365 días por defecto)', Number(before) >= 30, before);
@@ -297,6 +315,17 @@ try {
   const readOnly = page.locator('[data-testid="role-card"][data-role="Solo lectura"]');
   await readOnly.getByTestId('role-explain').click();
   check('plantilla «Solo lectura»: no envía comandos', ((await readOnly.getByTestId('role-summary').textContent()) ?? '').includes('No envía comandos ni modifica dispositivos'));
+  const heights = await page.locator('[data-testid="role-card"]').evaluateAll((cards) => cards.map((c) => ({ role: c.dataset.role, h: Math.round(c.getBoundingClientRect().height) })));
+  const open = heights.filter((h) => h.role === 'Técnico de soporte' || h.role === 'Solo lectura').map((h) => h.h);
+  const closed = heights.filter((h) => h.role !== 'Técnico de soporte' && h.role !== 'Solo lectura').map((h) => h.h);
+  check('tarjetas de roles: abrir una no estira las demás', closed.length > 0 && Math.max(...closed) < Math.min(...open) - 60, JSON.stringify(heights));
+  check('las tarjetas muestran la descripción del rol', ((await support.textContent()) ?? '').includes('acciones seguras') && !((await support.textContent()) ?? '').includes('Sin descripción'), await support.textContent());
+  const matrixText = (await page.getByTestId('roles-matrix').textContent()) ?? '';
+  check('la matriz nombra los módulos fusionados (soporte remoto, datos móviles, hardware, permisos de apps, FRP, certificados Wi-Fi)',
+    ['soporte y control remoto', 'datos móviles', 'hardware', 'permisos de apps', 'protección (FRP)', 'certificados Wi-Fi'].every((t) => matrixText.includes(t)), matrixText.slice(0, 300));
+  const matrixPerms = await page.locator('[data-testid="roles-matrix"] input[data-perm]').evaluateAll((xs) => [...new Set(xs.map((x) => x.dataset.perm))]);
+  const serverPerms = (await api('GET', '/private/roles/permissions')).data.map((p) => p.name).filter((n) => !n.startsWith('plugin') && n !== 'get_updates');
+  check('la matriz tiene una fila por cada permiso que el servidor comprueba', serverPerms.every((n) => matrixPerms.includes(n)), `faltan: ${serverPerms.filter((n) => !matrixPerms.includes(n)).join(', ')}`);
   await page.screenshot({ path: `${shots}/roles.png`, fullPage: true });
   // New role from a template.
   const tplRole = `aud-ui-plantilla-${stamp}`;
@@ -334,8 +363,14 @@ try {
   const techNav = await navLabels(techPage);
   check('técnico limitado: ve «Auditoría»; no ve «Inscribir», «Roles», «Ajustes», «Reportes» ni «Usuarios»',
     techNav.includes('Auditoría') && !['Inscribir', 'Roles', 'Ajustes', 'Reportes', 'Usuarios'].some((x) => techNav.includes(x)), techNav.join(' | '));
+  // Hold the answer that says whether the viewer is limited to folders: meanwhile the panel must stay hidden.
+  await techPage.route('**/rest/private/audit/v1/facets', async (route) => { await new Promise((r) => setTimeout(r, 4000)); await route.continue(); });
   await techPage.goto(`${web}/audit`);
   await techPage.getByTestId('audit-table').waitFor({ timeout: 20000 });
+  const early = await techPage.getByTestId('audit-admin').count();
+  await techPage.waitForTimeout(1500);
+  const stillEarly = await techPage.getByTestId('audit-admin').count();
+  check('panel de retención oculto mientras no se sabe el alcance del usuario', early === 0 && stillEarly === 0, `${early}/${stillEarly}`);
   await techPage.locator('.report-hint', { hasText: 'tus carpetas' }).waitFor({ timeout: 20000 }).catch(() => undefined);
   const hint = (await techPage.locator('.report-hint').textContent()) ?? '';
   check('técnico limitado: la pantalla avisa que ve solo sus carpetas y usuarios', hint.includes('tus carpetas'), hint.slice(-120));

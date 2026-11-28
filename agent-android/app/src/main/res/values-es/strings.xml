@@ -149,4 +149,21 @@
     <string name="remote_setup_open">Abrir ajustes</string>
     <string name="remote_setup_later">Ahora no</string>
     <string name="kiosk_auth_banner">Falta una autorización: toca aquí para terminar de configurar este equipo.</string>
+    <!-- Pantalla de estado (MainActivity) y rótulos del lanzador del quiosco. -->
+    <string name="main_subtitle">Agente del dispositivo</string>
+    <string name="main_label_management">ADMINISTRACIÓN</string>
+    <string name="main_managed">Propietario del dispositivo — activo</string>
+    <string name="main_not_managed">Sin administrar</string>
+    <string name="main_label_device_id">ID DEL DISPOSITIVO</string>
+    <string name="main_label_kiosk">QUIOSCO</string>
+    <string name="main_kiosk_locked">Bloqueado (quiosco activo)</string>
+    <string name="main_kiosk_unlocked">Sin bloquear</string>
+    <string name="main_label_version">VERSIÓN DEL AGENTE</string>
+    <string name="main_label_server">SERVIDOR</string>
+    <string name="main_footer">Administrado por DallyControl</string>
+    <string name="kiosk_loading">Cargando…</string>
+    <string name="kiosk_default_title">Quiosco DallyControl</string>
+    <string name="kiosk_no_apps">No hay aplicaciones disponibles. Agrega paquetes de aplicaciones instaladas a la lista permitida de este quiosco.</string>
+    <string name="kiosk_serial">Serie: %1$s</string>
+    <string name="kiosk_idle_subtitle">Dispositivo administrado</string>
 </resources>
