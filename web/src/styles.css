@@ -3622,6 +3622,37 @@ a {
 .role-summary li { margin: 2px 0; }
 .role-summary li.no { color: var(--muted); }
 .role-new { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 0 16px 16px; }
+/* App permissions (policy editor and device panel) */
+.perm-editor { display: flex; flex-direction: column; gap: 6px; }
+.perm-app { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.perm-app.open { border-color: var(--border-hover); }
+.perm-app-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; padding: 8px 12px; background: none; border: 0;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.perm-app-name { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
+.perm-app-name .mono { overflow-wrap: anywhere; }
+.perm-caret { color: var(--muted); width: 12px; }
+.perm-app-body { padding: 4px 12px 12px; border-top: 1px solid var(--hairline); }
+.perm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 0; }
+.perm-row > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.perm-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.perm-table th, .perm-table td { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+.perm-table th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.perm-state { font-size: 12px; }
+.perm-state.tone-ok { color: var(--ok); }
+.perm-state.tone-warn { color: var(--warn); }
+.perm-state.tone-alert, .perm-warn { color: var(--danger); }
+.perm-state.tone-muted { color: var(--muted); }
+.perm-special { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.perm-special-h { display: flex; flex-direction: column; gap: 2px; }
+.perm-special-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--hairline); }
+.perm-special-row label { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 240px; font-size: 13px; cursor: pointer; }
+.perm-special-row label > span { display: flex; flex-direction: column; gap: 2px; }
+.perm-special-state { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 320px; text-align: right; }
+.perm-add { margin-top: 6px; max-width: 640px; }
+.perm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.perm-tiles .perm-outcome { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.perm-tiles .perm-warn { display: block; }
+
 /* Hardware y puertos (policy editor) and Restricciones (device tab) */
 .hw-group { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 2px; }
 .hw-since { margin-left: 6px; font-size: 10px; padding: 1px 6px; }
@@ -3813,3 +3844,33 @@ a {
 .prot-intent span { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .prot-options { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .prot-options > label:not(.field) { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+
+
+/* Wi-Fi of a policy (WifiPolicyEditor) and its state on a device (ManagedWifiCard) */
+.cfg-field:has(.wf) { display: block; }
+.cfg-field:has(.wf) .cfg-field-ctl { margin-top: 8px; }
+.wf { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.wf .input, .wf .sel { min-width: 0; }
+.wf-net { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+.wf-net-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto auto; gap: 6px; align-items: center; }
+.wf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.wf-grid > label, .wf-grid > .wf-wide { display: grid; gap: 3px; font-size: 12px; color: var(--secondary); }
+.wf-grid .wf-wide { grid-column: 1 / -1; }
+.wf-grid > label.wf-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.wf-secret { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.wf-inline { display: flex; align-items: center; gap: 6px; }
+.wf-sub { font-weight: 600; font-size: 13px; margin-top: 6px; }
+.wf-rules { display: grid; gap: 6px; }
+.wf-rule { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; }
+.wf-rule .cfg-field-help { display: block; }
+.wf-problems { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.wf-problems li { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); }
+.wf-problems li.alert { color: var(--danger); border-color: var(--danger); }
+.wf-problems li.warn { color: var(--warn); border-color: var(--warn); }
+.wf-certs { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.wf-certs > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.wf-cert-table th { width: 180px; }
+.wf-cert-upload { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.wf-cert-upload .input { width: 180px; }
+.wf-status { padding: 2px 0 6px; }
+@media (max-width: 900px) { .wf-net-top, .wf-grid { grid-template-columns: minmax(0, 1fr); } }

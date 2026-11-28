@@ -10,10 +10,11 @@ package com.dallycontrol.policy.wifi
  */
 object WifiPolicyFactory {
 
-    fun create(handle: DpmHandle): WifiPolicy? {
+    /** @param radio how to switch the Wi-Fi radio (null = the radio cannot be driven, e.g. in a test). */
+    fun create(handle: DpmHandle, radio: WifiRadio? = null): WifiPolicy? {
         val candidates = listOf(
-            ModernWifiPolicy(handle),
-            LegacyWifiPolicy(handle),
+            ModernWifiPolicy(handle, radio),
+            LegacyWifiPolicy(handle, radio),
         )
         return candidates.firstOrNull { it.isSupported() }
     }

@@ -85,14 +85,14 @@ export const CONFIG_FIELDS: FieldDef[] = [
 
   // ── Security ───────────────────────────────────────────────────────────-─
   { key: 'password', label: 'Contraseña de salida del quiosco', type: 'password', group: 'Seguridad', focused: true, enforced: true, help: 'Contraseña de salida del quiosco: la pide el teléfono para salir (7 toques o botón Salir). Obligatoria con el modo quiosco, mínimo 4 caracteres; si la dejas vacía el servidor genera una de 8 dígitos. Tras 3 intentos fallidos hay una espera creciente (30 s, 1 min, 2 min… hasta 30 min). Se guarda tal como se escribe.' },
-  { key: 'appPermissions', label: 'Permisos de apps', type: 'enum', group: 'Seguridad', help: 'Cómo se manejan los permisos en tiempo de ejecución de las apps administradas.', options: [
-    { value: 'GRANTALL', label: 'Conceder todos automáticamente' }, { value: 'ASKLOCATION', label: 'Preguntar solo por ubicación' },
-    { value: 'DENYLOCATION', label: 'Denegar ubicación' }, { value: 'ASKALL', label: 'Preguntar por todo' },
+  { key: 'appPermissions', label: 'Permisos de apps', type: 'enum', group: 'Seguridad', enforced: true, help: 'Qué responde Android cuando una app pide un permiso (ubicación, cámara, almacenamiento…), sin intervención del usuario. Las reglas por app de «Permisos por app» tienen prioridad.', options: [
+    { value: 'GRANTALL', label: 'Conceder todo automáticamente' }, { value: 'ASKALL', label: 'Preguntar al usuario' },
+    { value: 'DENYALL', label: 'Denegar todo' },
+    { value: 'ASKLOCATION', label: 'Conceder todo, pero preguntar por la ubicación' },
+    { value: 'DENYLOCATION', label: 'Conceder todo, pero denegar la ubicación' },
   ] },
   { key: 'encryptDevice', label: 'Exigir cifrado', type: 'switch', group: 'Seguridad', help: 'Exige el cifrado completo del dispositivo.' },
-  { key: 'permissive', label: 'Modo permisivo', type: 'tri', group: 'Seguridad', help: 'Relaja la aplicación de políticas (modo permisivo).' },
   { key: 'lockSafeSettings', label: 'Bloquear ajustes de modo seguro', type: 'tri', group: 'Seguridad', help: 'Bloquea el acceso a ajustes que podrían saltarse el MDM.' },
-  { key: 'disableLocation', label: 'Bloquear permiso de ubicación', type: 'tri', group: 'Seguridad', help: 'Impide que se conceda a las apps el permiso de ubicación.' },
   { key: 'passwordMode', label: 'Política de contraseña', type: 'text', group: 'Seguridad', help: 'Política del código de bloqueo del dispositivo (avanzado; texto JSON).' },
 
   // ── Restrictions ─────────────────────────────────────────────────────────

@@ -78,8 +78,12 @@ data class DynamicState(
     val appUsage: AppUsageReport? = null,
     /** Android's "usage access" is on for the agent (needed for per-app screen time and the battery estimate). */
     val usageAccess: Boolean? = null,
+    /** Real permission state of the managed apps (sent when it changed or every few hours); null = not this time. */
+    val permissions: PermissionReport? = null,
     /** Mobile-data restriction as enforced right now (null = the configuration does not manage it). */
     val mobileData: MobileDataStatus? = null,
+    /** The policy's Wi-Fi networks and lock-down as they stand on the phone; null = the policy manages no Wi-Fi. */
+    val managedWifi: ManagedWifiReport? = null,
 )
 
 /**
@@ -115,6 +119,44 @@ data class MobileDataAppUsage(
     val label: String? = null,
     val bytes: Long = 0,
     val limitBytes: Long? = null,
+)
+
+/** State of the policy's Wi-Fi on the device, as the agent sees it at [checkedAt] (epoch ms). */
+@Serializable
+data class ManagedWifiReport(
+    val networks: List<ManagedWifiStatus> = emptyList(),
+    val rules: ManagedWifiRulesStatus? = null,
+    val checkedAt: Long = 0,
+)
+
+/**
+ * One managed network. [reason] (absent = fine): `password`, `certificate`, `out_of_range`, `security_mismatch`,
+ * `unsupported`, `save_failed`, `disabled`. [unsupportedOptions]: options this Android version cannot honour
+ * (`staticIp`, `metered`, `mac`, `autoConnect`, `proxy`); the network is still saved without them.
+ */
+@Serializable
+data class ManagedWifiStatus(
+    val ssid: String,
+    val security: String,
+    val configured: Boolean,
+    val connected: Boolean = false,
+    val inRange: Boolean? = null,
+    val reason: String? = null,
+    val detail: String? = null,
+    val unsupportedOptions: List<String> = emptyList(),
+    /** `configuration` (saved as Device Owner) or `suggestion` (WifiNetworkSuggestion, not Device Owner). */
+    val via: String? = null,
+)
+
+/** Which lock-down rules are in force; [unsupported] lists the ones this Android version lacks. */
+@Serializable
+data class ManagedWifiRulesStatus(
+    val applied: List<String> = emptyList(),
+    val unsupported: List<String> = emptyList(),
+    val relaxed: Boolean = false,
+    val relaxedAt: Long? = null,
+    val relaxedUntil: Long? = null,
+    val relaxedReason: String? = null,
 )
 
 /**

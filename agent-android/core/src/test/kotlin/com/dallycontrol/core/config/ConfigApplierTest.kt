@@ -14,7 +14,9 @@ import com.dallycontrol.proto.ConfigApplyPayload
 import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigTracking
 import com.dallycontrol.proto.ConfigLocation
+import com.dallycontrol.proto.ConfigAppPermissions
 import com.dallycontrol.proto.ConfigOutcome
+import com.dallycontrol.proto.ConfigPermissions
 import com.dallycontrol.proto.KioskApplyPayload
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -152,12 +154,47 @@ class ConfigApplierTest {
 
     @Test fun `wifi networks are applied and cleared when the section disappears`() = runTest {
         val seen = mutableListOf<List<com.dallycontrol.proto.ConfigWifi>>(); val store = InMemoryConfigStateStore()
-        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, wifi = ManagedWifi { seen += it; ConfigOutcome.APPLIED })
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, wifi = ManagedWifi { nets, _, _ -> seen += nets; ConfigOutcome.APPLIED })
         val r = applier.apply(ConfigApplyPayload(revision = "w1", wifi = listOf(com.dallycontrol.proto.ConfigWifi("Amovil", "secret123"))))
         assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifi"])
         applier.apply(ConfigApplyPayload(revision = "w2"))
         assertEquals(listOf("Amovil"), seen[0].map { it.ssid })
         assertEquals("removed section -> empty list (remove what was added)", emptyList<com.dallycontrol.proto.ConfigWifi>(), seen[1])
+    }
+
+    @Test fun `advanced networks, rules and the radio reach the wifi section together and are undone when dropped`() = runTest {
+        data class Call(val ssids: List<String>, val rules: com.dallycontrol.proto.ConfigWifiRules?, val radio: Boolean?)
+        val calls = mutableListOf<Call>(); val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, store,
+            wifi = ManagedWifi { nets, rules, radio -> calls += Call(nets.map { it.ssid }, rules, radio); ConfigOutcome.APPLIED },
+        )
+        val rules = com.dallycontrol.proto.ConfigWifiRules(lockManaged = true, ssidMode = "allow")
+        val r = applier.apply(
+            ConfigApplyPayload(
+                revision = "w1", policies = mapOf("wifi" to true),
+                wifi = listOf(com.dallycontrol.proto.ConfigWifi("Planta")),
+                wifiAdvanced = listOf(com.dallycontrol.proto.ConfigWifi("Corp", security = "EAP")),
+                wifiRules = rules,
+            ),
+        )
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifi"]); assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifiRules"])
+        assertEquals(Call(listOf("Planta", "Corp"), rules, true), calls[0])
+        val gone = applier.apply(ConfigApplyPayload(revision = "w2"))
+        assertEquals("everything lifted", Call(emptyList(), null, null), calls[1])
+        assertNull(gone.outcomes["wifi"]); assertNull(gone.outcomes["wifiRules"])
+        applier.apply(ConfigApplyPayload(revision = "w3"))
+        assertEquals("nothing to undo any more", 2, calls.size)
+    }
+
+    @Test fun `rules alone are a wifi section`() = runTest {
+        var seen: com.dallycontrol.proto.ConfigWifiRules? = null
+        val applier = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore(),
+            wifi = ManagedWifi { _, rules, _ -> seen = rules; ConfigOutcome.APPLIED },
+        )
+        val r = applier.apply(ConfigApplyPayload(revision = "x", wifiRules = com.dallycontrol.proto.ConfigWifiRules(blockAdd = true)))
+        assertEquals(true, seen?.blockAdd); assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifiRules"]); assertNull(r.outcomes["wifi"])
     }
 
     @Test fun `mobile data section is applied, and cleared when a later document drops it`() = runTest {
@@ -190,6 +227,49 @@ class ConfigApplierTest {
         val none = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store)
         val r2 = none.apply(ConfigApplyPayload(revision = "f2", mobileData = section))
         assertEquals(ConfigOutcome.UNSUPPORTED, r2.outcomes["mobileData"])
+    }
+
+    private class FakePermissions(private val outcome: String = ConfigOutcome.APPLIED) : PermissionEnforcer {
+        val applied = mutableListOf<ConfigPermissions>()
+        override fun apply(policy: ConfigPermissions): String {
+            applied += policy
+            return outcome
+        }
+        override fun reenforce(packageName: String?): String = outcome
+    }
+
+    private fun permissionApplier(perms: PermissionEnforcer?, store: InMemoryConfigStateStore) =
+        ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, permissions = perms)
+
+    @Test fun `permissions are enforced and reported on every apply, with or without the section`() = runTest {
+        val perms = FakePermissions()
+        val store = InMemoryConfigStateStore()
+        val applier = permissionApplier(perms, store)
+        val rules = ConfigPermissions("prompt", listOf(ConfigAppPermissions("com.acme.app", all = "grant")))
+        val r1 = applier.apply(ConfigApplyPayload(revision = "p1", permissions = rules))
+        assertEquals(ConfigOutcome.APPLIED, r1.outcomes["permissions"])
+        assertEquals("prompt", perms.applied.single().defaultPolicy)
+        // The section goes away (or an older server never sends it): back to the baseline, still enforced.
+        val r2 = applier.apply(ConfigApplyPayload(revision = "p2"))
+        assertEquals(ConfigOutcome.APPLIED, r2.outcomes["permissions"])
+        assertEquals("grant", perms.applied.last().defaultPolicy)
+        assertTrue(perms.applied.last().apps.isEmpty())
+        assertEquals("p2", store.revision())
+    }
+
+    @Test fun `a failed permission policy keeps the revision unapplied so the server retries`() = runTest {
+        val store = InMemoryConfigStateStore()
+        val r = permissionApplier(FakePermissions(ConfigOutcome.failed("boom")), store)
+            .apply(ConfigApplyPayload(revision = "p3"))
+        assertTrue(ConfigOutcome.isFailed(r.outcomes.getValue("permissions")))
+        assertNull(store.revision())
+    }
+
+    @Test fun `no permission enforcer reports unsupported only when the section was sent`() = runTest {
+        val applier = permissionApplier(null, InMemoryConfigStateStore())
+        assertFalse(applier.apply(ConfigApplyPayload(revision = "p4")).outcomes.containsKey("permissions"))
+        val asked = applier.apply(ConfigApplyPayload(revision = "p5", permissions = ConfigPermissions()))
+        assertEquals(ConfigOutcome.UNSUPPORTED, asked.outcomes["permissions"])
     }
 
     @Test fun `hardware rules are applied last, told what other sections hold, and cleared when the section disappears`() = runTest {

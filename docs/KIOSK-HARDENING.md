@@ -179,4 +179,170 @@ scripts/kiosk-escape-test.py --serial emulator-5600 --device-id <id> --api http:
 `--legacy-psql "<comando psql del stack>"` además envía el quiosco que mandaría un servidor antiguo (gesto, sin
 contraseña) para comprobar que el agente por sí solo se niega a salir.
 
-RESULTADOS_EMULADOR
+## Resultados en emulador (2026-11-27)
+
+Stack local propio, agente de depuración ya fusionado con `integration/mobicontrol`, emuladores limpios enrolados
+por ADB, `scripts/kiosk-escape-matrix.sh` (una pasada por versión; máquina compartida, carga 5–26).
+«pasa» = el intento de escape no prosperó (o el comportamiento esperado se cumplió). Las celdas con texto son
+observaciones, no veredictos.
+
+| Modo | Intento | Android 10 (API 29) | Android 15 (API 35) | Android 16 (API 36) |
+|---|---|---|---|---|
+| una app | kiosk.enter aplicado | pasa | pasa | pasa |
+| una app | lock task LOCKED | pasa | pasa | — |
+| una app | restricción no_safe_boot | pasa | pasa | pasa |
+| una app | restricción no_add_user | pasa | pasa | pasa |
+| una app | restricción no_user_switch | pasa | pasa | pasa |
+| una app | restricción no_system_error_dialogs | pasa | pasa | pasa |
+| una app | modo seguro deshabilitado (safe_boot_disallowed=1) | pasa | pasa | pasa |
+| una app | Ajustes no está suspendido (lo necesita el arranque de Android) | pasa | pasa | pasa |
+| una app | Android 7–10 / 16+: el agente tiene acceso de uso (vigilante de primer plano) | pasa | — | pasa |
+| una app | la app de trabajo no está suspendida | pasa | pasa | pasa |
+| una app | en primer plano: la app fijada | pasa | pasa | pasa |
+| una app | adb am start SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | adb am start WIFI_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | adb am start APPLICATION_DEVELOPMENT_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | adb am start SECURITY_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | app permitida → intent SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | app permitida → intent WIFI_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| una app | app permitida → intent SETTINGS (tarea nueva): no abre Ajustes | pasa | pasa | pasa |
+| una app | app permitida → intent WIFI_SETTINGS (tarea nueva): no abre Ajustes | pasa | pasa | pasa |
+| una app | tras los intentos, la app de trabajo se abre normalmente (no queda Ajustes encima) | pasa | pasa | pasa |
+| una app | barra de estado | se despliega, sin engranaje | no se despliega, sin engranaje | no se despliega, sin engranaje |
+| una app | barra de estado / engranaje: no abre Ajustes | pasa | pasa | pasa |
+| una app | Inicio: sigue en el quiosco | pasa | pasa | pasa |
+| una app | Recientes | en primer plano: com.google.android.apps.nexuslauncher/com.android.quickstep.RecentsActivi | en primer plano: com.dallycontrol.escapetest/.Main | en primer plano: com.google.android.apps.nexuslauncher/com.android.quickstep.RecentsActivi |
+| una app | Recientes: no muestra Ajustes ni saca del quiosco | pasa | pasa | pasa |
+| una app | Recientes → abrir tarjeta: sigue en apps permitidas | pasa | pasa | pasa |
+| una app | tras Recientes, Inicio vuelve al quiosco | pasa | pasa | pasa |
+| una app | menú de encendido (por defecto) | se abre | se abre | se abre |
+| una app | tras el menú de encendido sigue en el quiosco | pasa | pasa | pasa |
+| una app | quiosco con «bloquear botones»: aplicado | pasa | pasa | — |
+| una app | con «bloquear botones» la política quita GLOBAL_ACTIONS (16) de lock task | esta versión no muestra la máscara de lock task en dumpsys | pasa | — |
+| una app | con «bloquear botones» el menú de encendido NO se abre | pasa | — | — |
+| una app | 7 toques + contraseña incorrecta #1: no sale | pasa | pasa | pasa |
+| una app | 7 toques + contraseña incorrecta #2: no sale | pasa | pasa | pasa |
+| una app | 7 toques + contraseña incorrecta #3: no sale | pasa | pasa | pasa |
+| una app | 4.º intento durante la espera: ni siquiera pide contraseña | pasa | pasa | pasa |
+| una app | y la contraseña correcta no sirve durante la espera | pasa | pasa | pasa |
+| una app | intentos fallidos registrados en el servidor | pasa | pasa | pasa |
+| una app | pasada la espera, la contraseña correcta saca del quiosco | pasa | pasa | pasa |
+| una app | al salir: Ajustes vuelve a abrir (el quiosco ya no lo bloquea) | pasa | pasa | pasa |
+| una app | y se queda abierto (nada lo devuelve) | pasa | pasa | pasa |
+| una app | al salir: se levantan las restricciones del quiosco | pasa | pasa | pasa |
+| una app | salida registrada en el servidor | pasa | pasa | pasa |
+| una app | quiosco sin contraseña: aplicado | pasa | pasa | pasa |
+| una app | sin contraseña: los 7 toques no ofrecen salida | pasa | pasa | pasa |
+| una app | sin contraseña: sigue en el quiosco | pasa | pasa | pasa |
+| una app | política antigua (gesto, sin contraseña): el agente se niega a salir y lo dice | pasa | pasa | pasa |
+| una app | y lo reporta (kioskExitDenied) | pasa | pasa | pasa |
+| una app | salida desde la consola (kiosk.exit) | pasa | pasa | pasa |
+| varias apps | kiosk.enter aplicado | pasa | pasa | pasa |
+| varias apps | lock task LOCKED | pasa | pasa | — |
+| varias apps | restricción no_safe_boot | pasa | pasa | pasa |
+| varias apps | restricción no_add_user | pasa | pasa | pasa |
+| varias apps | restricción no_user_switch | pasa | pasa | pasa |
+| varias apps | restricción no_system_error_dialogs | pasa | pasa | pasa |
+| varias apps | modo seguro deshabilitado (safe_boot_disallowed=1) | pasa | pasa | pasa |
+| varias apps | Ajustes no está suspendido (lo necesita el arranque de Android) | pasa | pasa | pasa |
+| varias apps | Android 7–10 / 16+: el agente tiene acceso de uso (vigilante de primer plano) | pasa | — | pasa |
+| varias apps | la app de trabajo no está suspendida | pasa | pasa | pasa |
+| varias apps | en primer plano: el inicio del quiosco | pasa | pasa | pasa |
+| varias apps | adb am start SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | adb am start WIFI_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | adb am start APPLICATION_DEVELOPMENT_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | adb am start SECURITY_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | app permitida → intent SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | app permitida → intent WIFI_SETTINGS: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | app permitida → intent SETTINGS (tarea nueva): no abre Ajustes | pasa | pasa | pasa |
+| varias apps | app permitida → intent WIFI_SETTINGS (tarea nueva): no abre Ajustes | pasa | pasa | pasa |
+| varias apps | tras los intentos, la app de trabajo se abre normalmente (no queda Ajustes encima) | pasa | **FALLA** | pasa |
+| varias apps | barra de estado | se despliega, sin engranaje | no se despliega, sin engranaje | no se despliega, sin engranaje |
+| varias apps | barra de estado / engranaje: no abre Ajustes | pasa | pasa | pasa |
+| varias apps | Inicio: sigue en el quiosco | pasa | pasa | pasa |
+| varias apps | Recientes | en primer plano: com.google.android.apps.nexuslauncher/com.android.quickstep.RecentsActivi | en primer plano: android/com.android.internal.app.BlockedAppActivity | en primer plano: com.google.android.apps.nexuslauncher/com.android.quickstep.RecentsActivi |
+| varias apps | Recientes: no muestra Ajustes ni saca del quiosco | pasa | pasa | pasa |
+| varias apps | Recientes → abrir tarjeta: sigue en apps permitidas | pasa | pasa | pasa |
+| varias apps | tras Recientes, Inicio vuelve al quiosco | pasa | pasa | pasa |
+| varias apps | menú de encendido (por defecto) | se abre | se abre | se abre |
+| varias apps | tras el menú de encendido sigue en el quiosco | pasa | pasa | pasa |
+| varias apps | quiosco con «bloquear botones»: aplicado | pasa | pasa | — |
+| varias apps | con «bloquear botones» la política quita GLOBAL_ACTIONS (16) de lock task | esta versión no muestra la máscara de lock task en dumpsys | pasa | — |
+| varias apps | con «bloquear botones» el menú de encendido NO se abre | pasa | — | — |
+| varias apps | Compartir datos | esta imagen no abre la pantalla de zona Wi‑Fi: com.dallycontrol.agent.debug/com.dallycontr | — | — |
+| varias apps | después de Compartir datos, Ajustes sigue sin abrir | pasa | pasa | pasa |
+| varias apps | 7 toques + contraseña incorrecta #1: no sale | pasa | pasa | pasa |
+| varias apps | 7 toques + contraseña incorrecta #2: no sale | pasa | pasa | pasa |
+| varias apps | 7 toques + contraseña incorrecta #3: no sale | pasa | pasa | pasa |
+| varias apps | 4.º intento durante la espera: ni siquiera pide contraseña | pasa | pasa | pasa |
+| varias apps | y la contraseña correcta no sirve durante la espera | pasa | pasa | pasa |
+| varias apps | intentos fallidos registrados en el servidor | pasa | pasa | pasa |
+| varias apps | pasada la espera, la contraseña correcta saca del quiosco | pasa | pasa | pasa |
+| varias apps | al salir: Ajustes vuelve a abrir (el quiosco ya no lo bloquea) | pasa | pasa | pasa |
+| varias apps | y se queda abierto (nada lo devuelve) | pasa | pasa | pasa |
+| varias apps | al salir: se levantan las restricciones del quiosco | pasa | pasa | pasa |
+| varias apps | salida registrada en el servidor | pasa | pasa | pasa |
+| varias apps | quiosco sin contraseña: aplicado | pasa | pasa | pasa |
+| varias apps | sin contraseña: los 7 toques no ofrecen salida | pasa | pasa | pasa |
+| varias apps | sin contraseña: sigue en el quiosco | pasa | pasa | pasa |
+| varias apps | política antigua (gesto, sin contraseña): el agente se niega a salir y lo dice | pasa | pasa | pasa |
+| varias apps | y lo reporta (kioskExitDenied) | pasa | pasa | pasa |
+| varias apps | salida desde la consola (kiosk.exit) | pasa | pasa | pasa |
+| refuerzo | sin acceso de uso: el quiosco se aplica igual | pasa | — | pasa |
+| refuerzo | sin acceso de uso: la consola recibe «needsUsageAccess» | pasa | — | pasa |
+| refuerzo | sin acceso de uso | app permitida → intent WIFI_SETTINGS: ABRE Ajustes y nada lo devuelve (vía abierta hasta a | — | app permitida → intent WIFI_SETTINGS: ABRE Ajustes y nada lo devuelve (vía abierta hasta a |
+| refuerzo | al autorizar el acceso de uso la consola recibe «guard» | pasa | — | pasa |
+| refuerzo | con acceso de uso: el vigilante devuelve al quiosco | pasa | — | pasa |
+| reinicio | quiosco antes de reiniciar: aplicado | pasa | pasa | pasa |
+| reinicio | modo seguro | adb sin root: solo se verifica la restricción (no_safe_boot) | adb sin root: solo se verifica la restricción (no_safe_boot) | adb sin root: solo se verifica la restricción (no_safe_boot) |
+| reinicio | tras reiniciar vuelve al quiosco SIN tocar nada | pasa | pasa | pasa |
+| reinicio | tras reiniciar: lock task LOCKED | pasa | pasa | — |
+| reinicio | tras reiniciar: Ajustes sigue sin abrir | pasa | pasa | pasa |
+| una app | Android 11–15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK) | — | pasa | — |
+| una app | menú de encendido con «bloquear botones» | — | no se abre (no concluyente en esta imagen; ver la máscara de lock task) | — |
+| varias apps | Android 11–15: lock task bloquea inicios dentro de la tarea (BLOCK_ACTIVITY_START_IN_TASK) | — | pasa | — |
+| varias apps | menú de encendido con «bloquear botones» | — | no se abre (no concluyente en esta imagen; ver la máscara de lock task) | — |
+| varias apps | Compartir datos abre solo la pantalla de zona Wi‑Fi | — | pasa | pasa |
+| varias apps | sola en su tarea (sin el resto de Ajustes detrás) | — | pasa | pasa |
+| varias apps | Atrás desde zona Wi‑Fi vuelve al quiosco | — | pasa | pasa |
+| refuerzo | la consola recibe el estado del refuerzo: «lockTask» (no necesita acceso de uso) | — | pasa | — |
+| una app | Android 16+: quiosco sin lock task (estado NONE) | — | — | pasa |
+| una app | Android 16+: la barra de estado no se despliega (por defecto) | — | — | pasa |
+| una app | menú de encendido bloqueable | — | — | no en esta versión (Android < 9 o quiosco sin lock task) |
+| varias apps | Android 16+: quiosco sin lock task (estado NONE) | — | — | pasa |
+| varias apps | Android 16+: la barra de estado no se despliega (por defecto) | — | — | pasa |
+| varias apps | menú de encendido bloqueable | — | — | no en esta versión (Android < 9 o quiosco sin lock task) |
+| reinicio | tras reiniciar (Android 16+): la barra de estado sigue cerrada | — | — | pasa |
+| | **Total** | 99 pasan, 0 fallan | 98 pasan, 1 fallan | 100 pasan, 0 fallan |
+
+Lectura de la tabla:
+
+- **Android 15, «la app de trabajo se abre normalmente» en varias apps: FALLA (1 de 99).** Tras un inicio bloqueado
+  por lock task, Android deja su aviso «app no disponible» sobre la tarea de la app; al tocar el ícono en el quiosco
+  la app no quedó en primer plano en la prueba (pasó igual en una corrida anterior). No es una vía de escape (el
+  equipo sigue en el quiosco y el resto de la corrida pasa), pero queda sin determinar si es el toque del script o
+  un tropiezo real de usabilidad: repetir a mano.
+- **Sin acceso de uso** (equipo enrolado por QR sin autorizar): en Android 10 y en Android 16 una app permitida
+  **abre Ajustes y nada lo devuelve**; en Android 16 además lo abre `adb am start`. La consola recibe
+  `needsUsageAccess`. Con acceso de uso el vigilante devuelve el equipo (pasa en ambas).
+- Android 10: la imagen del emulador no tiene la pantalla de zona Wi‑Fi, así que «Compartir datos» solo se probó en
+  Android 15 y 16.
+- Modo seguro: los emuladores no dan root a adb, así que solo se verificó la restricción (`no_safe_boot`,
+  `safe_boot_disallowed=1`), no un arranque real en modo seguro.
+- Consola y servidor (`scripts/kiosk-console-e2e.mjs`, Chromium sin interfaz): 15/15. El aviso por equipo del
+  estado del refuerzo (interruptor del quiosco) no se probó en navegador: solo compila; el evento que lo alimenta sí
+  se verificó en las tres versiones.
+
+### Solo en teléfono físico
+
+- Android 16 en Samsung (A17 y similares): que el quiosco suave no reinicia el equipo, que la barra de estado queda
+  deshabilitada con One UI, y cuánto se alcanza a ver de Ajustes antes de que el vigilante devuelva.
+- Si lock task vuelve a ser seguro en Android 16 en esos modelos (hoy desactivado por la caída de `system_server`).
+- Android 11–15 con la app de trabajo real: que no dependa de abrir otra app dentro de su tarea (cámara, archivos,
+  PDF, navegador), ahora bloqueado; si depende, agregar esa app al quiosco.
+- Modo seguro con botones físicos, apagado forzado y menú de encendido de cada fabricante.
+- Barra de estado y Recientes con navegación por gestos y con las capas de Samsung/Motorola/Xiaomi.
+- Suspensión de apps preinstaladas del fabricante en Android 16 (algunas pueden negarse: el agente lo reporta en
+  `kioskLockdownGap`).
+- «Pedir autorización en el teléfono» en un equipo enrolado por QR (el toque del acceso de uso).
+

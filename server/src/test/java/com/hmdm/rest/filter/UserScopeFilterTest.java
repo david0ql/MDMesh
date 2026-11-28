@@ -130,6 +130,15 @@ public class UserScopeFilterTest {
         assertFalse(f.allowed("POST", "/rest/private/geofences/v1/mail/test", 1));
     }
 
+    /** App permissions of a device (its own rules and the agent's report): only for the devices of their folders. */
+    @Test
+    public void devicePermissionsAreScoped() {
+        assertTrue(f.allowed("GET", "/rest/private/agent/v1/devices/mine-1/permissions", 1));
+        assertTrue(f.allowed("PUT", "/rest/private/agent/v1/devices/mine-1/permissions", 1));
+        assertFalse(f.allowed("GET", "/rest/private/agent/v1/devices/other-2/permissions", 1));
+        assertFalse(f.allowed("PUT", "/rest/private/agent/v1/devices/other-2/permissions", 1));
+    }
+
     /** Remote support: a folder administrator starts, ends and reads sessions of their own devices only. */
     @Test
     public void remoteSupportIsScopedToTheirDevices() {

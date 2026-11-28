@@ -42,6 +42,8 @@ const LABELS: Record<string, string> = {
   soundEnded: 'Dejó de sonar',
   connectionFailure: 'Falla de conexión',
   connectionGap: 'Corte de conexión',
+  wifiLockdownRelaxed: 'Bloqueo de Wi‑Fi relajado (el equipo se quedó sin red)',
+  wifiLockdownRestored: 'Bloqueo de Wi‑Fi restablecido',
 };
 
 export function EventTimeline({ device }: { device: Device }) {

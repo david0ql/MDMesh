@@ -10,6 +10,7 @@ import com.dallycontrol.proto.ConfigApplyPayload
 import com.dallycontrol.proto.ConfigBrowser
 import com.dallycontrol.proto.ConfigApplyResult
 import com.dallycontrol.proto.ConfigOutcome
+import com.dallycontrol.proto.ConfigPermissions
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -36,6 +37,8 @@ class ConfigApplier(
     private val systemUpdates: ((com.dallycontrol.proto.ConfigSystemUpdate?) -> String)? = null,
     /** Apply (or clear, with null) the device security rules; returns a ConfigOutcome. Runs after the browser section. */
     private val deviceRules: ((com.dallycontrol.proto.ConfigDevice?) -> String)? = null,
+    /** App permissions: default policy and per-app grants. Always enforced (an absent section = the default: grant). */
+    private val permissions: PermissionEnforcer? = null,
     /** Seconds an active location fix may wait (null = the agent's default). */
     private val setLocationFixTimeout: (Int?) -> Unit = {},
     /** Apply (or clear, with null) the mobile-data restriction per app and its limits; returns a ConfigOutcome. */
@@ -88,11 +91,15 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.apps != null) outcomes["apps"] = o
         }
-        val desiredWifi = doc.wifi ?: previous?.wifi?.let { emptyList() }
-        desiredWifi?.let { nets ->
-            val o = wifi?.let { runCatching { it.apply(nets) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
+        // Wi-Fi: the plain networks, the ones with a newer security, the lock-down rules and the radio travel together;
+        // a section that disappears is undone (networks removed, rules lifted).
+        val radio = doc.policies["wifi"]
+        if (wifiManaged(doc) || previous?.let(::wifiManaged) == true) {
+            val nets = doc.wifi.orEmpty() + doc.wifiAdvanced.orEmpty()
+            val o = wifi?.let { runCatching { it.apply(nets, doc.wifiRules, radio) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "wifi") } }
                 ?: ConfigOutcome.UNSUPPORTED
-            if (doc.wifi != null) outcomes["wifi"] = o
+            if (doc.wifi != null || doc.wifiAdvanced != null) outcomes["wifi"] = o
+            if (doc.wifiRules != null) outcomes["wifiRules"] = o
         }
         if (doc.systemUpdate != null || previous?.systemUpdate != null) {
             val o = systemUpdates?.let { runCatching { it(doc.systemUpdate) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "system update") } }
@@ -104,6 +111,7 @@ class ConfigApplier(
                 ?: ConfigOutcome.UNSUPPORTED
             if (doc.device != null) outcomes["device"] = o
         }
+        applyPermissions(doc)?.let { outcomes["permissions"] = it }
         runCatching { setTrackingMinutes(doc.tracking?.intervalMinutes ?: 0) }
             .onSuccess { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.APPLIED }
             .onFailure { if (doc.tracking != null) outcomes["tracking"] = ConfigOutcome.failed(it.message ?: "tracking") }
@@ -133,6 +141,22 @@ class ConfigApplier(
             runCatching { set(doc.mobileData) }.getOrElse { e -> ConfigOutcome.failed(e.message ?: "mobile data") }
         } ?: ConfigOutcome.UNSUPPORTED
         return outcome.takeIf { doc.mobileData != null }
+    }
+
+    /**
+     * Permissions are re-asserted on EVERY apply, section or not: without one the agent keeps its baseline (grant on
+     * request, no per-app rules), so a rule that was removed is released and the policy never drifts.
+     *
+     * @return the outcome, or null when there is no enforcer and nothing was asked (the key is then omitted).
+     */
+    private fun applyPermissions(doc: ConfigApplyPayload): String? {
+        val enforcer = permissions
+        return when {
+            enforcer != null -> runCatching { enforcer.apply(doc.permissions ?: ConfigPermissions()) }
+                .getOrElse { e -> ConfigOutcome.failed(e.message ?: "permissions") }
+            doc.permissions != null -> ConfigOutcome.UNSUPPORTED
+            else -> null
+        }
     }
 
     /** Hardware and ports: applied when the document has the section, undone when only the previous one had it. */
@@ -170,6 +194,9 @@ class ConfigApplier(
 
     /** Re-run the last fully-applied document (after boot / self-update). Null when nothing is persisted. */
     suspend fun reapplyPersisted(): ConfigApplyResult? = mutex.withLock { store.load()?.let { applyLocked(it) } }
+
+    private fun wifiManaged(d: ConfigApplyPayload): Boolean =
+        d.wifi != null || d.wifiAdvanced != null || d.wifiRules != null || d.policies.containsKey("wifi")
 
     companion object {
         fun succeeded(r: ConfigApplyResult): Boolean = r.outcomes.values.none(ConfigOutcome::isFailed)

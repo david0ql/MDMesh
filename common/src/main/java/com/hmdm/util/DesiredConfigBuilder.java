@@ -166,13 +166,28 @@ public final class DesiredConfigBuilder {
         d.setDevice(withFrp(rules, inheritedFrpAccounts));
         if (dc.getWifi() != null) {
             List<com.hmdm.rest.json.agent.DesiredWifi> nets = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
+            // Securities an older agent cannot save travel in their own list, which it ignores.
+            List<com.hmdm.rest.json.agent.DesiredWifi> advanced = new ArrayList<com.hmdm.rest.json.agent.DesiredWifi>();
             for (DcPolicy.Wifi w : dc.getWifi()) {
                 com.hmdm.rest.json.agent.DesiredWifi n = new com.hmdm.rest.json.agent.DesiredWifi();
                 n.setSsid(w.getSsid()); n.setPassword(w.getPassword()); n.setSecurity(w.getSecurity()); n.setHidden(w.getHidden());
-                nets.add(n);
+                n.setAutoConnect(w.getAutoConnect()); n.setPriority(w.getPriority()); n.setProxy(w.getProxy()); n.setIp(w.getIp());
+                n.setMac(w.getMac()); n.setMetered(w.getMetered());
+                if (w.getEap() != null && DcWifi.isEnterprise(w.getSecurity())) {
+                    com.hmdm.rest.json.agent.DesiredWifi.Eap e = new com.hmdm.rest.json.agent.DesiredWifi.Eap();
+                    e.setMethod(w.getEap().getMethod()); e.setPhase2(w.getEap().getPhase2()); e.setIdentity(w.getEap().getIdentity());
+                    e.setAnonymousIdentity(w.getEap().getAnonymousIdentity()); e.setPassword(w.getEap().getPassword());
+                    e.setDomain(w.getEap().getDomain()); e.setAltSubjectMatch(w.getEap().getAltSubjectMatch());
+                    e.setCaCertIds(w.getEap().getCaCertIds()); e.setClientCertId(w.getEap().getClientCertId());
+                    n.setEap(e);
+                }
+                (DcWifi.isLegacy(w.getSecurity()) ? nets : advanced).add(n);
             }
-            d.setWifi(nets);
+            // An empty list still means "the policy manages Wi-Fi" (so dropped networks are removed), as before.
+            if (!nets.isEmpty() || advanced.isEmpty()) d.setWifi(nets);
+            if (!advanced.isEmpty()) d.setWifiAdvanced(advanced);
         }
+        d.setWifiRules(dc.getWifiRules());
         // Remote support settings travel only when the policy sets one (so older policies keep their revision).
         d.setRemoteSupport(dc.getRemoteSupport());
         // Device-level kiosk apps: add the phone's own "show in kiosk" packages before the revision is hashed,
@@ -194,6 +209,9 @@ public final class DesiredConfigBuilder {
         }
         // Mobile data per app: the policy's own section (a device's override is added by the server's reconciler).
         d.setMobileData(MobileDataPolicy.desired(dc.getMobileData(), null));
+        // App permissions: the default policy and the policy's per-app rules (a device's own rules are added by
+        // DesiredPermissionsBuilder.withDeviceOverrides).
+        d.setPermissions(DesiredPermissionsBuilder.build(cfg, dc, list, null));
         hardware(d, hw, cfg.getRestrictions());
         d.setRevision(revision(d));
         return d;

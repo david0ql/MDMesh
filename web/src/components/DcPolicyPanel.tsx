@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { MobileDataPolicySection, cleanMobileData, type PolicyAppOption } from './MobileDataPolicySection';
 import { DcResetProtection } from './DcResetProtection';
+import { WifiPolicyEditor } from './WifiPolicyEditor';
+import { rulesOrUndefined, tidyNetwork, type WifiNetwork, type WifiRules } from '../data/wifiPolicy';
 // DallyControl policies of a configuration (stored as JSON in configurations.dcPolicy, see common DcPolicy.java):
 // kiosk functions, the managed browser's site lists, the app policy and the location trail. The server validates
 // and normalises what is saved; this editor only builds the object.
@@ -23,7 +25,9 @@ export interface DcPolicy {
   locationFixSeconds?: number;
   kioskQuickSettings?: boolean;
   deviceName?: 'serial' | 'imei' | 'model-serial' | 'none';
-  wifi?: { ssid: string; password?: string; security?: 'WPA' | 'WEP' | 'NONE'; hidden?: boolean }[];
+  wifi?: WifiNetwork[];
+  /** Wi-Fi lock-down: what the user may change and which networks the phones may join. */
+  wifiRules?: WifiRules;
   /** App groups used by the policy; kiosk = its apps also show in the kiosk. */
   appGroups?: { id: number; kiosk?: boolean }[];
   /** The policy's own apps installed and allowed but kept out of the kiosk. */
@@ -57,6 +61,8 @@ export interface DcPolicy {
   wake?: { pollMinutes?: number; fastPollMinutes?: number; fastWindowMinutes?: number; alarmClock?: boolean };
   /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
   mobileData?: import('../api/mobileData').MobileDataPolicy;
+  /** Per-app permission rules by package (see PolicyPermissionsPanel). */
+  permissions?: import('../data/permissions').PermissionRulesByApp;
   /** Hardware and ports: rule key → allow / block (see data/hardwareRules.ts); a missing key is not managed. */
   hardware?: Record<string, 'allow' | 'block'>;
   /** Remote support (ADR 0012). Only what differs from the defaults is stored: engine automatic, notice on,
@@ -86,7 +92,8 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.locationFixSeconds && p.locationFixSeconds >= 5) out.locationFixSeconds = p.locationFixSeconds;
   if (p.kioskQuickSettings === false) out.kioskQuickSettings = false; // on by default
   if (p.deviceName) out.deviceName = p.deviceName;
-  if (p.wifi?.length) out.wifi = p.wifi; // rows still being typed stay; the server drops unnamed ones on save
+  if (p.wifi?.length) out.wifi = p.wifi.map(tidyNetwork); // rows still being typed stay; the server drops unnamed ones on save
+  if (rulesOrUndefined(p.wifiRules)) out.wifiRules = p.wifiRules;
   if (p.appGroups?.length) out.appGroups = p.appGroups;
   if (p.notInKiosk?.length) out.notInKiosk = p.notInKiosk;
   if (p.kioskHidden?.length) out.kioskHidden = p.kioskHidden;
@@ -95,6 +102,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.device && Object.values(p.device).some((v) => (Array.isArray(v) ? v.length : v))) out.device = p.device;
   const mobileData = cleanMobileData(p.mobileData);
   if (mobileData) out.mobileData = mobileData;
+  if (p.permissions && Object.keys(p.permissions).length) out.permissions = p.permissions;
   if (p.hardware && Object.keys(p.hardware).length) out.hardware = p.hardware;
   if (p.remoteSupport && Object.values(p.remoteSupport).some((v) => v !== undefined)) out.remoteSupport = p.remoteSupport;
   if (p.frpLabels && out.device?.frpAccounts?.length && Object.keys(p.frpLabels).length) out.frpLabels = p.frpLabels;
@@ -181,10 +189,12 @@ function RoleChecks({ value, disabled, onChange, name }: { value: string[]; disa
   );
 }
 
-export function DcPolicyPanel({ value, disabled, onChange, apps }: {
+export function DcPolicyPanel({ value, disabled, onChange, apps, wifiRadio }: {
   value: unknown; disabled?: boolean; onChange: (v: string | null) => void;
   /** The policy's own apps, offered when picking apps for the mobile-data lists. */
   apps?: PolicyAppOption[];
+  /** The policy's Wi-Fi radio field (false = forced off), so the Wi-Fi editor can warn about it. */
+  wifiRadio?: boolean | null;
 }) {
   const p = parseDcPolicy(value);
   const update = (next: DcPolicy) => onChange(serializeDcPolicy(next));
@@ -503,28 +513,14 @@ export function DcPolicyPanel({ value, disabled, onChange, apps }: {
           <label>Redes Wi‑Fi</label>
           <span className="chip chip-enforced">Aplicado</span>
           <span className="cfg-field-help">
-            Se guardan en todos los dispositivos de esta política (el teléfono se conecta a la primera si no tiene Wi‑Fi). Si quitas
-            una aquí, se quita de los teléfonos; las redes que agregó el usuario no se tocan.
+            Redes corporativas que se guardan en todos los dispositivos de esta política (el teléfono se conecta a la primera si no
+            tiene Wi‑Fi). Si quitas una aquí, se quita de los teléfonos; las redes que agregó el usuario no se tocan. Las contraseñas
+            guardadas no se vuelven a mostrar. Abajo, los certificados para redes empresariales (802.1X) y los bloqueos.
           </span>
         </div>
-        <div className="cfg-field-ctl" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="policy-wifi">
-          {(p.wifi ?? []).map((w, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 6 }}>
-              <input className="input" placeholder="SSID" value={w.ssid} disabled={disabled} aria-label={`Wi‑Fi ${i + 1} SSID`}
-                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, ssid: e.target.value } : x)) })} />
-              <input className="input" type="password" placeholder="Contraseña" value={w.password ?? ''} disabled={disabled || w.security === 'NONE'}
-                aria-label={`Wi‑Fi ${i + 1} contraseña`}
-                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, password: e.target.value } : x)) })} />
-              <select className="sel" value={w.security ?? 'WPA'} disabled={disabled} aria-label={`Wi‑Fi ${i + 1} seguridad`}
-                onChange={(e) => update({ ...p, wifi: (p.wifi ?? []).map((x, j) => (j === i ? { ...x, security: e.target.value as 'WPA' | 'WEP' | 'NONE' } : x)) })}>
-                <option value="WPA">WPA/WPA2</option><option value="WEP">WEP</option><option value="NONE">Abierta</option>
-              </select>
-              <button className="btn btn-sm btn-ghost" disabled={disabled} aria-label="Quitar red"
-                onClick={() => update({ ...p, wifi: (p.wifi ?? []).filter((_, j) => j !== i) })}>✕</button>
-            </div>
-          ))}
-          <button className="btn btn-sm" disabled={disabled} style={{ alignSelf: 'flex-end' }}
-            onClick={() => update({ ...p, wifi: [...(p.wifi ?? []), { ssid: '', security: 'WPA' }] })}>+ Agregar red</button>
+        <div className="cfg-field-ctl" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+          <WifiPolicyEditor networks={p.wifi ?? []} rules={p.wifiRules} disabled={disabled} radio={wifiRadio}
+            onChange={(wifi, wifiRules) => update({ ...p, wifi, wifiRules })} />
         </div>
       </div>
 

@@ -512,6 +512,65 @@ the purge removed the planted 120-day-old row and recorded itself); `roles-matri
 device does not support remote control" (recorded as an error row); the duration of a session that did open is
 covered by `AuditTrailServiceTest` and needs a phone with remote support to be seen end to end.
 
+## App permissions without the user (MDM-06, [PERMISOS.md](PERMISOS.md))
+
+```bash
+scripts/build-permtestapp.sh                       # com.dallycontrol.permtest -> scripts/testapp/permtest.apk
+scripts/permissions-e2e.py --api http://localhost:8088 --serial emulator-5600 --device-id <device number>
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/permissions-console-e2e.mjs --api http://localhost:8088
+```
+
+The test app declares location (fine, coarse, background), camera, microphone, storage/media, contacts and
+notifications plus the special accesses, and on every start asks for each runtime permission it does not hold, like
+a real app; it logs what it holds (`adb logcat -s PermTest`).
+
+`permissions-e2e.py` drives a REAL agent (Device Owner) through the console's API and checks the phone itself:
+
+- the three default policies reach the phone (`dumpsys device_policy`: permission policy 0 / 1 / 2) and the console
+  shows the one in force; the `config.apply` result carries the `permissions` outcome;
+- "grant all the app declares" in the policy, then a silent install from the console: `dumpsys package` shows every
+  runtime permission `granted=true` with `POLICY_FIXED` (background location and, on Android 13+,
+  `POST_NOTIFICATIONS` included), the app's own screen is in front (no `GrantPermissionsActivity`) and its log says
+  `missing=0 asked=0`;
+- a per-device rule denies the camera (`granted=false`, `POLICY_FIXED`), "ask" releases it, removing the device
+  rule brings the policy's grant back; "ask" after a grant of the MDM takes the permission back;
+- an app installed by hand BEFORE the rule gets its permissions when the rule arrives; a rule removed while the app
+  is uninstalled does not leave anything fixed when the app comes back (Android 14+ re-applies it on its own);
+- with "grant all" and no rule, the app asks and Android grants with no dialog;
+- special accesses: battery protection through `setUserControlDisabledPackages`, "needs a tap" for all files /
+  overlay / unknown sources, `device.permissionScreen` opens the exact Settings screen, and once the access is turned
+  on (the tap is simulated with `appops set`) the console shows it active;
+- the policy and the grants survive an agent restart.
+
+`permissions-console-e2e.mjs` checks the console in headless Chromium with a scripted phone: the policy editor (no
+dead options, 13 permission rows, 8 special accesses, what is saved and what the phone receives), the device's
+«Permisos» tab (effective policy, real state per app, per-device rules, «Abrir en el teléfono», CSV), the Android 12+
+"this phone does not let the administrator grant sensor permissions" warning, and the "update the agent" notice.
+
+### Results (2026-11-27, isolated dev stack, debug agent built from this branch after merging `integration/mobicontrol`)
+
+| What | Result |
+|---|---|
+| `permissions-e2e.py`, emulator Android 10 (API 29) | 67/67 |
+| `permissions-e2e.py`, emulator Android 15 (API 35) | 76/76 |
+| `permissions-e2e.py`, emulator Android 16 (API 36) | 76/76 |
+| `permissions-console-e2e.mjs`, headless Chromium | 44/44 |
+
+Notes from the runs:
+
+- Android 14+ prints the permission policy in `dumpsys device_policy` (`Permission policy: {0=1}`); Android 10 does
+  not, so there the script reads it from `/data/system/device_policies.xml` through the emulator's root shell (on a
+  phone without root that check is skipped and the agent's own report is used).
+- Android 10 does not let an app read another app's app-ops: overlay / write settings / unknown sources are reported
+  as "Android does not let it be read" there; from Android 11 they are read.
+- Android 14+ keeps a permission fixed by the Device Owner across an uninstall and re-applies it when the app comes
+  back; the agent releases it then if its rule is gone (step 6b).
+- With "grant all", Android 16 on a loaded machine took ~10 s to answer the app's request (its permission activity
+  passes by with no dialog); the script waits for it instead of sampling once.
+- Not covered by an emulator: a phone provisioned with the "administrator may not grant sensor permissions" opt-out
+  (`dpm set-device-owner` cannot set it; covered by the planner's unit tests and the console test with a scripted
+  phone), and Android 7 or older (`setSecureSetting(INSTALL_NON_MARKET_APPS)` for unknown sources).
+
 ## Hardware y puertos (MDM-12)
 
 `scripts/hardware-e2e.py` runs against a real enrolled device (see [HARDWARE.md](HARDWARE.md)). On the policy the
@@ -700,6 +759,40 @@ load 26-34 while measuring, so no timing is claimed):
 
 `--only reenroll`: 11/11. Not covered on an emulator: the FRP challenge after a reset by hardware buttons, and FRP
 actually held on Android 11+ (no persistent data block on the images).
+
+## Corporate Wi-Fi (MDM-13)
+
+`scripts/wifi-policy-e2e.py` checks the policy's Wi-Fi against a real enrolled Device Owner (see [WIFI.md](WIFI.md)):
+it uploads a CA and a client PKCS#12 made on the spot, saves one network of each kind (hidden PSK, WPA3-SAE, WPA2/WPA3,
+OWE, PEAP, TTLS, EAP-TLS, and one with every option) and reads the phone over adb (`cmd wifi list-networks`,
+`dumpsys wifi`, `dumpsys device_policy`): parameters, installed certificates, the lock-down (`cmd wifi forget-network`
+refused), the Android 13 SSID allow list and minimum security, the forced radio, the safeguard that relaxes a
+lock-down which left the phone without any network, and the removal with its certificates. The console is covered by
+`scripts/wifi-console-e2e.mjs` (headless Chromium).
+
+```bash
+scripts/wifi-policy-e2e.py --api http://localhost:8088 --serial emulator-5554 --device-id <id>   # ~8 min; --skip-safeguard: ~4
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wifi-console-e2e.mjs --api http://localhost:8088 [--device <id>]
+```
+
+The emulator only has an open network (`AndroidWifi`), so association is real for that one and the rest is checked as
+saved configuration. Authentication against WPA2/WPA3/802.1X needs an access point: WIFI.md, "Con un punto de acceso
+real".
+
+Result (2026-11-27, own stack + debug agent after merging `integration/mobicontrol`, clean emulators; run twice, on two
+successive merges of the base branch, host load 2–30, same numbers both times):
+
+| Emulator | Checks | Not applicable there (reported by the agent, not failures) |
+|---|---|---|
+| Android 9 (API 28) | 70/70 | WPA3 and OWE (no API before Android 10: reported "not supported"), metered flag refused, `installKeyPair` needs a screen lock, no `cmd wifi forget-network` (the lock-down setting is checked instead), Android 13 rules reported as not available |
+| Android 11 (API 30) | 78/78 | device-MAC option refused; Android 13 rules reported as not available |
+| Android 15 (API 35) | 86/86 | — |
+
+Console: `wifi-console-e2e.mjs` 30/30 with `--device` (29 without). The runs found and fixed three agent bugs: on
+Android 13+ a static IP dropped the proxy; a network saved while the radio was starting stayed disabled for auto-join
+(Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
+earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
+ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
 
 ## Second wake channel (push FCM, backup polling) — MDM-07
 

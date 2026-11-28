@@ -82,6 +82,15 @@ object DeviceAction {
      */
     const val APP_INSTALL_FORCE = "device.appInstallForce"
 
+    /**
+     * Open on the phone the exact Android screen where the person turns on a special access for an app (all
+     * files, overlay, unknown sources...): `{ "packageName": "...", "access": "<PermissionCatalog.SPECIAL>" }`.
+     */
+    const val PERMISSION_SCREEN = "device.permissionScreen"
+
+    /** Re-enforce the permission rules now and send a fresh permission report with the next check-in. */
+    const val PERMISSION_SCAN = "device.permissionScan"
+
     /** Desired-state document push (see ConfigApplyPayload). Advertised as device key [CONFIG_APPLY_KEY]. */
     const val CONFIG_APPLY = "config.apply"
     const val CONFIG_APPLY_KEY = "configApply"
@@ -110,5 +119,6 @@ object DeviceAction {
         COMMAND_LEDGER_KEY,
         "supportSession",
         "lostMode", WIPE_OPTIONS_KEY,
+        "permissionScreen", "permissionScan",
     )
 }
