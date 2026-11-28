@@ -582,9 +582,9 @@ def t_qr_style(mode):
         set_touch(True)
         return
     check("sin el toque: la consola recibe «needsAuthorization»", until(lambda: guard_state(start) == "needsAuthorization", 150, 5), str(guard_state(start)))
-    home()
-    check("sin el toque: el quiosco muestra la pantalla de autorización", until(lambda: "RemoteSetupActivity" in top(), 30), top())
+    check("sin el toque: el quiosco muestra la pantalla de autorización", until(lambda: "RemoteSetupActivity" in top(), 90, 2), top())
     sh("input keyevent KEYCODE_BACK")
+    time.sleep(2)
     home()
     check("sin el toque: el quiosco avisa en su pantalla de inicio (franja «Falta una autorización»)",
           until(lambda: find(ui(), **{"content-desc": "kiosk-auth-banner"}), 15, 2), top())

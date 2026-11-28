@@ -298,6 +298,7 @@ class AndroidKioskLockdown(
  */
 internal object KioskForegroundGuard {
     private const val PERIOD_MS = 350L
+    private const val BACKSTOP_MS = 600L
     private const val LOOKBACK_MS = 4_000L
     private const val REPORT_EVERY_MS = 60_000L
     private var thread: android.os.HandlerThread? = null
@@ -336,7 +337,13 @@ internal object KioskForegroundGuard {
         lastWindow = pkg
         if (!w.closed(pkg) || w.letThrough(pkg)) return
         if (before != null && before != pkg && before != service.packageName && !w.closed(before)) tainted += before
+        // Home twice over: the global action (instant) and the HOME intent (lock task ignores the first on some
+        // releases).
         service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
+        runCatching {
+            val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            service.startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         if (lastWindowReport == 0L || now - lastWindowReport > REPORT_EVERY_MS) {
             lastWindowReport = now
@@ -350,6 +357,34 @@ internal object KioskForegroundGuard {
         watch = Watch(closed, letThrough, onBlocked)
         com.dallycontrol.agent.support.SupportAccessibilityService.instance?.watchAllWindows(true)
         if (screenServiceOn()) stopPolling() else start(context, closed, letThrough, onBlocked)
+        startBackstop()
+    }
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    @Volatile private var backstop = false
+
+    /**
+     * Android does not always report a window change (seen on emulators: an existing task brought back to the front,
+     * and the first seconds after a restart). So, while the screen service is on, the window in front is also
+     * looked at every [BACKSTOP_MS] — inside the agent, no usage access involved.
+     */
+    private fun startBackstop() {
+        if (backstop) return
+        backstop = true
+        mainHandler.post(object : Runnable {
+            override fun run() {
+                if (watch == null) {
+                    backstop = false
+                    return
+                }
+                runCatching {
+                    val service = com.dallycontrol.agent.support.SupportAccessibilityService.instance
+                    val front = service?.rootInActiveWindow?.packageName?.toString()
+                    if (service != null && front != null) onWindow(service, front)
+                }
+                mainHandler.postDelayed(this, BACKSTOP_MS)
+            }
+        })
     }
 
     @Synchronized
