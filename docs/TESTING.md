@@ -350,6 +350,14 @@ Enrollment assignment. Emulator facts the script works around (none of them are 
   QR's token at that moment, so after 45 s without an enrollment the script does what a wizard does at its end
   (`PROVISION_FINALIZATION`, then the two settings). `--finalize-after 99999` never does it: the "wizard abandoned"
   case, where the result line says whether the agent's own enrollment screen and notification are up.
+- `--clock-back-years N` alone turns automatic time off and leaves the Wi-Fi as it was (already validated).
+  `--clock-at-join` joins the Wi-Fi again after the clock went back, as a phone that boots with that clock does;
+  `--clock-auto` also leaves automatic time on with the radio off and Android's remembered time cleared, so only the
+  Wi-Fi's network time (NTP) can correct the clock. The line "Wi-Fi joined with that clock" says what happened.
+- Android 17 blocks apps without the local-network permission from the subnet the phone is attached to, and the
+  platform's downloader has no such permission. On an emulator that subnet holds 10.0.2.2 ("the host"), so a download
+  from there never connects. `scripts/qr-matrix/host_forward.py 8133 8088` exposes the stack on the host's LAN
+  address (to this machine only); put that address in the payload's download location.
 - `--pause-cmd` / `--resume-cmd` take the server away while the phone enrolls; `--replay-token` deletes the agent's
   stored identity after it enrolled, so it presents the same single-use token again (the answer-was-lost case).
 - `matrix --callbacks-apk <apk>` is the fallback for a release whose emulator will not run the wizard part: the agent
@@ -384,9 +392,9 @@ provisioning intent on), to "enrolled with its configuration" in the console. On
 | 6 (API 23) | not applicable | QR provisioning starts in Android 7 | - |
 | 7.0, 7.1, 8.0, 8.1, 9 (API 24-28) | enrolled | `qr-legacy`: only once the setup wizard finalized (52-57 s) | 1 |
 | 10, 11, 12, 12L, 13 (API 29-33) | enrolled | `qr-early`: the copy kept at `GET_PROVISIONING_MODE`, before the wizard finalized | 1 |
-| 14 (API 34) | **not obtained** | the emulator had no network when the download started | - |
+| 14 (API 34) | enrolled (2026-11-28; Device Owner 20 s after the scan) | `qr-early` | 1 |
 | 15, 16 (API 35, 36) | enrolled | `qr-early` | 1 |
-| 17 (API 37, both images) | **not obtained** | stayed at "Getting ready for work setup" with ANR dialogs; cause not established | - |
+| 17 (API 37; images 37.0 `google_apis` and 37.2 `google_apis_ps16k`) | enrolled (2026-11-28; Device Owner 25 s after the scan) - with the agent download on an address outside the emulator's own subnet, see "Third round" | `qr-early` | 1 |
 
 7.1, 8.0 and 8.1 were run before the last merge and not repeated with the final APK; 7.0, 9 and 10 were. The three
 runs of Android 13, 15 and 16 landed on one device row: every emulator has the same hardware identifiers.
@@ -824,10 +832,10 @@ brings none. The emulator booted again after its wipe enrolled onto its own row 
 | Same, QR **with** the time - Android 9 | the clock was set before `DownloadPackageTask` (logcat), but the download still did not finish in 8 minutes; cause not established |
 | Same, QR **with** the time - Android 13 | the clock was NOT set before the download (logcat keeps the old date): fails like the QR without the time |
 | Clock 6 years back, plain-HTTP download, no time in the QR - Android 9 | enrolled, first attempt |
-| Same - Android 13 | not obtained (run stopped) |
+| Same - Android 13 | see "Third round": with that clock the Wi-Fi is not validated and no download starts, HTTP or HTTPS |
 | Token presented again by the same phone after the answer was lost - Android 9 | accepted, same device row, credentials stored |
-| Same - Android 13 | not obtained (the emulator hung in provisioning) |
-| Server down while the phone enrolls | **not run** on a device |
+| Same - Android 14 and 17 (2026-11-28) | accepted, same device row, credentials stored |
+| Server down while the phone enrolls (2026-11-28) | Android 15, server stopped behind the proxy: enrolled 108 s after Device Owner, on the 7th try, once the server was back. Android 13, proxy and server both stopped (connection refused): enrolled 125 s after Device Owner. Meanwhile the phone showed "Could not enroll yet. Retrying…" with the reason; the token was never lost |
 | Remote-support guide vs. the wizard | before the fix it opened on top of Android's wizard (Android 13); after it: never during the wizard, shown once the wizard ended (Android 7.0, 9, 10, 11, 12, 12L, 13) |
 
 Also seen: a cut download cannot be resumed when the server sends no ETag (`DownloadManager` reason 1008, then
@@ -839,6 +847,29 @@ attempts log, tracked download, the report endpoint and the counter); `enroll-co
 enroller was run under PowerShell 7 on macOS with a simulated adb (`scripts/windows-enroller-sim.sh`, 9/9), not on
 Windows PowerShell 5.1. Not covered by any of this: the camera and the QR reader, each maker's setup wizard, Play
 Protect, FRP, captive portals, real Zero-Touch / Knox enrollment, the agent's own QR scanner with a real camera.
+
+**Third round (2026-11-28, idle machine, load 5-20; own stack, debug agent of this branch).** Real provisioning flow
+on a clean emulator each time; "total" is the whole run of the script (it includes up to 70 s of watching the wizard
+after the enrollment, or the token replay).
+
+| Case | Android | Result |
+|------|---------|--------|
+| Plain QR flow | 14 (API 34) | enrolled; download 1.5 s, Device Owner at 20 s, total 60 s. The earlier "not obtained" was the overloaded machine (the emulator had no network), not the product |
+| Plain QR flow, download from `10.0.2.2` | 17 (API 37) | never becomes Device Owner: `DownloadManager` reports `failed to connect to /10.0.2.2 ... after 20000ms` and retries for ever, while root and shell reach the same address at once. `dumpsys connectivity trafficcontroller` shows why: `10.0.2.0/24` is in the local-network map and the downloader's uid has no `PERMISSION_ACCESS_LOCAL_NETWORK` (Android 17's local network protection). Emulator-only for a server on the internet; a real limit for a server inside the same subnet as the phones' Wi-Fi |
+| Plain QR flow, download from the host's LAN address | 17, both images | enrolled; Device Owner at 25 s, total 132 s (37.0) and 71 s (37.2) |
+| Sanity of an old release | 9 (API 28) | enrolled, `qr-legacy`, 55 s after Device Owner |
+| Same token presented again after the answer was lost | 14, 17 | accepted, same device, credentials stored |
+| Clock 3 years back when the Wi-Fi is joined, automatic time on, only NTP available | 13, 16 | the clock was correct 8 s (13) and 4 s (16) after the join, the network validated, enrolled on the first try (Device Owner at 20 s / 14 s) |
+| Clock 3 years back when the Wi-Fi is joined, **no network time** (automatic time off) | 13, 14 | no download and no Device Owner, even with a plain-HTTP download address. `NetworkMonitor`: `PROBE_HTTPS ... Chain validation failed`, `isPartialConnectivity()=true`; the Wi-Fi is never validated. Android 13 stays at "Getting ready for work setup" (the download job waits for a validated network); Android 14 shows the Wi-Fi picker with "Limited connection". Nothing in the QR or the agent can change this: the agent is not on the phone yet |
+| Clock 3 years back, Wi-Fi validated before, HTTP download, HTTPS console (local CA) | 14 | enrolled on the 2nd try, total 147 s: the first try failed with `CertificateNotYetValidException`, the agent set the clock from the plain-HTTP `Date` header (`ClockRepair: clock was wrong; set from the server's Date header: true`) and retried. The console shows the earlier failure as `device.clock` |
+| Same, the server's port 80 closed | 14 | enrolled 37 s after Device Owner. Run as: Device Owner with the right clock while the console was unreachable, then the clock put 3 years back and the console brought back. The agent took the time from the fallback source (`connectivitycheck.gstatic.com`, new in this round) and enrolled |
+
+What follows for a deployment: a phone with a factory date enrolls by QR when the enrollment Wi-Fi lets network time
+through (NTP, UDP 123 to `time.android.com`) or the phone has a SIM with signal - it then corrects itself within
+seconds. Where the network gives no time, Android 10+ cannot download the agent at all; set the date by hand or
+enroll by cable. The "download without HTTPS" option of the Enroll page only helps in the narrow case where the
+phone does download but its date is still older than the server's certificate. The time in the QR is applied before
+the download on Android 7-11 and after it from Android 12 on.
 
 **Second round (2026-11-27 evening, final agent merged with `integration/mobicontrol`, QR-style enrollment, host load
 17-24 unless noted).** `--latency 10` = 10 fresh sessions and 10 taps; `--kiosk` = single-app and multi-app kiosk.
