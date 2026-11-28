@@ -159,6 +159,13 @@ DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/geofence-console-e2e.mjs --api ht
 | SMTP modes through *Enviar prueba*: STARTTLS + auth, implicit SSL + auth → delivered; wrong password, no TLS against a STARTTLS-only server → refused cleanly (`error.geofence.smtp.failed`) | as expected |
 | server/common unit tests · agent `lintDebug` + unit tests | all green |
 
+Final pass on the fully merged tree (2026-11-27, Android 16 / API 36 Google APIs, `--mock-provider`, mobile-data
+policy active, heap `-Xmx420m`, host load 22–42): trip inside → outside → inside, zone created with the phone already
+outside, diagnosis and e-mail passed (36/39). The three misses were the test's, not the product's: that image keeps an
+emulated Ethernet up, so `svc wifi/data disable` does not take it offline (the offline batch is covered on API 29 and
+33; the script now detects this and skips the section), and one row-count race. With lost mode on (W9, a position per
+minute) positions kept arriving and a new zone was evaluated. `geofence-console-e2e.mjs`: 29/29.
+
 Location providers on the API 33 Google APIs emulator (agent log `fresh fix: …`): `fused` is present and enabled but
 gave nothing within its 8 s cap, then `gps` answered in 4.7–7.3 s; on the next request `fused` was skipped and `gps`
 answered in 4.0 s. Fed through the test provider, positions arrive as `provider=fused` ±6 m.
