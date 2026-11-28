@@ -62,7 +62,7 @@
     <li>Espere. El teléfono muestra <span class="ui">Inscribiendo este equipo…</span> y después <span class="ui">Equipo inscrito</span>.</li>
     <li>Confirme en la consola: aparece el aviso <span class="ui">Equipo inscrito</span> y la línea <span class="ui">Último equipo inscrito</span>. La consola genera sola el QR para el siguiente teléfono.</li>
   </ol>
-  <div class="callout"><b>Escanee desde la pantalla, no desde una foto.</b> El QR en pantalla lleva la hora actual y pone en fecha un teléfono recién sacado de la caja. Con la fecha de fábrica, el teléfono rechaza la conexión segura.</div>
+  <div class="callout"><b>Fecha de fábrica.</b> Un teléfono recién sacado de la caja puede traer la fecha años atrás y, con ella, rechaza toda conexión segura. Se corrige solo en segundos al entrar a un Wi-Fi que permita la hora de red (NTP, UDP 123) o con una SIM con señal. Si la red no da la hora, Android muestra «conexión limitada» y no descarga el agente con ningún QR: corrija la fecha a mano o inscriba por cable. El QR en pantalla lleva la hora actual; Android 7 a 11 la aplica antes de descargar, y Android 12 o superior, después.</div>
 
   <h2>Conectar el teléfono a un Wi-Fi desde el mismo QR</h2>
   <p>Despliegue <span class="ui">Conectar a Wi‑Fi durante la puesta en marcha (opcional)</span> y complete <span class="ui">Nombre de la red (SSID)</span>, <span class="ui">Seguridad</span> y <span class="ui">Contraseña</span>. Puede cargar los datos de una política con <span class="ui">Cargar Wi‑Fi desde una política</span>. El teléfono se conecta a esa red antes de descargar el agente.</p>
@@ -154,7 +154,7 @@
   <p class="k">5 · Por cable (USB)</p>
   <h1>El cable inscribe los equipos donde el QR no está disponible</h1>
   <p>Este método parte de un equipo formateado y usa un computador con Windows. Es la vía para Android 6, que no tiene lector de QR en la bienvenida, y para los modelos en que el QR falla.</p>
-  <div class="callout"><b>Android 15 y 16.</b> En estas versiones el QR puede requerir este método: si el teléfono muestra «Se produjo un error» al instalar el agente, inscriba ese equipo por cable. La causa probable es la protección de Google Play, pero no está verificada: no hay todavía una prueba válida del QR en Android 15 ni 16, ni en emulador ni en teléfono físico.</div>
+  <div class="callout"><b>Android 15 o superior.</b> El QR está probado en emuladores de Android 7 a 17. En teléfono físico aún no: si el teléfono muestra «Se produjo un error» al instalar el agente, inscriba ese equipo por cable. La causa probable es la protección de Google Play, que los emuladores no ejercen.</div>
   <div class="fig s">
     <img src="img/e05-usb.jpg" alt="Pestaña Por cable (USB)">
     <p class="cap">Figura 4. Pestaña «Por cable (USB)» con el botón de descarga de la herramienta.</p>
@@ -219,7 +219,7 @@
     <thead><tr><th style="width:56mm">Síntoma</th><th style="width:52mm">Causa probable</th><th>Qué hacer</th></tr></thead>
     <tbody>
       <tr><td>No abre el lector al tocar 6 veces</td><td>El equipo no está recién formateado, o es Android 6 o anterior</td><td>Formatee. En Android 6 use cable. En Android 7 y 8 conecte Wi-Fi cuando lo pida.</td></tr>
-      <tr><td>«No se puede configurar el dispositivo» antes de descargar</td><td>Wi-Fi sin internet o con página de inicio de sesión, o fecha de fábrica</td><td>Escanee el QR desde la pantalla de la consola y use una red sin portal.</td></tr>
+      <tr><td>«No se puede configurar el dispositivo» antes de descargar</td><td>Wi-Fi sin internet o con página de inicio de sesión, o fecha de fábrica en una red que no da la hora (el teléfono muestra «conexión limitada» o vuelve a pedir Wi-Fi)</td><td>Use una red sin portal que permita la hora de red (NTP, UDP 123), o ponga una SIM con señal.</td></tr>
       <tr><td>Pide la cuenta de Google anterior</td><td>Protección contra restablecimiento activa</td><td>Capítulo 9.</td></tr>
       <tr><td>Samsung: se inscribe en otro sistema</td><td>Tiene un perfil de Knox Mobile Enrollment de otro sistema</td><td>Pida al revendedor que lo libere, o use el capítulo 6.</td></tr>
       <tr><td>Xiaomi y otros: no aparece el lector</td><td>El fabricante no trae el lector integrado</td><td>Conecte Wi-Fi cuando lo pida. Si no aparece, use cable.</td></tr>
@@ -236,7 +236,7 @@
       <tr><td>El QR ya lo usó otro equipo</td><td>El código de un solo uso ya se consumió. Genere un QR nuevo o use un código de carpeta.</td></tr>
       <tr><td>El código venció</td><td>El QR de un solo uso vale 24 horas. Genere uno nuevo.</td></tr>
       <tr><td>Código desconocido o revocado</td><td>El equipo trae un código que no existe o fue revocado: QR viejo o configuración Zero-Touch o KME desactualizada.</td></tr>
-      <tr><td>Fecha y hora del teléfono incorrectas</td><td>El equipo arrancó con la fecha de fábrica. Escanee el QR de la pantalla o corrija la fecha.</td></tr>
+      <tr><td>Fecha y hora del teléfono incorrectas</td><td>El equipo tenía la fecha de fábrica. El agente la corrige solo en Android 9 o superior y reintenta. Si se repite, revise que el Wi-Fi permita la hora de red (NTP) o corrija la fecha.</td></tr>
       <tr><td>El teléfono no tenía conexión con el servidor</td><td>Sin internet o sin resolución de nombres en esa red. Cambie de red.</td></tr>
       <tr><td>El servidor no respondió a tiempo al teléfono</td><td>Red lenta o servicio saturado. El teléfono reintenta solo.</td></tr>
       <tr><td>Wi‑Fi con portal cautivo o que bloquea el servidor</td><td>Use una red sin página de inicio de sesión.</td></tr>
@@ -345,8 +345,9 @@
       <tr><td>9</td><td>Igual que 7 y 8, sin la descarga previa del lector. El agente puede corregir el reloj del equipo con la hora del servidor.</td></tr>
       <tr><td>10 y 11</td><td>El agente guarda una copia temprana del código y se inscribe aunque el asistente no finalice. El QR admite Wi-Fi empresarial. Desde Android 11 se puede inscribir sin cable con la depuración inalámbrica.</td></tr>
       <tr><td>12</td><td>El código llega dentro del asistente y la pantalla de estado se ve ahí mismo.</td></tr>
-      <tr><td>13 y 14</td><td>El QR indica al asistente que continúe aunque no pueda actualizar componentes de Google en ese momento.</td></tr>
-      <tr><td>15 y 16</td><td>El QR puede requerir el método por cable si el teléfono rechaza la instalación del agente; no está probado. Por cable, Android 16 puede responder «ya hay cuentas» durante unos 40 segundos tras el arranque: las herramientas reintentan solas hasta 2 minutos.</td></tr>
+      <tr><td>13 y 14</td><td>El QR indica al asistente que continúe aunque no pueda actualizar componentes de Google en ese momento. Probado por QR en emulador.</td></tr>
+      <tr><td>15 y 16</td><td>Probado por QR en emulador. En teléfono físico la protección de Google Play puede rechazar la instalación del agente (sin verificar): use entonces el método por cable. Por cable, Android 16 puede responder «ya hay cuentas» durante unos 40 segundos tras el arranque: las herramientas reintentan solas hasta 2 minutos.</td></tr>
+      <tr><td>17</td><td>Probado por QR en emulador. Android 17 no deja que el sistema descargue el agente desde una dirección de la misma red local del Wi-Fi del teléfono: el servidor debe estar en internet o en otra subred.</td></tr>
     </tbody>
   </table>
 
@@ -393,7 +394,7 @@
       <tr><td>8 a 10</td><td>Apague el Wi-Fi a mitad de una inscripción y vuelva a encenderlo.</td><td>Motivo que muestra el teléfono, si reintentó solo y si el fallo quedó en la consola.</td></tr>
     </tbody>
   </table>
-  <p><b>Prueba adicional del reloj.</b> Repita el primer paso con la fecha del teléfono atrasada varios años, en un Android 9 y en un Android 13 o superior. Anote si descarga el agente.</p>
+  <p><b>Prueba adicional del reloj.</b> Repita el primer paso con la fecha del teléfono atrasada varios años, en un Android 9 y en un Android 13 o superior. Anote si el Wi-Fi queda en «conexión limitada», cuánto tarda el teléfono en ponerse en fecha y si descarga el agente.</p>
   <h2>Cómo interpretar el resultado</h2>
   <table class="compact">
     <thead><tr><th style="width:74mm">Lo que pasó</th><th>Dónde está el problema</th></tr></thead>
