@@ -513,7 +513,9 @@ def t_exit(mode):
         msg = try_exit(mode, bad)
         check(f"7 toques + contraseña incorrecta #{i}: no sale", msg == "" and (lock_task() == "LOCKED" or SDK >= 36) and not_exited(), msg or top())
     msg = try_exit(mode, PASSWORD)
-    check("4.º intento durante la espera: ni siquiera pide contraseña", msg.startswith("dialog") or "espera" in msg.lower() or "wait" in msg.lower() or "attempts" in msg.lower(), msg)
+    # (When the dialog cannot be read, the proof is the agent's own report: "denied" = refused without comparing.)
+    check("4.º intento durante la espera: ni siquiera pide contraseña (rechazado sin comparar)",
+          msg.startswith("dialog") or bool(until(lambda: events("kioskExitDenied", since), 150, 4)), msg)
     check("…y la contraseña correcta no sirve durante la espera", not_exited(), top())
     ev = until(lambda: [e for e in events("kioskExitFailed,kioskExitDenied", since)], 150, 4) or []
     kinds = sorted({e.get("type") for e in ev})
