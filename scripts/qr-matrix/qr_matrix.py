@@ -312,6 +312,8 @@ def run(a):
             print("  server down: " + subprocess.run(a.pause_cmd, shell=True, capture_output=True, text=True).stdout.strip(), flush=True)
             subprocess.Popen(f"sleep {a.resume_after}; {a.resume_cmd}", shell=True, start_new_session=True)
         status, enrolled = wait_enrolled(a, serial, payload)
+        if status == "ENROLLED" and not a.replay_token and not a.pause_cmd:
+            enrolled += " " + settle_wizard(serial, seen, started)
         if status == "ENROLLED" and a.replay_token:
             status, more = replay_token(a, serial, payload, package)
             enrolled += " " + more
@@ -354,6 +356,45 @@ def finish_setup_wizard(serial):
     time.sleep(3)
     sh(serial, "settings put secure user_setup_complete 1")
     sh(serial, "settings put global device_provisioned 1")
+
+
+GUIDE = re.compile(r"turn on remote support|activa el soporte remoto|soporte remoto", re.I)
+
+
+def settle_wizard(serial, seen, started):
+    """After the enrollment: walk the rest of Android's wizard and watch for the agent's "turn on remote support"
+    guide. It must not come up while the wizard (or the agent's own enrollment status inside it) is on screen."""
+    during = after = False
+    status_screen = False
+    end = time.time() + 70
+    while time.time() < end:
+        texts, clicks = screen(serial)
+        joined = " | ".join(texts)
+        if joined and (not seen or seen[-1] != joined):
+            seen.append(joined)
+            print(f"  [{int(time.time() - started):4d}s] {joined[:200]}", flush=True)
+        in_wizard = setup_state(serial) != "11"
+        if re.search(r"device enrolled|equipo inscrito|enrolling this device|inscribiendo este equipo", joined, re.I):
+            status_screen = True
+        if GUIDE.search(joined):
+            if in_wizard:
+                during = True
+            else:
+                after = True
+                break
+        target = next((c for c in clicks if ADVANCE.match(c[0])), None)
+        if target and not GUIDE.search(joined):
+            sh(serial, f"input tap {target[1]} {target[2]}")
+            time.sleep(2)
+            continue
+        if not in_wizard and not target:
+            time.sleep(3)
+        else:
+            time.sleep(2)
+        if in_wizard and time.time() > end - 35:
+            finish_setup_wizard(serial)   # nothing left to tap: the wizard would end here on a phone
+    return (f"guide_during_wizard={'yes' if during else 'no'} guide_after_wizard={'yes' if after else 'no'} "
+            f"status_screen_seen={'yes' if status_screen else 'no'}")
 
 
 def replay_token(a, serial, payload, package):
@@ -399,6 +440,7 @@ def wait_enrolled(a, serial, payload):
                 ok = [x for x in st.get("attempts", []) if x.get("outcome") == "ok"]
                 return "ENROLLED", (f"device={st['deviceNumber']} configuration={st.get('configurationName')} "
                                     f"via={ok[0].get('path') if ok else '?'} tries={ok[0].get('tries') if ok else '?'} "
+                                    f"earlier_failures={[x.get('reason') for x in st.get('attempts', []) if x.get('outcome') in ('note', 'failed')]} "
                                     f"wizard_finished_first={'yes' if finalized else 'no'} "
                                     f"seconds={int(time.time() - started)}")
         except Exception as e:  # the server may be down on purpose in a retry scenario
@@ -454,7 +496,7 @@ def run_callbacks(a):
 
 
 SLOTS = "/private/tmp/mdm-emu-slots"
-SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630}
+SLOT_PORT = {1: 5600, 2: 5610, 3: 5620, 4: 5630, 5: 5640}
 # QR_MATRIX_SLOTS=4 keeps a run on a reserved turn; the default is the three shared ones.
 SLOTS_USED = [int(x) for x in os.environ.get("QR_MATRIX_SLOTS", "1,2,3").split(",") if x.strip()]
 
