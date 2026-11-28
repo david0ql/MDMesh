@@ -97,6 +97,7 @@ class SupportSessionManager @Inject constructor(
     @Volatile private var streamJob: Job? = null
     @Volatile private var sendJob: Job? = null
     @Volatile private var ackedSeq = -1
+    @Volatile private var inputAt = 0L
     @Volatile private var maxDim = SupportProtocol.DEFAULT_DIM
     @Volatile private var quality = SupportProtocol.DEFAULT_QUALITY
     @Volatile private var voice: VoiceCall? = null
@@ -403,6 +404,7 @@ class SupportSessionManager @Inject constructor(
         }
         val jpeg = ByteArrayOutputStream(JPEG_BUFFER)
         var previous: Bitmap? = null
+        var stillSince = 0L
         var seq = 0
         var sentSeq = -1
         var sentAt = 0L
@@ -431,8 +433,19 @@ class SupportSessionManager @Inject constructor(
             // One frame in flight: the next is taken only once the console has drawn the last one (or it is overdue).
             if (sentSeq > ackedSeq && now - sentAt < ACK_TIMEOUT_MS) { delay(POLL_MS); continue }
             if (conn.backlog() > MAX_BACKLOG) { delay(BACKLOG_WAIT_MS); continue }
-            val wait = lastCapture + interval - now
-            if (wait > 0) delay(wait)
+            // Pacing. Android allows one accessibility screenshot every 333 ms, so each one must count:
+            //  - a screen that has been still for a while is looked at less often, which keeps a capture "in hand";
+            //  - right after a touch the next capture is taken as soon as Android allows it, but not before the app
+            //    has had a moment to react, so that capture is the one that shows the touch's effect.
+            val idle = stillSince > 0 && now - stillSince > IDLE_AFTER_MS
+            var due = lastCapture + if (idle && !projection) IDLE_INTERVAL_MS else interval
+            while (true) {
+                val t = System.currentTimeMillis()
+                val touched = inputAt
+                if (t - touched < TOUCH_WINDOW_MS) due = minOf(due, maxOf(lastCapture + interval, touched + SETTLE_MS))
+                if (t >= due) break
+                delay(minOf(WAIT_STEP_MS, due - t))
+            }
             lastCapture = System.currentTimeMillis()
             // Every few seconds: how the capture is doing (shown in the console's status line, read by the e2e test).
             if (lastCapture - statsAt >= STATS_MS) {
@@ -480,9 +493,11 @@ class SupportSessionManager @Inject constructor(
             val still = previous?.let { it.width == w && it.height == h && it.sameAs(scaled) } == true
             if (still && System.currentTimeMillis() - sentAt < STILL_REFRESH_MS) {
                 scaled.recycle()
+                if (stillSince == 0L) stillSince = System.currentTimeMillis()
                 delay(STILL_WAIT_MS)
                 continue
             }
+            stillSince = 0L
             previous?.recycle()
             previous = scaled
             jpeg.reset()
@@ -508,6 +523,7 @@ class SupportSessionManager @Inject constructor(
 
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // four kinds of input, each validated before use
     private fun input(type: String, m: JsonObject) {
+        inputAt = System.currentTimeMillis()
         if (type == "wake") { wakeScreen(); return }
         val service = SupportAccessibilityService.instance
         if (service == null) {
@@ -796,6 +812,11 @@ class SupportSessionManager @Inject constructor(
         private const val BACKLOG_WAIT_MS = 20L
         private const val EMPTY_WAIT_MS = 80L
         private const val STILL_WAIT_MS = 20L
+        private const val IDLE_AFTER_MS = 1_500L
+        private const val IDLE_INTERVAL_MS = 700L
+        private const val TOUCH_WINDOW_MS = 2_000L
+        private const val SETTLE_MS = 120L
+        private const val WAIT_STEP_MS = 15L
         private const val STILL_REFRESH_MS = 5_000L
         private const val CAPTURE_TIMEOUT_MS = 3_000L
         private const val STATS_MS = 2_000L

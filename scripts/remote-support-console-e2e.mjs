@@ -218,6 +218,8 @@ try {
   check('a message typed in the console is shown on the phone', read || (!!screen && screen.bubbles > 0),
     screen ? (read ? 'text read on the phone' : `support screen on top with ${screen.bubbles} message(s); text not read (uiautomator busy)`) : top());
   const answer = `respuesta${Date.now() % 100000}`;
+  await sleep(2500); // the first layout moves once the system bars are known
+  screen = supportScreen() || screen;
   if (screen && screen.field) {
     adbTap(screen.field); // the person on the phone answers
     await sleep(1200);
@@ -229,9 +231,49 @@ try {
   check('the person\'s reply appears in the console\'s chat', got);
   await shot('04-chat');
 
+  // --- voice -----------------------------------------------------------------------------------------------------
+  await page.getByTestId('support-call').click();
+  let accept = null;
+  for (let i = 0; i < 25 && !accept && (await hook('s.callState')) !== 'active'; i++) { await sleep(1000); accept = supportScreen()?.first || null; }
+  if (accept && (await hook('s.callState')) !== 'active') { check('the phone rings: "Soporte quiere hablar contigo"', true); adbTap(accept); }
+  else console.log('  (no Accept button: the policy answers calls unattended, or the call did not ring)');
+  await page.waitForFunction(() => window.__dcSupport?.callState === 'active', null, { timeout: 40000 }).catch(() => null);
+  const inCall = check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
+  let phoneRxRms = 0; let pageRxRms = 0;
+  if (!inCall) throw new Error('no call: the rest of the voice checks cannot run');
+  for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
+    await sleep(500);
+    phoneRxRms = Math.max(phoneRxRms, (await hook('s.callStats && s.callStats.rxRms')) || 0);
+    pageRxRms = Math.max(pageRxRms, (await hook('s.rxAudioRms')) || 0);
+  }
+  const tx = await hook('s.txAudioFrames');
+  const rx = await hook('s.rxAudioFrames');
+  const stats = await hook('s.callStats');
+  check('console microphone -> phone: frames sent and received', tx > 100 && (stats?.rx || 0) > 100, `sent ${tx}, phone received ${stats?.rx}`);
+  check('console microphone -> phone: the phone hears sound, not silence', phoneRxRms > 300, `level on the phone ${phoneRxRms}`);
+  check('phone -> console: audio frames arrive and are decoded', rx > 100, `${rx} frames`);
+  check('phone -> console: it is the phone\'s tone, not silence', pageRxRms > 3000, `level in the page ${pageRxRms}`);
+  await shot('05-llamada');
+  // Muted, the console sends nothing: the phone's count of received frames must stop growing.
+  await page.getByTestId('support-mute').click();
+  await sleep(1500);
+  const rxA = (await hook('s.callStats && s.callStats.rx')) || 0;
+  await sleep(3000);
+  const rxB = (await hook('s.callStats && s.callStats.rx')) || 0;
+  check('"Silenciar" in the console: the phone stops receiving the operator\'s audio', rxB - rxA < 10, `${rxB - rxA} frames in 3 s (150 when not muted)`);
+  await page.getByTestId('support-hangup').click();
+  await page.waitForFunction(() => ['ended', 'idle'].includes(window.__dcSupport?.callState), null, { timeout: 10000 }).catch(() => null);
+  check('"Colgar" ends the call', ['ended', 'idle'].includes(await hook('s.callState')), `${await hook('s.callState')}`);
+  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+
   // --- the operator's own keyboard: click the reply box in the image, type, Enter (the reply comes back by chat) ---
   {
-    const scr = supportScreen();
+    await page.getByTestId('support-chat-input').fill('Escribe aquí, por favor');
+    await page.getByTestId('support-chat-send').click();
+    let scr = null;
+    for (let i = 0; i < 30 && !(scr && scr.field); i++) { await sleep(1000); scr = supportScreen(); }
+    await sleep(2500); // the screen's first layout moves once the system bars are known: read it settled
+    scr = supportScreen() || scr;
     const kb = `teclado${Date.now() % 100000}`;
     if (check('the support screen is still up on the phone (reply box to type into)', !!scr && !!scr.field, top())) {
       await serviceBack();
@@ -292,41 +334,6 @@ try {
     await page.getByTestId('support-key-home').click();
     await shot('04b-barra');
   }
-
-  // --- voice -----------------------------------------------------------------------------------------------------
-  await page.getByTestId('support-call').click();
-  let accept = null;
-  for (let i = 0; i < 25 && !accept && (await hook('s.callState')) !== 'active'; i++) { await sleep(1000); accept = supportScreen()?.first || null; }
-  if (accept && (await hook('s.callState')) !== 'active') { check('the phone rings: "Soporte quiere hablar contigo"', true); adbTap(accept); }
-  else console.log('  (no Accept button: the policy answers calls unattended, or the call did not ring)');
-  await page.waitForFunction(() => window.__dcSupport?.callState === 'active', null, { timeout: 40000 }).catch(() => null);
-  const inCall = check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
-  let phoneRxRms = 0; let pageRxRms = 0;
-  if (!inCall) throw new Error('no call: the rest of the voice checks cannot run');
-  for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
-    await sleep(500);
-    phoneRxRms = Math.max(phoneRxRms, (await hook('s.callStats && s.callStats.rxRms')) || 0);
-    pageRxRms = Math.max(pageRxRms, (await hook('s.rxAudioRms')) || 0);
-  }
-  const tx = await hook('s.txAudioFrames');
-  const rx = await hook('s.rxAudioFrames');
-  const stats = await hook('s.callStats');
-  check('console microphone -> phone: frames sent and received', tx > 100 && (stats?.rx || 0) > 100, `sent ${tx}, phone received ${stats?.rx}`);
-  check('console microphone -> phone: the phone hears sound, not silence', phoneRxRms > 300, `level on the phone ${phoneRxRms}`);
-  check('phone -> console: audio frames arrive and are decoded', rx > 100, `${rx} frames`);
-  check('phone -> console: it is the phone\'s tone, not silence', pageRxRms > 3000, `level in the page ${pageRxRms}`);
-  await shot('05-llamada');
-  // Muted, the console sends nothing: the phone's count of received frames must stop growing.
-  await page.getByTestId('support-mute').click();
-  await sleep(1500);
-  const rxA = (await hook('s.callStats && s.callStats.rx')) || 0;
-  await sleep(3000);
-  const rxB = (await hook('s.callStats && s.callStats.rx')) || 0;
-  check('"Silenciar" in the console: the phone stops receiving the operator\'s audio', rxB - rxA < 10, `${rxB - rxA} frames in 3 s (150 when not muted)`);
-  await page.getByTestId('support-hangup').click();
-  await page.waitForFunction(() => ['ended', 'idle'].includes(window.__dcSupport?.callState), null, { timeout: 10000 }).catch(() => null);
-  check('"Colgar" ends the call', ['ended', 'idle'].includes(await hook('s.callState')), `${await hook('s.callState')}`);
-  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
 
   // --- lock from the session bar ----------------------------------------------------------------------------------
   {
