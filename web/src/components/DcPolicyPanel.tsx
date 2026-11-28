@@ -57,6 +57,8 @@ export interface DcPolicy {
     /** Wipe after this many wrong unlock attempts (3-100). */
     maxFailedPasswordsForWipe?: number;
   };
+  /** Backup check-in schedule of the phones (minutes); empty = the agent's defaults (5 / 2 / 10). */
+  wake?: { pollMinutes?: number; fastPollMinutes?: number; fastWindowMinutes?: number; alarmClock?: boolean };
   /** Mobile data per app: lists and data limits (see MobileDataPolicySection). */
   mobileData?: import('../api/mobileData').MobileDataPolicy;
   /** Per-app permission rules by package (see PolicyPermissionsPanel). */
@@ -104,6 +106,7 @@ export function serializeDcPolicy(p: DcPolicy): string | null {
   if (p.hardware && Object.keys(p.hardware).length) out.hardware = p.hardware;
   if (p.remoteSupport && Object.values(p.remoteSupport).some((v) => v !== undefined)) out.remoteSupport = p.remoteSupport;
   if (p.frpLabels && out.device?.frpAccounts?.length && Object.keys(p.frpLabels).length) out.frpLabels = p.frpLabels;
+  if (p.wake && Object.values(p.wake).some((v) => v !== undefined && v !== false)) out.wake = p.wake;
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
@@ -653,6 +656,56 @@ export function DcPolicyPanel({ value, disabled, onChange, apps, wifiRadio }: {
         <div className="cfg-field-ctl">
           <input type="checkbox" className="dev-check" aria-label="Pedir la autorización de soporte remoto al inscribir" checked={p.remoteSupport?.setupPrompt !== false} disabled={disabled}
             onChange={(e) => update({ ...p, remoteSupport: { ...p.remoteSupport, setupPrompt: e.target.checked ? undefined : false } })} />
+        </div>
+      </div>
+      <div className="cfg-sec-h" style={{ marginTop: 18 }}>Órdenes sin canal en vivo</div>
+      <div className="cfg-field" data-testid="wake-policy">
+        <div className="cfg-field-label">
+          <strong>Sondeo de respaldo</strong>
+          <span className="chip chip-enforced">Aplicado</span>
+          <span className="cfg-field-help">
+            Cada cuánto el teléfono pregunta por órdenes cuando no tiene el canal en vivo (ni mensajes push). Vacío = 5 min.
+            Tras actividad en el equipo (pantalla, desbloqueo, cargador, cambio de red) pregunta más seguido durante un rato:
+            vacío = cada 2 min durante 10 min. Menos minutos = órdenes más rápidas y algo más de batería. En reposo profundo
+            Android puede espaciar estos sondeos salvo que el agente esté exento de optimización de batería.
+          </span>
+        </div>
+        <div className="cfg-field-ctl">
+          {([
+            ['pollMinutes', 'Sondeo normal en minutos', 1, 15, '5', 'min · '],
+            ['fastPollMinutes', 'Sondeo rápido en minutos', 1, 5, '2', 'min rápido durante '],
+            ['fastWindowMinutes', 'Duración del sondeo rápido en minutos', 0, 60, '10', 'min'],
+          ] as const).map(([key, label, min, max, placeholder, unit]) => (
+            <span key={key}>
+              <input
+                type="number"
+                className="input"
+                aria-label={label}
+                min={min}
+                max={max}
+                placeholder={placeholder}
+                style={{ width: 70 }}
+                disabled={disabled}
+                value={p.wake?.[key] ?? ''}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  const v = Number.isFinite(n) ? Math.max(min, Math.min(n, max)) : undefined;
+                  update({ ...p, wake: { ...p.wake, [key]: v } });
+                }}
+              />{' '}
+              <span className="muted">{unit}</span>{' '}
+            </span>
+          ))}
+          <label style={{ display: 'block', marginTop: 8 }}>
+            <input
+              type="checkbox"
+              aria-label="Alarma garantizada en reposo"
+              disabled={disabled}
+              checked={p.wake?.alarmClock === true}
+              onChange={(e) => update({ ...p, wake: { ...p.wake, alarmClock: e.target.checked || undefined } })}
+            />{' '}
+            Alarma garantizada en reposo profundo (el teléfono muestra el icono de alarma)
+          </label>
         </div>
       </div>
     </section>

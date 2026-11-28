@@ -22,6 +22,7 @@ class MdmApplication : Application(), Configuration.Provider {
     @Inject lateinit var mobileData: dagger.Lazy<com.dallycontrol.agent.data.MobileDataEnforcer>
     @Inject lateinit var wipeRunner: com.dallycontrol.core.command.wipe.WipeRunner
     @Inject lateinit var events: com.dallycontrol.core.telemetry.EventSink
+    @Inject lateinit var wakeChannel: com.dallycontrol.agent.wake.WakeChannel
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -48,7 +49,8 @@ class MdmApplication : Application(), Configuration.Provider {
         CheckInWorker.scheduleNow(this) // prompt check-in on every cold start (post-install/reboot)
         WakeKeepAlive.schedule(this)   // doze-proof reconcile heartbeat
         // Claim a battery-optimization exemption (silent as Device Owner on API 34+) so the heartbeat and the
-        // WebSocket are not Doze-throttled — there is no FCM in this build. Idempotent; see BatteryExemption.
+        // WebSocket are not Doze-throttled — the push channel only exists where the server has a project.
+        // Idempotent; see BatteryExemption.
         runCatching { BatteryExemption.ensure(this) }
         // Safety net for the Device-Owner baseline (a no-op once applied): covers phones provisioned through a path
         // that skipped it - the older QR flow of agents up to 0.9.8, or a maker that dropped a provisioning callback.
@@ -59,5 +61,7 @@ class MdmApplication : Application(), Configuration.Provider {
         runCatching { com.dallycontrol.agent.provisioning.EnrollPrompt.watch(this) }
         // Mobile-data policy: resume the limits' clock and the network watch of the local VPN (no-op when not managed).
         runCatching { mobileData.get().start() }
+        // Push wake channel: bring the stored registration back up (a no-op without a project or Google).
+        wakeChannel.onStart()
     }
 }

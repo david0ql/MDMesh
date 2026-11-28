@@ -67,6 +67,24 @@ public class DcPolicy {
     private com.hmdm.rest.json.agent.DesiredDevice device;
     /** Mobile data per app: which apps may use it, and the data limits of the period (see {@link MobileDataPolicy}). */
     private MobileData mobileData;
+    /** Backup check-in schedule of the phones (how often they ask for commands when the live channel is closed). */
+    private Wake wake;
+
+    /** Sent to the agent with each check-in answer, not inside the desired-state document. */
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Wake {
+        /** Minutes between backup check-ins (1–15; the agent's default is 5). */
+        private Integer pollMinutes;
+        /** Minutes between check-ins during the fast window after activity on the phone (1–5; default 2). */
+        private Integer fastPollMinutes;
+        /** Minutes the fast window lasts (0 = off, up to 60; default 10). */
+        private Integer fastWindowMinutes;
+        /** Alarm-clock alarms: never deferred in deep sleep, but the phone shows the alarm icon. */
+        private Boolean alarmClock;
+    }
 
     /**
      * {@code mode}: {@code open} | {@code blocklist} (the {@code apps} are Wi-Fi only) | {@code allowlist} (only the
@@ -279,7 +297,7 @@ public class DcPolicy {
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
                 && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
                 && remoteSupport == null && permissions == null
-                && wifiRules == null;
+                && wifiRules == null && wake == null;
     }
 
     private DcPolicy cleaned() {
@@ -377,6 +395,14 @@ public class DcPolicy {
         c.permissions = AppPermissionRules.cleaned(permissions);
         c.hardware = HardwarePolicy.clean(hardware, true);
         c.remoteSupport = remoteSupport == null ? null : remoteSupport.cleaned();
+        if (wake != null) {
+            Wake w = new Wake();
+            w.pollMinutes = within(wake.pollMinutes, 1, 15);
+            w.fastPollMinutes = within(wake.fastPollMinutes, 1, 5);
+            w.fastWindowMinutes = within(wake.fastWindowMinutes, 0, 60);
+            w.alarmClock = Boolean.TRUE.equals(wake.alarmClock) ? Boolean.TRUE : null;
+            c.wake = w.pollMinutes == null && w.fastPollMinutes == null && w.fastWindowMinutes == null && w.alarmClock == null ? null : w;
+        }
         return c;
     }
 
@@ -424,6 +450,10 @@ public class DcPolicy {
     private static boolean containsControl(String s) {
         for (int i = 0; i < s.length(); i++) if (Character.isISOControl(s.charAt(i))) return true;
         return false;
+    }
+
+    private static Integer within(Integer v, int min, int max) {
+        return v != null && v >= min && v <= max ? v : null;
     }
 
     private static String lower(String s) {

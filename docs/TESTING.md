@@ -793,3 +793,23 @@ Android 13+ a static IP dropped the proxy; a network saved while the radio was s
 (Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
 earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
 ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
+
+## Second wake channel (push FCM, backup polling) — MDM-07
+
+Full description, the steps to load a real Firebase project and the measured latencies: [DESPERTADOR-FCM.md](DESPERTADOR-FCM.md).
+No Firebase credentials are needed to test: Google's side is simulated.
+
+```bash
+# unit: fake FCM v1 service (when a push goes out, to which token, retries, debounce) and the agent's schedule
+mvn -q -pl common,server -am test -Dtest='FcmClientTest,PushWakerTest' -Dsurefire.failIfNoSpecifiedTests=false
+(cd agent-android && ./gradlew :core:testDebugUnitTest --tests '*Wake*')
+
+# end to end on an emulator: point the stack at the simulator, enroll THROUGH its gate, measure
+scripts/wake-latency-e2e.py env --port 8126 > /tmp/fcm-sim.env          # export these before `docker compose up`
+scripts/wake-latency-e2e.py sim --port 8126 --upstream 127.0.0.1:8088 &
+scripts/adb-enroll.sh --server http://10.0.2.2:8126 --api-url http://localhost:8088 --apk app-debug.apk --debug-build --admin-user admin
+scripts/wake-latency-e2e.py run --api http://localhost:8088 --sim http://127.0.0.1:8126 --serial emulator-5554 \
+    --device-id <device number> --md-out /tmp/latencias.md
+DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wake-console-e2e.mjs --api http://localhost:8088 \
+    --device-id <numeric id> --device <device number> --config <configuration id> --sim http://127.0.0.1:8126
+```

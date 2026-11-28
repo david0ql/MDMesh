@@ -118,6 +118,14 @@ public class AgentResource {
                 baseUrl != null && baseUrl.startsWith("http://"));
     }
 
+    private com.hmdm.notification.push.WakeCheckIn wakeCheckIn;
+
+    /** The second wake channel (push token, backup check-in schedule); method injection: an optional collaborator. */
+    @Inject
+    public void setWakeSupport(com.hmdm.notification.push.WakeCheckIn wakeCheckIn) {
+        this.wakeCheckIn = wakeCheckIn;
+    }
+
     /**
      * Stores what the device looked like at this report (screen, network) and whatever its agent explains about its
      * connection; a newly reported failure or silence also goes to the device timeline. Never fails the check-in.
@@ -545,6 +553,8 @@ public class AgentResource {
 
         // Connection diagnostics (optional block) + screen/network as of this report.
         recordConnection(deviceNumber, request);
+        // How this phone can be woken (push token…); also the answer to a push still waiting for one.
+        if (wakeCheckIn != null) wakeCheckIn.record(deviceNumber, request.getWake());
 
         // Persist the latest device-state snapshot (powers the admin console).
         String appliedRevision = validRevision(deviceNumber,
@@ -754,6 +764,7 @@ public class AgentResource {
 
         AgentCheckInResponse checkInResponse = new AgentCheckInResponse(commands);
         if (!backupUrls.isEmpty()) checkInResponse.setBackupUrls(backupUrls);
+        if (wakeCheckIn != null) checkInResponse.setWake(wakeCheckIn.configFor(device));
         return Response.OK(checkInResponse);
     }
 

@@ -58,6 +58,8 @@ public class AgentCheckInRequest {
 
     /** Connection diagnostics since the agent's last delivered report (optional; agents up to 0.9.8 omit it). */
     private AgentConnectionReport connection;
+    /** How the agent can be woken (push token, battery exemption…); optional, agents before the push channel omit it. */
+    private AgentWakeReport wake;
 
     public AgentCheckInRequest() {
     }

@@ -4,44 +4,70 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import java.util.concurrent.TimeUnit
+import android.util.Log
+import com.dallycontrol.agent.MainActivity
+import com.dallycontrol.agent.wake.WakeChannel
+import com.dallycontrol.agent.wake.WakeStates
+import com.dallycontrol.core.wake.WakeSchedule
 
 /**
- * Doze-proof reconcile heartbeat. WorkManager's periodic floor gets deferred in deep Doze, and a
- * parked device's WebSocket can be suspended — so we also schedule an [AlarmManager] alarm with
- * `setAndAllowWhileIdle`, which fires during Doze maintenance windows (throttled to ~once / 9 min)
- * WITHOUT needing the exact-alarm permission. Each firing triggers a check-in (see
- * [KeepAliveReceiver]) and reschedules the next one.
+ * Doze-proof backup check-in. WorkManager's periodic floor gets deferred in deep Doze, the socket can be suspended
+ * and the push channel does not exist on every phone — so an [AlarmManager] alarm also fires a check-in (see
+ * [KeepAliveReceiver]) and reschedules itself.
+ *
+ * **Pace.** [WakeSchedule]: the policy's base pace (5 min by default) and a faster one for a while after activity
+ * on the phone.
+ *
+ * **Kind of alarm**, best first:
+ *  1. `setAlarmClock` when the policy asks for it: the only alarm Android never defers — it even leaves Doze
+ *     shortly before — at the price of the alarm icon in the status bar.
+ *  2. `setExactAndAllowWhileIdle` when exact alarms are allowed (always before Android 12; from Android 13 through
+ *     `USE_EXACT_ALARM`, which this sideloaded management agent declares; or when battery-exempt). Fires on time
+ *     outside Doze; inside deep Doze Android still spaces these out (about one per 9 min per app).
+ *  3. `setAndAllowWhileIdle` otherwise: same Doze spacing, and outside Doze Android may batch it a little.
  */
 object WakeKeepAlive {
 
+    private const val TAG = "WakeKeepAlive"
     private const val REQUEST_CODE = 0x57414B45 // "WAKE"
-    // 5 min, not 10: the console counts a device as connected for 20 min after its last report, and with a
-    // 10-minute beat a single deferred alarm already crossed that line. Android stretches this on its own in deep
-    // Doze (about 9 min before Android 12, a per-hour quota after), so asking for 5 costs little there.
-    private const val INTERVAL_MINUTES = 5L
-    private val INTERVAL_MS = TimeUnit.MINUTES.toMillis(INTERVAL_MINUTES)
+    private const val SHOW_REQUEST_CODE = 0x57414B46
 
-    /** Schedule the next heartbeat. Idempotent (FLAG_UPDATE_CURRENT replaces any pending alarm). */
+    /** Schedule the next beat from now. Idempotent (FLAG_UPDATE_CURRENT replaces any pending alarm). */
     fun schedule(context: Context) {
+        val state = WakeStates.get(context)
+        val plan = runCatching { state.plan() }
+            .getOrDefault(WakeSchedule.Plan(WakeSchedule.DEFAULT_POLL_MINUTES * WakeSchedule.MINUTE_MS, fast = false))
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val triggerAt = System.currentTimeMillis() + INTERVAL_MS
+        val triggerAt = System.currentTimeMillis() + plan.delayMs
         val pi = pendingIntent(context)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        } else {
-            am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+        val exact = WakeChannel.exactAlarmsAllowed(context)
+        val alarmClock = exact && runCatching { state.config?.alarmClock == true }.getOrDefault(false)
+        runCatching {
+            when {
+                alarmClock -> am.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, showIntent(context)), pi)
+                exact -> am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                else -> inexact(am, triggerAt, pi)
+            }
+        }.onFailure {
+            // The exact-alarm permission was withdrawn between the check and the call: keep the heartbeat anyway.
+            Log.w(TAG, "exact alarm refused, falling back", it)
+            runCatching { inexact(am, triggerAt, pi) }
         }
+    }
+
+    private fun inexact(am: AlarmManager, triggerAt: Long, pi: PendingIntent) {
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
     }
 
     private fun pendingIntent(context: Context): PendingIntent {
         val intent = Intent(context, KeepAliveReceiver::class.java)
         // Alarm broadcast carries no result extras, so IMMUTABLE is correct here.
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
-        }
-        return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags)
+        return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags())
     }
+
+    /** What tapping the alarm icon opens (only with `setAlarmClock`): the agent's status screen. */
+    private fun showIntent(context: Context): PendingIntent =
+        PendingIntent.getActivity(context, SHOW_REQUEST_CODE, Intent(context, MainActivity::class.java), flags())
+
+    private fun flags(): Int = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
 }

@@ -26,6 +26,10 @@ retrofitSerialization = "1.0.0"
 okhttp = "4.12.0"
 kotlinxSerialization = "1.7.1"
 kotlinxCoroutines = "1.8.1"
+# Push wake channel. Pinned (no BoM, no google-services plugin): FirebaseApp is initialized by hand at run time.
+# Held on purpose at the version measured and tested with this build's AGP/Kotlin; bump it with the toolchain.
+#noinspection GradleDependency
+firebaseMessaging = "24.1.0"
 
 # QR decoding for the agent's own enrollment scanner (3.3.x is the last line that runs on Android 6 without desugaring)
 zxing = "3.3.2"
@@ -76,6 +80,9 @@ okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver",
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+
+# Push wake channel (Firebase Cloud Messaging)
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

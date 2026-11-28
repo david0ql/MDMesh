@@ -114,6 +114,8 @@ dependencies {
 
     // The agent's own enrollment QR scanner (EnrollScanActivity)
     implementation(libs.zxing.core)
+    // Push wake channel (docs/DESPERTADOR-FCM.md). The library alone: no analytics, no google-services plugin.
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

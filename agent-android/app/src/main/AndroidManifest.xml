@@ -28,6 +28,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Keep the wake channel reachable while parked (request battery-optimization exemption). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Backup check-in alarm on time (WakeKeepAlive). Up to Android 12L the first is granted at install; from
+         Android 13 USE_EXACT_ALARM is (no dialog) - reserved by Google Play to alarm/calendar apps, which does not
+         bind a sideloaded Device Owner agent. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!-- Telemetry census (maximized; DO auto-grants the dangerous ones at provisioning). -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -388,6 +393,29 @@
             android:taskAffinity="com.dallycontrol.agent.support.capture"
             android:lockTaskMode="if_whitelisted" />
 
+        <!-- Push wake channel (Firebase Cloud Messaging): a signal-only message that makes the agent check in. The
+             project's values come from the server at run time (PushRegistrar), so there is no google-services.json and
+             the library's own start-up provider, which would look for one, is removed. -->
+        <service
+            android:name=".wake.PushWakeService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            tools:node="remove" />
+        <!-- Simulates the arrival of the push wake, for field checks and tests. Shell only (DUMP), like ADB enrollment. -->
+        <receiver
+            android:name=".wake.PushTestReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="com.dallycontrol.agent.PUSH_TEST" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
