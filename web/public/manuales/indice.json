@@ -142,7 +142,7 @@
    "descripcion": "Todos los métodos para inscribir un equipo Android, qué exige cada versión y qué hacer cuando la inscripción no termina.",
    "publico": "Administradores de la consola y técnicos que preparan los equipos",
    "paginas": 17,
-   "kb": 950,
+   "kb": 994,
    "secciones": [
     {
      "id": "antes",
@@ -266,7 +266,7 @@
    "descripcion": "Por cada síntoma: la causa probable, cómo verificarla en la consola y cómo resolverla. Incluye preguntas frecuentes.",
    "publico": "Administradores de la consola, mesa de ayuda y técnicos de campo",
    "paginas": 18,
-   "kb": 826,
+   "kb": 827,
    "secciones": [
     {
      "id": "diagnostico",

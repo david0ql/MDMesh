@@ -56,9 +56,10 @@ Para tomarlas: enrolar un emulador en el stack (`scripts/adb-enroll.sh`), agrega
 - **Teléfono físico.** Nada de lo documentado se probó en teléfono físico. La lista por tema está en «Notas de
   versión» §4; el protocolo de 10 minutos por modelo, en el anexo de la «Guía de enrolamiento». Al tener resultados,
   actualizar la tabla de Enrolamiento §10 y las Notas.
-- **QR en Android 11 a 17 y Play Protect.** Sin corrida válida en emulador; Play Protect sin probar en ninguna
-  versión. Consola (pestaña «Por cable (USB)») y manuales dicen ahora lo mismo: en Android 15 y 16 el QR «puede
-  requerir» el cable. Cambiar ambos textos cuando haya evidencia.
+- **QR y Play Protect.** El QR quedó probado en emulador en Android 7 a 17 (2026-11-28, docs/TESTING.md); Play
+  Protect sigue sin probar en ninguna versión. Consola (pestaña «Por cable (USB)») y manuales dicen lo mismo: en
+  teléfono físico con Android 15 o superior el QR «puede requerir» el cable. PDF de 02, 03, 04, 06 y 07
+  regenerados el 2026-11-28; `docs/guides/DallyControl-Guia-Enrolamiento.pdf` no (solo cambió una etiqueta de su fuente).
 - **Soporte remoto.** En emulador no pasó «escribir texto a través de la sesión» (causa sin confirmar) y no se probó
   en Android 7 a 10 ni en quiosco. El manual lo dice en la leyenda del capítulo 15.
 - **Depuración USB, dos controles.** La política tiene «Depuración USB y opciones de desarrollador» (Funciones del
