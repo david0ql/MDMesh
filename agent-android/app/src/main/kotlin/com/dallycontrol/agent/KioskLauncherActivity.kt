@@ -261,8 +261,10 @@ class KioskLauncherActivity : ComponentActivity() {
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             hint = getString(R.string.kiosk_exit_password)
             contentDescription = "kiosk-exit-password"
+            maxLines = 1
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.kiosk_exit_title)
             .setView(input)
             .setPositiveButton(R.string.kiosk_exit_confirm) { _, _ ->
@@ -277,6 +279,11 @@ class KioskLauncherActivity : ComponentActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        // "Done" / Enter on the keyboard confirms, like the button.
+        input.setOnEditorActionListener { _, _, _ ->
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)?.performClick()
+            true
+        }
     }
 
     /** Every exit attempt reaches the console: the exit itself, a wrong password, a refused attempt. */

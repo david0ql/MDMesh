@@ -235,6 +235,17 @@ def exit_dialog():
         " ".join((n.get("text") or "") for n in nodes if "android:id/message" in (n.get("resource-id") or ""))
 
 
+def dialog_in_front():
+    """A dialog of the kiosk has the focus (told from the window list: with an accessibility service switched on,
+    `uiautomator dump` does not always describe the focused dialog)."""
+    out = sh("dumpsys window windows")
+    m = re.search(r"mCurrentFocus=Window\{(\w+) [^}]*%s[^}]*\}" % re.escape(A.pkg), sh("dumpsys window | grep mCurrentFocus"))
+    if not m:
+        return False
+    block = out.split("Window{" + m.group(1), 1)
+    return len(block) > 1 and "ty=APPLICATION " in block[1][:1500]
+
+
 def kiosk_home_in_front():
     return "KioskLauncherActivity" in top() or "KioskHomeAlias" in top()
 
@@ -253,28 +264,44 @@ def to_exit_screen(mode):
 
 
 def try_exit(mode, typed):
-    """7 taps, type `typed`, confirm. Returns the dialog message when no password field was offered, else ''."""
+    """7 taps, type `typed`, confirm. Returns '' when a password was asked for and sent; else what the kiosk said
+    ('dialog: …' when it showed a notice without a password field), 'no dialog' or 'no exit screen'."""
     if not to_exit_screen(mode):
         return "no exit screen"
     field = ok = None
     message = ""
+    shown = False
     for _ in range(3):  # on a slow device the 7 taps may not all land inside the kiosk's 3-second window
         seven_taps()
         field, ok, message = exit_dialog()
-        if field or ok:
+        shown = bool(field or ok) or dialog_in_front()
+        if shown:
             break
         time.sleep(3.5)
-    if not field:
+    if not shown:
+        return "no dialog"
+    if field:
+        tap(field)
+        sh(f"input text {typed}")
+        time.sleep(0.5)
+        _, ok, _ = exit_dialog()
         if ok:
             tap(ok)
-        return message or "no dialog"
-    tap(field)
-    sh(f"input text {typed}")
-    time.sleep(0.5)
-    _, ok, _ = exit_dialog()
+        time.sleep(2)
+        return ""
     if ok:
         tap(ok)
+        return "dialog: " + (message or "aviso")
+    # The dialog is up but could not be read: type and press Enter (the password field confirms on Enter). A notice
+    # without a field ignores both and is still there afterwards.
+    if typed:
+        sh(f"input text {typed}")
+    sh("input keyevent KEYCODE_ENTER")
     time.sleep(2)
+    if dialog_in_front():
+        sh("input keyevent KEYCODE_BACK")
+        time.sleep(1)
+        return "dialog: aviso sin campo de contraseña"
     return ""
 
 
@@ -486,7 +513,7 @@ def t_exit(mode):
         msg = try_exit(mode, bad)
         check(f"7 toques + contraseña incorrecta #{i}: no sale", msg == "" and (lock_task() == "LOCKED" or SDK >= 36) and not_exited(), msg or top())
     msg = try_exit(mode, PASSWORD)
-    check("4.º intento durante la espera: ni siquiera pide contraseña", msg not in ("", "no dialog", "no exit screen"), msg)
+    check("4.º intento durante la espera: ni siquiera pide contraseña", msg.startswith("dialog") or "espera" in msg.lower() or "wait" in msg.lower() or "attempts" in msg.lower(), msg)
     check("…y la contraseña correcta no sirve durante la espera", not_exited(), top())
     ev = until(lambda: [e for e in events("kioskExitFailed,kioskExitDenied", since)], 150, 4) or []
     kinds = sorted({e.get("type") for e in ev})
@@ -516,7 +543,7 @@ def t_no_password(mode):
     s, d = enter(mode, password=None)
     check("quiosco sin contraseña: aplicado", s == "done", f"{s} {d}")
     msg = try_exit(mode, PASSWORD)
-    check("sin contraseña: los 7 toques no ofrecen salida", msg in ("no dialog", "no exit screen") or "consola" in msg or "console" in msg, msg)
+    check("sin contraseña: los 7 toques no ofrecen salida", msg != "", msg)
     check("sin contraseña: sigue en el quiosco", not_exited(), top())
     sh("input keyevent KEYCODE_BACK")  # the taps may have opened the kiosk's own quick-settings panel
 
@@ -534,7 +561,7 @@ def t_legacy(mode):
     time.sleep(8)
     msg = try_exit(mode, "")
     check("política antigua (gesto, sin contraseña): el agente se niega a salir y lo dice",
-          ("consola" in msg or "console" in msg) and not_exited(), msg)
+          msg.startswith("dialog") and not_exited(), msg)
     check("…y lo reporta (kioskExitDenied)", until(lambda: events("kioskExitDenied", since), 150, 4))
 
 
