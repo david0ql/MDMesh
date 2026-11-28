@@ -114,7 +114,10 @@ public class SchemaDriftTest {
             c.setAutoCommit(true);
             for (MappedStatement ms : statements.values()) {
                 String sql = render(ms);
-                if (sql == null) {
+                // The table name of these statements is substituted as text (${table}) from a fixed list in code;
+                // rendered without arguments it is empty, so the parser would report a missing relation that is
+                // only the alias. Each table of that list is covered by its own mapper's statements.
+                if (sql == null || TABLE_BY_SUBSTITUTION.contains(ms.getId())) {
                     skipped.add(ms.getId());
                     continue;
                 }
@@ -147,6 +150,9 @@ public class SchemaDriftTest {
     }
 
     /** The statement's SQL with JDBC placeholders, rendered with null arguments; null when it cannot be rendered. */
+    private static final java.util.Set<String> TABLE_BY_SUBSTITUTION = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.hmdm.persistence.mapper.AuditTrailMapper.rowJson"));
+
     private static String render(MappedStatement ms) {
         List<Object> candidates = new ArrayList<>();
         candidates.add(new AnyParams());
