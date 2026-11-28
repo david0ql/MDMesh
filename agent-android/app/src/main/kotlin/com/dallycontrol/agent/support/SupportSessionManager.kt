@@ -509,7 +509,11 @@ class SupportSessionManager @Inject constructor(
     @Suppress("CyclomaticComplexMethod", "ReturnCount") // four kinds of input, each validated before use
     private fun input(type: String, m: JsonObject) {
         if (type == "wake") { wakeScreen(); return }
-        val service = SupportAccessibilityService.instance ?: return
+        val service = SupportAccessibilityService.instance
+        if (service == null) {
+            Log.i(TAG, "input $type dropped: the screen service is not connected")
+            return
+        }
         when (type) {
             "tap" -> {
                 val x = m.num("x") ?: return
@@ -526,8 +530,10 @@ class SupportSessionManager @Inject constructor(
                 }.orEmpty().take(MAX_SWIPE_POINTS)
                 if (pts.size >= 2) service.gesture(pts)
             }
-            "key" -> m.str("k")?.let { service.key(it) }
-            "text" -> m.str("s")?.takeIf { it.isNotEmpty() }?.let { service.type(it.take(MAX_TEXT)) }
+            "key" -> m.str("k")?.let { k -> if (!service.key(k)) Log.i(TAG, "key $k had no effect") }
+            "text" -> m.str("s")?.takeIf { it.isNotEmpty() }?.let {
+                if (!service.type(it.take(MAX_TEXT))) Log.i(TAG, "text not typed: no editable field has the focus")
+            }
         }
     }
 
@@ -552,6 +558,7 @@ class SupportSessionManager @Inject constructor(
     // --- chat ----------------------------------------------------------------------------------------------------
 
     private fun onChat(text: String) {
+        Log.i(TAG, "chat line from support (${text.length} chars); support screen visible=$screenVisible")
         chat += ChatLine(true, text.take(MAX_TEXT), System.currentTimeMillis())
         changed()
         // Always bring the support screen up (it is a no-op when it is already on top): relying on the screen's own

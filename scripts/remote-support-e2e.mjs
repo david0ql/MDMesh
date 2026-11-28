@@ -189,9 +189,9 @@ function supportScreen() {
   return { field, bubbles, first: inCall ? buttons[0] : null, second: inCall ? buttons[1] : null, send: buttons[buttons.length - 2] };
 }
 
-/** The session's ongoing notification is posted (not just its channel defined). */
+/** The session's own ongoing notification (id 7310) is posted: not its channel, nor Android's group summary of it. */
 function noticeShown() {
-  const re = new RegExp(`NotificationRecord\\([^\\n]*pkg=${pkg.replace(/\./g, '\\.')}[^\\n]*channel=dc_support\\b`);
+  const re = new RegExp(`NotificationRecord\\([^\\n]*pkg=${pkg.replace(/\./g, '\\.')} [^\\n]*id=7310 [^\\n]*channel=dc_support\\b`);
   return re.test(adb('shell', 'dumpsys', 'notification', '--noredact'));
 }
 
@@ -570,9 +570,150 @@ try {
     s.send({ t: 'clip.set', s: 'texto del portapapeles e2e' });
     const ok = await s.until(() => s.msg('clip.ok', from), 5000);
     check('console -> phone: clipboard text is set', ok?.ok === true);
+    // Back from the phone: Android 10+ only lets the app in front read the clipboard, so the support screen is
+    // brought up first (a chat line does that); from the background the agent offers the focused field's text.
+    s.send({ t: 'chat', s: 'portapapeles' });
+    for (let i = 0; i < 20 && !/support\.SupportActivity/.test(top()); i++) await sleep(500);
+    await sleep(1500);
+    const getFrom = Date.now();
+    s.send({ t: 'clip.get' });
+    const back = await s.until(() => s.msg('clip', getFrom), 8000);
+    check('phone -> console: the clipboard text comes back', back?.s === 'texto del portapapeles e2e', back ? `source=${back.source} "${back.s}"` : 'no answer');
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
   }
 } finally {
   await s.close();
+}
+
+// --- kiosk: a whole session with the phone locked in a kiosk ---------------------------------------------------------------
+//   --kiosk   after the other checks: single-app kiosk (Settings pinned) and the multi-app launcher kiosk; in each one a
+//             session shows the screen, a touch on the image acts inside the kiosk, a chat line opens the support screen
+//             over the kiosk and the reply typed there arrives, a call is answered on the phone, and the kiosk is still on.
+if (flag('--kiosk')) {
+  const command = async (type, payload) => {
+    const q = await rest('POST', `/private/agent/v1/devices/${device}/commands`, { type, payload: payload ? JSON.stringify(payload) : undefined });
+    const id = q.data?.id;
+    for (let i = 0; i < 60; i++) {
+      const row = ((await rest('GET', `/private/agent/v1/devices/${device}/commands?limit=20`)).data || []).find((c) => c.id === id);
+      if (row && ['done', 'failed', 'unsupported', 'expired'].includes(row.status)) return row;
+      await sleep(1000);
+    }
+    return { status: 'timeout' };
+  };
+  const lockTask = () => (adb('shell', 'dumpsys', 'activity', 'activities').match(/mLockTaskModeState=(\w+)/) || [])[1] || '';
+  const kiosks = [
+    ['single-app', { mode: 'single', pinPackage: 'com.android.settings', allowedPackages: ['com.android.settings'], exitMode: 'remote' }],
+    ['multi-app', { mode: 'launcher', allowedPackages: ['com.android.settings', 'com.android.chrome'] }],
+  ];
+  for (const [name, payload] of kiosks) {
+    const entered = await command('kiosk.enter', payload);
+    let state = '';
+    for (let i = 0; i < 20 && !/LOCKED|PINNED/.test(state); i++) { await sleep(500); state = lockTask(); }
+    if (!check(`kiosk ${name}: the phone is in the kiosk`, entered.status === 'done' && /LOCKED|PINNED/.test(state), `${entered.status} ${entered.detail || ''} ${state}`)) continue;
+    await sleep(2500);
+    const k = await new Session().open(false);
+    try {
+      const j = await k.until(() => k.msg('peer', 0, (m) => m.state === 'joined'), 30000);
+      k.send({ t: 'screen.start', maxDim: 960, quality: 55 });
+      const f = await k.until(() => k.frames[0], 30000);
+      check(`kiosk ${name}: unattended session, the screen is shown`, !!j && !!f, f ? `first image ${f.at - k.t0} ms` : (k.last('error') || {}).detail || 'no image');
+      await k.quiet(1500, 8000);
+      const before = top(); const n = k.frames.length;
+      // single-app: a Settings row; launcher: the first app tile of the kiosk's grid (found with uiautomator, else a guess)
+      const tile = name === 'multi-app' ? nodes(dumpUi()).find((x) => /Settings|Ajustes|Chrome/i.test(x.text)) : null;
+      await serviceBack();
+      if (tile) k.tapNode(tile, size); else k.send({ t: 'tap', x: 0.5, y: 0.36 });
+      let after = before;
+      for (let i = 0; i < 20 && after === before; i++) { await sleep(500); after = top(); }
+      check(`kiosk ${name}: a touch on the image acts on the phone`, after !== before && k.frames.length > n, `${before} -> ${after}`);
+      const line = `kiosco ${Date.now() % 100000}`;
+      k.send({ t: 'chat', s: line });
+      let scr = null;
+      for (let i = 0; i < 30 && !(scr && scr.bubbles > 0); i++) { await sleep(1000); scr = supportScreen(); }
+      check(`kiosk ${name}: a chat line opens the support screen over the kiosk`, !!scr && scr.bubbles > 0, top());
+      if (scr && scr.field) {
+        const answer = `desde-kiosco-${Date.now() % 100000}`;
+        const from = Date.now();
+        adbTap(scr.field);
+        await sleep(1200);
+        adb('shell', 'input', 'text', answer);
+        await sleep(1000);
+        adbTap(supportScreen()?.send || scr.send);
+        check(`kiosk ${name}: the reply typed on the phone arrives`, !!(await k.until(() => k.msg('chat', from, (m) => m.s === answer), 15000)));
+      }
+      const callFrom = Date.now();
+      k.audio = [];
+      k.send({ t: 'call.start', testTone: true });
+      let acc = null;
+      for (let i = 0; i < 25 && !acc && !k.msg('call.state', callFrom, (m) => m.s === 'active'); i++) { await sleep(1000); acc = supportScreen()?.first || null; }
+      if (acc && !k.msg('call.state', callFrom, (m) => m.s === 'active')) adbTap(acc);
+      const active = await k.until(() => k.msg('call.state', callFrom, (m) => m.s === 'active'), 20000);
+      await sleep(2500);
+      const heard = analyse(k.audio);
+      check(`kiosk ${name}: voice call accepted on the phone, its audio reaches the operator`, !!active && heard.rms > 3000, `level ${heard.rms}, ${heard.hz} Hz`);
+      k.send({ t: 'call.end' });
+      await sleep(1000);
+      check(`kiosk ${name}: the phone is still in the kiosk`, /LOCKED|PINNED/.test(lockTask()), lockTask());
+    } finally {
+      await k.close();
+      const left = await command('kiosk.exit');
+      let st = lockTask();
+      for (let i = 0; i < 20 && !/NONE/.test(st); i++) { await sleep(500); st = lockTask(); }
+      check(`kiosk ${name}: exit`, left.status === 'done' && /NONE/.test(st), `${left.status} ${st}`);
+      adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+      await sleep(1500);
+    }
+  }
+}
+
+// --- latency: N repetitions on a quiet machine ---------------------------------------------------------------------------
+//   --latency N   time to first image over N fresh sessions, and touch-to-image over N taps in one session
+const reps = Number(arg('--latency', '0'));
+if (reps > 0) {
+  const pct = (a, q) => { const v = [...a].sort((x, y) => x - y); return v.length ? v[Math.min(v.length - 1, Math.ceil(q * v.length) - 1)] : null; };
+  const firsts = []; const joins = [];
+  for (let i = 0; i < reps; i++) {
+    adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+    await sleep(1500);
+    const l = await new Session().open(false);
+    const j = await l.until(() => l.msg('peer', 0, (m) => m.role === 'device' && m.state === 'joined'), 30000);
+    l.send({ t: 'screen.start', maxDim: 960, quality: 55 });
+    const f = await l.until(() => l.frames[0], 30000);
+    if (j) joins.push(j.at - l.t0);
+    if (f) firsts.push(f.at - l.t0);
+    await l.close();
+    await sleep(1500);
+  }
+  const taps = [];
+  const l = await new Session().open(false);
+  try {
+    await l.until(() => l.msg('peer', 0, (m) => m.state === 'joined'), 30000);
+    l.send({ t: 'screen.start', maxDim: 960, quality: 55 });
+    await l.until(() => l.frames[0], 30000);
+    for (let i = 0; i < reps; i++) {
+      adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+      await sleep(2000);
+      await l.quiet(1500, 10000);
+      const n = l.frames.length; const at = Date.now();
+      l.send({ t: 'tap', x: 0.5, y: 0.36 });
+      const f = await l.until(() => (l.frames.length > n ? l.frames[n] : null), 6000);
+      if (f) taps.push(f.at - at);
+      await sleep(1200);
+      l.send({ t: 'key', k: 'back' });
+      await sleep(1200);
+    }
+    const st = l.last('screen.stats');
+    if (st) measures.captureLatencyRun = { captureMs: st.captureMs, encodeMs: st.encodeMs, intervalMs: st.intervalMs };
+  } finally { await l.close(); }
+  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
+  measures.latency = {
+    reps, hostLoad: os.loadavg().map((v) => +v.toFixed(1)),
+    joinMs: { p50: pct(joins, 0.5), p90: pct(joins, 0.9) },
+    firstImageMs: { n: firsts.length, p50: pct(firsts, 0.5), p90: pct(firsts, 0.9), all: firsts },
+    touchToImageMs: { n: taps.length, p50: pct(taps, 0.5), p90: pct(taps, 0.9), all: taps },
+  };
+  check(`first image < 10 s in ${reps} sessions (p90)`, firsts.length === reps && pct(firsts, 0.9) < 10000, `p50 ${pct(firsts, 0.5)} ms, p90 ${pct(firsts, 0.9)} ms`);
+  check(`touch to image < 1 s in ${reps} taps (p90)`, taps.length === reps && pct(taps, 0.9) < 1000, `p50 ${pct(taps, 0.5)} ms, p90 ${pct(taps, 0.9)} ms`);
 }
 
 // --- view-only: input must not reach the phone ---------------------------------------------------------------------------
