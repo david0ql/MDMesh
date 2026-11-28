@@ -369,6 +369,23 @@ Lectura de la tabla:
   estado del refuerzo (interruptor del quiosco) no se probó en navegador: solo compila; el evento que lo alimenta sí
   se verificó en las tres versiones.
 
+### Corridas estilo QR (vigilante por servicio de pantalla), 2026-11-27 noche
+
+La tabla de arriba es de la corrida con enrolamiento por cable y vigilante por acceso de uso. Con `QR_STYLE=1` (sin
+acceso de uso ni `WRITE_SECURE_SETTINGS`, primero sin el toque y luego con el toque simulado) se alcanzó a correr:
+
+| Versión | Resultado | Notas |
+|---|---|---|
+| Android 10 | 102 pasan, 0 fallan | Con el commit «guard also checks the window in front». Sin el toque: `needsAuthorization`, pantalla y franja de autorización, una app permitida abre Ajustes; con el toque: vuelve al quiosco. |
+| Android 16 | 102 pasan, 2 fallan | Mismo commit. Los 2 fallos: la pantalla de autorización tardó en aparecer (corregido después, sin repetir la corrida completa). Sin el toque: Ajustes abre por `am start` y desde una app permitida. |
+| Android 15 | 97 pasan, 5 fallan | Los 5 son de la herramienta: con el servicio de pantalla encendido `uiautomator dump` no describe el diálogo en primer plano. Comprobado a mano que el diálogo de salida aparece y que el ícono abre la app tras un inicio bloqueado (queda encima el aviso «app no disponible» de Android hasta cerrarlo). |
+
+**Sin validar en emulador:** los tres últimos cambios del agente (pedir la autorización en cuanto el quiosco sabe que
+falta, Enter confirma la contraseña de salida, y que el re-refuerzo no corra tras salir del quiosco: en la última
+corrida de Android 16 la salida con contraseña correcta falló por esa carrera, provocada por `uiautomator` al
+suspender el servicio) y el interruptor «Bloqueo nativo en Android 16+». Tampoco se probó en navegador el aviso
+«Falta autorización» ni su botón.
+
 ### Solo en teléfono físico
 
 - Android 16 en Samsung (A17 y similares): que el quiosco suave no reinicia el equipo, que la barra de estado queda
