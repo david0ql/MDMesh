@@ -779,7 +779,8 @@ The emulator only has an open network (`AndroidWifi`), so association is real fo
 saved configuration. Authentication against WPA2/WPA3/802.1X needs an access point: WIFI.md, "Con un punto de acceso
 real".
 
-Result (2026-11-27, own stack + debug agent after merging `integration/mobicontrol`, clean emulators, host load 15–30):
+Result (2026-11-27, own stack + debug agent after merging `integration/mobicontrol`, clean emulators; run twice, on two
+successive merges of the base branch, host load 2–30, same numbers both times):
 
 | Emulator | Checks | Not applicable there (reported by the agent, not failures) |
 |---|---|---|
