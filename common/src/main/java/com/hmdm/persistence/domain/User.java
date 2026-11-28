@@ -46,6 +46,10 @@ public class User implements CustomerData, Serializable {
     @ApiModelProperty("A name of a user")
     private String name;
     @ApiModelProperty("A password of a user (Salted SHA1 hash)")
+    // SECRETS. The password hash, the session token, the reset token, the external-auth data and the two-factor secret
+    // are accepted in a request body (a password change sends oldPassword / newPassword) but are NEVER written into a
+    // response: their properties are write-only for JSON, whatever resource returns a User. UserSecretsJsonTest
+    // serialises a fully populated user and fails if any of them shows up.
     private transient String password;
     @ApiModelProperty(hidden = true)
     private int customerId;
@@ -126,6 +130,7 @@ public class User implements CustomerData, Serializable {
         this.name = name;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getPassword() {
         return this.password;
     }
@@ -134,6 +139,7 @@ public class User implements CustomerData, Serializable {
         this.password = password;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getOldPassword() {
         return oldPassword;
     }
@@ -158,6 +164,7 @@ public class User implements CustomerData, Serializable {
         this.oldPassword = oldPassword;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getNewPassword() {
         return newPassword;
     }
@@ -218,6 +225,7 @@ public class User implements CustomerData, Serializable {
         this.passwordReset = passwordReset;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getAuthToken() {
         return authToken;
     }
@@ -226,6 +234,7 @@ public class User implements CustomerData, Serializable {
         this.authToken = authToken;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getPasswordResetToken() {
         return passwordResetToken;
     }
@@ -234,6 +243,7 @@ public class User implements CustomerData, Serializable {
         this.passwordResetToken = passwordResetToken;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getAuthData() {
         return authData;
     }
@@ -242,6 +252,7 @@ public class User implements CustomerData, Serializable {
         this.authData = authData;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getTwoFactorSecret() {
         return twoFactorSecret;
     }

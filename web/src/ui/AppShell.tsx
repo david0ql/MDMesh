@@ -77,8 +77,9 @@ const NAV: NavEntry[] = [
   { to: '/roles', label: 'Roles', Icon: IconRoles, adminOnly: true, perm: 'settings' },
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true, perm: 'settings' },
   { to: '/geofences', label: 'Geocercas', Icon: IconZone, perm: 'manage_fleet' },
-  { to: '/audit', label: 'Auditoría', Icon: IconAudit, perm: 'view_audit' },
   { to: '/soporte', label: 'Sesiones de soporte', Icon: IconSupport },
+  // Auditoría closes the list of modules (only Ayuda, which is not a module, comes after it).
+  { to: '/audit', label: 'Auditoría', Icon: IconAudit, perm: 'view_audit' },
   { to: '/ayuda', label: 'Ayuda', Icon: IconHelp },
 ];
 

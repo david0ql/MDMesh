@@ -813,3 +813,11 @@ scripts/wake-latency-e2e.py run --api http://localhost:8088 --sim http://127.0.0
 DALLYCONTROL_ADMIN_PASSWORD=admin node scripts/wake-console-e2e.mjs --api http://localhost:8088 \
     --device-id <numeric id> --device <device number> --config <configuration id> --sim http://127.0.0.1:8126
 ```
+
+Closing run on the merged tree (2026-11-27, no emulator; own light stack started from existing images with this
+tree's WAR and web build, a device record as fixture): `roles-matrix-e2e.py` 19 permissions, 290 calls, 324/324 (now
+also mobile data, hardware and ports, app permissions, remote support, cancel a command, FRP defaults and Wi-Fi
+certificates); `audit-console-e2e.mjs` 56/56 (adds: no user answer carries a password hash or token, the retention
+panel stays hidden while the viewer's scope is unknown, the "Campo" column keeps a field name on one line, opening a
+role card does not stretch the others, one matrix row per permission the server checks). `UserSecretsJsonTest`
+guards the JSON of every answer that carries a user.
