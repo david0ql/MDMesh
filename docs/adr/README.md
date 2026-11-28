@@ -13,3 +13,4 @@ Short records of consequential, hard-to-reverse decisions. Format: Status · Con
 | [0007](0007-monorepo.md) | Monorepo layout | Accepted |
 | [0008](0008-licensing-and-rebrand.md) | Licensing & rebrand (Apache-2.0 base) | Accepted |
 | [0009](0009-agent-v1-contract-stability.md) | Agent v1 wire-contract stability (additive-only, CI-gated) | Accepted |
+| [0012](0012-remote-support-in-agent.md) | Remote support inside the agent: screen, touch, voice, chat and files over one session channel | Accepted |

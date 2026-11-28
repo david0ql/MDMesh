@@ -1,3 +1,4 @@
+import { DevicePermissionsPanel } from '../components/DevicePermissionsPanel';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveDevices } from '../ui/live';
 import { connectionLabel, useConnectionStates } from '../ui/connection';
@@ -37,7 +38,9 @@ import { AuditActivity } from '../components/AuditActivity';
 import { useAuth } from '../auth/AuthContext';
 import { hasPermission } from '../api/auth';
 
-type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'activity';
+import { HardwarePanel } from '../components/HardwarePanel';
+
+type Tab = 'control' | 'remote' | 'diag' | 'apps' | 'updates' | 'history' | 'usage' | 'storage' | 'telemetry' | 'events' | 'location' | 'activity' | 'hardware' | 'permissions';
 
 interface Row {
   k: string;
@@ -521,6 +524,12 @@ export function DeviceDetailPage() {
                 Actividad
               </button>
             )}
+            <button className={tab === 'permissions' ? 'on' : ''} onClick={() => setTab('permissions')}>
+              Permisos
+            </button>
+            <button className={tab === 'hardware' ? 'on' : ''} onClick={() => setTab('hardware')} data-testid="tab-hardware">
+              Restricciones
+            </button>
           </div>
 
           <div className="tabbody">
@@ -544,6 +553,8 @@ export function DeviceDetailPage() {
             {tab === 'events' && <EventTimeline device={device} />}
             {tab === 'location' && <LocationPanel device={device} />}
             {tab === 'activity' && canSeeAudit && <AuditActivity device={device.number} />}
+            {tab === 'permissions' && <DevicePermissionsPanel device={device} />}
+            {tab === 'hardware' && <HardwarePanel device={device} />}
           </div>
         </section>
       </div>

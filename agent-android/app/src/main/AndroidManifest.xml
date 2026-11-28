@@ -2,8 +2,8 @@
 <!--
     Base app manifest. PERMISSION MINIMIZATION (Play Protect):
       * NO READ_SMS, NO QUERY_ALL_PACKAGES.
-      * NO accessibility (that lives ONLY in :remote and merges in for builds
-        that include it).
+      * ONE accessibility service, for remote support only (ADR 0012): it captures
+        and injects during a support session and reads no app's events.
       * Package visibility is scoped via <queries>, not a blanket query-all.
     Identity is the server-issued device id; we never request phone-state / IMEI.
 -->
@@ -78,6 +78,13 @@
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Remote support through the agent itself (ADR 0012): the voice call (microphone, granted by the Device Owner),
+         its foreground service types, and waking the screen for an unattended session. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <queries>
         <!-- droidVNC-NG: remote view/control app this DPC deploys and drives (ADR 0010). -->
         <package android:name="net.christianbeier.droidvnc_ng" />
@@ -324,6 +331,62 @@
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
+
+        <!-- Remote support through the agent itself (ADR 0012). The screen service is the agent's ONE accessibility
+             service: it captures the screen and replays the operator's touches during a support session, and listens
+             to nothing but System UI window changes. Switched on once (by the agent with WRITE_SECURE_SETTINGS, or by
+             one tap on RemoteSetupActivity after a QR enrollment); disabled as a component when the policy chooses
+             droidVNC-NG only. -->
+        <service
+            android:name=".support.SupportAccessibilityService"
+            android:exported="true"
+            android:label="@string/support_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/support_screen_service" />
+        </service>
+
+        <!-- Live support session: microphone for the voice call, screen capture on Android 10. -->
+        <service
+            android:name=".support.SupportForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaProjection|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Device Owner MDM agent: shows that a remote-support session of the organization is in progress on this managed device." />
+        </service>
+
+        <!-- Chat and voice call with support; opens by itself, also in kiosk and over the lock screen. -->
+        <activity
+            android:name=".support.SupportActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.dallycontrol.agent.support"
+            android:windowSoftInputMode="adjustResize"
+            android:lockTaskMode="if_whitelisted" />
+
+        <!-- The one guided step of a QR enrollment: switch the screen service on. -->
+        <activity
+            android:name=".support.RemoteSetupActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.dallycontrol.agent.support.setup"
+            android:lockTaskMode="if_whitelisted" />
+
+        <!-- Invisible: asks Android for the screen capture on Android 7-10 (the service answers the consent). -->
+        <activity
+            android:name=".support.ProjectionRequestActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity="com.dallycontrol.agent.support.capture"
+            android:lockTaskMode="if_whitelisted" />
 
     </application>
 

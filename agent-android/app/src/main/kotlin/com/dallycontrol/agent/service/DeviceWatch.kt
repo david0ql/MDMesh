@@ -49,6 +49,7 @@ class DeviceWatch @Inject constructor(
     private val deviceRules: com.dallycontrol.agent.policy.DeviceRules,
     private val sounds: com.dallycontrol.agent.diag.SoundWatch,
     private val kioskApplier: com.dallycontrol.core.kiosk.KioskApplier,
+    private val permissions: com.dallycontrol.agent.policy.AndroidPermissionEnforcer,
 ) {
     private var trailJob: Job? = null
     private var registered: Context? = null
@@ -62,6 +63,9 @@ class DeviceWatch @Inject constructor(
                 runCatching { vnc.prepare() }.onFailure { Log.w(TAG, "droidVNC-NG prepare", it) }
                 CheckInWorker.scheduleNow(context)
             }
+            // An app that arrives (installed by the console, the store or by hand, or updated) gets its permission
+            // rules at once, so it opens without a permission dialog.
+            if (intent.action == Intent.ACTION_PACKAGE_ADDED) permissions.reenforceAsync(pkg)
             // The update trail: an app replaced by a newer version is an update (with the version it went to).
             if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
                 if (intent.action == Intent.ACTION_PACKAGE_ADDED) {
@@ -168,6 +172,8 @@ class DeviceWatch @Inject constructor(
                 runCatching { com.dallycontrol.agent.diag.ExitReasons.reportNew(context, eventLog) }
                 runCatching { com.dallycontrol.agent.admin.AdminReceiver.protectProcesses(context) }
                 runCatching { appPolicy.reenforce() }
+                // The permission policy and the per-app grants are asserted again on every agent start.
+                runCatching { permissions.reenforce(null) }
                 // Self-heal the kiosk button mask (Home/Recents/power) when it drifted — fixes Android ≤15 lock-task
                 // devices where the mask was lost and the broken Home stopped the launcher from recovering it.
                 runCatching { kioskApplier.reassert() }

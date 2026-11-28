@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { isFolderAdmin, hasPermission } from '../api/auth';
 import { getConsoleBrand, type ConsoleBrand } from '../api/fleet';
@@ -28,7 +28,11 @@ import {
   IconMoon,
   IconZone,
   IconAudit,
+  IconHelp,
+  IconSupport,
 } from './icons';
+import { HelpLink } from '../components/HelpLink';
+import { topicForPath } from '../data/help';
 
 // Cached across page navigations (AppShell remounts per page) so the header brand does not flicker.
 let consoleBrandCache: ConsoleBrand | null | undefined;
@@ -74,6 +78,8 @@ const NAV: NavEntry[] = [
   { to: '/settings', label: 'Ajustes', Icon: IconSettings, adminOnly: true, perm: 'settings' },
   { to: '/geofences', label: 'Geocercas', Icon: IconZone, perm: 'manage_fleet' },
   { to: '/audit', label: 'Auditoría', Icon: IconAudit, perm: 'view_audit' },
+  { to: '/soporte', label: 'Sesiones de soporte', Icon: IconSupport },
+  { to: '/ayuda', label: 'Ayuda', Icon: IconHelp },
 ];
 
 export function AppShell({
@@ -101,6 +107,8 @@ export function AppShell({
   }, []);
 
   const branded = brand && (brand.logoUrl || brand.name);
+  // Ayuda contextual: el «?» de cada pantalla abre la sección del manual que la explica.
+  const helpTopic = topicForPath(useLocation().pathname);
 
   return (
     <div className="shell">
@@ -166,6 +174,10 @@ export function AppShell({
           <span style={{ fontWeight: 600 }}>{title ?? (branded ? brand?.name || 'Consola' : 'DallyControl')}</span>
         </div>
         <main className="content route-enter"><ReloadPrompt /><UpdateBanner />{children}</main>
+        {helpTopic && (
+          <HelpLink className="help-ctx" manual={helpTopic.manual} seccion={helpTopic.seccion} tema={helpTopic.tema}
+                    title="Ayuda de esta pantalla">?</HelpLink>
+        )}
       </div>
     </div>
   );
