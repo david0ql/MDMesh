@@ -611,7 +611,8 @@ def t_qr_style(mode):
         check("Android 11–15 sin el toque: una app permitida NO abre Ajustes", not app_opens_settings(), top())
         sh("input keyevent KEYCODE_BACK")
         home()
-        set_touch(True)
+        # The screen service stays off here: this release does not need it, and with it on `uiautomator dump` (which
+        # this test reads the kiosk's screens with) stops describing the window in front on Android 15.
         return
     check("sin el toque: la consola recibe «needsAuthorization»", until(lambda: guard_state(start) == "needsAuthorization", 150, 5), str(guard_state(start)))
     check("sin el toque: el quiosco muestra la pantalla de autorización", until(lambda: "RemoteSetupActivity" in top(), 90, 2), top())
