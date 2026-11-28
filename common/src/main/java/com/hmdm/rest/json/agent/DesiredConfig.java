@@ -66,4 +66,11 @@ public class DesiredConfig {
     private DesiredHardware hardware;
     /** Remote support settings (engine, notice, call acceptance); null = the agent's defaults. */
     private DesiredRemoteSupport remoteSupport;
+    /**
+     * Wi-Fi networks whose security an agent older than the Wi-Fi rework cannot save (WPA3, OWE, Enterprise): kept out
+     * of {@link #wifi} so those agents ignore them instead of saving a broken network.
+     */
+    private java.util.List<DesiredWifi> wifiAdvanced;
+    /** Wi-Fi lock-down rules; null = none. */
+    private com.hmdm.util.DcPolicy.WifiRules wifiRules;
 }

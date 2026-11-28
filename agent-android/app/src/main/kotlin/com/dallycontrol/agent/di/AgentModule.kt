@@ -115,8 +115,8 @@ object AgentModule {
 
     @Provides
     @Singleton
-    fun provideCapabilityRegistry(handle: DpmHandle): CapabilityRegistry =
-        CapabilityRegistry(handle)
+    fun provideCapabilityRegistry(handle: DpmHandle, managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi): CapabilityRegistry =
+        CapabilityRegistry(handle, managedWifi)
 
     @Provides
     @Singleton
@@ -194,6 +194,7 @@ object AgentModule {
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
         protection: com.dallycontrol.agent.policy.ProtectionReport,
         permissions: AndroidPermissionEnforcer,
+        managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -204,6 +205,7 @@ object AgentModule {
                 usageAccess = runCatching { appUsage.usageAccess() }.getOrNull(),
                 mobileData = runCatching { mobileData.status() }.getOrNull(),
                 permissions = runCatching { permissions.reportIfDue() }.getOrNull(),
+                managedWifi = runCatching { managedWifi.report() }.getOrNull(),
             ).also {
                 runCatching { deviceRules.enforceAccounts() } // other-domain Google accounts go on every check-in
                 runCatching { appActivity.collect() } // record user "opened app / camera" activity events
@@ -636,10 +638,11 @@ object AgentModule {
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
         lostMode: com.dallycontrol.core.lost.LostMode,
         permissions: AndroidPermissionEnforcer,
+        managedWifi: com.dallycontrol.agent.policy.AndroidManagedWifi,
     ): ConfigApplier = ConfigApplier(
         // While the device is lost its position cadence wins; the policy's values are kept for when it is found.
         toggles, kiosk, { mode -> location.set(lostMode.locationModeFromPolicy(mode)) }, store, browser, apps,
-        wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
+        wifi = managedWifi,
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
         permissions = permissions,
@@ -737,4 +740,19 @@ object AgentModule {
     @IntoSet
     fun providePermissionScanHandler(permissions: AndroidPermissionEnforcer): CommandHandler =
         PermissionScanHandler(permissions)
+
+    /** The policy's Wi-Fi (networks, certificates, lock-down, radio), shared by the applier, the toggle and telemetry. */
+    @Provides
+    @Singleton
+    fun provideManagedWifi(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+    ): com.dallycontrol.agent.policy.AndroidManagedWifi = com.dallycontrol.agent.policy.AndroidManagedWifi(
+        context,
+        com.dallycontrol.agent.policy.WifiNetworks(context),
+        handle,
+        com.dallycontrol.agent.policy.WifiCertificates(context, handle),
+        events,
+    )
 }

@@ -154,12 +154,47 @@ class ConfigApplierTest {
 
     @Test fun `wifi networks are applied and cleared when the section disappears`() = runTest {
         val seen = mutableListOf<List<com.dallycontrol.proto.ConfigWifi>>(); val store = InMemoryConfigStateStore()
-        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, wifi = ManagedWifi { seen += it; ConfigOutcome.APPLIED })
+        val applier = ConfigApplier(emptyMap(), kiosk(FakeController()), {}, store, wifi = ManagedWifi { nets, _, _ -> seen += nets; ConfigOutcome.APPLIED })
         val r = applier.apply(ConfigApplyPayload(revision = "w1", wifi = listOf(com.dallycontrol.proto.ConfigWifi("Amovil", "secret123"))))
         assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifi"])
         applier.apply(ConfigApplyPayload(revision = "w2"))
         assertEquals(listOf("Amovil"), seen[0].map { it.ssid })
         assertEquals("removed section -> empty list (remove what was added)", emptyList<com.dallycontrol.proto.ConfigWifi>(), seen[1])
+    }
+
+    @Test fun `advanced networks, rules and the radio reach the wifi section together and are undone when dropped`() = runTest {
+        data class Call(val ssids: List<String>, val rules: com.dallycontrol.proto.ConfigWifiRules?, val radio: Boolean?)
+        val calls = mutableListOf<Call>(); val store = InMemoryConfigStateStore()
+        val applier = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, store,
+            wifi = ManagedWifi { nets, rules, radio -> calls += Call(nets.map { it.ssid }, rules, radio); ConfigOutcome.APPLIED },
+        )
+        val rules = com.dallycontrol.proto.ConfigWifiRules(lockManaged = true, ssidMode = "allow")
+        val r = applier.apply(
+            ConfigApplyPayload(
+                revision = "w1", policies = mapOf("wifi" to true),
+                wifi = listOf(com.dallycontrol.proto.ConfigWifi("Planta")),
+                wifiAdvanced = listOf(com.dallycontrol.proto.ConfigWifi("Corp", security = "EAP")),
+                wifiRules = rules,
+            ),
+        )
+        assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifi"]); assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifiRules"])
+        assertEquals(Call(listOf("Planta", "Corp"), rules, true), calls[0])
+        val gone = applier.apply(ConfigApplyPayload(revision = "w2"))
+        assertEquals("everything lifted", Call(emptyList(), null, null), calls[1])
+        assertNull(gone.outcomes["wifi"]); assertNull(gone.outcomes["wifiRules"])
+        applier.apply(ConfigApplyPayload(revision = "w3"))
+        assertEquals("nothing to undo any more", 2, calls.size)
+    }
+
+    @Test fun `rules alone are a wifi section`() = runTest {
+        var seen: com.dallycontrol.proto.ConfigWifiRules? = null
+        val applier = ConfigApplier(
+            emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore(),
+            wifi = ManagedWifi { _, rules, _ -> seen = rules; ConfigOutcome.APPLIED },
+        )
+        val r = applier.apply(ConfigApplyPayload(revision = "x", wifiRules = com.dallycontrol.proto.ConfigWifiRules(blockAdd = true)))
+        assertEquals(true, seen?.blockAdd); assertEquals(ConfigOutcome.APPLIED, r.outcomes["wifiRules"]); assertNull(r.outcomes["wifi"])
     }
 
     @Test fun `mobile data section is applied, and cleared when a later document drops it`() = runTest {

@@ -107,6 +107,8 @@ public class DcPolicy {
 
     /** Remote support: who shows the screen, the on-phone notice, how voice calls are answered (ADR 0012). */
     private com.hmdm.rest.json.agent.DesiredRemoteSupport remoteSupport;
+    /** Wi-Fi lock-down: what the user may change and which networks the phones may join (see {@link DcWifi}). */
+    private WifiRules wifiRules;
 
     @Getter
     @Setter
@@ -124,9 +126,94 @@ public class DcPolicy {
     public static class Wifi {
         private String ssid;
         private String password;
-        /** WPA (default), WEP or NONE. */
+        /** NONE, OWE, WEP, WPA (default: WPA/WPA2-PSK), WPA3, WPA3_TRANSITION, EAP or EAP_WPA3. */
         private String security;
         private Boolean hidden;
+        /** Stable id of the network inside the policy (the console keeps a saved password by it). */
+        private String id;
+        /** Never stored: the console's "a password is saved, keep it" (see {@link DcWifi#mergeSecrets}). */
+        private Boolean passwordSet;
+        /** false = saved but never joined on its own. */
+        private Boolean autoConnect;
+        /** 0-999, higher wins when several managed networks are in range. */
+        private Integer priority;
+        private WifiProxy proxy;
+        /** Present = static IPv4 instead of DHCP. */
+        private WifiIp ip;
+        /** random / device. */
+        private String mac;
+        /** metered / unmetered. */
+        private String metered;
+        /** Enterprise (802.1X) parameters, for EAP and EAP_WPA3. */
+        private WifiEap eap;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WifiProxy {
+        /** manual (host, port, exclude) or pac (pacUrl). */
+        private String mode;
+        private String host;
+        private Integer port;
+        private List<String> exclude;
+        private String pacUrl;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WifiIp {
+        private String address;
+        private Integer prefix;
+        private String gateway;
+        private List<String> dns;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WifiEap {
+        /** PEAP, TTLS or TLS. */
+        private String method;
+        /** MSCHAPV2, PAP or GTC (not for TLS). */
+        private String phase2;
+        private String identity;
+        private String anonymousIdentity;
+        private String password;
+        private Boolean passwordSet;
+        /** The server certificate's domain suffix. */
+        private String domain;
+        private String altSubjectMatch;
+        /** Ids of the uploaded CA certificates (wifi_certificate) the server's certificate must chain to. */
+        private List<Integer> caCertIds;
+        /** Id of the uploaded client certificate (PKCS#12), for TLS. */
+        private Integer clientCertId;
+    }
+
+    @Getter
+    @Setter
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class WifiRules {
+        /** The user cannot edit or forget the managed networks. */
+        private Boolean lockManaged;
+        /** The user cannot add networks (Android 13+). */
+        private Boolean blockAdd;
+        /** The user cannot change any Wi-Fi setting. */
+        private Boolean blockConfig;
+        /** The user cannot switch Wi-Fi on or off (Android 13+). */
+        private Boolean blockState;
+        /** allow = only {@link #ssids} and the managed networks; deny = never {@link #ssids} (Android 13+). */
+        private String ssidMode;
+        private List<String> ssids;
+        /** personal / enterprise / enterprise192 (Android 13+). */
+        private String minSecurity;
+        /** Minutes without any network before the phone relaxes the lock-down by itself (default 10). */
+        private Integer safeguardMinutes;
     }
 
     @Getter
@@ -191,7 +278,8 @@ public class DcPolicy {
         return kioskRoles == null && browser == null && apps == null && trackingMinutes == null && kioskQuickSettings == null
                 && deviceName == null && wifi == null && appGroups == null && notInKiosk == null && kioskHidden == null && kioskBrand == null
                 && powerPin == null && device == null && locationFixSeconds == null && mobileData == null && hardware == null
-                && remoteSupport == null && permissions == null;
+                && remoteSupport == null && permissions == null
+                && wifiRules == null;
     }
 
     private DcPolicy cleaned() {
@@ -225,25 +313,8 @@ public class DcPolicy {
         if (locationFixSeconds != null && locationFixSeconds >= 5 && locationFixSeconds <= 60) c.locationFixSeconds = locationFixSeconds;
         c.kioskQuickSettings = Boolean.FALSE.equals(kioskQuickSettings) ? Boolean.FALSE : null; // on unless turned off
         c.deviceName = DeviceNaming.normalizeRule(deviceName);
-        if (wifi != null) {
-            List<Wifi> out = new ArrayList<Wifi>();
-            Set<String> seen = new LinkedHashSet<String>();
-            for (Wifi w : wifi) {
-                if (w == null || w.ssid == null) continue;
-                String ssid = w.ssid.trim();
-                if (ssid.isEmpty() || ssid.length() > 32 || containsControl(ssid) || !seen.add(ssid)) continue;
-                String sec = w.security == null ? "WPA" : w.security.trim().toUpperCase(Locale.ROOT);
-                if (!sec.equals("WPA") && !sec.equals("WEP") && !sec.equals("NONE")) sec = "WPA";
-                Wifi n = new Wifi();
-                n.ssid = ssid;
-                n.security = sec;
-                n.password = sec.equals("NONE") || w.password == null || w.password.length() > 63 ? null : w.password;
-                n.hidden = Boolean.TRUE.equals(w.hidden) ? Boolean.TRUE : null;
-                out.add(n);
-                if (out.size() >= 20) break;
-            }
-            c.wifi = out.isEmpty() ? null : out;
-        }
+        c.wifi = DcWifi.clean(wifi);
+        c.wifiRules = DcWifi.cleanRules(wifiRules);
         if (appGroups != null) {
             List<AppGroupRef> out = new ArrayList<AppGroupRef>();
             Set<Integer> seen = new LinkedHashSet<Integer>();

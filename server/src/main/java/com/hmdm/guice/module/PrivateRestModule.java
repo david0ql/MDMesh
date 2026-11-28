@@ -83,5 +83,7 @@ public class PrivateRestModule extends ServletModule {
         this.bind(com.hmdm.rest.resource.SupportResource.class);
         // Factory-reset protection: default company accounts (company / folder) and the per-device status.
         this.bind(com.hmdm.rest.resource.ProtectionResource.class);
+        // Certificates of enterprise Wi-Fi networks (uploaded sealed, sent to phones inside their policy).
+        this.bind(com.hmdm.rest.resource.WifiCertificateResource.class);
     }
 }

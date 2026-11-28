@@ -4099,4 +4099,32 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-wifi-certificates" author="dallycontrol">
+        <comment>Certificates of enterprise Wi-Fi networks (the RADIUS server's CA; the client's PKCS#12 for EAP-TLS).
+                 "sealed" is the parsed material encrypted with AES-256-GCM; the key is a file in base.directory, so the
+                 table alone never yields a private key. The other columns are what the console shows.</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS wifi_certificate (
+                id SERIAL PRIMARY KEY,
+                customerId INT NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                kind VARCHAR(8) NOT NULL,
+                subject VARCHAR(512),
+                issuer VARCHAR(512),
+                serial VARCHAR(80),
+                fingerprint VARCHAR(64) NOT NULL,
+                notBefore BIGINT,
+                notAfter BIGINT,
+                certCount INT,
+                sealed TEXT NOT NULL,
+                createdAt BIGINT NOT NULL,
+                createdBy VARCHAR(120)
+            );
+            CREATE INDEX IF NOT EXISTS wifi_certificate_customer_idx ON wifi_certificate (customerId);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS wifi_certificate;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

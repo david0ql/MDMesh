@@ -33,9 +33,12 @@ public class ConfigReconciler {
     private final AgentCommandDAO commandDAO;
 
     private final PolicyApps policyApps;
+    private final WifiCertificateStore wifiCertificates;
 
     @Inject
-    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, PolicyApps policyApps) {
+    public ConfigReconciler(UnsecureDAO unsecureDAO, AgentCommandDAO commandDAO, PolicyApps policyApps,
+                            WifiCertificateStore wifiCertificates) {
+        this.wifiCertificates = wifiCertificates;
         this.policyApps = policyApps;
         this.unsecureDAO = unsecureDAO;
         this.commandDAO = commandDAO;
@@ -72,7 +75,7 @@ public class ConfigReconciler {
             doc = com.hmdm.util.DesiredPermissionsBuilder.withDeviceOverrides(doc, cfg, r.apps,
                     com.hmdm.util.AppPermissionRules.parseMap(commandDAO.getDevicePermissionOverride(device.getId())));
         }
-        return withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc));
+        return withWifiCertificates(cfg, withMobileDataOverride(device, cfg, withGeofenceTracking(device, doc)));
     }
 
     /**
@@ -92,6 +95,16 @@ public class ConfigReconciler {
             logger.warn("Mobile-data override of {} not applied: {}", device.getNumber(), e.getMessage());
         }
         return doc;
+    }
+
+    /** Enterprise Wi-Fi: the certificates the policy's networks refer to travel inside the document. Never fails it. */
+    private DesiredConfig withWifiCertificates(Configuration cfg, DesiredConfig doc) {
+        try {
+            return wifiCertificates == null ? doc : wifiCertificates.inline(doc, cfg.getCustomerId());
+        } catch (Exception e) {
+            logger.warn("Wi-Fi certificates of configuration {} not attached: {}", cfg.getId(), e.getMessage());
+            return doc;
+        }
     }
 
     /**

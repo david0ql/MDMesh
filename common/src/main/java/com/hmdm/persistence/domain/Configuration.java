@@ -171,6 +171,8 @@ public class Configuration implements CustomerData, Serializable {
     @ApiModelProperty("Flag forcing screen to be on in kiosk mode")
     private Boolean kioskScreenOn;
     @ApiModelProperty("DallyControl policies as JSON: kiosk functions, managed browser, app policy, location trail")
+    // Serialised without its Wi-Fi passwords (they never go back to the console); Java code reads the full value.
+    @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.hmdm.util.DcWifi.RedactingSerializer.class)
     private String dcPolicy;
     @ApiModelProperty("Overridden launcher URL")
     private String launcherUrl;

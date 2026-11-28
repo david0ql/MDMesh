@@ -28,6 +28,8 @@ import com.dallycontrol.policy.wifi.WifiPolicyFactory
  */
 class CapabilityRegistry(
     private val handle: DpmHandle,
+    /** How the Wi-Fi radio is switched (the app supplies WifiManager); null = the `wifi` toggle answers unsupported. */
+    private val wifiRadio: com.dallycontrol.policy.wifi.WifiRadio? = null,
 ) {
 
     /**
@@ -37,7 +39,7 @@ class CapabilityRegistry(
      * `policy.apply` routing pick it up automatically — no switch to update.
      */
     fun togglePolicies(): Map<String, TogglePolicy> = buildMap {
-        WifiPolicyFactory.create(handle)?.let { put(WifiPolicy.CAPABILITY_KEY, it) }
+        WifiPolicyFactory.create(handle, wifiRadio)?.let { put(WifiPolicy.CAPABILITY_KEY, it) }
         CameraPolicyFactory.create(handle)?.let { put(CameraPolicy.CAPABILITY_KEY, it) }
         ScreenshotsPolicyFactory.create(handle)?.let { put(ScreenshotsPolicy.CAPABILITY_KEY, it) }
         BluetoothPolicyFactory.create(handle)?.let { put(BluetoothPolicy.CAPABILITY_KEY, it) }
@@ -56,7 +58,7 @@ class CapabilityRegistry(
 
     /** Convenience: resolve the live [DeviceControl] facade for this device. */
     fun deviceControl(): DeviceControl? {
-        val wifi = WifiPolicyFactory.create(handle) ?: return null
+        val wifi = WifiPolicyFactory.create(handle, wifiRadio) ?: return null
         return DefaultDeviceControl(wifi)
     }
 }

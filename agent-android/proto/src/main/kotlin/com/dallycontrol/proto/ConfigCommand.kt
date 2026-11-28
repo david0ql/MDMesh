@@ -39,6 +39,13 @@ data class ConfigApplyPayload(
     val hardware: ConfigHardware? = null,
     /** Remote support settings (absent = the agent's defaults). */
     val remoteSupport: ConfigRemoteSupport? = null,
+    /**
+     * Wi-Fi networks with a security older agents cannot save (WPA3, OWE, Enterprise). Kept apart from [wifi] so an
+     * agent that predates them simply ignores the list instead of saving a broken network. Managed with [wifi].
+     */
+    val wifiAdvanced: List<ConfigWifi>? = null,
+    /** Wi-Fi lock-down rules (absent = none): what the user may change and which networks the phone may join. */
+    val wifiRules: ConfigWifiRules? = null,
 )
 
 /**
@@ -74,13 +81,88 @@ data class ConfigSystemUpdate(
     val toMinutes: Int? = null,
 )
 
-/** A Wi-Fi network the configuration saves on the device. [security]: `WPA`, `WEP` or `NONE`. */
+/**
+ * A Wi-Fi network the configuration saves on the device. [security]: `NONE`, `OWE`, `WEP`, `WPA` (WPA/WPA2-PSK),
+ * `WPA3` (SAE), `WPA3_TRANSITION` (WPA2/WPA3 mixed), `EAP` (WPA/WPA2-Enterprise) or `EAP_WPA3` (WPA3-Enterprise).
+ * Every option is optional, so a policy written for an older agent still applies.
+ *
+ * @property autoConnect false = saved but never joined on its own. @property priority higher wins when several
+ *   managed networks are in range. @property mac `random` or `device`. @property metered `metered` / `unmetered`.
+ */
 @Serializable
 data class ConfigWifi(
     val ssid: String,
     val password: String? = null,
     val security: String = "WPA",
     val hidden: Boolean? = null,
+    val autoConnect: Boolean? = null,
+    val priority: Int? = null,
+    val proxy: ConfigWifiProxy? = null,
+    val ip: ConfigWifiIp? = null,
+    val mac: String? = null,
+    val metered: String? = null,
+    val eap: ConfigWifiEap? = null,
+)
+
+/** [mode] `manual` ([host]:[port], [exclude] hosts) or `pac` ([pacUrl]). */
+@Serializable
+data class ConfigWifiProxy(
+    val mode: String = "manual",
+    val host: String? = null,
+    val port: Int? = null,
+    val exclude: List<String>? = null,
+    val pacUrl: String? = null,
+)
+
+/** A static IPv4 configuration (present = static, absent = DHCP). */
+@Serializable
+data class ConfigWifiIp(
+    val address: String,
+    val prefix: Int = 24,
+    val gateway: String? = null,
+    val dns: List<String>? = null,
+)
+
+/**
+ * Enterprise (802.1X) parameters. [method]: `PEAP`, `TTLS` or `TLS`; [phase2]: `MSCHAPV2`, `PAP`, `GTC` or absent.
+ * [caCerts]: the server's CA chain, each one base64 DER. [clientKey]: the client's private key (base64 PKCS#8, of
+ * [clientKeyAlgorithm] `RSA` or `EC`) and [clientChain] its certificate chain (base64 DER, leaf first), for `TLS` —
+ * the server opens the uploaded PKCS#12, so the phone never needs its password. [domain] is the server certificate's
+ * domain suffix; [altSubjectMatch] the alternative-subject match — one of them plus a CA is what makes the connection
+ * safe against a rogue access point.
+ */
+@Serializable
+data class ConfigWifiEap(
+    val method: String = "PEAP",
+    val phase2: String? = null,
+    val identity: String? = null,
+    val anonymousIdentity: String? = null,
+    val password: String? = null,
+    val domain: String? = null,
+    val altSubjectMatch: String? = null,
+    val caCerts: List<String>? = null,
+    val clientKey: String? = null,
+    val clientKeyAlgorithm: String? = null,
+    val clientChain: List<String>? = null,
+)
+
+/**
+ * Wi-Fi lock-down. [lockManaged]: the user cannot edit or forget the managed networks. [blockAdd]: no new networks
+ * (Android 13+). [blockConfig]: no Wi-Fi settings at all. [blockState]: the user cannot switch Wi-Fi on/off (Android
+ * 13+). [ssidMode] `allow` (only [ssids] plus the managed networks) or `deny` ([ssids] are refused) — Android 13+.
+ * [minSecurity]: `personal`, `enterprise` or `enterprise192` (Android 13+). [safeguardMinutes]: with no usable network
+ * for this long after a lock-down, the agent relaxes it and reports it (see WifiSafeguard).
+ */
+@Serializable
+data class ConfigWifiRules(
+    val lockManaged: Boolean? = null,
+    val blockAdd: Boolean? = null,
+    val blockConfig: Boolean? = null,
+    val blockState: Boolean? = null,
+    val ssidMode: String? = null,
+    val ssids: List<String>? = null,
+    val minSecurity: String? = null,
+    val safeguardMinutes: Int? = null,
 )
 
 /**
