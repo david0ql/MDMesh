@@ -231,7 +231,7 @@ def api(base, path, token=None, body=None, method=None):
     req = urllib.request.Request(base + path, data=None if body is None else json.dumps(body).encode(),
                                  method=method or ("POST" if body is not None else "GET"))
     req.add_header("Content-Type", "application/json")
-    with _COOKIES.open(req, timeout=120) as r:
+    with _COOKIES.open(req, timeout=25) as r:
         return json.loads(r.read().decode() or "{}")
 
 
@@ -405,8 +405,13 @@ def replay_token(a, serial, payload, package):
     before = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token).get("data") or {}
     oks = len([x for x in before.get("attempts", []) if x.get("outcome") == "ok"]) \
         + sum(x.get("count", 1) - 1 for x in before.get("attempts", []) if x.get("outcome") == "ok")
-    sh(serial, f"am force-stop {package}")
-    print("  identity removed: " + sh(serial, f"run-as {package} rm -f files/datastore/mdm_identity.preferences_pb; echo done").strip(), flush=True)
+    # Android does not force-stop a Device Owner: remove the file and kill the process (as root), so the agent comes
+    # back without credentials but with the token it was provisioned with.
+    rm = f"run-as {package} rm -f files/datastore/mdm_identity.preferences_pb"
+    sh(serial, rm)
+    sh(serial, f"kill -9 $(pidof {package})")
+    left = sh(serial, rm + f"; run-as {package} ls files/datastore/").split()
+    print("  identity removed; files left: " + " ".join(left), flush=True)
     sh(serial, f"am start -n {package}/com.dallycontrol.agent.MainActivity")
     end = time.time() + 120
     while time.time() < end:
@@ -428,12 +433,14 @@ def replay_token(a, serial, payload, package):
 def wait_enrolled(a, serial, payload):
     """The device must appear in the console. Returns (status, details)."""
     token = payload["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]["com.dallycontrol.ENROLL_TOKEN"]
-    jwt = login(a.wait_enrolled, a.admin)
+    jwt = None
     started = time.time()
     end = started + a.enroll_timeout
     last, finalized = "", False
     while time.time() < end:
         try:
+            if jwt is None:   # the server may be down on purpose (outage scenario): keep trying to sign in
+                jwt = login(a.wait_enrolled, a.admin)
             st = api(a.wait_enrolled, "/rest/private/agent/v1/token/status?token=" + token, token=jwt).get("data") or {}
             last = json.dumps(st)
             if st.get("deviceNumber"):

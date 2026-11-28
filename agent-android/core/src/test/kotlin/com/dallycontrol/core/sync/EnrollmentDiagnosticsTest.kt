@@ -109,6 +109,18 @@ class EnrollmentDiagnosticsTest {
     }
 
     @Test
+    fun `waiting for the token is not journaled as a failure`() = runTest {
+        val journal = FakeJournal()
+        val manager = EnrollmentManager(
+            FakeMdmApi(), FakeIdentity(), FakeTokenProvider(null), FakeCapabilitySource(), NoopEventSink,
+            HardwareIdSource { "hw-1" }, journal,
+        )
+        val result = runCatching { manager.ensureEnrolled() }
+        assertTrue(result.exceptionOrNull() is EnrollmentException)
+        assertNull("no failure to report with the enrollment that follows", journal.lastFailure)
+    }
+
+    @Test
     fun `a journal or identity source that throws never blocks enrollment`() = runTest {
         val broken = object : EnrollJournal {
             override fun beginAttempt(): EnrollDiagnostics? = error("disk full")

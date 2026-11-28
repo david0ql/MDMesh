@@ -59,6 +59,8 @@ export function EnrollPage() {
     const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
     return () => window.clearInterval(t);
   }, []);
+  // For phones that boot with a factory date: download the agent over plain HTTP (see plainHttpUrl in payload.ts).
+  const [plainHttp, setPlainHttp] = useState(false);
   const [status, setStatus] = useState<TokenStatus | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [lastEnrolled, setLastEnrolled] = useState<{ deviceNumber: string; configurationName?: string } | null>(null);
@@ -109,7 +111,7 @@ export function EnrollPage() {
     };
   }, [wifiSsid, wifiPass, wifiSec, wifiHidden, eapMethod, eapPhase2, eapIdentity, eapAnon, eapDomain, proxyHost, proxyPort, proxyBypass]);
   // On screen: with the current time. Downloaded: with the time of the download (the caption says when).
-  const qrText = token ? buildProvisioningPayload(token, wifi, { clock: clockNow(nowTick) }) : '';
+  const qrText = token ? buildProvisioningPayload(token, wifi, { clock: clockNow(nowTick), plainHttpDownload: plainHttp }) : '';
   const density = qrText ? qrDensity(qrText, 'L') : null;
 
   async function generate() {
@@ -288,7 +290,7 @@ export function EnrollPage() {
                 {token && (
                   <button className="btn btn-sm" data-testid="qr-download"
                     onClick={() => void downloadQrPng(
-                      buildProvisioningPayload(token, wifi, { clock: clockNow() }),
+                      buildProvisioningPayload(token, wifi, { clock: clockNow(), plainHttpDownload: plainHttp }),
                       `qr-inscripcion-${new Date().toISOString().slice(0, 10)}.png`,
                       ['Inscripción DallyControl', `Un solo uso${expiresAt ? ` · vence ${fmtDateTime(expiresAt)}` : ''}`,
                         `Generado ${fmtDateTime(Date.now())} · úsalo hoy: lleva esta hora para poner en fecha el teléfono`,
@@ -312,6 +314,24 @@ export function EnrollPage() {
                     </div>
                   </details>
                 )}
+                <details className="wifi-block" data-testid="plain-http" open={plainHttp}>
+                  <summary>Equipo con la fecha de fábrica (se queda en «Preparando…» y no descarga el agente)</summary>
+                  <div className="wifi-fields">
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', gridAutoFlow: 'column', justifyContent: 'start' }}>
+                      <input type="checkbox" checked={plainHttp} onChange={(e) => setPlainHttp(e.target.checked)}
+                        style={{ width: 'auto' }} data-testid="plain-http-toggle" />
+                      Descargar el agente sin HTTPS en este QR
+                    </label>
+                    <p className="note">
+                      Un teléfono con la fecha años atrás rechaza cualquier certificado HTTPS y no puede descargar el agente; desde
+                      Android 12 la hora del QR se aplica después de la descarga, así que no lo evita. Sin HTTPS no hay certificado
+                      que rechazar, y Android igual solo instala el agente si está firmado con el certificado de este QR. El agente
+                      corrige luego la fecha por su cuenta (Android 9 o superior). Requiere que el servidor entregue
+                      <span className="mono"> /files/…apk </span> por HTTP sin redirigir a HTTPS (en Cloudflare: una regla que
+                      excluya esa ruta de «Always Use HTTPS»). Incluir el Wi‑Fi en el QR también ayuda en Android 7–11.
+                    </p>
+                  </div>
+                </details>
                 <details className="wifi-block" open={!!wifiSsid.trim()}>
                   <summary>Conectar a Wi‑Fi durante la puesta en marcha (opcional)</summary>
                   <div className="wifi-fields">
