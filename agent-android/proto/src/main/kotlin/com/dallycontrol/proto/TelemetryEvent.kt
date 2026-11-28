@@ -98,4 +98,13 @@ object EventType {
 
     /** Mobile data: a limit was spent; the app (or every non-essential app) lost mobile data until the next period. */
     const val DATA_LIMIT = "dataLimit"
+
+    /** A device security rule (reset protection, safe mode, debugging…) could not be applied. `detail`: what failed. */
+    const val PROTECTION_FAILED = "protectionFailed"
+
+    /** A wipe the agent had announced was found unfinished at start. `detail`: `resumed` or `gaveUp: …`. */
+    const val WIPE_RESUMED = "wipeResumed"
+
+    /** Lost mode wiped the device because it had not reached the server for the configured days. */
+    const val LOST_WIPE = "lostModeWipe"
 }

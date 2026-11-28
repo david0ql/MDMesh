@@ -27,7 +27,6 @@ import com.dallycontrol.core.command.handlers.DeviceRebootHandler
 import com.dallycontrol.core.command.handlers.DeviceRingHandler
 import com.dallycontrol.core.command.handlers.DeviceLocationModeHandler
 import com.dallycontrol.core.command.handlers.DevicePowerModeHandler
-import com.dallycontrol.core.command.handlers.DeviceWipeHandler
 import com.dallycontrol.core.config.ConfigApplier
 import com.dallycontrol.core.location.LocationModeStore
 import com.dallycontrol.core.power.PowerModeStore
@@ -189,6 +188,7 @@ object AgentModule {
         appActivity: com.dallycontrol.agent.usage.AppActivityCollector,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
+        protection: com.dallycontrol.agent.policy.ProtectionReport,
     ): TelemetrySource = TelemetryAssembler(
         hardware = { deviceInfo.collect() },
         identity = { identity.collect() },
@@ -203,7 +203,8 @@ object AgentModule {
                 runCatching { appActivity.collect() } // record user "opened app / camera" activity events
             }
         },
-        security = { security.collect() },
+        // Factory-reset protection, anti-tamper rules and lost mode as the device holds them now.
+        security = { security.collect().copy(protection = protection.read()) },
         // The trail fixes a successful check-in carried are on the server now.
         onDelivered = { snap -> snap.dynamic.trail.maxOfOrNull { it.capturedAt }?.let(trail::ack) },
     )
@@ -538,11 +539,6 @@ object AgentModule {
 
     @Provides
     @IntoSet
-    fun provideWipeHandler(handle: DpmHandle): CommandHandler =
-        DeviceWipeHandler(handle)
-
-    @Provides
-    @IntoSet
     fun providePowerModeHandler(store: PowerModeStore): CommandHandler =
         DevicePowerModeHandler(store)
 
@@ -629,12 +625,14 @@ object AgentModule {
         systemUpdates: com.dallycontrol.agent.policy.SystemUpdates,
         deviceRules: com.dallycontrol.agent.policy.DeviceRules,
         mobileData: com.dallycontrol.agent.data.MobileDataEnforcer,
+        lostMode: com.dallycontrol.core.lost.LostMode,
     ): ConfigApplier = ConfigApplier(
-        toggles, kiosk, location::set, store, browser, apps,
+        // While the device is lost its position cadence wins; the policy's values are kept for when it is found.
+        toggles, kiosk, { mode -> location.set(lostMode.locationModeFromPolicy(mode)) }, store, browser, apps,
         wifi = com.dallycontrol.agent.policy.AndroidManagedWifi(context, com.dallycontrol.agent.policy.WifiNetworks(context)),
         systemUpdates = systemUpdates::apply,
         deviceRules = deviceRules::apply,
-        setTrackingMinutes = trail::setIntervalMinutes,
+        setTrackingMinutes = { minutes -> trail.setIntervalMinutes(lostMode.trackingFromPolicy(minutes)) },
         setLocationFixTimeout = location::setFixTimeoutSec,
         mobileData = mobileData::apply,
         hardware = com.dallycontrol.agent.policy.HardwareRules(context, deviceRules.handle)::apply,
@@ -643,8 +641,13 @@ object AgentModule {
 
     @Provides
     @Singleton
-    fun provideDeviceRules(@ApplicationContext context: Context, handle: DpmHandle, events: EventSink): com.dallycontrol.agent.policy.DeviceRules =
-        com.dallycontrol.agent.policy.DeviceRules(context, handle, events)
+    fun provideDeviceRules(
+        @ApplicationContext context: Context,
+        handle: DpmHandle,
+        events: EventSink,
+        protection: com.dallycontrol.agent.policy.DeviceProtection,
+    ): com.dallycontrol.agent.policy.DeviceRules =
+        com.dallycontrol.agent.policy.DeviceRules(context, handle, events, protection)
 
     /** `device.clearCache`: Android's own "clear every app's cache" confirmation, opened on the phone. */
     @Provides

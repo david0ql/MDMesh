@@ -81,6 +81,7 @@ public final class CommandPolicy {
         // Anti-theft: they wait for the phone as long as it takes.
         rule("device.wipe", NEVER, REDELIVER_AFTER_MS, 10, false, null);
         rule("device.lock", NEVER, REDELIVER_AFTER_MS, 10, false, null);
+        rule("device.lostMode", NEVER, REDELIVER_AFTER_MS, 10, false, "lostMode");
         // Security actions that still make sense weeks later.
         rule("device.passcodeReset", 30 * DAY, REDELIVER_AFTER_MS, 5, false, "passcode");
         rule("device.lockscreenMessage", 30 * DAY, REDELIVER_AFTER_MS, 5, false, "lockscreenMessage");

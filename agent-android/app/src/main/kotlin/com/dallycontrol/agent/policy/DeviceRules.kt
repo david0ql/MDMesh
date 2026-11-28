@@ -1,8 +1,6 @@
 package com.dallycontrol.agent.policy
 
 import android.accounts.AccountManager
-import android.app.admin.DevicePolicyManager
-import android.app.admin.FactoryResetProtectionPolicy
 import android.content.Context
 import android.os.Build
 import android.os.UserManager
@@ -17,24 +15,28 @@ import com.dallycontrol.proto.EventType
  *  - sharing data (hotspot / tethering): allowed (the default: the kiosk shows a "share data" icon) or blocked;
  *  - Google accounts: adding them blocked, or only accounts of some domains (others are removed the moment they are
  *    added — see [watchAccounts] — and Chrome's sign-in is limited to those domains too);
- *  - factory reset from Settings blocked, and (Android 11+) the Google accounts that may set the phone up again after a
- *    reset done from recovery.
- * Only what these rules set is undone when a rule goes away.
+ *  - factory reset protection and the anti-tamper rules ([DeviceProtection]).
+ * Only what these rules set is undone when a rule goes away. A rule the system refuses makes [apply] answer
+ * `failed: …` (and leaves a `protectionFailed` event) instead of a false "applied".
  */
-class DeviceRules(private val context: Context, internal val handle: DpmHandle, private val events: EventSink) {
+class DeviceRules(
+    private val context: Context,
+    internal val handle: DpmHandle,
+    private val events: EventSink,
+    private val protection: DeviceProtection = DeviceProtection(context, handle),
+) {
     private val prefs = context.getSharedPreferences("mdm_device_rules", Context.MODE_PRIVATE)
+    private val restrictions = TrackedRestrictions(prefs, handle)
 
     fun apply(rules: ConfigDevice?): String {
         val dpm = handle.dpm
         val admin = handle.admin
-        restriction(UserManager.DISALLOW_CONFIG_TETHERING, rules?.tethering == "block")
-        restriction(UserManager.DISALLOW_FACTORY_RESET, rules?.factoryReset == "block")
+        val errors = ArrayList<String>()
+        restriction(UserManager.DISALLOW_CONFIG_TETHERING, rules?.tethering == "block")?.let(errors::add)
         // "block" = user cannot install apps (Play Store, APKs, sideload). MDM silent installs are unaffected.
         val blockInstall = rules?.installApps == "block"
-        restriction(UserManager.DISALLOW_INSTALL_APPS, blockInstall)
-        restriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES, blockInstall)
-        // "block" = no USB debugging and no developer options (adb is a way around any kiosk).
-        restriction(UserManager.DISALLOW_DEBUGGING_FEATURES, rules?.debugging == "block")
+        restriction(UserManager.DISALLOW_INSTALL_APPS, blockInstall)?.let(errors::add)
+        restriction(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES, blockInstall)?.let(errors::add)
 
         val blockGoogle = rules?.googleAccounts == "block"
         if (blockGoogle != prefs.getBoolean(KEY_GOOGLE_BLOCKED, false)) {
@@ -50,20 +52,13 @@ class DeviceRules(private val context: Context, internal val handle: DpmHandle, 
         chromeSignIn(domains)
         enforceAccounts()
 
-        if (Build.VERSION.SDK_INT >= 30) {
-            val accounts = rules?.frpAccounts.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
-            val had = prefs.getBoolean(KEY_FRP, false)
-            if (accounts.isNotEmpty() || had) runCatching {
-                dpm.setFactoryResetProtectionPolicy(
-                    admin,
-                    if (accounts.isEmpty()) null
-                    else FactoryResetProtectionPolicy.Builder().setFactoryResetProtectionAccounts(accounts).setFactoryResetProtectionEnabled(true).build(),
-                )
-                prefs.edit().putBoolean(KEY_FRP, accounts.isNotEmpty()).apply()
-            }
-        }
+        // Reset from Settings, safe mode, debugging, bootloader unlock, company reset protection, wipe after N unlocks.
+        errors.addAll(protection.apply(rules))
         prefs.edit().putBoolean(KEY_TETHER_OFFERED, rules?.tethering != "block").apply()
-        return ConfigOutcome.APPLIED
+        if (errors.isEmpty()) return ConfigOutcome.APPLIED
+        val what = errors.joinToString("; ").take(MAX_ERROR)
+        events.record(EventType.PROTECTION_FAILED, what)
+        return ConfigOutcome.failed(what)
     }
 
     /**
@@ -123,18 +118,8 @@ class DeviceRules(private val context: Context, internal val handle: DpmHandle, 
         watching = null
     }
 
-    private fun restriction(key: String, on: Boolean) {
-        val mine = prefs.getStringSet(KEY_RESTRICTIONS, emptySet()).orEmpty()
-        runCatching {
-            if (on) {
-                handle.dpm.addUserRestriction(handle.admin, key)
-                prefs.edit().putStringSet(KEY_RESTRICTIONS, mine + key).apply()
-            } else if (key in mine) {
-                handle.dpm.clearUserRestriction(handle.admin, key)
-                prefs.edit().putStringSet(KEY_RESTRICTIONS, mine - key).apply()
-            }
-        }
-    }
+    /** @return an error text when the system refused, null otherwise. */
+    private fun restriction(key: String, on: Boolean): String? = restrictions.set(key, on)
 
     /** Chrome: only accounts of the domains may sign in (merged into whatever the browser policy already set). */
     private fun chromeSignIn(domains: List<String>) {
@@ -159,11 +144,10 @@ class DeviceRules(private val context: Context, internal val handle: DpmHandle, 
 
         private const val GOOGLE = "com.google"
         private const val CHROME = "com.android.chrome"
-        private const val KEY_RESTRICTIONS = "restrictions"
         private const val KEY_GOOGLE_BLOCKED = "google_blocked"
         private const val KEY_DOMAIN = "domain"
         private const val KEY_DOMAINS = "domains"
-        private const val KEY_FRP = "frp"
+        private const val MAX_ERROR = 900
         private const val KEY_CHROME = "chrome"
         private const val KEY_TETHER_OFFERED = "tether_offered"
     }

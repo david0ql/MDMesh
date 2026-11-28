@@ -421,6 +421,11 @@ public final class AuditCatalog {
         sensitive("/private/geofences/v1/devices/{number}/track/export", REPORTS, "export.track", "Exportación del recorrido del dispositivo")
                 .target("device", "path:number");
 
+        // --- protección de restablecimiento de fábrica (FRP) -----------------------------------------------------
+        audit("PUT", "/private/protection/v1/defaults/company", POLICIES, "frp.company", "Cuentas de reactivación (FRP) de la empresa");
+        audit("PUT", "/private/protection/v1/defaults/groups/{groupId}", POLICIES, "frp.group", "Cuentas de reactivación (FRP) de la carpeta")
+                .target("group", "path:groupId");
+
         // --- reportes y alertas ---------------------------------------------------------------------------------
         audit("POST", "/private/reports/v1/schedules", REPORTS, "schedule.create", "Creación de reporte programado");
         audit("PUT", "/private/reports/v1/schedules/{id}", REPORTS, "schedule.update", "Edición de reporte programado")
@@ -519,6 +524,7 @@ public final class AuditCatalog {
     static {
         COMMAND_LABELS.put("device.wipe", "borrado de fábrica (wipe)");
         COMMAND_LABELS.put("device.lock", "bloqueo de pantalla");
+        COMMAND_LABELS.put("device.lostmode", "modo perdido");
         COMMAND_LABELS.put("device.reboot", "reinicio");
         COMMAND_LABELS.put("device.passcodereset", "cambio de clave de desbloqueo");
         COMMAND_LABELS.put("device.ring", "hacer sonar");
@@ -568,6 +574,7 @@ public final class AuditCatalog {
     public static boolean isDisruptive(String type) {
         if (type == null) return false;
         String t = type.trim().toLowerCase(Locale.ROOT);
-        return t.equals("device.wipe") || t.equals("device.lock") || t.equals("device.reboot") || t.equals("device.passcodereset");
+        return t.equals("device.wipe") || t.equals("device.lock") || t.equals("device.reboot") || t.equals("device.passcodereset")
+                || t.equals("device.lostmode");
     }
 }

@@ -92,6 +92,15 @@ object DeviceAction {
      */
     const val COMMAND_LEDGER_KEY = "commandLedger"
 
+    /**
+     * Lost mode: lock now with a message and a contact phone on the lock screen, ring, report the position often,
+     * and optionally wipe after N wrong unlocks or N days without reaching the server. Payload: see LostModePayload.
+     */
+    const val LOST_MODE = "device.lostMode"
+
+    /** Not a command: this agent honours the options of `device.wipe` (see WipePayload) and acks before wiping. */
+    const val WIPE_OPTIONS_KEY = "wipeOptions"
+
     /** Keys (after the `device.` prefix) advertised in `capabilities.device`. */
     val ADVERTISED_KEYS: List<String> = listOf(
         "lock", "reboot", "lockscreenMessage", "alert", "ring", "ringStop",
@@ -100,5 +109,6 @@ object DeviceAction {
         "diagnose", "notificationAction", "silence", "display",
         COMMAND_LEDGER_KEY,
         "supportSession",
+        "lostMode", WIPE_OPTIONS_KEY,
     )
 }

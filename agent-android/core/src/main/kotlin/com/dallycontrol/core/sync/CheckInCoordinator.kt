@@ -54,6 +54,10 @@ class CheckInCoordinator @Inject constructor(
     @set:Inject
     var connection: ConnectionDiagnostics = ConnectionDiagnostics(MemoryKeyValueStore())
 
+    /** Runs around every cycle (lost mode's "silent for N days" wipe). Injected; does nothing by default. */
+    @set:Inject
+    var hooks: CheckInHooks = CheckInHooks.None
+
     private val mutex = Mutex()
 
     // Off the main thread whoever calls: the foreground service launches from lifecycleScope (Main), and
@@ -75,6 +79,7 @@ class CheckInCoordinator @Inject constructor(
 
     private suspend fun runLocked(goodbye: Boolean): Unit = mutex.withLock {
         runCatching { connection.markAlive() }
+        runCatching { hooks.beforeCycle() }
         try {
             // Commands executed in a cycle leave results in the buffer. Report them right away
             // (and pick up anything queued meanwhile) instead of on the next wake or the
@@ -82,6 +87,7 @@ class CheckInCoordinator @Inject constructor(
             var rounds = 0
             while (cycle(goodbye) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
             syncStatus.clear()
+            runCatching { hooks.afterSuccess() }
         } catch (t: Throwable) {
             if (t !is CancellationException) {
                 syncStatus.recordFailure(t)
@@ -156,6 +162,17 @@ class CheckInCoordinator @Inject constructor(
         /** Cap on back-to-back rounds per run, so a server that keeps feeding commands can't pin us. */
         const val MAX_FOLLOW_UP_ROUNDS = 4
     }
+}
+
+/** What runs around a check-in cycle, whether or not the server is reachable. */
+interface CheckInHooks {
+    /** Before the cycle is attempted (also when there is no link). */
+    fun beforeCycle() {}
+
+    /** After a cycle that reached the server. */
+    fun afterSuccess() {}
+
+    object None : CheckInHooks
 }
 
 /** A check-in was rejected by the server. Lets the worker retry with backoff. */
