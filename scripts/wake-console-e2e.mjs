@@ -146,8 +146,11 @@ try {
       && (await wake.getByLabel('Duración del sondeo rápido en minutos', { exact: true }).inputValue()) === '15');
     await page.screenshot({ path: `${shots}/politica-sondeo.png`, fullPage: true });
     // The agent is told at its next check-in (the answer carries the schedule): it reports the pace back.
-    await rest('POST', `/private/agent/v1/devices/${deviceNumber}/sync`);
-    const paced = await until(async () => (await reach())?.pollMinutes === 3, 90000);
+    // (Two check-ins: one receives the schedule, the next one reports it — so keep asking for a sync meanwhile.)
+    const paced = await until(async () => {
+      await rest('POST', `/private/agent/v1/devices/${deviceNumber}/sync`);
+      return (await reach())?.pollMinutes === 3;
+    }, 150000);
     check('the phone took the new pace (reports a 3-minute backup check-in)', !!paced, JSON.stringify(await reach()).slice(0, 200));
   }
 } catch (e) {
