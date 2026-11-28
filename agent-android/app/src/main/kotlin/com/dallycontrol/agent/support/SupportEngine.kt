@@ -179,7 +179,9 @@ object SupportEngine {
     suspend fun awaitService(context: Context, timeoutMs: Long = SERVICE_WAIT_MS): SupportAccessibilityService? {
         SupportAccessibilityService.instance?.let { return it }
         if (!ensureServiceOn(context)) return null
-        val until = System.currentTimeMillis() + timeoutMs
+        // Switched on in the settings but not bound yet (the agent was just updated, the phone just booted): Android
+        // binds it by itself within some seconds, so that case waits longer than a service that was just enabled.
+        val until = System.currentTimeMillis() + maxOf(timeoutMs, REBIND_WAIT_MS)
         while (System.currentTimeMillis() < until) {
             SupportAccessibilityService.instance?.let { return it }
             delay(POLL_MS)
@@ -188,6 +190,7 @@ object SupportEngine {
     }
 
     private const val POLL_MS = 100L
+    private const val REBIND_WAIT_MS = 20_000L
 
     internal fun onServiceChanged() {
         notifyChanged()
