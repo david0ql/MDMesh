@@ -25,6 +25,8 @@ import { AlertsPage } from './pages/AlertsPage';
 import { ScriptsPage } from './pages/ScriptsPage';
 import { GeofencesPage } from './pages/GeofencesPage';
 import { AuditPage } from './pages/AuditPage';
+import { HelpPage } from './pages/HelpPage';
+import { SupportSessionsPage } from './pages/SupportSessionsPage';
 
 export default function App() {
   return (
@@ -54,6 +56,8 @@ export default function App() {
               <Route path="/roles" element={<AdminOnly><RequirePermission name="settings"><RolesPage /></RequirePermission></AdminOnly>} />
               <Route path="/geofences" element={<RequirePermission name="manage_fleet"><GeofencesPage /></RequirePermission>} />
               <Route path="/audit" element={<RequirePermission name="view_audit"><AuditPage /></RequirePermission>} />
+              <Route path="/ayuda" element={<HelpPage />} />
+              <Route path="/soporte" element={<SupportSessionsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>

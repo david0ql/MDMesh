@@ -49,7 +49,7 @@ export function DcResetProtection({ p, update, disabled }: {
     || (mode === 'inherit' && defaults !== null && companyCount === 0 && foldersWithOwn === 0);
   const partly = mode === 'inherit' && defaults !== null && companyCount === 0 && foldersWithOwn > 0;
 
-  const block = (key: 'safeBoot' | 'debugging' | 'oemUnlock', label: string, help: string) => (
+  const block = (key: 'safeBoot' | 'oemUnlock', label: string, help: string) => (
     <label className="frp-rule" title={help}>
       <input type="checkbox" disabled={disabled} checked={d[key] === 'block'} aria-label={label}
         onChange={(e) => setDevice({ [key]: e.target.checked ? 'block' : undefined })} />
@@ -109,7 +109,7 @@ export function DcResetProtection({ p, update, disabled }: {
         <span className="frp-rules-title">Otras vías que también se pueden cerrar</span>
         {block('safeBoot', 'Bloquear el modo seguro', 'impide arrancar sin las apps de gestión.')}
         {block('oemUnlock', 'Bloquear el desbloqueo del bootloader (OEM)', 'impide instalar otro sistema por cable. En Android 9 o posterior va unido al bloqueo desde Ajustes.')}
-        {block('debugging', 'Bloquear la depuración USB', 'cierra las opciones de desarrollador y adb. No lo actives en equipos que se inscriben o diagnostican por cable.')}
+        <span className="muted small">La depuración USB (adb) se bloquea en el campo «Depuración USB» de esta misma política.</span>
         <label className="frp-rule">
           <span><strong>Borrar tras intentos fallidos de desbloqueo</strong>
             <span className="muted small"> — el equipo se restablece solo (conserva la protección). Vacío = nunca.</span></span>

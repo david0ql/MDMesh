@@ -29,6 +29,11 @@ const EVENT_VERBS: Record<string, string> = {
   simChanged: 'se le cambió la SIM',
   appBlocked: 'se le bloqueó una aplicación',
   kioskCrashLoop: 'su aplicación de kiosco se cerró repetidamente',
+  kioskExit: 'salió del quiosco con la contraseña',
+  kioskExitFailed: 'tuvo un intento fallido de salir del quiosco',
+  kioskExitDenied: 'tuvo un intento rechazado de salir del quiosco',
+  kioskEscapeBlocked: 'abrió Ajustes desde el quiosco y fue devuelto',
+  powerPinFailed: 'tuvo un intento fallido con la clave de apagado',
 };
 
 // App-installation status labels (server ChartItem.stringAttr from getInstallSummary).

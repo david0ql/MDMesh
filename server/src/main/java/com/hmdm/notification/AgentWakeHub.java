@@ -93,4 +93,19 @@ public class AgentWakeHub {
             log.warn("Agent wake send failed for {}: {}", deviceNumber, e.getMessage());
         }
     }
+
+    /** Send a ready-made wake payload (e.g. the remote-support wake) to the device if connected. */
+    public boolean send(String deviceNumber, String payload) {
+        Session s = sessions.get(deviceNumber);
+        if (s == null || !s.isOpen()) {
+            return false;
+        }
+        try {
+            s.getAsyncRemote().sendText(payload);
+            return true;
+        } catch (Exception e) {
+            log.warn("Agent wake send failed for {}: {}", deviceNumber, e.getMessage());
+            return false;
+        }
+    }
 }

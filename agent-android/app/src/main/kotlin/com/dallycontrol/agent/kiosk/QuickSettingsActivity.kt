@@ -114,12 +114,9 @@ class QuickSettingsActivity : ComponentActivity() {
             })
             col.addView(now)
         } else {
+            // The permission is granted at enrollment (cable) or from the console; the kiosk never opens the
+            // system Settings for it.
             col.addView(text(getString(R.string.qs_font_needs), 13f, MUTED))
-            col.addView(Button(this).apply {
-                text = getString(R.string.qs_font_allow)
-                contentDescription = "qs-font-allow"
-                setOnClickListener { TimedAllow.open(this@QuickSettingsActivity, DisplayTools.permissionIntent(this@QuickSettingsActivity)) }
-            })
         }
         col.addView(space())
 
@@ -204,8 +201,16 @@ class QuickSettingsActivity : ComponentActivity() {
             .setView(input)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                if (!AntiTheft.pinMatches(this, input.text.toString())) {
-                    android.widget.Toast.makeText(this, R.string.at_wrong, android.widget.Toast.LENGTH_LONG).show()
+                val result = AntiTheft.checkPin(this, input.text.toString())
+                if (result != com.dallycontrol.kiosk.PinResult.Ok) {
+                    if (result is com.dallycontrol.kiosk.PinResult.Wrong) {
+                        runCatching {
+                            com.dallycontrol.core.telemetry.EventLog(applicationContext)
+                                .record(com.dallycontrol.proto.EventType.POWER_PIN_FAILED, PinGates.eventDetail(result))
+                        }
+                    }
+                    val why = PinGates.message(this, result)
+                    android.widget.Toast.makeText(this, why, android.widget.Toast.LENGTH_LONG).show()
                     return@setPositiveButton
                 }
                 AlertDialog.Builder(this)

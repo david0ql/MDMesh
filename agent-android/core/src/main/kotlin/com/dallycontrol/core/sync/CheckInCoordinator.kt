@@ -111,7 +111,8 @@ class CheckInCoordinator @Inject constructor(
         val matrix = capabilitySource.matrix(deviceId)
         val acks = pending.drain()
         val bufferedEvents = eventSink.drain()
-        val telemetry = runCatching { telemetrySource.snapshot() }.getOrNull()
+        // A goodbye has a few seconds before the system stops the process: no census (it waits on a location fix).
+        val telemetry = if (goodbye) null else runCatching { telemetrySource.snapshot() }.getOrNull()
         val connectionReport = runCatching { connection.pendingReport(goodbye) }.getOrNull()
 
         val response = try {
@@ -121,7 +122,7 @@ class CheckInCoordinator @Inject constructor(
                     deviceId = deviceId,
                     capabilities = matrix.capabilities,
                     results = acks,
-                    state = runCatching { stateSource.snapshot() }.getOrNull(),
+                    state = if (goodbye) null else runCatching { stateSource.snapshot() }.getOrNull(),
                     telemetry = telemetry,
                     events = bufferedEvents,
                     hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),

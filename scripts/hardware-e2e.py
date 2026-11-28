@@ -91,7 +91,7 @@ def api(method, path, body=None):
                 time.sleep(5)
                 continue
             return {"status": "HTTP_%d" % e.code, "message": e.read()[:200].decode("utf-8", "replace")}
-        except (TimeoutError, urllib.error.URLError) as e:
+        except (TimeoutError, urllib.error.URLError, ValueError, ConnectionError) as e:  # ValueError: not JSON (server restarting)
             if attempt == 3:
                 return {"status": "NO_ANSWER", "message": str(e)}
             time.sleep(5)
@@ -173,7 +173,9 @@ def screen_capture_disabled():
 
 
 def screenshot_is_blank():
-    """True when a screenshot cannot be taken or comes out black. Raw format: 12/16-byte header + RGBA."""
+    """True when a screenshot cannot be taken or the screen content comes out black. Raw format: 12/16-byte header +
+    RGBA. On recent Android the system bars (clock, navigation) are still drawn over the blacked-out content, so
+    "blank" means that less than 15 % of the pixels have any colour."""
     try:
         r = subprocess.run([A.adb, "-s", A.serial, "exec-out", "screencap"], capture_output=True, timeout=40)
     except subprocess.TimeoutExpired:
@@ -183,7 +185,9 @@ def screenshot_is_blank():
         return True
     w, h = int.from_bytes(raw[0:4], "little"), int.from_bytes(raw[4:8], "little")
     px = raw[len(raw) - w * h * 4:] if 0 < w * h * 4 <= len(raw) else raw[16:]
-    return max(px[0::4]) == 0 and max(px[1::4]) == 0 and max(px[2::4]) == 0
+    n = max(1, len(px) // 4)
+    lit = max(n - px[c::4].count(0) for c in (0, 1, 2))
+    return lit / n < 0.15
 
 
 def usb_functions_after_asking_for_mtp():

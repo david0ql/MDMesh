@@ -113,6 +113,10 @@ public final class CommandPolicy {
         rule("remote.vnc.start", 5 * MINUTE, NO_REDELIVERY, 1, false, null);
         rule("remote.vnc.stop", 5 * MINUTE, NO_REDELIVERY, 1, false, null);
         rule("remote.inputSetup", 5 * MINUTE, NO_REDELIVERY, 1, false, null);
+        // Support sessions (ADR 0012): the wake starts them at once; a start that could not be delivered within the
+        // session's own waiting time (SupportSessions.PENDING_MILLIS, 6 min) has nothing left to join.
+        rule("remote.session.start", 5 * MINUTE, NO_REDELIVERY, 1, false, null);
+        rule("remote.session.stop", 5 * MINUTE, NO_REDELIVERY, 1, false, null);
     }
 
     private CommandPolicy() {

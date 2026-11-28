@@ -457,9 +457,9 @@ public final class AuditCatalog {
         // Named here so that they arrive with a readable label; AuditCatalogCoverageTest does not report an optional
         // rule as stale while its route does not exist. Remove .optional() once the module is merged.
         audit("POST", "/private/support/v1/devices/{deviceId}/start", REMOTE, "remote.session.start",
-                "Inicio de sesión de soporte remoto").target("device", "path:deviceId").optional();
+                "Inicio de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/support/v1/devices/{deviceId}/stop", REMOTE, "remote.session.stop",
-                "Fin de sesión de soporte remoto").target("device", "path:deviceId").optional();
+                "Fin de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/agent/v1/devices/{deviceId}/mobileData", DEVICES, "device.mobileData",
                 "Cambio de datos móviles del dispositivo").target("device", "path:deviceId").optional();
         audit("POST", "/private/agent/v1/devices/{deviceId}/commands/{commandId}/cancel", COMMANDS, "device.command.cancel",

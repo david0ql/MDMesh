@@ -173,6 +173,8 @@ public final class DesiredConfigBuilder {
             }
             d.setWifi(nets);
         }
+        // Remote support settings travel only when the policy sets one (so older policies keep their revision).
+        d.setRemoteSupport(dc.getRemoteSupport());
         // Device-level kiosk apps: add the phone's own "show in kiosk" packages before the revision is hashed,
         // so the device re-applies and the app appears in its kiosk without touching the shared policy.
         if (d.getKiosk() != null && extraKioskPackages != null && !extraKioskPackages.isEmpty()) {
@@ -358,9 +360,16 @@ public final class DesiredConfigBuilder {
         // Recents, the clock and battery, and the pull-down. The policy turns each off with an explicit "No".
         f.setHome(shown(cfg.getKioskHome())); f.setRecents(shown(cfg.getKioskRecents())); f.setNotifications(shown(cfg.getKioskNotifications()));
         f.setSystemInfo(shown(cfg.getKioskSystemInfo())); f.setKeyguard(cfg.getKioskKeyguard()); f.setLockButtons(cfg.getKioskLockButtons());
+        // Android 16+ has no lock task (soft kiosk): its status bar brings the system quick settings along, so it
+        // stays closed unless the policy explicitly asks for notifications ("Sí"), never by "Auto".
+        f.setSoftStatusBar(Boolean.TRUE.equals(cfg.getKioskNotifications()) ? Boolean.TRUE : null);
         k.setFeatures(f);
-        k.setExitMode(Boolean.TRUE.equals(cfg.getKioskExit()) ? "visible" : "gesture");
-        k.setPassword(cfg.getPassword());
+        // Leaving the kiosk on the device always needs a password. A policy without one (saved before that was
+        // required) is sent as "remote": no exit on the device at all, which also closes agents that used to let
+        // the 7-tap gesture out without asking. Such a kiosk is left from the console.
+        String password = KioskExitPolicy.isBlank(cfg.getPassword()) ? null : cfg.getPassword();
+        k.setExitMode(KioskExitPolicy.effectiveExitMode(Boolean.TRUE.equals(cfg.getKioskExit()) ? "visible" : "gesture", password));
+        k.setPassword(password);
         DesiredKioskTheme t = new DesiredKioskTheme();
         t.setBackgroundColor(cfg.getBackgroundColor()); t.setTextColor(cfg.getTextColor());
         t.setIconSize(cfg.getIconSize() == null ? null : cfg.getIconSize().name());

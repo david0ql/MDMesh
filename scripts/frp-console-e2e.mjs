@@ -129,7 +129,7 @@ try {
   check('with the company accounts the warning goes away', !(await visible(frp.locator('.frp-warning'))));
   check('other ways around can be closed: safe mode, OEM unlock, USB debugging, wipe after wrong unlocks',
     await visible(frp.getByLabel('Bloquear el modo seguro')) && await visible(frp.getByLabel('Bloquear el desbloqueo del bootloader (OEM)'))
-    && await visible(frp.getByLabel('Bloquear la depuración USB')) && await visible(frp.getByLabel('Intentos fallidos antes de borrar')));
+    && await visible(page.getByLabel('Depuración USB', { exact: true })) && await visible(frp.getByLabel('Intentos fallidos antes de borrar')));
   // Leave the policy as it was: the editor is closed without saving.
   await page.goto(`${api}/devices/${deviceId}`);
 

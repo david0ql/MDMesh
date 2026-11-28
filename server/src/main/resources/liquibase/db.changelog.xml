@@ -3973,6 +3973,58 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.11.27-support-sessions" author="dallycontrol">
+        <comment>Remote support (ADR 0012): the log of support sessions (who, which device, when, how long, what was used)
+                 and what happened inside each one (chat lines, files, calls, actions).</comment>
+        <sql>
+            CREATE TABLE IF NOT EXISTS support_session (
+                id           BIGSERIAL PRIMARY KEY,
+                sessionKey   VARCHAR(64) NOT NULL,
+                customerId   INT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+                deviceNumber VARCHAR(100) NOT NULL,
+                userId       INT,
+                userLogin    VARCHAR(200),
+                viewOnly     BOOLEAN NOT NULL DEFAULT FALSE,
+                engine       VARCHAR(16),
+                startedAt    BIGINT NOT NULL,
+                connectedAt  BIGINT,
+                endedAt      BIGINT,
+                endReason    VARCHAR(32),
+                chatCount    INT NOT NULL DEFAULT 0,
+                fileCount    INT NOT NULL DEFAULT 0,
+                voiceSeconds INT NOT NULL DEFAULT 0,
+                inputCount   INT NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS support_session_customer_idx ON support_session (customerId, startedAt DESC);
+            CREATE INDEX IF NOT EXISTS support_session_device_idx ON support_session (deviceNumber, startedAt DESC);
+
+            CREATE TABLE IF NOT EXISTS support_session_event (
+                id        BIGSERIAL PRIMARY KEY,
+                sessionId BIGINT NOT NULL REFERENCES support_session(id) ON DELETE CASCADE,
+                ts        BIGINT NOT NULL,
+                kind      VARCHAR(16) NOT NULL,
+                origin    VARCHAR(16) NOT NULL,
+                detail    TEXT
+            );
+            CREATE INDEX IF NOT EXISTS support_session_event_session_idx ON support_session_event (sessionId, ts);
+        </sql>
+        <rollback>
+            DROP TABLE IF EXISTS support_session_event;
+            DROP TABLE IF EXISTS support_session;
+        </rollback>
+    </changeSet>
+
+    <!-- Kiosk hardening: leaving a kiosk on the device always needs a password. Kiosk policies saved without one get
+         a random 8-digit password (shown in the policy editor, "Contraseña de salida del quiosco"), so a technician
+         can still leave the kiosk on the phone; until an agent re-applies, nothing changes on it. Idempotent. -->
+    <changeSet id="26.11.27-kiosk-exit-password" author="dallycontrol">
+        <sql>
+            UPDATE configurations
+            SET password = lpad(((('x' || substr(md5(random()::text || clock_timestamp()::text || id::text), 1, 8))::bit(32)::bigint) % 100000000)::text, 8, '0')
+            WHERE kioskMode = TRUE AND (password IS NULL OR btrim(password) = '');
+        </sql>
+    </changeSet>
+
     <changeSet id="26.11.27-frp-default-accounts" author="dallycontrol" context="common">
         <comment>Factory-reset protection: the company Google accounts (JSON list of {email, id}) that may set a phone
             up again after a reset from recovery. groupId 0 = the company's default; otherwise a folder's own

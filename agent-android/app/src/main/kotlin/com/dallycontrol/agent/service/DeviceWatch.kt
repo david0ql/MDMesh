@@ -79,6 +79,10 @@ class DeviceWatch @Inject constructor(
                 Intent.ACTION_PACKAGE_ADDED -> {
                     runCatching { eventLog.record(EventType.APP_INSTALLED, "$pkg ${versionOf(context, pkg)}") }
                     runCatching { appPolicy.reenforce() }.onFailure { Log.w(TAG, "app policy", it) }
+                    // A kiosk closes a newly installed app at once too (soft kiosk: nothing else keeps it shut).
+                    kotlin.concurrent.thread(name = "kiosk-lockdown") {
+                        kotlinx.coroutines.runBlocking { runCatching { kioskApplier.reassert() } }
+                    }
                 }
                 Intent.ACTION_PACKAGE_REMOVED -> runCatching { eventLog.record(EventType.APP_UNINSTALLED, pkg) }
             }

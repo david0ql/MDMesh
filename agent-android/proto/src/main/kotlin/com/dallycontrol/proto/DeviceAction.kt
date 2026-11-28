@@ -108,6 +108,7 @@ object DeviceAction {
         "storageScan", "storageClean", "storageAccess", "announce", "systemUpdate", "clearCache",
         "diagnose", "notificationAction", "silence", "display",
         COMMAND_LEDGER_KEY,
+        "supportSession",
         "lostMode", WIPE_OPTIONS_KEY,
     )
 }
