@@ -14,7 +14,7 @@
   <h1>Qué contiene esta guía</h1>
   <p class="lead">Inscribir (enrolar) un equipo es dejarlo administrado por {{PRODUCTO}} y asignado a una carpeta. Esta guía explica cada método paso a paso, con los nombres exactos de la consola y del teléfono.</p>
   <!--INDICE-->
-  <div class="callout"><b>Alcance de las pruebas.</b> Los métodos de esta guía se probaron en emuladores de Android. El capítulo 10 dice qué versiones se probaron y qué falta confirmar en teléfonos físicos de cada fabricante.</div>
+  <div class="callout"><b>Alcance de las pruebas.</b> Los métodos de esta guía se probaron en emuladores de Android. El capítulo 10 dice qué versiones se probaron y el anexo trae el protocolo de 10 minutos para confirmarlo en un teléfono físico de cada modelo.</div>
 </section>
 
 <section class="sec pb" id="antes" data-temas="requisitos, antes de empezar, device owner, cuentas, formatear, permiso inscribir">
@@ -154,7 +154,7 @@
   <p class="k">5 · Por cable (USB)</p>
   <h1>El cable inscribe los equipos donde el QR no está disponible</h1>
   <p>Este método parte de un equipo formateado y usa un computador con Windows. Es la vía para Android 6, que no tiene lector de QR en la bienvenida, y para los modelos en que el QR falla.</p>
-  <div class="callout"><b>Android 15 y 16.</b> La consola advierte que en estas versiones la protección de Google Play puede bloquear la instalación del agente por QR con el mensaje «Se produjo un error». Si ocurre, inscriba ese equipo por cable. El QR en Android 11 a 17 no quedó probado de punta a punta en emulador (capítulo 10).</div>
+  <div class="callout"><b>Android 15 y 16.</b> En estas versiones el QR puede requerir este método: si el teléfono muestra «Se produjo un error» al instalar el agente, inscriba ese equipo por cable. La causa probable es la protección de Google Play, pero no está verificada: no hay todavía una prueba válida del QR en Android 15 ni 16, ni en emulador ni en teléfono físico.</div>
   <div class="fig s">
     <img src="img/e05-usb.jpg" alt="Pestaña Por cable (USB)">
     <p class="cap">Figura 4. Pestaña «Por cable (USB)» con el botón de descarga de la herramienta.</p>
@@ -223,7 +223,7 @@
       <tr><td>Pide la cuenta de Google anterior</td><td>Protección contra restablecimiento activa</td><td>Capítulo 9.</td></tr>
       <tr><td>Samsung: se inscribe en otro sistema</td><td>Tiene un perfil de Knox Mobile Enrollment de otro sistema</td><td>Pida al revendedor que lo libere, o use el capítulo 6.</td></tr>
       <tr><td>Xiaomi y otros: no aparece el lector</td><td>El fabricante no trae el lector integrado</td><td>Conecte Wi-Fi cuando lo pida. Si no aparece, use cable.</td></tr>
-      <tr><td>«Se produjo un error» al instalar (Android 15 y 16)</td><td>La protección de Google Play bloqueó el agente</td><td>Use cable (capítulo 5).</td></tr>
+      <tr><td>«Se produjo un error» al instalar (Android 15 y 16)</td><td>Posible bloqueo de la protección de Google Play; sin verificar</td><td>Use cable (capítulo 5) y anote el modelo.</td></tr>
     </tbody>
   </table>
 
@@ -287,41 +287,51 @@
       <tr><td>«El servidor no respondió a tiempo. Se reintenta solo.»</td><td>Espere; el agente reintenta con esperas crecientes.</td></tr>
     </tbody>
   </table>
-  <p class="nota">La pantalla principal de la app del agente muestra sus rótulos fijos en inglés (por ejemplo «MANAGEMENT» y «DEVICE ID»); el bloque de inscripción y los mensajes de error están en español.</p>
+  <p class="nota">La pantalla principal de la app del agente muestra el estado del equipo: «ADMINISTRACIÓN», «ID DEL DISPOSITIVO», «QUIOSCO», «VERSIÓN DEL AGENTE» y «SERVIDOR». En un teléfono configurado en otro idioma esos rótulos salen en inglés.</p>
 </section>
 
-<section class="sec pb" id="frp" data-temas="FRP, protección contra restablecimiento, cuenta de Google, reinscripción, reset, restablecer de fábrica, re-enrolamiento">
+<section class="sec pb" id="frp" data-temas="FRP, protección contra restablecimiento, cuenta de Google, cuentas de reactivación, reinscripción, reset, restablecer de fábrica, re-enrolamiento">
   <p class="k">9 · Restablecimiento y reinscripción</p>
   <h1>Tras un restablecimiento, el equipo vuelve a su ficha y a su carpeta</h1>
   <h2>Qué es la protección contra restablecimiento</h2>
-  <p>Android protege un equipo restablecido con los botones físicos: al encender pide la cuenta de Google que tenía antes. Se conoce como FRP. Si esa cuenta no se conoce, el equipo no se puede usar ni inscribir. Ningún sistema de administración puede saltar esa pantalla.</p>
+  <p>Android protege un equipo restablecido con los botones físicos: al encender pide una cuenta de Google autorizada. Se conoce como FRP. Ningún sistema de administración puede impedir ese restablecimiento ni saltar esa pantalla; lo que sí se decide es <b>qué cuentas</b> pueden reactivar el equipo.</p>
   <table class="compact">
     <thead><tr><th style="width:60mm">Situación</th><th>Qué hacer</th></tr></thead>
     <tbody>
-      <tr><td>Equipo usado que se va a inscribir</td><td>Quite todas las cuentas desde Ajustes antes de restablecerlo. Restablezca desde Ajustes, no con los botones.</td></tr>
+      <tr><td>Equipo usado que se va a inscribir por primera vez</td><td>Quite todas las cuentas desde Ajustes antes de restablecerlo. Restablezca desde Ajustes, no con los botones.</td></tr>
       <tr><td>El equipo pide «la cuenta anterior» tras formatear</td><td>Ingrese con esa cuenta, quítela desde Ajustes y restablezca de nuevo.</td></tr>
-      <tr><td>Equipo ya inscrito que se va a reasignar</td><td>Use el restablecimiento remoto desde la consola (pestaña <span class="ui">Control</span>, <span class="ui">Restablecer de fábrica (borrar todo)</span>).</td></tr>
+      <tr><td>Equipo de la empresa restablecido con botones</td><td>Ingrese con una de las cuentas de reactivación de la empresa y reinscríbalo.</td></tr>
+      <tr><td>Equipo inscrito que se va a reasignar</td><td>Borrado remoto con el motivo <span class="ui">Preparar para reasignar</span>, que quita la protección.</td></tr>
     </tbody>
   </table>
-
-  <h2>Cómo proteger los equipos de la empresa</h2>
-  <p>En la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, sección <span class="ui">Restablecimiento de fábrica</span>:</p>
-  <ul class="b">
-    <li><span class="ui">Bloquear desde Ajustes</span> impide que el usuario restablezca el equipo desde el menú de Ajustes.</li>
-    <li><span class="ui">ID de cuentas que pueden reactivar (opcional)</span> indica qué cuentas de Google pueden volver a activar el equipo después de un restablecimiento con botones. Se escriben los identificadores numéricos de la cuenta, no el correo, separados por coma. Aplica desde Android 11.</li>
-  </ul>
-  <p>Con esas cuentas definidas, un equipo robado y restablecido con los botones queda inservible para quien no tenga una de ellas, y la empresa lo recupera ingresando con la cuenta corporativa.</p>
-  <p class="pend">Llega con la integración de protección y borrado remoto</p>
-  <p>La versión que se integra a continuación agrega cuentas de reactivación por empresa y por carpeta, el estado de la protección en la ficha de cada equipo, el modo perdido y opciones de borrado remoto. Este capítulo se ampliará entonces.</p>
-
+  <h2>Definir las cuentas de reactivación</h2>
+  <ol class="steps">
+    <li>En la política, tarjeta <span class="ui">Funciones del dispositivo, navegador, apps y ubicación</span>, campo <span class="ui">Restablecimiento de fábrica</span>, elija <span class="ui">Bloquear desde Ajustes</span>.</li>
+    <li>En <span class="ui">Reactivación tras un restablecimiento por botones (FRP)</span> deje <span class="ui">Las cuentas de la empresa o de la carpeta del equipo</span>, o elija <span class="ui">Cuentas propias de esta política</span>.</li>
+    <li>Pulse <span class="ui">Administrar cuentas de la empresa y carpetas</span>. Elija el <span class="ui">Nivel</span>: toda la empresa o una carpeta.</li>
+    <li>Escriba el correo y el <span class="ui">ID numérico (21 dígitos)</span> de la cuenta de Google. El campo no admite el correo: va el identificador numérico. <span class="ui">¿Cómo obtengo el ID de la cuenta?</span> muestra los pasos.</li>
+    <li>Pulse <span class="ui">Agregar</span> y <span class="ui">Guardar cuentas</span>. Los equipos las aplican en su próxima sincronización.</li>
+  </ol>
+  <p>Gana el nivel más cercano al equipo: las cuentas de la política, si las tiene; si no, las de su carpeta; si no, las de la empresa. Se admiten hasta 10 cuentas por nivel. Use cuentas de la empresa, no personales, y guarde sus credenciales con el mismo cuidado que las de la consola.</p>
+  <h2>Comprobar el estado en un equipo</h2>
+  <p>En la ficha, pestaña <span class="ui">Control</span>, la sección <span class="ui">Protección contra restablecimiento y robo</span> muestra el estado:</p>
+  <table class="compact">
+    <thead><tr><th style="width:50mm">Estado</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td>FRP activa con N cuentas</td><td>El equipo aplicó las cuentas.</td></tr>
+      <tr><td>FRP pendiente</td><td>Hay cuentas configuradas y el equipo aún no las aplica; espere su siguiente sincronización.</td></tr>
+      <tr><td>FRP inactiva, con su motivo</td><td>No hay cuentas configuradas; el equipo no admite la protección administrada; no tiene servicios de Google (Android 10 o anterior); o el agente no es propietario del dispositivo.</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Desde Android 11 la protección la fija el propio sistema; de Android 5.1 a 10 depende de los servicios de Google. Desde Android 15, saltarse el asistente o activar el desbloqueo de fábrica ya no la desactiva.</p>
   <h2>Reinscribir un equipo que ya estuvo inscrito</h2>
-  <p>Inscriba el equipo con cualquiera de los métodos de esta guía. El servidor lo reconoce por su identificador de hardware, su serie o su IMEI, y reutiliza su ficha: conserva nombre, carpeta e historial. No aparece duplicado.</p>
+  <p>Inscriba el equipo con cualquiera de los métodos de esta guía. El servidor lo reconoce por su identificador de hardware, su serie o su IMEI, y reutiliza su ficha: conserva nombre, carpeta e historial, y deja el evento «Se inscribió de nuevo después de un restablecimiento». No aparece duplicado.</p>
   <ul class="b">
-    <li>Si la ficha se había eliminado de la consola con el teléfono aún inscrito, el equipo reaparece solo en su carpeta en su siguiente conexión.</li>
-    <li>Las órdenes de borrado que quedaron pendientes de su vida anterior se cierran al reinscribirse; el equipo no se borra de nuevo.</li>
-    <li>Si el chip <span class="ui">⚠ Duplicados</span> aparece en <span class="ui">Dispositivos</span>, hay dos filas con el mismo identificador de hardware: elimine la fila antigua.</li>
+    <li>Si la ficha se había eliminado de la consola, el equipo se recrea en su carpeta, o en «Recuperados» si la carpeta ya no existe.</li>
+    <li>Las órdenes de borrado que quedaron pendientes de su vida anterior se cierran; el equipo no se borra de nuevo.</li>
+    <li>Si el chip <span class="ui">⚠ Duplicados</span> aparece en <span class="ui">Dispositivos</span>, hay dos filas con el mismo identificador de hardware: elimine la antigua.</li>
   </ul>
-  <div class="callout"><b>Pendiente.</b> El comportamiento de la protección contra restablecimiento solo se puede confirmar en teléfonos físicos con servicios de Google. No se pudo reproducir en emulador.</div>
+  <div class="callout"><b>Pendiente en teléfono físico.</b> La activación real de la protección y la pantalla de verificación de cuenta tras un restablecimiento con botones solo se confirman en un teléfono con servicios de Google: cuenta autorizada aceptada, cuenta personal rechazada, y borrado remoto con y sin protección. En emulador se probó la configuración y la reinscripción (Android 10 y 15).</div>
 </section>
 
 <section class="sec pb" id="versiones" data-temas="versiones de Android, requisitos por versión, qué se probó, emulador, teléfono físico, fabricantes">
@@ -336,7 +346,7 @@
       <tr><td>10 y 11</td><td>El agente guarda una copia temprana del código y se inscribe aunque el asistente no finalice. El QR admite Wi-Fi empresarial. Desde Android 11 se puede inscribir sin cable con la depuración inalámbrica.</td></tr>
       <tr><td>12</td><td>El código llega dentro del asistente y la pantalla de estado se ve ahí mismo.</td></tr>
       <tr><td>13 y 14</td><td>El QR indica al asistente que continúe aunque no pueda actualizar componentes de Google en ese momento.</td></tr>
-      <tr><td>15 y 16</td><td>La protección de Google Play puede bloquear la instalación por QR. Alternativa: cable.</td></tr>
+      <tr><td>15 y 16</td><td>El QR puede requerir el método por cable si el teléfono rechaza la instalación del agente; no está probado. Por cable, Android 16 puede responder «ya hay cuentas» durante unos 40 segundos tras el arranque: las herramientas reintentan solas hasta 2 minutos.</td></tr>
     </tbody>
   </table>
 
@@ -346,7 +356,7 @@
     <tbody>
       <tr><td>QR, Android 7.0 a 9</td><td>Emulador</td><td>Inscritos al primer intento, de 52 a 56 segundos después de quedar administrados.</td></tr>
       <tr><td>QR, Android 10</td><td>Emulador</td><td>Inscrito al primer intento con la copia temprana del código.</td></tr>
-      <tr><td>QR, Android 11 a 17</td><td>Emulador</td><td>No obtenido: la máquina de pruebas estaba sobrecargada. Pendiente de repetir.</td></tr>
+      <tr><td>QR, Android 11 a 17</td><td>Emulador</td><td>Sin resultado todavía: no hay una corrida válida. En curso.</td></tr>
       <tr><td>Reglas del servidor: código usado, vencido, revocado, repetición del mismo teléfono</td><td>Pruebas automáticas, 24 comprobaciones</td><td>Correctas.</td></tr>
       <tr><td>Inscripción por cable y funciones del agente</td><td>Emuladores Android 6 a 17 (28 de septiembre de 2026)</td><td>Prueba funcional completa en todas las versiones.</td></tr>
       <tr><td>Inscriptor para Windows</td><td>Simulación en otro sistema</td><td>Correcto en la simulación. Pendiente en un computador con Windows real.</td></tr>
@@ -357,10 +367,43 @@
   <ul class="chk">
     <li>La cámara y el lector de QR de cada fabricante, y la descarga del lector en Android 7 y 8.</li>
     <li>Los asistentes de bienvenida de Samsung, Xiaomi y Motorola.</li>
-    <li>El veredicto de la protección de Google Play sobre el agente, en especial en Android 15 y 16.</li>
+    <li>El veredicto de la protección de Google Play sobre el agente. No se ha probado en ninguna versión: los emuladores no lo ejercitan.</li>
     <li>La protección contra restablecimiento y los portales Zero-Touch y KME.</li>
     <li>Redes con página de inicio de sesión.</li>
   </ul>
-  <div class="callout"><b>Próximo paso.</b> Inscriba un equipo físico de cada modelo de la flota por QR y anote el resultado. Con ese dato, esta tabla se actualiza por modelo.</div>
+  <div class="callout"><b>Próximo paso.</b> Aplique el protocolo del anexo a un equipo físico de cada modelo de la flota. Con ese dato, esta tabla se actualiza por modelo.</div>
+</section>
+<section class="sec pb" id="anexo-fisico" data-temas="protocolo de prueba, teléfono físico, verificación, 10 minutos, anexo, Play Protect">
+  <p class="k">A · Anexo: verificación en teléfono físico</p>
+  <h1>Diez minutos por modelo confirman lo que el emulador no puede probar</h1>
+  <p>Este protocolo se aplica una vez a cada modelo de la flota. Deja anotado lo que el emulador no ejercita: la cámara, el asistente del fabricante y la protección de Google Play.</p>
+  <h2>Preparación</h2>
+  <ul class="chk">
+    <li>Equipo recién formateado, en la pantalla de bienvenida, sin iniciar sesión.</li>
+    <li>Anote fabricante, modelo y versión de Android.</li>
+    <li>En la consola, <span class="ui">Inscribir</span>, pestaña <span class="ui">Escanear QR</span>, con el panel <span class="ui">Intentos de inscripción</span> a la vista.</li>
+  </ul>
+  <table>
+    <thead><tr><th style="width:20mm">Minutos</th><th>Qué hacer</th><th style="width:62mm">Qué anotar</th></tr></thead>
+    <tbody>
+      <tr><td>0 a 2</td><td>Toque 6 veces la pantalla de bienvenida y escanee el QR de la pantalla de la consola.</td><td>¿Abrió el lector? Si no: el equipo no estaba recién formateado, es Android 6, o en Android 7 y 8 faltó el Wi-Fi para descargar el lector.</td></tr>
+      <tr><td>2 a 4</td><td>Mire <span class="ui">Intentos de inscripción</span>.</td><td>¿Aparece «Descargó el agente» con el modelo? Si no aparece: fecha que muestra el teléfono y texto exacto del error. Si aparece y el equipo no queda administrado: mensaje del teléfono.</td></tr>
+      <tr><td>4 a 6</td><td>Si quedó administrado, espere la inscripción. En Android 7 a 11, en un segundo equipo, salga del asistente sin terminarlo.</td><td>¿Aparece «Inscrito»? Columna <span class="ui">Vía</span> y número de intentos. En el segundo equipo: ¿apareció la pantalla de DallyControl o se inscribió solo?</td></tr>
+      <tr><td>6 a 8</td><td>En un equipo administrado y sin inscribir, abra DallyControl, <span class="ui">Escanear el QR de la consola</span>, y apunte al QR pequeño de <span class="ui">Equipo ya administrado que no se inscribió</span>.</td><td>¿La cámara lo leyó? ¿Se inscribió sin formatear?</td></tr>
+      <tr><td>8 a 10</td><td>Apague el Wi-Fi a mitad de una inscripción y vuelva a encenderlo.</td><td>Motivo que muestra el teléfono, si reintentó solo y si el fallo quedó en la consola.</td></tr>
+    </tbody>
+  </table>
+  <p><b>Prueba adicional del reloj.</b> Repita el primer paso con la fecha del teléfono atrasada varios años, en un Android 9 y en un Android 13 o superior. Anote si descarga el agente.</p>
+  <h2>Cómo interpretar el resultado</h2>
+  <table class="compact">
+    <thead><tr><th style="width:74mm">Lo que pasó</th><th>Dónde está el problema</th></tr></thead>
+    <tbody>
+      <tr><td>No aparece «Descargó el agente»</td><td>Antes de la descarga: Wi-Fi sin internet, página de inicio de sesión o fecha del teléfono.</td></tr>
+      <tr><td>Descargó y no quedó administrado</td><td>Android no instaló el agente o no lo dejó como propietario: protección de Google Play, cuenta previa o firma. En Android 15 y 16, repita por cable y anote ambos resultados.</td></tr>
+      <tr><td>Administrado y no inscrito</td><td>El asistente del fabricante no entregó el código. Se resuelve con el paso de los minutos 6 a 8.</td></tr>
+      <tr><td>Inscrito al primer intento</td><td>El modelo queda verificado para QR.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><b>Qué se sabe hoy.</b> El QR está probado de punta a punta en emulador en Android 7 a 10. No hay una corrida válida de Android 11 a 17. La protección de Google Play no se ha probado en ninguna versión. Envíe los resultados de este protocolo a soporte con el modelo y la versión.</div>
 </section>
 </body></html>

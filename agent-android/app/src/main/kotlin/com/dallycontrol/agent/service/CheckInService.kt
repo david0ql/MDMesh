@@ -53,6 +53,7 @@ class CheckInService : LifecycleService() {
     @Inject lateinit var deviceWatch: DeviceWatch
     @Inject lateinit var keeper: ConnectionKeeper
     @Inject lateinit var supportSessions: com.dallycontrol.agent.support.SupportSessionManager
+    @Inject lateinit var wake: com.dallycontrol.agent.wake.WakeChannel
 
     @Volatile private var started = false
     @Volatile private var interactiveUntil = 0L
@@ -77,6 +78,12 @@ class CheckInService : LifecycleService() {
                     runCatching { eventLog.record(EventType.CONNECTIVITY) }
                 Intent.ACTION_BATTERY_LOW ->
                     runCatching { eventLog.record(EventType.LOW_BATTERY) }
+                // Somebody is using the phone, or it was just plugged in: ask for commands now instead of at the
+                // next beat (the socket may be closed or dead after a long sleep), and quicken the backup alarm.
+                Intent.ACTION_SCREEN_ON -> wake.onEvent(com.dallycontrol.proto.WakeTrigger.SCREEN)
+                Intent.ACTION_USER_PRESENT -> wake.onEvent(com.dallycontrol.proto.WakeTrigger.UNLOCK)
+                Intent.ACTION_POWER_CONNECTED -> wake.onEvent(com.dallycontrol.proto.WakeTrigger.POWER)
+                Intent.ACTION_SCREEN_OFF, Intent.ACTION_POWER_DISCONNECTED -> wake.noteActivity()
             }
             reevaluateSocket()
         }
@@ -96,6 +103,7 @@ class CheckInService : LifecycleService() {
             addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION)
             addAction(Intent.ACTION_BATTERY_LOW)
             addAction(Intent.ACTION_SHUTDOWN)
+            addAction(Intent.ACTION_USER_PRESENT)
         }
         ContextCompat.registerReceiver(this, powerReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
@@ -203,7 +211,10 @@ class CheckInService : LifecycleService() {
                 interactiveUntil = System.currentTimeMillis() + (signal.ttlSec ?: 120) * 1000L
                 startFastSync()
             }
-            else -> runCatching { coordinator.runOnce() }
+            else -> runCatching {
+                wake.mark(com.dallycontrol.proto.WakeTrigger.SOCKET)
+                coordinator.runOnce()
+            }
                 .recoverCatching {
                     // One retry on a network error: the failed connection has left the pool, so this goes
                     // out on a fresh one. Without it a single dead pooled socket cost the whole wake.

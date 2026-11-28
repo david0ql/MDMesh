@@ -57,6 +57,9 @@ class CheckInCoordinator @Inject constructor(
     /** Runs around every cycle (lost mode's "silent for N days" wipe). Injected; does nothing by default. */
     @set:Inject
     var hooks: CheckInHooks = CheckInHooks.None
+    /** The wake channels (push token, backup schedule); injected like [connection]. None by default. */
+    @set:Inject
+    var wake: com.dallycontrol.core.wake.WakeBridge = com.dallycontrol.core.wake.WakeBridge.NONE
 
     private val mutex = Mutex()
 
@@ -85,7 +88,7 @@ class CheckInCoordinator @Inject constructor(
             // (and pick up anything queued meanwhile) instead of on the next wake or the
             // 10-minute floor, which left the console showing "delivered" for minutes.
             var rounds = 0
-            while (cycle(goodbye) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
+            while (cycle(goodbye, followUp = rounds > 0) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
             syncStatus.clear()
             runCatching { hooks.afterSuccess() }
         } catch (t: Throwable) {
@@ -105,14 +108,16 @@ class CheckInCoordinator @Inject constructor(
     }
 
     /** One request/response round; true when it executed commands whose results are unreported. */
-    private suspend fun cycle(goodbye: Boolean): Boolean {
+    private suspend fun cycle(goodbye: Boolean, followUp: Boolean = false): Boolean {
         val deviceId = enrollment.ensureEnrolled()
         val authorization = "Bearer ${identity.secret().orEmpty()}"
         val matrix = capabilitySource.matrix(deviceId)
         val acks = pending.drain()
         val bufferedEvents = eventSink.drain()
         // A goodbye has a few seconds before the system stops the process: no census (it waits on a location fix).
-        val telemetry = if (goodbye) null else runCatching { telemetrySource.snapshot() }.getOrNull()
+        // A follow-up round only reports what the previous round just ran: the census went out seconds ago, and
+        // taking it again (it can wait on a location fix) is what kept the console from seeing "executed" sooner.
+        val telemetry = if (goodbye || followUp) null else runCatching { telemetrySource.snapshot() }.getOrNull()
         val connectionReport = runCatching { connection.pendingReport(goodbye) }.getOrNull()
 
         val response = try {
@@ -127,6 +132,7 @@ class CheckInCoordinator @Inject constructor(
                     events = bufferedEvents,
                     hardwareId = runCatching { hardwareIdSource.get() }.getOrNull(),
                     connection = connectionReport,
+                    wake = runCatching { wake.report() }.getOrNull(),
                 ),
             )
         } catch (t: Throwable) {
@@ -144,6 +150,7 @@ class CheckInCoordinator @Inject constructor(
 
         telemetry?.let { runCatching { telemetrySource.delivered(it) } }
         runCatching { connection.delivered(connectionReport, goodbye, data.backupUrls) }
+        runCatching { wake.onConfig(data.wake) }
         // A command that must wait (no internet for its download) stays unanswered: the server re-queues it.
         val results = data.commands.mapNotNull {
             try {

@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refresh() {
-        kioskValue.text = if (isLocked()) "Locked (kiosk active)" else "Not locked"
+        kioskValue.text = if (isLocked()) getString(R.string.main_kiosk_locked) else getString(R.string.main_kiosk_unlocked)
         lifecycleScope.launch {
             val id = deviceIdStore.current()
             deviceIdValue.text = if (id.isNullOrBlank()) enrollingLabel() else id
@@ -146,12 +146,12 @@ class MainActivity : ComponentActivity() {
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
         root.addView(text("DallyControl", 30f, SIGNAL, bold = true))
-        root.addView(text("Device agent", 14f, MUTED).apply { setPadding(0, dp(2), 0, dp(20)) })
+        root.addView(text(getString(R.string.main_subtitle), 14f, MUTED).apply { setPadding(0, dp(2), 0, dp(20)) })
 
-        root.addView(label("MANAGEMENT"))
+        root.addView(label(getString(R.string.main_label_management)))
         root.addView(
             text(
-                if (isDeviceOwner()) "Device Owner — active" else "Not managed",
+                if (isDeviceOwner()) getString(R.string.main_managed) else getString(R.string.main_not_managed),
                 16f,
                 if (isDeviceOwner()) OK else ALERT,
             ),
@@ -161,17 +161,17 @@ class MainActivity : ComponentActivity() {
         enrollSection = enrollmentForm()
         root.addView(enrollSection)
 
-        root.addView(label("DEVICE ID"))
+        root.addView(label(getString(R.string.main_label_device_id)))
         deviceIdValue = text("…", 14f, TEXT, mono = true)
         root.addView(deviceIdValue)
         root.addView(spacer())
 
-        root.addView(label("KIOSK"))
+        root.addView(label(getString(R.string.main_label_kiosk)))
         kioskValue = text("…", 16f, TEXT)
         root.addView(kioskValue)
         root.addView(spacer())
 
-        root.addView(label("AGENT VERSION"))
+        root.addView(label(getString(R.string.main_label_version)))
         root.addView(
             text(
                 "${com.dallycontrol.agent.BuildConfig.VERSION_NAME} (build ${com.dallycontrol.agent.BuildConfig.VERSION_CODE})",
@@ -182,12 +182,12 @@ class MainActivity : ComponentActivity() {
         )
         root.addView(spacer())
 
-        root.addView(label("SERVER"))
+        root.addView(label(getString(R.string.main_label_server)))
         root.addView(text(serverConfig.baseUrl(), 13f, MUTED, mono = true))
         root.addView(spacer())
 
         root.addView(
-            text("Managed by DallyControl", 12f, MUTED).apply {
+            text(getString(R.string.main_footer), 12f, MUTED).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, dp(24), 0, 0)
             },

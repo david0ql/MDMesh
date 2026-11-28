@@ -345,6 +345,8 @@ public class Customer implements Serializable {
         this.signupStatus = signupStatus;
     }
 
+    // A one-time sign-up token is a secret: read from a request if ever sent, never written into a response.
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     public String getSignupToken() {
         return signupToken;
     }

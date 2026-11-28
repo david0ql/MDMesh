@@ -60,11 +60,11 @@ public class UserView {
     public boolean isPasswordReset() {
         return user.isPasswordReset();
     }
-    public String getAuthToken() {
-        return user.getAuthToken();
-    }
+    // The session token is never sent to the browser (the session cookie is what authenticates it).
+
+    /** Only while the server forces this user to set a new password: the token their own "set password" page sends back. */
     public String getPasswordResetToken() {
-        return user.getPasswordResetToken();
+        return this.user.isPasswordReset() ? this.user.getPasswordResetToken() : null;
     }
     public List<LookupItem> getGroups() {
         return user.getGroups();

@@ -453,24 +453,24 @@ public final class AuditCatalog {
         audit("PUT", "/private/audit/v1/settings", AUDIT, "audit.retention", "Cambio de la retención de la auditoría");
         audit("POST", "/private/audit/v1/purge", AUDIT, "audit.purge.request", "Aplicación manual de la retención de la auditoría");
 
-        // --- rutas de módulos que se integran en paralelo (marcadas optional: pueden no existir todavía) ----------
-        // Named here so that they arrive with a readable label; AuditCatalogCoverageTest does not report an optional
-        // rule as stale while its route does not exist. Remove .optional() once the module is merged.
+        // --- soporte remoto, datos móviles, comandos, hardware, permisos y certificados Wi-Fi ----------------------
+        // (A route of a module that is still being merged can be registered ahead with .optional(): the stale-route
+        // check skips it until the route exists. None is pending now.)
         audit("POST", "/private/support/v1/devices/{deviceId}/start", REMOTE, "remote.session.start",
                 "Inicio de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/support/v1/devices/{deviceId}/stop", REMOTE, "remote.session.stop",
                 "Fin de sesión de soporte remoto").target("device", "path:deviceId");
         audit("POST", "/private/agent/v1/devices/{deviceId}/mobileData", DEVICES, "device.mobileData",
-                "Cambio de datos móviles del dispositivo").target("device", "path:deviceId").optional();
+                "Cambio de datos móviles del dispositivo").target("device", "path:deviceId");
         audit("POST", "/private/agent/v1/devices/{deviceId}/commands/{commandId}/cancel", COMMANDS, "device.command.cancel",
-                "Cancelación de un comando pendiente").target("device", "path:deviceId").optional();
+                "Cancelación de un comando pendiente").target("device", "path:deviceId");
         audit("PUT", "/private/agent/v1/devices/{deviceId}/hardware", DEVICES, "device.hardware",
                 "Excepción de hardware y puertos del dispositivo").target("device", "path:deviceId");
         audit("PUT", "/private/agent/v1/devices/{deviceId}/permissions", DEVICES, "device.permissions",
-                "Permisos de aplicaciones del dispositivo").target("device", "path:deviceId").optional();
-        audit("POST", "/private/wifi-certificates", POLICIES, "wifi.certificate.upload", "Carga de certificado Wi-Fi").optional();
-        audit("DELETE", "/private/wifi-certificates/{id}", POLICIES, "wifi.certificate.delete", "Eliminación de certificado Wi-Fi").optional();
-        skip(Kind.DEVICE, "POST", "/public/agent/v1/enroll/report", "Reporte de inscripción del dispositivo (lo envía el agente)").optional();
+                "Permisos de aplicaciones del dispositivo").target("device", "path:deviceId");
+        audit("POST", "/private/wifi-certificates", POLICIES, "wifi.certificate.upload", "Carga de certificado Wi-Fi");
+        audit("DELETE", "/private/wifi-certificates/{id}", POLICIES, "wifi.certificate.delete", "Eliminación de certificado Wi-Fi");
+        skip(Kind.DEVICE, "POST", "/public/agent/v1/enroll/report", "Reporte de inscripción del dispositivo (lo envía el agente)");
 
         // --- llamadas del agente del dispositivo (no son de un usuario de la consola) ----------------------------
         skip(Kind.DEVICE, "POST", "/public/agent/v1/enroll", "Inscripción del dispositivo (la hace el agente)");
@@ -563,6 +563,8 @@ public final class AuditCatalog {
         COMMAND_LABELS.put("remote.vnc.start", "inicio de sesión de control remoto");
         COMMAND_LABELS.put("remote.vnc.stop", "fin de sesión de control remoto");
         COMMAND_LABELS.put("remote.inputsetup", "habilitar control (entrada) remoto");
+        COMMAND_LABELS.put("apps.scan", "inventario de aplicaciones instaladas");
+        COMMAND_LABELS.put("apps.icons", "envío de íconos de aplicaciones");
     }
 
     /** Spanish name of an agent command type; an unknown type is shown as it is. */

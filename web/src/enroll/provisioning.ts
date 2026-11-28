@@ -9,7 +9,7 @@
 //   VITE_AGENT_APK_TRACK   "0" = the QR points straight at the APK instead of the server's tracked download
 
 import {
-  buildAgentQrJson, buildKmeJson, buildProvisioningJson, buildZeroTouchJson, trackedApkUrl,
+  buildAgentQrJson, buildKmeJson, buildProvisioningJson, buildZeroTouchJson, plainHttpUrl, trackedApkUrl,
   type ProvisioningClock, type ProvisioningOptions, type WifiConfig,
 } from './payload';
 
@@ -62,15 +62,21 @@ export interface PayloadExtras {
    * issued after that day would then be rejected.
    */
   clock?: ProvisioningClock;
+  /**
+   * Download the agent over plain HTTP: for a phone that boots with a factory date (see plainHttpUrl). The download
+   * then goes straight to the file - the tracked address would redirect to HTTPS.
+   */
+  plainHttpDownload?: boolean;
 }
 
 function options(token: string, wifi?: WifiConfig, extras: PayloadExtras = {}): ProvisioningOptions {
   const serverUrl = serverBaseUrl();
   const apk = agentApkUrl();
+  const tracked = TRACK_DOWNLOAD ? trackedApkUrl(apk, serverUrl, token) : apk;
   return {
     adminComponent: ADMIN_COMPONENT,
     signatureChecksum: SIGNATURE_CHECKSUM,
-    apkUrl: TRACK_DOWNLOAD ? trackedApkUrl(apk, serverUrl, token) : apk,
+    apkUrl: extras.plainHttpDownload ? plainHttpUrl(apk) : tracked,
     serverUrl,
     token,
     wifi,

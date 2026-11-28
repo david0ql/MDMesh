@@ -44,6 +44,8 @@ public class AgentCheckInResponse {
 
     /** Backup server URLs (https) the agent may try when the primary keeps failing; null when none is configured. */
     private List<String> backupUrls;
+    /** Backup check-in schedule and push registration values; null when there is nothing to say (older agents ignore it). */
+    private AgentWakeConfig wake;
 
     public AgentCheckInResponse() {
     }

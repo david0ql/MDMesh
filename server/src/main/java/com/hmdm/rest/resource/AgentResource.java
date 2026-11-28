@@ -118,6 +118,14 @@ public class AgentResource {
                 baseUrl != null && baseUrl.startsWith("http://"));
     }
 
+    private com.hmdm.notification.push.WakeCheckIn wakeCheckIn;
+
+    /** The second wake channel (push token, backup check-in schedule); method injection: an optional collaborator. */
+    @Inject
+    public void setWakeSupport(com.hmdm.notification.push.WakeCheckIn wakeCheckIn) {
+        this.wakeCheckIn = wakeCheckIn;
+    }
+
     /**
      * Stores what the device looked like at this report (screen, network) and whatever its agent explains about its
      * connection; a newly reported failure or silence also goes to the device timeline. Never fails the check-in.
@@ -545,6 +553,8 @@ public class AgentResource {
 
         // Connection diagnostics (optional block) + screen/network as of this report.
         recordConnection(deviceNumber, request);
+        // How this phone can be woken (push token…); also the answer to a push still waiting for one.
+        if (wakeCheckIn != null) wakeCheckIn.record(deviceNumber, request.getWake());
 
         // Persist the latest device-state snapshot (powers the admin console).
         String appliedRevision = validRevision(deviceNumber,
@@ -617,13 +627,18 @@ public class AgentResource {
             recordLocation(deviceNumber, tel);
             autoName(device, tel);
             mirrorIdentity(deviceNumber, tel);
-            checkSimPhone(deviceNumber, tel);
-            // Device history (traceability): one sample every few minutes.
-            try {
-                commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
-                        com.hmdm.util.DeviceSummary.metric(tel, s.getBattery(), s.getCharging(), s.getKioskActive(), s.getLocked()));
-            } catch (Exception e) {
-                logger.warn("Could not record history of {}: {}", deviceNumber, e.getMessage());
+            // A follow-up round (it only reports what the previous round ran) carries no census. Without one there is
+            // no SIM number to compare and no network/storage reading: skip both, or the round would clear a SIM
+            // mismatch and could leave a history sample with empty network and storage.
+            if (tel != null) {
+                checkSimPhone(deviceNumber, tel);
+                // Device history (traceability): one sample every few minutes.
+                try {
+                    commandDAO.recordMetric(deviceNumber, System.currentTimeMillis(),
+                            com.hmdm.util.DeviceSummary.metric(tel, s.getBattery(), s.getCharging(), s.getKioskActive(), s.getLocked()));
+                } catch (Exception e) {
+                    logger.warn("Could not record history of {}: {}", deviceNumber, e.getMessage());
+                }
             }
         }
 
@@ -754,6 +769,7 @@ public class AgentResource {
 
         AgentCheckInResponse checkInResponse = new AgentCheckInResponse(commands);
         if (!backupUrls.isEmpty()) checkInResponse.setBackupUrls(backupUrls);
+        if (wakeCheckIn != null) checkInResponse.setWake(wakeCheckIn.configFor(device));
         return Response.OK(checkInResponse);
     }
 

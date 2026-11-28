@@ -18,8 +18,8 @@ android {
         targetSdk = 35
         // Release CI overrides these from the git tag (see release/version.sh); the defaults are the
         // dev/debug values. versionCode must stay monotonic across the scheme switch (115 > 16).
-        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 58
-        versionName = (project.findProperty("versionName") as String?) ?: "0.9.7"
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 60
+        versionName = (project.findProperty("versionName") as String?) ?: "0.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -114,6 +114,8 @@ dependencies {
 
     // The agent's own enrollment QR scanner (EnrollScanActivity)
     implementation(libs.zxing.core)
+    // Push wake channel (docs/DESPERTADOR-FCM.md). The library alone: no analytics, no google-services plugin.
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

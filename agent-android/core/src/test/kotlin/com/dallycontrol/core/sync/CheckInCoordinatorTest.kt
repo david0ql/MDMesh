@@ -32,6 +32,7 @@ class CheckInCoordinatorTest {
         pending: PendingResults,
         identityId: String = "dev-1",
         syncStatus: SyncStatus = SyncStatus(),
+        telemetry: com.dallycontrol.core.telemetry.TelemetrySource = com.dallycontrol.core.telemetry.TelemetrySource { null },
     ): CheckInCoordinator {
         val identity = FakeIdentity(initialId = identityId, initialSecret = "sek-1")
         val eventSink = object : com.dallycontrol.core.telemetry.EventSink {
@@ -48,7 +49,7 @@ class CheckInCoordinatorTest {
             dispatcher = CommandDispatcher(listOf(TestHandler())),
             pending = pending,
             stateSource = { null },
-            telemetrySource = { null },
+            telemetrySource = telemetry,
             eventSink = eventSink,
             syncStatus = syncStatus,
         ).apply { workContext = kotlin.coroutines.EmptyCoroutineContext }
@@ -77,6 +78,34 @@ class CheckInCoordinatorTest {
         assertEquals("c1", reported.first().commandId)
         assertEquals(CommandStatus.DONE, reported.first().status)
         assertTrue("nothing left buffered", pending.drain().isEmpty())
+    }
+
+    @Test
+    fun `the round that reports a result does not take the census again`() = runTest {
+        val api = FakeMdmApi().apply {
+            checkInResponses.add(
+                ResponseEnvelope(status = "OK", data = AgentCheckInResponse(commands = listOf(command("c1")))),
+            )
+        }
+        var censuses = 0
+        val census = com.dallycontrol.core.telemetry.TelemetrySource {
+            censuses++
+            com.dallycontrol.proto.TelemetrySnapshot(
+                dynamic = com.dallycontrol.proto.DynamicState(
+                    batteryPct = 80, batteryHealth = "good", batteryTempC = 30.0, batteryVoltageMv = 4000,
+                    chargingSource = "none", freeStorageBytes = 1, freeRamBytes = 1, networkType = "wifi",
+                    screenOn = true, locked = false, kioskActive = false, uptimeMs = 1, lastBootAt = 1,
+                ),
+            )
+        }
+
+        coordinator(api, PendingResults(), telemetry = census).runOnce()
+
+        assertEquals(2, api.checkInRequests.size)
+        assertEquals("the census is taken once per run, not again to report a result", 1, censuses)
+        assertTrue(api.checkInRequests[0].telemetry != null)
+        assertTrue("the follow-up round carries the result and no census", api.checkInRequests[1].telemetry == null)
+        assertEquals(1, api.checkInRequests[1].results.size)
     }
 
     @Test

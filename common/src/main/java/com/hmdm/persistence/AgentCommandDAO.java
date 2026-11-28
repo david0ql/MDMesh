@@ -184,6 +184,9 @@ public class AgentCommandDAO {
     public static final long WIPE_SLACK_MS = 60_000L;
     public static final String DETAIL_WIPE_INFERRED =
             "Borrado confirmado por silencio: el equipo recibió la orden y no volvió a reportar";
+    public static final String EVENT_WIPE_NOT_COMPLETED = "wipeNotCompleted";
+    public static final String DETAIL_WIPE_NOT_COMPLETED =
+            "El equipo siguió reportando después de la orden de borrado: no se borró. Se retira la marca «Borrado»";
     public static final String DETAIL_WIPE_REENROLLED = "El equipo se inscribió de nuevo después de recibir el borrado";
     public static final String DETAIL_WIPE_WITHDRAWN = "Retirado: el equipo se inscribió de nuevo antes de recibirlo";
 
@@ -194,6 +197,9 @@ public class AgentCommandDAO {
      */
     public List<java.util.Map<String, Object>> refreshWipedDevices(int customerId) {
         long now = System.currentTimeMillis();
+        // Still reporting with its old credentials more than a minute after the mark: the phone was NOT wiped
+        // (a wiped phone has to enroll again). The mark goes away and its history says why.
+        mapper.noteWipesNotCompleted(customerId, WIPE_SLACK_MS, now, EVENT_WIPE_NOT_COMPLETED, DETAIL_WIPE_NOT_COMPLETED);
         mapper.unmarkReportingDevices(customerId, WIPE_SLACK_MS);
         mapper.markWipedDevices(customerId, now - WIPE_SILENCE_MS, WIPE_SLACK_MS);
         mapper.closeWipesOfWipedDevices(customerId, DETAIL_WIPE_INFERRED);
@@ -204,6 +210,8 @@ public class AgentCommandDAO {
     /** A phone enrolling again must never receive the wipe queued for its previous life. */
     public void closeWipesOnReenroll(String deviceNumber) {
         mapper.closeWipesOnReenroll(deviceNumber, System.currentTimeMillis(), DETAIL_WIPE_REENROLLED, DETAIL_WIPE_WITHDRAWN);
+        // Back in service: no longer shown as wiped (and not as "the wipe did not complete" either).
+        mapper.clearWipedMark(deviceNumber);
     }
 
     /** Command lifecycle history for a device, newest first, created at/after {@code since}. */

@@ -74,6 +74,8 @@ data class AgentCheckInRequest(
     val hardwareId: String? = null,
     /** Connection diagnostics since the last delivered report. Null on older agents. */
     val connection: ConnectionReport? = null,
+    /** How this agent can be woken (push token, battery exemption…). Null on older agents. */
+    val wake: WakeReport? = null,
 )
 
 /** Compact device-state snapshot (device -> server) reported on each check-in. */
@@ -100,4 +102,6 @@ data class AgentCheckInResponse(
     val commands: List<CommandEnvelope> = emptyList(),
     /** Backup server URLs (https) to try when the primary keeps failing. Null: an older server, keep what is stored. */
     val backupUrls: List<String>? = null,
+    /** Backup check-in schedule + push registration values. Null: an older server, or nothing configured. */
+    val wake: WakeConfig? = null,
 )

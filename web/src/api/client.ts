@@ -7,6 +7,8 @@
 // token to attach, so every request must be sent with credentials so the
 // cookie rides along.
 
+import { serverErrorMessage } from './errorMessages';
+
 export const API_BASE: string =
   (import.meta.env.VITE_API_BASE ?? '/rest').replace(/\/$/, '');
 
@@ -23,10 +25,24 @@ export class ApiError extends Error {
     message: string,
     readonly status: ResponseStatus,
     readonly httpStatus: number,
+    /** The server's own message, untranslated: the key (`error.permission.denied`) when it sent one. Compare
+     *  against this, never against `message`, which is the Spanish sentence shown to the operator. */
+    readonly code: string = message,
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Build the error of a server envelope that is not OK: Spanish `message`, raw key in `code`. */
+export function envelopeError(message: string | null | undefined, status: ResponseStatus, httpStatus: number): ApiError {
+  return new ApiError(serverErrorMessage(message), status, httpStatus, message ?? '');
+}
+
+/** The raw server key of a failure (`error.x.y`), for the few places that branch on it; otherwise its message. */
+export function errorCode(e: unknown): string {
+  if (e instanceof ApiError) return e.code;
+  return e instanceof Error ? e.message : '';
 }
 
 interface RequestOptions {
@@ -109,11 +125,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     throw new ApiError('Respuesta inesperada del servidor (no es JSON)', 'ERROR', res.status);
   }
   if (envelope.status && envelope.status !== 'OK') {
-    throw new ApiError(
-      envelope.message ?? 'El servidor devolvió un error',
-      envelope.status,
-      res.status,
-    );
+    throw envelopeError(envelope.message, envelope.status, res.status);
   }
   return envelope.data;
 }

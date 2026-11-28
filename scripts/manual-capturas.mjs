@@ -25,6 +25,9 @@ const out = path.resolve(arg('--out', path.join(aqui, '..', 'docs', 'manuales', 
 const apk = arg('--apk');
 const solo = (arg('--solo') ?? '').split(',').filter(Boolean);
 const sinDatos = process.argv.includes('--sin-datos');
+// Dirección que se ve en las capturas (pie del QR, JSON de Zero‑Touch): el navegador pide a esa dirección de ejemplo y
+// el script responde con lo que contesta el stack local, así ninguna imagen muestra «localhost».
+const como = (arg('--como', 'https://mdm.ejemplo.com')).replace(/\/$/, '');
 const password = process.env.DALLYCONTROL_ADMIN_PASSWORD ?? 'admin';
 if (!web) { console.error('falta --web http://localhost:<puerto>'); process.exit(2); }
 if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(web)) { console.error('solo contra un stack local de desarrollo'); process.exit(2); }
@@ -38,6 +41,13 @@ let hechas = 0; const fallos = [];
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: ANCHO, height: 940 }, colorScheme: 'light', locale: 'es-CO', timezoneId: 'America/Bogota' });
+await ctx.route(`${como}/**`, async (route) => {
+  const req = route.request();
+  try {
+    const resp = await route.fetch({ url: req.url().replace(como, web), headers: await req.allHeaders(), maxRedirects: 0 });
+    await route.fulfill({ response: resp });
+  } catch { await route.abort(); }
+});
 const page = await ctx.newPage();
 page.setDefaultTimeout(30000);
 page.on('dialog', (d) => void d.accept());
@@ -49,10 +59,11 @@ const rest = async (method, p, body) => page.evaluate(async ([m, pp, b]) => {
 }, [method, p, body]);
 const ok = (r, que) => { if (r.status !== 'OK') console.log(`  aviso: ${que}: ${r.http} ${r.status ?? ''} ${r.message ?? ''}`); return r.status === 'OK' ? r.data : undefined; };
 const calma = async (ms = 900) => { await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {}); await page.waitForTimeout(ms); };
-const ir = async (ruta, ms) => { await page.goto(`${web}${ruta}`); await calma(ms); };
+const ir = async (ruta, ms) => { await page.goto(`${como}${ruta}`); await calma(ms); };
 const quiere = (nombre) => solo.length === 0 || solo.some((s) => nombre.startsWith(s));
-/** Guarda una captura. `que`: nada = la ventana; un Locator = ese elemento; { alto } = la ventana con ese alto. */
-const captura = async (nombre, que) => {
+/** Guarda una captura. `que`: nada = la ventana; un Locator = ese elemento (con margen y, si se indica, recortado a
+ *  `maxAlto` píxeles); { alto } = la ventana con ese alto. */
+const captura = async (nombre, que, maxAlto) => {
   if (!quiere(nombre)) return;
   const file = path.join(out, `${nombre}.jpg`);
   try {
@@ -66,7 +77,13 @@ const captura = async (nombre, que) => {
       }
     }).catch(() => {});
     await page.waitForTimeout(250);
-    if (que && typeof que.screenshot === 'function') await que.screenshot({ path: file, type: 'jpeg', quality: 86 });
+    if (que && typeof que.screenshot === 'function') {
+      await que.scrollIntoViewIfNeeded();
+      const caja = await que.evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height }; });
+      const m = 14;
+      await page.screenshot({ path: file, type: 'jpeg', quality: 86, fullPage: true,
+        clip: { x: Math.max(0, caja.x - m), y: Math.max(0, caja.y - m), width: Math.min(ANCHO, caja.w + 2 * m), height: Math.min(maxAlto ?? 1500, caja.h + 2 * m) } });
+    }
     else await page.screenshot({ path: file, type: 'jpeg', quality: 86, clip: { x: 0, y: 0, width: ANCHO, height: que?.alto ?? 940 } });
     hechas++; console.log(`  ok    ${nombre}.jpg`);
   } catch (e) { fallos.push(nombre); console.log(`  FALLO ${nombre}: ${String(e.message).split('\n')[0]}`); }
@@ -85,7 +102,7 @@ const pulsar = async (texto, opts = {}) => {
 };
 
 // ---- pantalla de inicio de sesión (antes de entrar) -----------------------------------------------------------------
-await page.goto(`${web}/login`); await calma();
+await page.goto(`${como}/login`); await calma();
 await captura('a01-login', page.locator('.login-card'));
 await page.fill('input[type="text"]', 'admin');
 await page.fill('input[type="password"]', password);
@@ -197,9 +214,12 @@ await paso('a13', async () => {
   const yaEsta = (await page.getByText('com.dallycontrol.testapp').count()) > 0;
   if (!yaEsta && apk && existsSync(apk)) {
     await pulsar('APK propio');
-    await page.setInputFiles('input[type="file"]', apk); await calma(6000);
-    await pulsar('Agregar a la Biblioteca').catch(() => {});
-    await calma(2500);
+    await page.setInputFiles('input[type="file"]', apk);
+    await page.getByText(/APK listo|Nueva versión agregada|ya está en la Biblioteca/).first().waitFor({ timeout: 60000 }).catch(() => {});
+    const agregar = page.getByRole('button', { name: 'Agregar a la Biblioteca' });
+    if (await agregar.isEnabled().catch(() => false)) await agregar.click();
+    await page.getByText('En la Biblioteca').first().waitFor({ timeout: 30000 }).catch(() => {});
+    await calma(1500);
     console.log('  APK de prueba subido: ejecute scripts/manual-demo-data.sh --refrescar (le pone nombre) y repita con --solo a13,a15');
   }
   await ir('/apps');
@@ -213,9 +233,9 @@ await paso('a15', async () => {
   // La app de demostración se asigna a una política (una vez) para que la ventana tenga equipos que mostrar.
   await page.getByRole('button', { name: 'Desplegar', exact: true }).first().click(); await calma();
   await page.getByText('Agregar a una política').first().waitFor({ timeout: 20000 });
-  await page.getByText('Agregar a una política').first().click(); await calma();
-  await page.locator('.modal select').last().selectOption({ label: 'Preventa · Quiosco' }).catch(() => {});
-  await pulsar('Asignar').catch(() => {}); await calma(2500);
+  await page.getByText('Agregar a una política').first().click({ timeout: 5000 }).catch(() => {}); await calma();
+  await page.locator('.modal select').last().selectOption({ label: 'Preventa · Quiosco' }, { timeout: 5000 }).catch(() => {});
+  await page.getByRole('button', { name: 'Asignar', exact: true }).click({ timeout: 5000 }).catch(() => {}); await calma(2500);
   await ir('/apps');
   await page.getByPlaceholder('Buscar apps').fill('com.dallycontrol.testapp'); await calma(1200);
   await page.getByRole('button', { name: 'Instalación', exact: true }).first().click();
@@ -230,11 +250,70 @@ await paso('a19', async () => { await ir('/reports'); await pulsar('Inventario d
 await paso('a20', async () => { await ir('/reports'); await pulsar('Envíos programados', { ms: 1500 }); await captura('a20-envios-programados', { alto: 560 }); });
 await paso('a21', async () => {
   await ir('/audit', 1500);
+  await page.getByPlaceholder('técnico, equipo, IP, detalle…').fill('Carpeta').catch(() => {});
+  await pulsar('Buscar').catch(() => {});
+  await page.getByRole('button', { name: 'Detalle', exact: true }).first().click().catch(() => {}); await page.waitForTimeout(700);
   await captura('a21-auditoria');
 });
 await paso('a22', async () => { await ir('/settings', 1500); await captura('a22-ajustes'); });
 await paso('a23', async () => { await ir('/announcements'); await captura('a23-anuncios', { alto: 520 }); });
 await paso('a24', async () => { await ir('/scripts'); await captura('a24-scripts', { alto: 520 }); });
+
+// ---- funciones fusionadas después: política (quiosco, hardware, permisos, Wi‑Fi, restablecimiento) y ficha del equipo --
+const abrirPolitica = async () => {
+  await ir('/configs');
+  await page.locator('.cfg-card', { hasText: 'Preventa · Quiosco' }).getByRole('button', { name: 'Editar', exact: true }).click();
+  await calma(1800);
+};
+const seccion = (titulo) => page.locator('section.cfg-panel', { has: page.locator('.cfg-sec-h', { hasText: titulo }) }).first();
+const tab = async (nombre) => { await page.locator('.detail-main .tabs').first().getByRole('button', { name: nombre, exact: true }).click(); await calma(1500); };
+await paso('p01', async () => {
+  await abrirPolitica();
+  await seccion('Quiosco').scrollIntoViewIfNeeded();
+  await captura('p01-politica-quiosco', seccion('Quiosco'));
+  await captura('p02-politica-seguridad', seccion('Seguridad'));
+});
+await paso('p03', async () => {
+  await abrirPolitica();
+  const hw = page.locator('[data-testid="hardware-policy"]');
+  await hw.scrollIntoViewIfNeeded();
+  for (const regla of ['camera', 'usbDebug']) await hw.locator(`[data-testid="hw-rule-${regla}"] select`).selectOption({ label: 'Bloquear' }).catch(() => {});
+  await page.waitForTimeout(500);
+  await captura('p03-politica-hardware', hw, 1150);
+  // Se guarda (cámara y depuración USB bloqueadas) para que la pestaña «Restricciones» del equipo tenga qué mostrar.
+  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click(); await calma(1500);
+  await page.getByRole('button', { name: 'Guardar y aplicar' }).click({ timeout: 4000 }).catch(() => {});
+  await calma(1500);
+});
+await paso('p04', async () => {
+  await abrirPolitica();
+  const pp = page.locator('[data-testid="policy-permissions"]');
+  await pp.scrollIntoViewIfNeeded();
+  await pp.locator('.perm-app-head').first().click().catch(() => {});
+  await page.waitForTimeout(700);
+  await captura('p04-politica-permisos', pp, 760);
+});
+await paso('p05', async () => {
+  await abrirPolitica();
+  const wf = page.locator('[data-testid="policy-wifi"]');
+  await wf.scrollIntoViewIfNeeded();
+  await wf.getByRole('button', { name: '+ Agregar red' }).click();
+  const red = wf.locator('[data-testid="wifi-net-0"]');
+  await red.getByPlaceholder('SSID').fill('Oficina-Corporativa').catch(() => {});
+  await red.locator('select').first().selectOption({ label: 'WPA2‑Enterprise (802.1X)' }).catch(() => {});
+  await page.waitForTimeout(700);
+  await captura('p05-politica-wifi', wf, 900);
+});
+await paso('d01', async () => {
+  await ir(`/devices/${heroId}`, 2500);
+  const pr = page.locator('[data-testid="protection-panel"]');
+  await pr.scrollIntoViewIfNeeded();
+  await captura('d01-proteccion', pr);
+  await pr.getByRole('button', { name: 'Borrado remoto (restablecer de fábrica)' }).click(); await calma(800);
+  await captura('d03-borrado-remoto', page.locator('[role="dialog"][aria-label="Borrado remoto"] .modal').first());
+  await pulsar('Cancelar');
+});
+await paso('d04', async () => { await ir(`/devices/${heroId}`, 2000); await tab('Restricciones'); await captura('d04-restricciones', page.locator('[data-testid="hardware-panel"]'), 820); });
 
 const elegirCarpeta = async () => {
   const sel = page.locator('select').first();

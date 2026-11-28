@@ -213,7 +213,7 @@ def airplane():
         time.sleep(3)
         sh("settings put global airplane_mode_on 1; am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true")
     check("modo avión activo", sh("settings get global airplane_mode_on").strip() == "1")
-    wait_not_live(150)
+    time.sleep(8)  # the outage scenario is the one that measures how long the server takes to notice
     cmd = queue()
     time.sleep(60)
 
@@ -337,7 +337,7 @@ def resting():
     time.sleep(3)
     command_latency(60)
     net(False)
-    wait_not_live(150)
+    time.sleep(8)  # the outage scenario is the one that measures how long the server takes to notice
     age_last_report(45)
     c = connection()
     check("silencio con pantalla apagada = En reposo", c.get("state") == "resting" and c.get("reason") == "screenOff",
@@ -354,7 +354,7 @@ def resting():
     time.sleep(2)
     command_latency(60)
     net(False)
-    wait_not_live(150)
+    time.sleep(8)  # the outage scenario is the one that measures how long the server takes to notice
     age_last_report(45)
     c = connection()
     check("silencio con el equipo en uso = Sin conexión", c.get("state") == "offline", f"{c.get('state')} / {c.get('label')}")
