@@ -17,7 +17,7 @@ class AlertNotifier @Inject constructor(@ApplicationContext private val context:
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "DallyControl alerts", NotificationManager.IMPORTANCE_HIGH),
+                NotificationChannel(CHANNEL, context.getString(com.dallycontrol.core.R.string.alert_channel_name), NotificationManager.IMPORTANCE_HIGH),
             )
         }
         val n = NotificationCompat.Builder(context, CHANNEL)

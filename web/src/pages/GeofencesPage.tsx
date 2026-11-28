@@ -5,6 +5,7 @@ import { useToast } from '../ui/toast';
 import { useAuth } from '../auth/AuthContext';
 import { isFolderAdmin, hasPermission } from '../api/auth';
 import { groupTree, listGroups, type FleetGroup } from '../api/fleet';
+import { errorCode } from '../api/client';
 import { useDevices } from '../data/useDevices';
 import { ZoneEditorMap, type DrawMode } from '../components/ZoneEditorMap';
 import { RULE_LABEL } from '../ui/zoneLayer';
@@ -49,7 +50,7 @@ const errText = (e: unknown, fallback: string) => {
     'error.geofence.smtp.failed': 'El servidor de correo rechazó el mensaje; revisa la configuración SMTP.',
     'error.permission.denied': 'No tienes permiso: la zona debe quedar asignada solo a tus carpetas o dispositivos.',
   };
-  return known[m] ?? (m || fallback);
+  return known[errorCode(e)] ?? (m || fallback);
 };
 
 /** Console page "Geocercas": zones on the map with enter/exit alerts, their e-mail notification and thresholds. */

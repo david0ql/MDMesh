@@ -12,7 +12,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/payload.test.ts"
+    "test": "node --test tests/payload.test.ts tests/errorMessages.test.ts"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

@@ -150,4 +150,21 @@
     <string name="remote_setup_failed">Could not open the settings. Open Settings &gt; Accessibility by hand.</string>
     <string name="remote_setup_open">Open settings</string>
     <string name="remote_setup_later">Not now</string>
+    <!-- Status screen (MainActivity) and kiosk launcher labels. -->
+    <string name="main_subtitle">Device agent</string>
+    <string name="main_label_management">MANAGEMENT</string>
+    <string name="main_managed">Device Owner — active</string>
+    <string name="main_not_managed">Not managed</string>
+    <string name="main_label_device_id">DEVICE ID</string>
+    <string name="main_label_kiosk">KIOSK</string>
+    <string name="main_kiosk_locked">Locked (kiosk active)</string>
+    <string name="main_kiosk_unlocked">Not locked</string>
+    <string name="main_label_version">AGENT VERSION</string>
+    <string name="main_label_server">SERVER</string>
+    <string name="main_footer">Managed by DallyControl</string>
+    <string name="kiosk_loading">Loading…</string>
+    <string name="kiosk_default_title">DallyControl Kiosk</string>
+    <string name="kiosk_no_apps">No available apps. Add installed app packages to this kiosk\'s allowed list.</string>
+    <string name="kiosk_serial">Serial: %1$s</string>
+    <string name="kiosk_idle_subtitle">Managed device</string>
 </resources>

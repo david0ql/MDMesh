@@ -21,6 +21,7 @@ import {
 } from '../api/configurations';
 import { listApplications, type Application } from '../api/applications';
 import { getSyncSummary, type ConfigSyncSummary } from '../api/configSync';
+import { errorCode } from '../api/client';
 import {
   PRIMARY_FIELDS,
   LEGACY_FIELDS,
@@ -205,7 +206,7 @@ export function ConfigurationsPage() {
       void load();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'No se pudo eliminar', /device/i.test(msg) ? 'Todavía hay dispositivos que usan esta política.' : msg);
+      toast.push('err', 'No se pudo eliminar', /device/i.test(errorCode(e)) ? 'Todavía hay dispositivos que usan esta política.' : msg);
     }
   }
 }
@@ -516,7 +517,7 @@ function ConfigEditor({
       onSaved();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
-      toast.push('err', 'No se pudo guardar', /duplicate/i.test(msg) ? 'Ya existe una política con ese nombre.' : msg);
+      toast.push('err', 'No se pudo guardar', /duplicate/i.test(errorCode(e)) ? 'Ya existe una política con ese nombre.' : msg);
     } finally {
       setBusy(false);
     }
