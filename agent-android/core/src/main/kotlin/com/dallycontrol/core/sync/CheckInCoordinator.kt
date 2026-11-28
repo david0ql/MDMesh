@@ -88,7 +88,7 @@ class CheckInCoordinator @Inject constructor(
             // (and pick up anything queued meanwhile) instead of on the next wake or the
             // 10-minute floor, which left the console showing "delivered" for minutes.
             var rounds = 0
-            while (cycle(goodbye) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
+            while (cycle(goodbye, followUp = rounds > 0) && ++rounds < MAX_FOLLOW_UP_ROUNDS) Unit
             syncStatus.clear()
             runCatching { hooks.afterSuccess() }
         } catch (t: Throwable) {
@@ -108,14 +108,16 @@ class CheckInCoordinator @Inject constructor(
     }
 
     /** One request/response round; true when it executed commands whose results are unreported. */
-    private suspend fun cycle(goodbye: Boolean): Boolean {
+    private suspend fun cycle(goodbye: Boolean, followUp: Boolean = false): Boolean {
         val deviceId = enrollment.ensureEnrolled()
         val authorization = "Bearer ${identity.secret().orEmpty()}"
         val matrix = capabilitySource.matrix(deviceId)
         val acks = pending.drain()
         val bufferedEvents = eventSink.drain()
         // A goodbye has a few seconds before the system stops the process: no census (it waits on a location fix).
-        val telemetry = if (goodbye) null else runCatching { telemetrySource.snapshot() }.getOrNull()
+        // A follow-up round only reports what the previous round just ran: the census went out seconds ago, and
+        // taking it again (it can wait on a location fix) is what kept the console from seeing "executed" sooner.
+        val telemetry = if (goodbye || followUp) null else runCatching { telemetrySource.snapshot() }.getOrNull()
         val connectionReport = runCatching { connection.pendingReport(goodbye) }.getOrNull()
 
         val response = try {

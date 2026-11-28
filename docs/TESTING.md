@@ -821,3 +821,31 @@ certificates); `audit-console-e2e.mjs` 56/56 (adds: no user answer carries a pas
 panel stays hidden while the viewer's scope is unknown, the "Campo" column keeps a field name on one line, opening a
 role card does not stretch the others, one matrix row per permission the server checks). `UserSecretsJsonTest`
 guards the JSON of every answer that carries a user.
+
+Final runs of `scripts/command-reliability-e2e.py` (2026-11-27 evening, tree merged with `integration/mobicontrol`,
+debug agent built from it, dev stack behind Caddy with `-Xmx420m -XX:+UseSerialGC`; all phases, wipe included):
+
+| Android | API | Result | Host load during the run |
+|---|---|---|---|
+| 11 | 30 | 56 pass, 3 fail: only the latency thresholds (measured with the agent before the faster result report); every functional phase clean | 37–40 |
+| 15 | 35 | 57 pass, 2 fail: only the latency threshold of lock and alarm; every functional phase clean | 29–40 |
+| 16 | 36 | 59/59 | 16–30 |
+| 11 | 30 | latency only, final agent: 9/9 | 20–23 |
+
+Latency measured by the server (created → delivered → completed), 10 repetitions each, device online with its live
+channel, final agent:
+
+| Command | Android 11 (load ≈ 21): delivery p50 / p90 · executed p50 / p90 / max | Android 16 (load 18–30): delivery p50 / p90 · executed p50 / p90 / max |
+|---|---|---|
+| Lock | 0.27 / 0.64 s · 0.41 / 0.92 / 1.99 s | 0.20 / 0.43 s · 0.30 / 0.59 / 1.17 s |
+| Alarm (ring) | 0.12 / 0.24 s · 0.33 / 0.50 / 1.72 s | 0.45 / 1.37 s · 0.90 / 3.88 / 5.87 s |
+| Message (alert) | 0.11 / 0.19 s · 0.16 / 0.28 / 0.49 s | 0.55 / 1.00 s · 0.87 / 1.50 / 3.70 s |
+| Lock-screen message | 0.12 / 0.35 s · 0.18 / 0.43 / 0.59 s | 0.64 / 1.41 s · 1.29 / 2.03 / 2.81 s |
+
+What made "executed" late before: the agent took the whole device census again (it can wait on a location fix) in the
+round that only reports a result. That round now carries just the result. `scripts/command-console-e2e.mjs`: 16/16.
+
+The wiped mark: set when the agent announces the wipe (or after 10 minutes of silence for an agent that cannot
+announce); kept while the phone stays silent; removed, with a `wipeNotCompleted` line in the device's history, when
+the phone reports again with its old credentials (a wiped phone has none); cleared without that line when the phone
+enrolls again.
