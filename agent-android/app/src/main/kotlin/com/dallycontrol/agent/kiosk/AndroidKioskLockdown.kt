@@ -60,13 +60,19 @@ class AndroidKioskLockdown(
         val guardNeeded = KioskHardening.needsForegroundGuard(sdk) && settings.isNotEmpty()
         val open = (allowed + protectedPackages()).toSet() - settings
         val closed: (String) -> Boolean = if (soft) { pkg -> pkg !in open } else { pkg -> pkg in settings }
-        val canWatch = guardNeeded && (KioskForegroundGuard.screenServiceOn() || KioskForegroundGuard.canWatch(context))
+        // "Switched on" counts from the setting itself: right after a restart the service is on but connects a
+        // few seconds later, and that must not look like a phone that was never authorised.
+        val serviceOn = KioskForegroundGuard.screenServiceOn() ||
+            com.dallycontrol.agent.support.SupportEngine.isServiceOn(context)
+        val canWatch = guardNeeded && (serviceOn || KioskForegroundGuard.canWatch(context))
         // How Settings is kept closed on this phone, for the console (reported when it changes): by lock task, by the
         // guard, or — the guard needs one tap on the phone (the agent's screen service) — not yet.
         val state = KioskHardening.settingsGuard(sdk, guardNeeded, canWatch)
         if (state != prefs.getString(KEY_GUARD, null)) {
             prefs.edit().putString(KEY_GUARD, state).apply()
             events.record(EventType.KIOSK_GUARD, state)
+            // Authorised now: Settings, let through for the guided step, is closed again at once.
+            if (state != KioskHardening.GUARD_MISSING_ACCESS) TimedAllow.revoke(context, "com.android.settings")
             // Tell the console now (the tap on the phone is not followed by any command that would).
             runCatching { com.dallycontrol.core.sync.CheckInWorker.scheduleNow(context) }
         }
@@ -130,6 +136,11 @@ class AndroidKioskLockdown(
     @Synchronized
     override fun release() {
         KioskForegroundGuard.stop()
+        // The console shows the guard's state per device: say when there is no kiosk any more.
+        if (prefs.getString(KEY_GUARD, null) != null) {
+            events.record(EventType.KIOSK_GUARD, "off")
+            runCatching { com.dallycontrol.core.sync.CheckInWorker.scheduleNow(context) }
+        }
         prefs.edit().putBoolean(KEY_ENGAGED, false).apply()
         if (!dpm.isDeviceOwnerApp(context.packageName)) return
         val mine = prefs.getStringSet(KEY_RESTRICTIONS, emptySet()).orEmpty()

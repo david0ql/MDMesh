@@ -180,7 +180,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
       {!compact && !pending && active === false && policyKiosk && (
         <span className="muted small">Usa el quiosco de la política «{policy?.name}».</span>
       )}
-      {!compact && active && guard === 'needsAuthorization' && (
+      {!compact && guard === 'needsAuthorization' && (
         <span className="field-error" data-testid="kiosk-guard" style={{ display: 'block' }}>
           <strong>Falta autorización en el teléfono.</strong> Un toque, una sola vez (el mismo que habilita el soporte remoto): hasta
           darlo, en esta versión de Android una app permitida puede abrir los Ajustes del sistema. El teléfono lo pide en pantalla cada
@@ -188,7 +188,7 @@ export function KioskToggle({ device, compact = false }: { device: Device; compa
           <button className="btn btn-sm" data-testid="kiosk-guard-ask" onClick={() => void askAuthorization()}>Pedir autorización en el teléfono</button>
         </span>
       )}
-      {!compact && active && (guard === 'guard' || guard === 'lockTask') && (
+      {!compact && (guard === 'guard' || guard === 'lockTask') && (
         <span className="muted small" data-testid="kiosk-guard">
           {guard === 'lockTask' ? 'Quiosco reforzado: Android bloquea los Ajustes del sistema.' : 'Quiosco reforzado: si se abren los Ajustes, el equipo vuelve solo al quiosco.'}
         </span>
