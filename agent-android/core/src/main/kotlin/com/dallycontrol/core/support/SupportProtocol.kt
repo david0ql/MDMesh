@@ -158,9 +158,18 @@ object SupportReadiness {
         else -> SupportScreenState.NEEDS_AUTHORIZATION
     }
 
+    /**
+     * Android 11 allows an accessibility screenshot only once a second (Android 12+: three a second), so up to
+     * Android 11 the screen is captured with Android's screen capture, its consent pressed by the service.
+     */
+    const val MAX_SDK_PREFER_PROJECTION = 30
+
+    /** Android 11's own pace for accessibility screenshots (the fallback there, e.g. inside a kiosk). */
+    const val A11Y_INTERVAL_SDK30_MS = 1_010L
+
     /** How frames are captured: accessibility screenshots, or screen capture with its consent tapped by the service. */
     fun capture(sdk: Int): String = when {
-        sdk >= MIN_SDK_A11Y_CAPTURE -> "a11y"
+        sdk > MAX_SDK_PREFER_PROJECTION -> "a11y"
         sdk >= MIN_SDK_CONTROL -> "projection"
         else -> "none"
     }

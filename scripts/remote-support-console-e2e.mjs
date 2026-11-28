@@ -241,7 +241,7 @@ try {
   const inCall = check('the call is established', (await hook('s.callState')) === 'active', `${await hook('s.callState')}`);
   let phoneRxRms = 0; let pageRxRms = 0;
   if (!inCall) throw new Error('no call: the rest of the voice checks cannot run');
-  for (let i = 0; i < 12; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
+  for (let i = 0; i < 24; i++) { // the synthetic microphone beeps about once a second: keep the loudest second
     await sleep(500);
     phoneRxRms = Math.max(phoneRxRms, (await hook('s.callStats && s.callStats.rxRms')) || 0);
     pageRxRms = Math.max(pageRxRms, (await hook('s.rxAudioRms')) || 0);

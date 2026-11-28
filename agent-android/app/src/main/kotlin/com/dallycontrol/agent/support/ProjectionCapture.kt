@@ -47,6 +47,9 @@ object ProjectionCapture {
 
     val active: Boolean get() = projection != null
 
+    /** [bitmap] is the capture's own last frame (kept between calls): not the caller's to recycle. */
+    fun owns(bitmap: Bitmap): Boolean = bitmap === last
+
     /** Ask for (and self-accept) the capture, sized to fit [maxDim]. False when it could not be obtained. */
     @Suppress("ReturnCount") // already running / could not ask / the answer
     suspend fun ensure(context: Context, service: SupportAccessibilityService, maxDim: Int): Boolean {

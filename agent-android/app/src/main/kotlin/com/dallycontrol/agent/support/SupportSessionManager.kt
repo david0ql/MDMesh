@@ -397,10 +397,16 @@ class SupportSessionManager @Inject constructor(
         wakeScreen()
         val notice = SupportEngine.settings(context).notice
         if (notice) service.showNotice(context.getString(R.string.support_viewing))
-        val projection = Build.VERSION.SDK_INT < SupportReadiness.MIN_SDK_A11Y_CAPTURE
+        // Up to Android 11: Android's screen capture (its consent is pressed by the service). Where that is not to be
+        // had and accessibility can take screenshots (Android 11 inside a kiosk), those are used, at their slower pace.
+        val canShoot = Build.VERSION.SDK_INT >= SupportReadiness.MIN_SDK_A11Y_CAPTURE
+        var projection = Build.VERSION.SDK_INT <= SupportReadiness.MAX_SDK_PREFER_PROJECTION
         if (projection && !ProjectionCapture.ensure(context, service, maxDim)) {
-            screenError("capture refused")
-            return
+            if (!canShoot) {
+                screenError("capture refused")
+                return
+            }
+            projection = false
         }
         val jpeg = ByteArrayOutputStream(JPEG_BUFFER)
         var previous: Bitmap? = null
@@ -410,7 +416,10 @@ class SupportSessionManager @Inject constructor(
         var sentAt = 0L
         // Android refuses an accessibility screenshot asked less than a third of a second after the previous one;
         // screen capture (Android 7-10) has no such limit.
-        var interval = if (projection) PROJECTION_INTERVAL_MS else A11Y_INTERVAL_MS
+        val shotInterval =
+            if (Build.VERSION.SDK_INT == SupportReadiness.MIN_SDK_A11Y_CAPTURE) SupportReadiness.A11Y_INTERVAL_SDK30_MS
+            else A11Y_INTERVAL_MS
+        var interval = if (projection) PROJECTION_INTERVAL_MS else shotInterval
         var lastCapture = 0L
         var statsAt = System.currentTimeMillis()
         var captures = 0
@@ -468,14 +477,19 @@ class SupportSessionManager @Inject constructor(
             }
             val bitmap: Bitmap? = if (projection) {
                 if (!ProjectionCapture.active && !ProjectionCapture.ensure(context, current, maxDim)) {
-                    screenError("capture refused")
-                    return
+                    if (!canShoot) {
+                        screenError("capture refused")
+                        return
+                    }
+                    projection = false
+                    interval = shotInterval
+                    continue
                 }
                 ProjectionCapture.frame()
             } else {
                 val (b, error) = screenshot(current)
                 if (error == SupportAccessibilityService.ERROR_TOO_SOON) {
-                    interval = minOf(interval + INTERVAL_STEP_MS, MAX_INTERVAL_MS)
+                    interval = minOf(interval + INTERVAL_STEP_MS, maxOf(MAX_INTERVAL_MS, shotInterval + INTERVAL_STEP_MS))
                 }
                 b
             }
@@ -487,7 +501,7 @@ class SupportSessionManager @Inject constructor(
             // Always a private copy at the size sent, so it can be compared with the next one.
             val resized = Bitmap.createScaledBitmap(bitmap, w, h, true)
             val scaled = if (resized === bitmap) resized.copy(Bitmap.Config.ARGB_8888, false) else resized
-            if (!projection) bitmap.recycle()
+            if (!ProjectionCapture.owns(bitmap)) bitmap.recycle()
             // An unchanged screen is not sent again (a still screen costs no data and no encoding), except as a slow
             // keep-alive. Comparing pixels is far cheaper than encoding, so the loop is back at the screen sooner.
             val still = previous?.let { it.width == w && it.height == h && it.sameAs(scaled) } == true
