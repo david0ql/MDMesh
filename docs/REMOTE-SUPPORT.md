@@ -18,7 +18,7 @@ agente del teléfono lo hace todo: no hay que instalar otra app.
 | Chat | Mensajes del técnico aparecen en pantalla en el teléfono (abre *Soporte técnico*, también en quiosco y con el teléfono bloqueado); la persona responde ahí mismo. |
 | Aviso | *Soporte está viendo tu pantalla*: una etiqueta roja sobre cualquier app y una notificación fija mientras dura la sesión. Se puede apagar por política. |
 | Archivos | **Enviar archivo** al teléfono (queda en *Descargas/Soporte*) y **Explorar el teléfono** para descargar archivos a la consola. |
-| Portapapeles | Enviar texto al portapapeles del teléfono; traer el texto del campo enfocado. |
+| Portapapeles | Enviar texto al portapapeles del teléfono y **traer el portapapeles del teléfono** (lo que la persona copió allí), con cualquier app en primer plano. |
 | Captura y grabación | **Captura** descarga la imagen actual (PNG); **Grabar** guarda la sesión en video (WebM) en el equipo del técnico. |
 | Registro | Cada sesión queda registrada: quién, qué dispositivo, cuándo, cuánto duró, si fue solo ver, y qué se usó (mensajes, archivos, segundos de voz, toques). **Historial de sesiones** en la pestaña Remoto y página **Sesiones de soporte** para toda la flota (con descarga CSV). Un administrador de carpeta solo ve las de sus dispositivos. |
 
@@ -73,9 +73,9 @@ En la política, sección **Soporte remoto**:
 | 6 (API 23) | No | — | — | — |
 | 7 – 10 (API 24–29) | Sí | Sí, tras la autorización | Captura de pantalla de Android; el agente acepta él mismo el aviso «Iniciar ahora» (2–4 s al empezar cada sesión). Fluida: 6 imágenes/s o más. | **La pantalla no se puede ver** (Android bloquea ese aviso en quiosco): la consola lo dice y ofrece seguir con chat, llamada y archivos; para ver la pantalla, sacar el teléfono del quiosco o usar droidVNC-NG. |
 | 11 (API 30) | Sí | Sí, tras la autorización | Igual que 7–10. | Sí, con capturas de accesibilidad: una imagen por segundo (límite de Android 11). |
-| 12 – 16 (API 31–36) | Sí | Sí, tras la autorización | Capturas de accesibilidad, sin ningún aviso; hasta 3 imágenes/s (límite de Android). | Sí, igual que fuera del quiosco. |
+| 12 – 16 (API 31–36) | Sí | Sí, tras la autorización | Capturas de accesibilidad, sin ningún aviso; hasta 3 imágenes/s (límite de Android). | Sí, igual que fuera del quiosco. En Android 16 (quiosco sin lock task) el mismo servicio vigila el quiosco y atiende la sesión a la vez. |
 
-Probado en emulador en Android 10, 11, 15 y 16 (ver [TESTING.md](TESTING.md)). En Android 7–11 la notificación de la
+Probado en emulador en Android 10, 11, 15 y 16, dentro y fuera del quiosco (ver [TESTING.md](TESTING.md) y «Estado» abajo). Android 7–9 usa el mismo camino que Android 10 y no se corrió. En Android 7–11 la notificación de la
 sesión no se puede ocultar por política: Android la exige mientras se captura la pantalla.
 
 Válido en todas las versiones:
@@ -83,8 +83,11 @@ Válido en todas las versiones:
 - Las apps que protegen su pantalla (bancos, algunos campos de contraseña) se ven **en negro**: lo decide la app.
 - Un **bloqueo con PIN/patrón** se ve tal cual; el técnico puede escribirlo si lo conoce (o usar *Restablecer
   contraseña* de la consola). No se puede saltar.
-- **Portapapeles del teléfono hacia la consola**: desde Android 10 una app en segundo plano no puede leer el
-  portapapeles; la consola trae el texto del campo enfocado (o seleccionado), no el portapapeles en sí.
+- **Portapapeles del teléfono hacia la consola**: desde Android 10 Android solo entrega el portapapeles a la app
+  que tiene el foco. El agente lo resuelve con su servicio de pantalla: pone una ventana propia de un píxel,
+  invisible, que toma el foco un instante, lee y se quita (0,1–0,4 s medido en emulador). La app que estaba delante sigue donde
+  estaba; su teclado puede cerrarse en ese instante. Necesita la autorización del soporte remoto (el mismo toque
+  único). Si el portapapeles está vacío, la consola ofrece el texto del campo enfocado y lo dice.
 - **Explorar archivos**: completo si el teléfono tiene «acceso a todos los archivos» para el agente (lo da el
   inscriptor por cable); si no, se ven fotos, videos, audio y la carpeta *Soporte*.
 - **Teléfono en ahorro de batería y bloqueado**: toma la sesión en su siguiente conexión (minutos). Para soporte
@@ -107,17 +110,54 @@ Válido en todas las versiones:
 Emuladores en la máquina de pruebas (red local, servidor en Docker). Ver los números de cada corrida en
 [TESTING.md](TESTING.md#remote-support-through-the-agent-adr-0012).
 
-| Medida (10 repeticiones, p50 / p90) | Objetivo | Android 10 | Android 11 | Android 15 |
-|---|---|---|---|---|
-| Primera imagen desde «iniciar sesión» | < 10 s | 4,2 s / 4,5 s | 1,8 s / 2,8 s | 0,5 s / 1,3 s |
-| Toque → imagen con el efecto | < 1 s | 0,25 s / 0,32 s | 0,21 s / 0,29 s | 0,30 s / 0,61 s |
+| Medida (10 repeticiones, p50 / p90) | Objetivo | Android 10 | Android 11 | Android 15 | Android 16 |
+|---|---|---|---|---|---|
+| Primera imagen desde «iniciar sesión» | < 10 s | 3,9 s / 4,1 s | 1,4 s / 1,5 s | 1,07 s / 1,08 s | 1,07 s / 1,08 s |
+| Toque → imagen con el efecto | < 1 s | 0,19 s / 0,22 s | 0,17 s / 0,20 s | 0,18 s / 0,44 s | 0,19 s / 0,51 s |
+| Carga de la máquina (`uptime`, 1 min) durante la medición | — | 18 | 5,5–9,5 | 4,2–6,3 | 3,4–4,9 |
 
-Medido en emulador con la máquina a carga 17–24 (15 núcleos); con la máquina más cargada los tiempos suben (ver
-TESTING.md). La cota de Android 12+ es una captura cada 333 ms; el agente guarda una captura «en mano» cuando la
-pantalla está quieta y la toma 120 ms después de un toque. En teléfono físico falta confirmarlo.
+Medido el 2026-11-28 en emulador a 1080×2400, enrolado estilo QR, con el agente final (10 sesiones nuevas y 10 toques
+por versión; el peor toque de las 40 mediciones fue 0,53 s). Android 11, 15 y 16 se midieron con la máquina libre;
+Android 10, con la máquina a carga 18 (aun así 0,22 s). La cota de Android 12+ es una captura cada 333 ms; el agente
+guarda una captura «en mano» cuando la pantalla está quieta y la toma 120 ms después de un toque. Dentro del
+quiosco: 0,25–0,70 s en Android 15 y 16; en Android 11 dentro del quiosco, 0,8–1,5 s (allí Android solo da una
+captura por segundo). En teléfono físico falta confirmarlo.
 
 La orden de inicio viaja por el canal en vivo del agente (el mismo socket por el que el servidor lo despierta): un
 teléfono conectado se une sin esperar a su siguiente reporte.
+
+## Estado (2026-11-28)
+
+Corridas finales en emulador, enrolamiento estilo QR (sin ningún permiso dado por cable), agente y servidor de esta
+rama; `scripts/remote-support-e2e.mjs --authorize --kiosk --latency 10`:
+
+| | Android 10 (API 29) | Android 11 (API 30) | Android 15 (API 35) | Android 16 (API 36) |
+|---|---|---|---|---|
+| Resultado | 42 de 43 (sin `--kiosk`: no aplica); 45 de 45 en la primera corrida | 73 de 73 | 75 de 75 | 69 de 70 |
+| Sesión dentro del quiosco: ver, tocar, chat y respuesta, llamada, sigue en quiosco | no aplica (Android 7–10 no puede mostrar la pantalla en quiosco) | pasa (3 quioscos) | pasa (3 quioscos) | pasa (3 quioscos) |
+| El técnico responde en el teléfono a través de la sesión (toca el campo, escribe, toca Enviar) | pasa | pasa | pasa | pasa |
+| Aviso apagado por la política | no aplica (Android exige la notificación al capturar) | no aplica (igual) | pasa (4 de 4 corridas) | pasa (4 de 4 corridas) |
+| Portapapeles del teléfono con otra app delante | pasa | pasa | pasa (también texto copiado a mano en el teléfono) | pasa (igual) |
+
+Las dos fallas, tal como salieron: en Android 10, un toque del técnico sobre una fila de Ajustes no abrió la
+pantalla (una vez; `--only control` repetido pasó 3 de 3); en Android 16, la sesión de «solo ver» abierta justo
+después de las 10 sesiones de latencia no recibió imagen en 20 s (una vez; pasó en las otras 7 corridas de esa misma
+comprobación en Android 11, 15 y 16). No se encontró la causa de ninguna de las dos. Otra falla vista en Android 16
+(`--only control`, 1 de 3) era de la prueba, que dejaba Ajustes en una subpantalla: la prueba ahora abre Ajustes
+desde su inicio. En la consola (Chromium, `scripts/remote-support-console-e2e.mjs`, Android 16): 28 de
+29; la que falla es el micrófono sintético de Chromium oído como silencio en el teléfono (el audio del técnico al
+teléfono sí se verifica en la prueba de protocolo, con un tono).
+
+Qué se corrigió en esta ronda:
+
+- **Portapapeles desde el teléfono**: antes solo llegaba el texto del campo enfocado; ahora llega el portapapeles.
+- **Aviso de la sesión**: desde Android 12 la notificación «Soporte está conectado» podía tardar hasta 10 s en
+  aparecer; ahora sale al instante.
+- **Soporte dentro del quiosco de Android 16**: el producto funcionaba; lo que fallaba era la prueba, que buscaba lock task
+  (Android 16 no lo usa). Probado ahora también con Ajustes fuera del quiosco, que es cuando el servicio de pantalla
+  vigila el quiosco y atiende la sesión a la vez.
+- Dentro de un quiosco el técnico tampoco puede abrir Ajustes en el teléfono (el quiosco lo devuelve): para eso se
+  saca el equipo del quiosco desde la consola. Es por diseño.
 
 ## Guía de prueba para el cliente
 
@@ -155,3 +195,8 @@ dispositivos:
   agente el permiso que da el cable y haciendo el toque en las pantallas reales de Ajustes).
 - El comportamiento con **datos móviles** y cambios de red a mitad de sesión (el agente reintenta 45 s).
 - **Google Play Protect** frente al APK firmado de producción.
+- La **latencia del toque** (en emulador 0,17–0,19 s de mediana, 0,51 s el percentil 90 más alto) con la red y el
+  procesador de un teléfono real.
+- **Traer el portapapeles** con el teclado y la capa de cada fabricante (la ventana de un píxel toma el foco un
+  instante: comprobar que la app de trabajo no pierde lo que se estaba escribiendo).
+- **Android 7, 8 y 9**: mismo camino que Android 10, no corrido en esta ronda.

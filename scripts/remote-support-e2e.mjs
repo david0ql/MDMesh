@@ -51,6 +51,8 @@ const adbBin = (...a) => execFileSync('adb', ['-s', serial, ...a], { maxBuffer: 
 const sdk = Number(adb('shell', 'getprop', 'ro.build.version.sdk').trim());
 const topOnce = () => (adb('shell', 'dumpsys activity activities')
   .match(/(?:topResumedActivity|mResumedActivity|mFocusedActivity)[=:].*? (\S+\/\S+?)[ }]/) || [])[1] || '';
+// Settings at its first screen, whatever an earlier step (or run) left open in its task.
+const openSettings = () => adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS', '--activity-clear-task');
 const top = () => { for (let i = 0; i < 4; i++) { const t = topOnce(); if (t) return t; } return ''; };
 
 let pass = 0, fail = 0;
@@ -390,7 +392,7 @@ try {
 
   // --- control -----------------------------------------------------------------------------------------------------
   if (want('control')) {
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const before = top();
     s.send({ t: 'key', k: 'home' });
@@ -399,7 +401,7 @@ try {
     check('operator presses Home: the phone leaves Settings', /settings/i.test(before) && !/settings/i.test(after), `${before} -> ${after}`);
 
     // A button, found by its bounds on the phone's screen, tapped through the session; the effect read over adb.
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const list = nodes(dumpUi()).filter((n) => /settings/i.test(n.pkg));
     await serviceBack();
@@ -426,7 +428,7 @@ try {
     s.send({ t: 'key', k: 'home' });
     await sleep(800);
     // Frame rate while the screen moves: the operator scrolls the Settings list up and down.
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2000);
     await serviceBack();
     await s.quiet();
@@ -572,7 +574,7 @@ try {
     check('console -> phone: clipboard text is set', ok?.ok === true);
     // Back from the phone, with ANOTHER app in front (the agent in the background): Android 10+ only lets the app
     // with the input focus read the clipboard, so the agent's screen service takes the focus for a moment.
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const front = top();
     const getFrom = Date.now();
@@ -666,7 +668,7 @@ if (flag('--kiosk')) {
       if (name === 'multi-app, Settings closed') {
         // The operator is inside the kiosk too: Settings opened on the phone goes back to the kiosk (Android 7-10, 16+)
         // or is refused by lock task (Android 11-15); the session keeps showing the screen either way.
-        adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+        openSettings();
         let t = ''; for (let i = 0; i < 12; i++) { await sleep(500); t = top(); if (!/com\.android\.settings\//.test(t)) break; }
         const m = k.frames.length;
         k.send({ t: 'key', k: 'home' });
@@ -738,7 +740,7 @@ if (reps > 0) {
     l.send({ t: 'screen.start', maxDim: 960, quality: 55 });
     await l.until(() => l.frames[0], 30000);
     for (let i = 0; i < reps; i++) {
-      adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+      openSettings();
       await sleep(2000);
       await l.quiet(1500, 10000);
       const n = l.frames.length; const at = Date.now();
@@ -771,7 +773,7 @@ if (want('control')) {
     await v.until(() => v.msg('peer', 0, (m) => m.state === 'joined'), 30000);
     v.send({ t: 'screen.start', maxDim: 540, quality: 40 });
     const f = await v.until(() => v.frames[0], 20000);
-    adb('shell', 'am', 'start', '-a', 'android.settings.SETTINGS');
+    openSettings();
     await sleep(2500);
     const before = top();
     v.send({ t: 'key', k: 'home' });

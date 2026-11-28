@@ -30,12 +30,9 @@ object KioskAuthPrompt {
      * once per closing. After "Ahora no" the person is back on the gate screen, whose button opens it again.
      */
     fun askForGate(context: Context): Boolean {
-        if (!AndroidKioskLockdown.gated(context)) {
-            gateAsked = false
-            return false
-        }
-        if (gateAsked) return false
-        return ask(context, force = true)
+        val gated = AndroidKioskLockdown.gated(context)
+        if (!gated) gateAsked = false
+        return gated && !gateAsked && ask(context, force = true)
     }
 
     /** @return true when the guided step was opened. [force] = the person asked for it (no waiting). */

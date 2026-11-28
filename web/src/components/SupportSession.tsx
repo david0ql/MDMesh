@@ -1004,10 +1004,10 @@ export function SupportSession({ device, start, startedAt, altScreen, onScreenMo
               {clipBack && (clipBack.s ? (
                 <>
                   <pre className="ss-clip">{clipBack.s}</pre>
-                  {clipBack.source === 'field' && <p className="muted">Es el texto del campo enfocado en el teléfono (Android no deja leer su portapapeles desde el fondo).</p>}
+                  {clipBack.source === 'field' && <p className="muted">Es el texto del campo enfocado en el teléfono: su portapapeles estaba vacío o Android no lo entregó.</p>}
                 </>
               ) : (
-                <p className="muted">El teléfono no tiene texto que traer (Android 10 o superior solo deja leer el portapapeles a la app en primer plano).</p>
+                <p className="muted">El teléfono no tiene texto que traer: su portapapeles está vacío (o falta la autorización del soporte remoto en el teléfono).</p>
               ))}
               {clipNote && <p className="muted">{clipNote}</p>}
             </div>

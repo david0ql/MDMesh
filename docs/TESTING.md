@@ -858,3 +858,37 @@ afterwards, not re-run), the synthetic microphone of Chromium was heard as near-
 it passed three times on Android 15). Android 11 - the session notice cannot be hidden while screen capture runs
 (Android's rule; the script now skips that check there). Android 16 console - the reply typed over adb did not
 arrive (the one typed through the session did).
+
+## Remote support and kiosk, closing round (2026-11-28)
+
+Own stack (`COMPOSE_PROJECT_NAME=w15c`, heap 420 MB), debug agent of this branch, emulators at 1080x2400 enrolled
+QR-style (agent installed without `-g`, `adb-enroll.sh` without `--apk`, usage access set back to default). Host load
+(`uptime`, 1 min) is given with every time. Logs of the runs are not kept in the repository.
+
+`scripts/remote-support-e2e.mjs --authorize --kiosk --latency 10` (`--kiosk` now runs three kiosks: single-app,
+multi-app, and multi-app with Settings NOT allowed, where the kiosk's guard and the session share the screen service;
+on Android 16 "in the kiosk" is read from the agent's lock-down, since there is no lock task there):
+
+| | Android 10 (API 29) | Android 11 (API 30) | Android 15 (API 35) | Android 16 (API 36) |
+|---|---|---|---|---|
+| Result | 42/43 (no `--kiosk`); 45/45 first run | 73/73 | 75/75 | 69/70 |
+| First image, p50 / p90 | 3937 / 4096 ms | 1388 / 1534 ms | 1068 / 1080 ms | 1067 / 1081 ms |
+| Touch to image, p50 / p90 (10 taps) | 191 / 215 ms | 166 / 200 ms | 176 / 444 ms | 186 / 511 ms |
+| Host load while measuring | 18 | 5.5-9.5 | 4.2-6.3 | 3.4-4.9 |
+| Touch to image inside the kiosk (one tap per kiosk) | not applicable | 800-1466 ms | 254-537 ms | 227-702 ms |
+| Clipboard read with another app in front | 369 ms | pass | pass, also text copied by hand on the phone | 224 ms, same |
+| Notice turned off by the policy | Android requires it | Android requires it | pass, 4 of 4 runs | pass, 4 of 4 runs |
+
+The two misses: Android 10, one tap on a Settings row did not open it (`--only control` then passed 3 of 3); Android
+16, the view-only session opened right after the ten latency sessions got no image in 20 s (once; it passed in the
+other runs). Neither was explained. `scripts/remote-support-console-e2e.mjs` on Android 16: 28/29 (Chromium's synthetic
+microphone heard as near-silence on the phone; the protocol script checks that direction with a tone).
+
+`scripts/kiosk-escape-test.py --qr-style --reboot` with "closed until authorised" (docs/KIOSK-HARDENING.md): Android
+10 105/0, Android 16 107/0; QR part only on Android 15, 4/0. What a Device Owner gets when it tries to authorise
+itself, read from the agent's log on API 29, 35 and 36: `grantWriteSecureSettings=refused(false)
+setSecureSetting=threw SecurityException (Permission denial: Device owners cannot update
+enabled_accessibility_services) grantUsageAccess=refused(false)`.
+
+Not run in this round: Android 7-9, a physical phone, the console script on other releases.
+

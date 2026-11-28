@@ -6,6 +6,7 @@ package com.dallycontrol.kiosk
  *
  * Restriction keys are literals mirroring `android.os.UserManager.DISALLOW_*` (stable Android API).
  */
+@Suppress("TooManyFunctions") // one small pure decision each
 object KioskHardening {
     /** First release whose lock task crashes system_server on real phones (see docs/KIOSK-HARDENING.md). */
     const val SOFT_KIOSK_SDK = 36

@@ -157,8 +157,15 @@ class KioskLauncherActivity : ComponentActivity() {
                 setBackgroundColor(Color.parseColor("#B3261E"))
             },
         )
-        col.addView(centeredText(getString(R.string.kiosk_gate_title), 20f, parseColor(p.theme.textColor, TEXT), bold = true).apply { setPadding(0, dp(20), 0, 0) })
-        col.addView(centeredText(getString(R.string.kiosk_gate_body), 15f, parseColor(p.theme.textColor, TEXT)).apply { setPadding(0, dp(12), 0, dp(24)) })
+        val fg = parseColor(p.theme.textColor, TEXT)
+        col.addView(
+            centeredText(getString(R.string.kiosk_gate_title), GATE_TITLE_SP, fg, bold = true)
+                .apply { setPadding(0, dp(GATE_GAP_DP), 0, 0) },
+        )
+        col.addView(
+            centeredText(getString(R.string.kiosk_gate_body), GATE_BODY_SP, fg)
+                .apply { setPadding(0, dp(GATE_GAP_DP / 2), 0, dp(GATE_GAP_DP)) },
+        )
         col.addView(
             Button(this@KioskLauncherActivity).apply {
                 text = getString(R.string.kiosk_gate_button)
@@ -799,6 +806,9 @@ class KioskLauncherActivity : ComponentActivity() {
         const val BOUNCE_DEDUPE_MS = 1_500L
         const val BANNER_SP = 13f
         const val GATE_TICK_MS = 1_000L
+        const val GATE_TITLE_SP = 20f
+        const val GATE_BODY_SP = 15f
+        const val GATE_GAP_DP = 24
 
         /** Pseudo-package of the quick-settings tile on the kiosk home. */
         const val QUICK_SETTINGS_TILE = "dallycontrol.quicksettings"

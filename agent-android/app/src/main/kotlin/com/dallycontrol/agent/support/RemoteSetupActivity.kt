@@ -108,7 +108,8 @@ class RemoteSetupActivity : Activity() {
         finish()
         if (com.dallycontrol.agent.kiosk.AndroidKioskLockdown.engaged(this)) {
             runCatching {
-                startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
     }

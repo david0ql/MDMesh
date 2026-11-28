@@ -224,6 +224,9 @@ object SupportEngine {
     fun supportCapability(context: Context): SupportCapability {
         val screen = screenState(context)
         val ready = screen == SupportScreenState.READY
+        // Still waiting for the one tap: what Android answers to a Device Owner trying to do it itself goes on record
+        // (once per start), so a release of Android that allows it is noticed without a new agent.
+        if (screen == SupportScreenState.NEEDS_AUTHORIZATION) runCatching { probeDeviceOwnerRoutes(context) }
         return SupportCapability(
             session = true,
             screen = screen,
