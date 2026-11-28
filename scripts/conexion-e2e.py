@@ -35,7 +35,8 @@ P.add_argument("--server-url", default="http://10.0.2.2:8088", help="the server 
 P.add_argument("--tls-url", default="", help="scripts/red-simulada.py tls, as the device reaches it (e.g. https://10.0.2.2:8443)")
 P.add_argument("--backup-device-url", default="", help="the server's backup URL as the device reaches it (tls scenario)")
 P.add_argument("--nows-url", default="", help="scripts/red-simulada.py nows, as the device reaches it (e.g. http://10.0.2.2:8122)")
-P.add_argument("--only", default="")
+P.add_argument("--only", default="", help="scenarios to run, in this order; a name may be repeated (wifi,wifi,wifi)")
+P.add_argument("--orders", type=int, default=3, help="commands sent in the baseline scenario")
 P.add_argument("--doze-minutes", type=float, default=7)
 A = P.parse_args()
 
@@ -172,7 +173,7 @@ def recover_and_command(label, restore, live_limit, cmd_limit, queued=None):
 def baseline():
     print("== línea base (red estable)")
     check("canal en vivo abierto", wait_live(90) is not None)
-    for i in range(3):
+    for i in range(A.orders):
         measure(f"orden con el canal abierto #{i + 1}", command_latency(60), 10)
 
 
@@ -470,9 +471,12 @@ def main():
         print("Carga de la máquina de pruebas (load average): " + " ".join(f"{x:.1f}" for x in __import__("os").getloadavg()))
     except OSError:
         pass
-    for name, fn in SCENARIOS:
-        if only and name not in only:
-            continue
+    table = dict(SCENARIOS)
+    unknown = [n for n in only if n not in table]
+    if unknown:
+        sys.exit(f"unknown scenario(s): {unknown}")
+    for name in (only or [n for n, _ in SCENARIOS]):
+        fn = table[name]
         try:
             fn()
         except Exception as e:  # keep going: one broken scenario must not hide the others
