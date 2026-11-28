@@ -260,7 +260,10 @@ def to_exit_screen(mode):
         home()
         if find(ui(), **{"content-desc": "kiosk-open-app"}):
             return True
-    return False
+    # The screen could not be read (see dialog_in_front): the kiosk's own screen staying in front after that many
+    # exits is that "open <app>" screen.
+    time.sleep(3)
+    return kiosk_home_in_front()
 
 
 def try_exit(mode, typed):
