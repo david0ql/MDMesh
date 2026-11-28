@@ -48,7 +48,9 @@ contraseña o desde la consola) se levanta únicamente lo que puso el quiosco.
 
 El vigilante (Android 7–10 y 16+) es el **servicio de pantalla del propio agente**, el mismo del soporte remoto
 (ADR 0012): Android le avisa en el instante en que se abre una ventana y, si es de una app que el quiosco mantiene
-cerrada, manda el equipo a Inicio (el quiosco). No hay sondeo ni hace falta «acceso de uso». En Android 16+ devuelve
+cerrada, manda el equipo a Inicio (el quiosco). No hace falta «acceso de uso». Como Android no siempre avisa
+(visto en emulador: una tarea ya abierta que vuelve al frente, y los primeros segundos tras reiniciar), el servicio
+además mira cada 0,6 s qué ventana está al frente, dentro del propio agente. En Android 16+ devuelve
 **cualquier** app que no esté permitida en el quiosco; en Android 7–10, los Ajustes (lo demás ya lo cierra lock task).
 Mientras hay un quiosco activo el servicio recibe los cambios de ventana de todas las apps, y solo lee el nombre del
 paquete; fuera del quiosco vuelve a escuchar solo a la interfaz del sistema.
