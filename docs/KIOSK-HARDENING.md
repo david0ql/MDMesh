@@ -372,19 +372,26 @@ Lectura de la tabla:
 ### Corridas estilo QR (vigilante por servicio de pantalla), 2026-11-27 noche
 
 La tabla de arriba es de la corrida con enrolamiento por cable y vigilante por acceso de uso. Con `QR_STYLE=1` (sin
-acceso de uso ni `WRITE_SECURE_SETTINGS`, primero sin el toque y luego con el toque simulado) se alcanzó a correr:
+acceso de uso ni `WRITE_SECURE_SETTINGS`; primero sin el toque y luego con el toque simulado), con el árbol final:
 
-| Versión | Resultado | Notas |
-|---|---|---|
-| Android 10 | 102 pasan, 0 fallan | Con el commit «guard also checks the window in front». Sin el toque: `needsAuthorization`, pantalla y franja de autorización, una app permitida abre Ajustes; con el toque: vuelve al quiosco. |
-| Android 16 | 102 pasan, 2 fallan | Mismo commit. Los 2 fallos: la pantalla de autorización tardó en aparecer (corregido después, sin repetir la corrida completa). Sin el toque: Ajustes abre por `am start` y desde una app permitida. |
-| Android 15 | 97 pasan, 5 fallan | Los 5 son de la herramienta: con el servicio de pantalla encendido `uiautomator dump` no describe el diálogo en primer plano. Comprobado a mano que el diálogo de salida aparece y que el ícono abre la app tras un inicio bloqueado (queda encima el aviso «app no disponible» de Android hasta cerrarlo). |
+| Versión | Resultado | Sin el toque | Con el toque |
+|---|---|---|---|
+| Android 10 | 102 pasan, 0 fallan | `needsAuthorization`; pantalla y franja de autorización al instante; `am start` de Ajustes no abre (lock task); una app permitida **abre Ajustes** | `guard`; la app que abre Ajustes vuelve al quiosco; resto de la matriz, salida con contraseña y reinicio pasan |
+| Android 16 | 104 pasan, 0 fallan | `needsAuthorization`; pantalla y franja al instante; barra cerrada; **Ajustes abre** por `am start` y desde una app permitida | `guard`; `am start` de Ajustes y la app permitida vuelven al quiosco; salida con contraseña correcta y reinicio pasan |
+| Android 15 | no repetida con el árbol final | no necesita toque (`lockTask`) | corrida anterior: 97/5, los 5 de la herramienta (`uiautomator dump` con el servicio de pantalla encendido) |
 
-**Sin validar en emulador:** los tres últimos cambios del agente (pedir la autorización en cuanto el quiosco sabe que
-falta, Enter confirma la contraseña de salida, y que el re-refuerzo no corra tras salir del quiosco: en la última
-corrida de Android 16 la salida con contraseña correcta falló por esa carrera, provocada por `uiautomator` al
-suspender el servicio) y el interruptor «Bloqueo nativo en Android 16+». Tampoco se probó en navegador el aviso
-«Falta autorización» ni su botón.
+Consola en Chromium (`scripts/kiosk-console-e2e.mjs --device … --expect-guard …`, Android 16): «Falta autorización en
+el teléfono» y su botón (el teléfono abre la pantalla guiada), 19/19; tras el toque, «Quiosco reforzado», 18/18.
+
+Soporte remoto dentro del quiosco en Android 16 (`scripts/remote-support-e2e.mjs --only ready,screen,control`): la
+sesión abre, el agente captura con su servicio de pantalla, se muestra el aviso y el toque del operador llega (7 de
+11). Las 4 que fallan dependen de abrir Ajustes en el teléfono, que dentro del quiosco se devuelve por diseño; las
+cifras de latencia (2,9 s) y de imágenes al desplazar (0,2 fps) salieron de esa misma secuencia y **no son
+concluyentes**: falta medir una sesión de soporte sobre una app permitida. Consecuencia a decidir: durante una sesión
+de soporte en un equipo en quiosco el operador tampoco puede abrir Ajustes.
+
+Un fallo real encontrado y corregido en esta ronda: tras reiniciar, un equipo ya autorizado se veía unos segundos como
+«sin autorizar», volvía a pedir el toque y dejaba Ajustes permitido hasta 5 minutos (Android 10 lo mostró).
 
 ### Solo en teléfono físico
 
