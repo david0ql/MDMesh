@@ -793,3 +793,11 @@ Android 13+ a static IP dropped the proxy; a network saved while the radio was s
 (Android 11); and "out of range" could not be told without a fresh scan (Android 9). Under a host load above 40 one
 earlier attempt lost the emulator's `system_server` (thread-suspend timeout) and the agent could not start before its
 ANR deadline until it was precompiled (`cmd package compile -m speed`); neither happened again below load 30.
+
+Closing run on the merged tree (2026-11-27, no emulator; own light stack started from existing images with this
+tree's WAR and web build, a device record as fixture): `roles-matrix-e2e.py` 19 permissions, 290 calls, 324/324 (now
+also mobile data, hardware and ports, app permissions, remote support, cancel a command, FRP defaults and Wi-Fi
+certificates); `audit-console-e2e.mjs` 56/56 (adds: no user answer carries a password hash or token, the retention
+panel stays hidden while the viewer's scope is unknown, the "Campo" column keeps a field name on one line, opening a
+role card does not stretch the others, one matrix row per permission the server checks). `UserSecretsJsonTest`
+guards the JSON of every answer that carries a user.
