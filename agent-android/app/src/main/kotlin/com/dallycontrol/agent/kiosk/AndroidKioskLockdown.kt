@@ -67,6 +67,8 @@ class AndroidKioskLockdown(
         if (state != prefs.getString(KEY_GUARD, null)) {
             prefs.edit().putString(KEY_GUARD, state).apply()
             events.record(EventType.KIOSK_GUARD, state)
+            // Tell the console now (the tap on the phone is not followed by any command that would).
+            runCatching { com.dallycontrol.core.sync.CheckInWorker.scheduleNow(context) }
         }
         if (soft) {
             // Without a guard the status bar stays closed whatever the policy says: its gear leads to Settings.
@@ -371,7 +373,12 @@ internal object KioskForegroundGuard {
         @Suppress("DEPRECATION")
         val op = android.app.AppOpsManager.OPSTR_GET_USAGE_STATS
         val mode = ops.checkOpNoThrow(op, android.os.Process.myUid(), context.packageName)
-        mode == android.app.AppOpsManager.MODE_ALLOWED
+        // "Default" means "as the permission says" (an installer may have granted it).
+        mode == android.app.AppOpsManager.MODE_ALLOWED || (
+            mode == android.app.AppOpsManager.MODE_DEFAULT &&
+                context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            )
     }.getOrDefault(false)
 
     @Synchronized

@@ -91,6 +91,9 @@ class KioskLauncherActivity : ComponentActivity() {
         // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
         // handled by the flow collector, not here.
         val p = active ?: return
+        // The "authorisation pending" strip follows the guard's state (it changes after the kiosk was drawn).
+        val guard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
+        if (guard != shownGuard && !(p.mode == "single" && p.pinPackage != null)) setContentView(launcherGrid(p))
         if (askAuthorisation()) return // the guided step is up; this screen resumes again when it closes
         if (p.mode == "single") {
             if (paused) return // waiting for the user's tap (or the operator), no automatic relaunch
@@ -323,7 +326,11 @@ class KioskLauncherActivity : ComponentActivity() {
         }
     }
 
+    /** The guard state the kiosk home was last drawn with. */
+    private var shownGuard: String? = null
+
     private fun launcherGrid(p: KioskApplyPayload): View {
+        shownGuard = com.dallycontrol.agent.kiosk.AndroidKioskLockdown.guardState(this)
         val bg = parseColor(p.theme.backgroundColor, INK)
         val fg = parseColor(p.theme.textColor, TEXT)
         val cell = iconCellPx(p.theme.iconSize)

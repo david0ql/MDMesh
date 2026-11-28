@@ -567,7 +567,7 @@ def app_opens_settings():
 def t_qr_style(mode):
     """A phone enrolled by QR: nothing adb-enroll.sh grants. First without the one tap, then with it."""
     sh(f"pm revoke {A.pkg} android.permission.WRITE_SECURE_SETTINGS")
-    sh(f"appops set {A.pkg} GET_USAGE_STATS default")
+    sh(f"appops set {A.pkg} GET_USAGE_STATS ignore")  # (adb install -g grants the permission behind "default")
     set_touch(False)
     start = int(time.time() * 1000) - 3000
     run("kiosk.exit")
